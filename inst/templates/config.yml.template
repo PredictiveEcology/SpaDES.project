@@ -1,0 +1,15 @@
+default:
+  batchmode: false
+  cachedb: "sqlite"
+  googleuser: ""
+  paths:
+    cachedir: "cache"
+    scratchdir: "/tmp/scratch"
+  params:
+    endtime: 10
+  plot: true
+  slackchannel: ""
+
+production:
+  batchmode: true
+  plot: false

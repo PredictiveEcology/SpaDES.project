@@ -1,0 +1,32 @@
+Package: SpaDES.project
+Type: Package
+Title: Project Templates Using 'SpaDES'
+Description: Quickly setup 'SpaDES' project directories and add modules using templates.
+URL:
+    https://spades-project.predictiveecology.org/,
+    https://github.com/PredictiveEcology/SpaDES.project
+Version: 0.0.1
+Authors@R: c(
+    person("Alex M", "Chubaty", email = "alex.chubaty@gmail.com",
+    role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7146-8135"))
+    )
+Depends:
+    R (>= 3.6)
+Imports:
+    methods,
+    Require,
+    SpaDES.core,
+    whisker
+Suggests:
+    covr,
+    knitr,
+    rmarkdown,
+    rstudioapi,
+    testthat (>= 1.0.2)
+Encoding: UTF-8
+Language: en-CA
+License: GPL-3
+VignetteBuilder: knitr, rmarkdown
+BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
+ByteCompile: yes
+RoxygenNote: 7.1.1
