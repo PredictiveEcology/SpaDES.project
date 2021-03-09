@@ -1,5 +1,5 @@
 #' Project templates using \code{SpaDES}
 #'
 #' @import methods
-#' @rdname SpaDES.core-package
+#' @rdname SpaDES.project-package
 "_PACKAGE"
