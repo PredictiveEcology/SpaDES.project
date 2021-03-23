@@ -19,5 +19,5 @@ simOutPreamble <- Cache(simInitAndSpades,
                         #useCache = "overwrite", ## TODO: remove this workaround
                         useCloud = useCloudCache,
                         cloudFolderID = cloudCacheFolderID)
-
-saveRDS(simOutPreamble$ml, file.path(Paths$outputPath, "ml_preamble.rds")) ## TODO: use `qs::qsave()`
+fsimOutPreamble <- file.path(Paths$outputPath, "ml_preamble.rds")
+saveSimList(simOutPreamble$ml, fsimOutPreamble, fileBackend = 2)

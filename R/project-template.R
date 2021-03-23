@@ -122,10 +122,10 @@ setMethod(
       fnames <- append(fnames, list(
         file.path(nestedPath, "00-global.R"),
         file.path(nestedPath, "01-init.R"),
-        file.path(nestedPath, "02-packages.R"),
-        file.path(nestedPath, "03-paths.R"),
+        file.path(nestedPath, "02-paths.R"),
+        file.path(nestedPath, "03-packages.R"),
         file.path(nestedPath, "04-options.R"),
-        file.path(nestedPath, "05-objects.R"),
+        file.path(nestedPath, "05-google-ids.R"),
         file.path(nestedPath, "06-studyArea.R"),
         file.path(nestedPath, "07-dataPrep.R"),
         file.path(nestedPath, "08-pre-sim.R"),
@@ -135,10 +135,10 @@ setMethod(
 
       projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-00-global.R.template"))
       projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-01-init.R.template"))
-      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-02-packages.R.template"))
-      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-03-paths.R.template"))
+      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-02-paths.R.template"))
+      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-03-packages.R.template"))
       projectTemplates[[6]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-04-options.R.template"))
-      projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-05-objects.R.template"))
+      projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-05-google-ids.R.template"))
       projectTemplates[[8]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-06-studyArea.R.template"))
       projectTemplates[[9]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-07-dataPrep.R.template"))
       projectTemplates[[10]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-08-pre-sim.R.template"))
