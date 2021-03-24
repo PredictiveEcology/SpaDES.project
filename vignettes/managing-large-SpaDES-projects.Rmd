@@ -1,0 +1,309 @@
+---
+title: "Managing large SpaDES projects"
+author: "Alex M. Chubaty"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Managing large SpaDES projects}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+#library("SpaDES.project")
+```
+
+*This vignette expands upon blog posts originally posted on the Predictive Ecology website^[1] ^[2].*
+
+[1]: <http://predictiveecology.org/2018/06/14/managing-large-spades-projects.html>
+[2]: <http://predictiveecology.org/2018/08/16/working-with-modules-and-projects.html>
+
+## Project directory structure
+
+The simplest structure is to use a single directory for all project-related components:
+
+```
+myProject/
+|_  cache/            # use this for your simulation cachePath
+|_  inputs/           # use this for your simulation inputPath
+|_  manuscripts/
+|_  modules/          # use this for your simulation modulePath
+    |_  module1/
+    |_  module2/
+    |_  module3/
+    |_  module4/
+    |_  module5/
+|_  outputs/          # use this for your simulation outputPath
+|_  packages/         # project-specific package library
+...
+```
+
+Most SpaDES users will get modules via `downloadModule()`, and should save these modules in the project's `modules/` sub-directory.
+New modules should also be created in this directory.
+Remember that each module should be self-contained, and that data are typically stored in the module's `data/` sub-directory (though, see below re: `inputs/`).
+
+### Filepaths
+
+- use relative file paths _within_ the main project directory
+
+- paths external to the project, such as `/tmp` and `/scratch`, may not be globally available, so avoid hardcoding these:
+    - use per-user and per-machine configurations, or setup symlinks to these location that point to their system-specific locations
+    - e.g., `myProject/scratch --> /scratch/myUser/myProject/`
+    - e.g., use `file.path(tempdir(), "myProject")` instead of `/tmp/myProject` to ensure cross-platform availability e.g., on Windows
+
+- do _not_ use `getwd()` nor `setwd()` within scripts, modules, etc.
+
+### Project caches (`cache/`)
+
+- why use cache
+- using cache subdirs / separate caches per stage in workflow
+- mention using alt cache db backends
+- if using `git`, make sure this directory is listed in `.gitignore`
+
+### Simulation inputs (`inputs/`)
+
+- why this preferred over module cache directories (reduce duplication of common data objects)
+- if using `git`, make sure this directory is listed in `.gitignore`
+
+### Simulation outputs (`outputs/`)
+
+- specify unique output subdirectory for each run/rep (these are typically scenario-specific)
+- if using `git`, make sure this directory is listed in `.gitignore`
+
+### Standalone package library (`packages/`)
+
+- don't muck with system packages / interfere with other projects
+- how to configure:
+    - using `Require`
+    - 'manually' via `.Rprofile`
+
+## Control scripts
+
+Although individual modules will be doing most of the heavy lifting during simulations, these modules still need to be initialized and parameterized correctly.
+Smaller projects may simply rely on a single 'global' control script (e.g., `global.R`) to run the simulations.
+However, larger, more complex, projects benefit from splitting up the workflow across a series of control scripts, which should be sequenced and grouped based on their function.
+This allows each 'stage' of the workflow to e.g., be cached or independently executed.
+For example, a project directory may contain the following control scripts:
+
+```
+|_ 00-global.R       # the main control script; source()'s the others
+|_ 01-init.R         # parameter initialization
+|_ 02-paths.R        # define and create paths
+|_ 03-packages.R     # load/declare packages used
+|_ 04-options.R      # set R and package options
+|_ 05-runSim.R       # initialize and run the simulation
+|_ 06-postprocessing.R # post-simulation analyses/results summaries
+...                    # other scripts
+```
+
+In addition to these R scripts, other scripts (e.g., `bash`, `slurm`) may be used to setup batch runs and/or run simulations on HPC clusters. 
+
+### Main script
+
+The primary (global, a.k.a. main) script defines the (usually linear) flow of the other scripts and should be kept as clutter-free as possible.
+The simplest approach to structuring your workflow is to assume the user will run the main script interactively (e.g., line-by-line) or from the command line (e.g., `Rscript 00-global.R`).
+In order to facilitate running this global script for use with different simulation scenarios, on different machines, by different users, as well as being able to easily reuse scripts with different, but related projects, it's important to reduce idiosyncracies in these scripts by putting user-configurable components into separate config or options files.
+To ensure these can quickly be rerun, it's critical to stash intermediate results so that long or intensive computations don't need to be rerun each time.
+
+### Project configuration files
+
+This workflow recognizes that there are frequently different types of configurable projects parameters.
+- Some are intended to be set by the user for their machine (e.g., scratch path, or number of CPU threads or amount of RAM to use).
+- Some are set using different values depending on the desired scenario or replicate being run. These may be passed to individual modules, but controlled at the top level of the simulation control scripts.
+- Some are package- or module-level options that differ from the defaults, or are explicitly being defined to reduce ambiguity and increase transparency (both of which help reduce coding errors, and speed up debugging).
+
+It is useful to try to group these configurable parameters based on when/how they are used in the simulation, and to keep them organized (e.g., alphabetized) so it's easy to scan the list of parameters and identify their corresponding values.
+Thus, there are two (or optionally, three) main places where these values may be set (and thus three places where you should check if you are updating/changing parameters or their values).
+
+The first place is in `01-init.R` (and optionally, some these values may additionally read in from a config file using e.g., the `config` package).
+Parameter values are set here early on and may use those objects later in various places (including e.g., `04-options.R`).
+When running simulations, it's typical that a user would be running multiple concurrent simulations and would set a configuration value for the first simulation (A), and want to change the value for the next simulation (B).
+A problem arises where if the first simulation (A) hasn't gotten far enough along in the scripts to already have read these values into memory, simulation A could read in the updated value from disk intended for simulation B.
+Thus, all config values coming from a file (being read from disk) need to be read in as early as possible so if the file changes it won't interfere with in-progress (or queued future) simulations (i.e., reduce race conditions).
+
+To mitigate this, it is useful to encode run information, including key parameter values, in the simulation `runName`, so that in can be extracted during the simulation.
+E.g., for `runName = "AOU_CCSM4_RCP85_res250_rep01"`:
+- `AOU` specifies the study area (one of `AOU` or `ROF`);
+- `CCSM4_RCP85` specifies the climate scenario;
+- `res250` is the pixel resolution; and
+- `rep01` specifies the replicate/run/realization number.
+Thus, the construction of the `runName` can be done by a high-level control script rather than having the user manually edit a configuration file, which is especially useful when doing batch runs.
+
+(An alternative approach is to use separate "config" or "param" files for each set of simulations, which for complex projects with multiple defined runs could mean tens or hundreds of nearly identical text files needing to be maintained and updated.
+Thus, adding a new config option (or removing one) means editing and updating _all_ of those files.
+Though this approach has other merits, this is a very large drawback.)
+
+As alluded to above, another place where configuration parameters are set is in `04-options.R`.
+This is a single place where all package-level options are set.
+They should be listed alphabetically, so that it's easy for a human to read, find, and modify values.
+Where these values are not hardcoded to a fixed value (e.g., `Ncpus = 8L`), they should be set using variables defined in `01-init.R` (e.g., `Ncpus = ncores`, where `ncores` was previously defined as `parallel::detectCores() / 2`)
+
+#### Replication and scenarios
+
+The simplest way to provide information about replicate or run id, as well as scenarios, is to provide them as part of the simulation run name (as described above).
+
+The run name (and other metadata about the simulation) can also be inserted into the `simList` as a 'dot-object':
+
+```{r, eval = FALSE}
+objects4sim <-  list(
+  ...,
+  .runName = runName ## runName is a character string
+)
+
+...
+
+mySim <- simInit(..., objects = objects4sim)
+```
+
+Simulation outputs should be saved in run-specific output directories, thus we suggest using `runName` as part of the simulations' output path.
+This also helps the user when browsing the outputs in the filesystem when examining results.
+
+#### Per-user and per-machine config
+
+Lorem ipsum ...
+
+- clearly define which `01-init.R` vars are 'global' and which are intended to be changed by the user
+- `config` package + `config.yml`?
+
+### Save or cache intermediate results
+
+For each computational 'stage' of a project workflow, try to ensure that (at a minimum) intermediate results are saved to a file locally.
+This can be done using the `Cache()` mechanisms build provided the `reproducible` and `SpaDES.core` packages, and can also involve additional "manual" saving of objects using `saveRDS()` or `qs::qsave()`.
+These objects can be scripted to be loaded on subsequent runs.
+
+To quickly get started with the project on a new machine, one can take advantage of cloud storage provided by Google Drive, and upload/download these saved objects using `googledrive::drive_upload()` and `googledrive::drive_download`.
+Examples of this use are provided in the advanced project template scripts.
+
+## Version control
+
+### Simple module versioning
+
+Every module has a version number in its metadata.
+To download a specific version of a module via `downloadModule()`, specify the `version` argument.
+This should be included in your project's main script / Rmd file.
+*Every project should be explicit about which versions of the modules it is using.*
+
+### Using git
+
+More advanced users and developers may choose to use more recent or in-development versions of the modules instead of the versions in the `SpaDES-modules` repository (and accessed via `downloadModule()`).
+Many `SpaDES` module authors/developers use GitHub for version control, so we can get tagged module versions as well as in-development versions of the code.
+To use version-controlled `SpaDES` modules in your project, we use [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules).
+
+Here, we assume that you are familiar with git (and GitHub) and are also using it for version control of your own project.
+
+```
+myProject/            # a version controlled git repo
+|_  .git/
+|_  cache/            # should be .gitignore'd
+|_  inputs/           # should be .gitignore'd (selectively)
+|_  manuscripts/
+|_  modules/
+    |_  module1/      # can be a git submodule
+    |_  module2/      # can be a git submodule
+    |_  module3/      # can be a git submodule
+    |_  module4/      # can be a git submodule
+    |_  module5/      # can be a git submodule
+|_  outputs/          # should be .gitignore'd
+...
+```
+
+**Remember that large data files should not managed using `git`.**
+Each module's data directory should have it's own `.gitignore` file.
+These data files should be easily retrieved via download or created by the module.
+*This also means you should add `inputs/`, `outputs/`, and `cache/` to your project directory's `.gitignore` file!*
+
+#### Using git submodules
+
+We will add each of the `SpaDES` modules to our project as git submodules via the command line (but [GitKraken does support git submodules](https://support.gitkraken.com/working-with-repositories/submodules)).
+(You'll need to delete the `moduleN/` sub-directories within `modules`.)
+
+```
+cd ~/Documents/myProject/modules
+git submodule add https://github.com/USERNAMEA/module1
+git submodule add https://github.com/USERNAMEA/module2
+git submodule add https://github.com/USERNAMEB/module3
+git submodule add https://github.com/USERNAMEB/module4
+git submodule add https://github.com/USERNAMEC/module5
+git push origin master
+```
+
+Now our directory structure looks like this:
+
+```
+myProject/            # (https://github.com/MYUSERNAME/myProject)
+|_  .git/
+|_  cache/            # should be .gitignore'd
+|_  inputs/           # should be .gitignore'd (selectively)
+|_  manuscripts/
+|_  modules/
+    |_  module1/      # git submodule (https://github.com/USERNAMEA/module1)
+    |_  module2/      # git submodule (https://github.com/USERNAMEA/module2)
+    |_  module3/      # git submodule (https://github.com/USERNAMEB/module3)
+    |_  module4/      # git submodule (https://github.com/USERNAMEB/module4)
+    |_  module5/      # git submodule (https://github.com/USERNAMEC/module5)
+|_  outputs/          # should be .gitignore'd
+...
+```
+
+In the above example, we are working with 6 different GitHub repositories, one for each `SpaDES` module plus our `myProject` repo.
+
+Now, we manage each of the `SpaDES` modules (git submodules) independently.
+Because each of these submodules simply link back to another git repository, we can make changes upstream in the corresponding repo.
+We then need to pull in these upstream changes to specific modules as follows:
+
+```
+cd ~/Documents/myProject/modules
+git submodule update --remote module1
+```
+
+If we make changes to modules locally and want to push them to the remote we can do so using:
+
+```
+cd ~/Documents/myProject/modules/module1
+git push
+```
+
+This will push only the (committed) changes made to `module1`.
+
+## Parent and child modules
+
+Another option (as a developer) to make working with multiple `SpaDES` modules easier, is to create a parent module that specifies a group of modules as its children.
+In this way, a user only needs to call `downloadModule()` or `simInit()` specifying the parent module name.
+
+Even though a parent (and grandparent, etc.) module can be thought hierarchically above child modules, remember that from a directory structure standpoint, all modules (child or parent) are at the same level:
+
+```
+myProject/            # a version controlled git repo
+|_  .git/
+|_  cache/            # should be .gitignore'd
+|_  inputs/           # should be .gitignore'd (selectively)
+|_  manuscripts/
+|_  modules/
+    |_  parent1/      # with children: modules 1-5
+    |_  module1/
+    |_  module2/
+    |_  module3/
+    |_  module4/
+    |_  module5/
+|_  outputs/          # should be .gitignore'd
+...
+```
+
+Here, all of these modules (including the parent) can be git modules, and thus managed independently.
+
+## Summary
+
+The take away here is that when it comes to basic project organization, use a single directory for the project, and organize `SpaDES` modules within a single sub-directory therein.
+If you're using `git` version control (and you really should be using version control!) then `git` submodules offer an elegant way to manage dependencies.
+
+## Other resources
+
+- Using alternative cache backends [[link](https://reproducible.predictiveecology.org/articles/Cache-using-postgresql.html)]
