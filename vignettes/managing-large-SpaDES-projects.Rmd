@@ -85,6 +85,14 @@ Remember that each module should be self-contained, and that data are typically 
     - using `Require`
     - 'manually' via `.Rprofile`
 
+```{r setup-packages, eval = FALSE}
+drat:::add("PredictiveEcology")
+
+if (!require("Require")) {install.packages("Require"); library(Require)}
+Require::setup("packages")
+Require(c("SpaDES", "SpaDES.experiment", "raster", "LandR", "dplyr", "data.table", "amc"))
+```
+
 ## Control scripts
 
 Although individual modules will be doing most of the heavy lifting during simulations, these modules still need to be initialized and parameterized correctly.
