@@ -19,7 +19,7 @@ dfT <- cbind(c("lower", "upper"), t(data.frame(lower, upper)))
 message("Upper and Lower parameter bounds are:")
 Require:::messageDF(dfT)
 
-cores <- parallel::detectCores() / 2
+cores <- rep("localhost", parallel::detectCores() / 2)
 
 spreadFitParams <- list(
   fireSense_SpreadFit = list(
