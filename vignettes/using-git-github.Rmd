@@ -22,7 +22,13 @@ Unlike 'file-based' versioning you may be familiar with using Dropbox or Google 
 It is especially powerful for collaborative projects, allowing easy merging of changed files by multiple authors.
 While it may seem a bit daunting at first, like any other professional tool, a small investment learning to use this system pays dividends down the road.
 
-## Desktop `git` clients
+## Installation
+
+### Commandline tools
+
+See <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git> for instructions for your operating system.
+
+### Desktop clients
 
 Getting started with `git` is relatively easy using a graphical user interface (GUI), like the one [built into Rstudio](https://support.rstudio.com/hc/en-us/articles/200532077-Version-Control-with-Git-and-SVN).
 However, to really get going with `git` I recommend [GitKraken](https://gitkraken.com) -- an extremely powerful and user-friendly `git` GUI.
