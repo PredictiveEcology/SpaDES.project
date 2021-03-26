@@ -1,0 +1,183 @@
+---
+title: "Using git for project development"
+author: "Alex M. Chubaty"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using git for project development}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## What is `git`?
+
+Git is a version control system used extensively for software development.
+Unlike 'file-based' versioning you may be familiar with using Dropbox or Google Docs, `git` provides line-by-line (character-by-character) versioning for text files.
+It is especially powerful for collaborative projects, allowing easy merging of changed files by multiple authors.
+While it may seem a bit daunting at first, like any other professional tool, a small investment learning to use this system pays dividends down the road.
+
+## Installation
+
+### Commandline tools
+
+See <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git> for instructions for your operating system.
+
+### Desktop clients
+
+Getting started with `git` is relatively easy using a graphical user interface (GUI), like the one [built into Rstudio](https://support.rstudio.com/hc/en-us/articles/200532077-Version-Control-with-Git-and-SVN).
+However, to really get going with `git` I recommend [GitKraken](https://gitkraken.com) -- an extremely powerful and user-friendly `git` GUI.
+
+There are several excellent resources to help you get started with `git`, GitHub, and GitKraken:
+
+- <https://git-scm.com/book/en/v2>
+- <https://docs.github.com/en/github/getting-started-with-github>
+- <https://www.gitkraken.com/learn/git/tutorials>
+
+## Getting started with GitHub
+
+Setup a PAT following [these instructions](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token), then edit `~/.Renviron` to include the following:
+
+```
+GITHUB_PAT=xxxxxxxxxxxxxxxx
+```
+
+## Additonal commandline setup
+
+Set your name and email for commits:
+
+```
+git config --global user.name "YOURNAME"
+git config --global user.email "YOUREMAIL@EMAIL.COM"
+```
+
+Set default editor for commit messages, etc. to use `nano` instead of `vi`:
+
+```
+git config --global core.editor "nano"
+```
+
+Use ssh instead of https with GitHub:
+
+```
+git config --global url.ssh://git@github.com/.insteadOf https://github.com/
+```
+
+## Development workflow
+
+Git workflows are branch-based.
+The `main` branch is the primary branch from which others are derived, and contains the code of the latest release.
+The `development` branch contains the latest contributions and other code that will appear in the next release.
+Other branches can be created as needed to implement features, fix bugs, or try out new algorithms, before being merged into `development` (and eventually into `main`).
+
+Before merging branches, it is useful to create a [pull request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) (PR) via GitHub, to allow for code review as well as trigger any automated tests and code checks.
+
+## Git submodules
+
+Another vignette discussed how to manage large SpaDES projects, and suggested the following project directory structure:
+
+```
+myProject/            # a version controlled git repo
+  |_  .git/
+  |_  cache/            # should be .gitignore'd
+  |_  inputs/           # should be .gitignore'd (selectively)
+  |_  manuscripts/
+  |_  modules/
+    |_  module1/      # can be a git submodule
+    |_  module2/      # can be a git submodule
+    |_  module3/      # can be a git submodule
+    |_  module4/      # can be a git submodule
+    |_  module5/      # can be a git submodule
+  |_  outputs/          # should be .gitignore'd
+  ...
+```
+
+The layout of a project directory is somewhat flexible, but this approach works especially well if you're a module developer using [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules) for each of your module subdirectories.
+And each module really should be its own git repository:
+
+- people don't need to pull everything in just to work on a single module;
+- makes it possible to use git submodules for [Rstudio] projects;
+- easy to setup additional `SpaDES` module repositories.
+
+However, note that you cannot nest a git repository inside another git repository.
+So if you are using git for your project directory, you cannot use `SpaDES` modules as repos inside that project directory (this is what git submodules are for).
+**If git submodules aren't your thing, then you will need to keep your project repo separate from your module repo!**
+
+```
+modules/                # use this for your simulation modulePath
+  |_  module1/
+  |_  module2/
+  |_  module3/
+  |_  module4/
+  |_  module5/
+myProject/
+  |_  cache/            # use this for your simulation cachePath
+  |_  inputs/           # use this for your simulation inputPath
+  |_  manuscripts/
+  |_  outputs/          # use this for your simulation outputPath
+  |_ packages/
+  ...
+```
+
+Alternatively, your `myProject/` directory could be a subdirectory of `modules/`.
+
+```
+modules/              # use this for your simulation modulePath
+  |_  module1/
+  |_  module2/
+  |_  module3/
+  |_  module4/
+  |_  module5/
+
+myProject/
+  |_  cache/          # use this for your simulation cachePath
+  |_  inputs/         # use this for your simulation inputPath
+  |_  manuscripts/
+  |_  outputs/        # use this for your simulation outputPath
+  |_  packages/
+  ...
+```
+
+These allow you to have each module and project be a git repository, and if you're worried about storage space it ensures you only keep one copy of a module no matter how many projects it's used with.
+However, there can e several drawbacks to this approach.
+First off, it is inconsistent with the way Rstudio projects work, because not all project-related files are in the same directory.
+This means you need to take extra care to ensure that you set your module path using a *relative* file path (*e.g.*, `../modules`), and you'll need to take even more care to update this path if you move the `modules/` directory or are sharing your project code (because your collaborator may store their modules in a different location).
+Second, if you are working with multiple projects and each one uses the same module(s) but different versions, it's going to be extremely inconvenient to have to manually reset them when switching projects.
+As with package libraries, it's best practice to keep projects' modules isolated (i.e., standalone) as much as possible.
+
+In the end, which approach you use will depend on your level of git-savviness (and that of your collaborators), and how comfortable you are using git submodules.
+
+### Cloning a project with submodules
+
+```
+git clone --recurse-submodules -j8 git://github.com/foo/bar.git
+```
+
+### Adding submodules to a project
+
+```
+git submodule add https://github.com/USERNAME/REPO <path/to/submodule>
+```
+
+### Updating submodules
+
+Within a project repository, git tracks specific submodule commits, not their branches.
+So switching to a submodule directory and running git pull will likely warn you that you are in a detached `HEAD` state.
+Before making changes to code in a submodule directory, be sure to switch to the branch you want to use using `git checkout <branch-name>`.
+
+To get your latest updates on another machine, you need to update the project repo and the submodules:
+
+```
+git pull              ## updates the project repo
+git submodule update  ## updates submodules based on project repo changes
+```
+
+## Additional resources
+
+- <https://github.github.com/training-kit/downloads/github-git-cheat-sheet.pdf>
+- <https://www.gitkraken.com/resources/gitkraken-cheat-sheet>

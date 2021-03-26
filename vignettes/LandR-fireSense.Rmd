@@ -1,0 +1,219 @@
+---
+title: "Working with LandR-fireSense"
+author: "Alex M. Chubaty and Ian M. S. Eddy"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Working with LandR-fireSense}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = TRUE,
+  eval = FALSE
+)
+```
+
+## Getting started with LandR and fireSense
+
+This guide provides a template project setup for using the LandR forest succession model with the FireSense climate-sensitive fire model. There are several components you, as the project user/developer, will need to develop and customize for your project, which will be noted below.
+
+Please ensure you have reviewed the following, and have completed the prerequisite installations of R, RStudio, `SpaDES`, GIS software, and `git`.
+
+<!-- TODO: ensure these are linked correctly -->
+
+1.  [R/SpaDES installation](getting-started)
+2.  [Managing large SpaDES projects](managing-large-SpaDES-projects)
+3.  [Using git and GitHub](using-git-github)
+
+## Create new project
+
+1.  Start by creating a new git repository on GitHub (see <https://docs.github.com/en/github/getting-started-with-github/create-a-repo>) which will host your project.
+
+2.  Clone your new repo to your local machine:
+
+        git clone https://github.com/USERNAME/MYREPO /path/to/my/projects/myNewProject
+
+3.  Create a new SpaDES project at this location:
+
+    ```{r setup}
+    library("SpaDES.project")
+
+    newProject("myNewProject", "path/to/my/projects", type = "LandR-fireSense", open = FALSE)
+    ```
+
+4.  Open your project in Rstudio (see <https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects>).
+
+## Ensure packages installed to project library
+
+It's best to use a standalone package library, and we highly recommend using one here.
+
+Check that the project's `packages/` subdirectory is being used:
+
+```{r check-libpaths}
+.libPaths()
+```
+
+Ensure some key packages are installed (remaining packages used by modules will be installed on first run).
+
+```{r packages}
+install.packages("Require")
+
+library(Require)
+Require("PredictiveEcology/climateData")
+```
+
+## Add LandR and fireSense modules
+
+We strongly recommend using git for version control, and using git submodules to manage individual project modules.
+
+    cd /path/to/my/projects/myNewProject
+
+    ## add LandR modules
+    git submodule add https://github.com/PredictiveEcology/Biomass_borealDataPrep modules/Biomass_borealDataPrep
+    git submodule add https://github.com/PredictiveEcology/Biomass_core modules/Biomass_core
+    git submodule add https://github.com/PredictiveEcology/Biomass_regeneration modules/Biomass_regeneration
+    git submodule add https://github.com/PredictiveEcology/Biomass_speciesData modules/Biomass_speciesData
+
+    ## add fireSense modules
+    git submodule add https://github.com/PredictiveEcology/fireSense modules/fireSense
+    git submodule add https://github.com/PredictiveEcology/fireSense_dataPrepFit modules/fireSense_dataPrepFit
+    git submodule add https://github.com/PredictiveEcology/fireSense_dataPrepPredict modules/fireSense_dataPrepPredict
+    git submodule add https://github.com/PredictiveEcology/fireSense_IgnitionFit modules/fireSense_IgnitionFit
+    git submodule add https://github.com/PredictiveEcology/fireSense_IgnitionPredict modules/fireSense_IgnitionPredict
+    git submodule add https://github.com/PredictiveEcology/fireSense_EscapeFit modules/fireSense_EscapeFit
+    git submodule add https://github.com/PredictiveEcology/fireSense_EscapePredict modules/fireSense_EscapePredict
+    git submodule add https://github.com/PredictiveEcology/fireSense_SpreadFit modules/fireSense_SpreadFit
+    git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict modules/fireSense_SpreadPredict
+
+Optionally, you can add branch info for each of the submodules by editing the `.gitmodules` file and running `git submodule sync`.
+
+*NOTE:* Alternatively, each of these modules can be fetched using `SpaDES.install::getModule()`, which will download the latest versions. However, this approach makes it harder to update modules in the future.
+
+# Create data prep module for your study area
+
+```{r new-studyArea-module}
+newModule("myStudyArea_dataPrep", path = "modules")
+```
+
+At a minimum, this module needs to create the following objects to be passed to the LandR and fireSense data prep modules:
+
+      outputObjects = bindrows(
+        createsOutput("historicalClimateRasters", objectClass = "list",
+                      desc = "list of a single raster stack - historical MDC calculated from ClimateNA data"),
+        createsOutput("projectedClimateRasters", objectClass = "list",
+                      desc = "list of a single raster stack - projected MDC calculated from ClimateNA data"),
+        createsOutput("rasterToMatch", objectClass = "RasterLayer",
+                      desc = "template raster"),
+        createsOutput("rasterToMatchLarge", objectClass = "RasterLayer",
+                      desc = "template raster for larger area"),
+        createsOutput("rasterToMatchReporting", objectClass = "RasterLayer",
+                      desc = "template raster for reporting area"),
+        createsOutput("sppColorVect", objectClass = "character",
+                      desc = "species colours for plotting"),
+        createsOutput("sppEquiv", objectClass = "character",
+                      desc = "table of LandR species names equivalencies"),
+        createsOutput("sppEquivCol", objectClass = "character",
+                      desc = "name of column to use in sppEquiv"),
+        createsOutput("standAgeMap2011", objectClass = "RasterLayer",
+                      desc = "time since disturbance raster for year 2011"),
+        createsOutput("studyArea", objectClass = "SpatialPolygonsDataFrame",
+                      desc = "study area used for simulation (buffered to mitigate edge effects)"),
+        createsOutput("studyAreaLarge", objectClass = "SpatialPolygonsDataFrame",
+                      desc = "study area used for module parameterization (buffered)"),
+        createsOutput("studyAreaReporting", objectClass = "SpatialPolygonsDataFrame",
+                      desc = "study area used for reporting/post-processing")
+      )
+
+For a concrete example of a study area module used for the Western Boreal Initiative (WBI), see <https://github.com/PredictiveEcology/WBI_dataPrep_studyArea/>.
+
+# Climate data preparation
+
+We have used ClimateNA (<http://climatena.ca/>) to downscale monthly climate data to get historic and future projected monthly drought code (MDC) rasters for our study areas.
+Unfortunately, ClimateNA does not currently have a scriptable programming interface, and these climate layers must be assembled manually using the ClimateNA point-and-click graphical tool.
+
+1.  Download and install the ClimateNA software (Windows only).
+
+    a.  Go to <http://climatebc.ca/downloads/download.html> and register your email.
+        You will receive a confirmation email containing a link to download the latest version.
+
+    b.  Download and extract the zip file from the link in the email.
+        This extracts the standalone program and its files; it does not 'install' the program in the traditional sense.
+
+    c.  Windows security restrictions may prevent you from running the program.
+        Right click the executable file and go to 'Properties'.
+        Check the 'Unblock' box under the 'Security' heading, and 'Apply' the settings.
+
+        ![](images/ClimateNA-unblock.png)
+
+2.  Download a suitable digital elevation model (DEM) that covers your study area.
+    We have used the [USGS GTOPO30 product](https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-30-arc-second-elevation-gtopo30?qt-science_center_objects=0#qt-science_center_objects) to produce 1 or 3 arc minute DEMs.
+    
+    a.  Use `climateData::makeClimateDEM()` to prepare the DEM for your study area.
+
+3.  Use ClimateNA to fetch monthly historic (1991-2019) and projected data.
+
+    a.  The interface is split into two parts: "Single Location" and "Multi-location" panes.
+        We will be using the multi-location panes, so ignore the settings in the single location panes.
+        
+        ![](images/ClimateNA-UI.png)
+    
+    b.  In the first dropdown in the multi-location pane, select 'Historical Time Series'.
+    
+    c.  In the second dropdown, select 'Monthly variables'.
+        You will be prompted to supply start and end years (for fireSense we are using 1991-2019).
+        *NOTE:* historical data will take a long time to fetch and process, but the process can be resumed from which ever year was in progress when the download was interrupted.
+       
+    d.  Next, click the 'Select input file' button and find the `.asc` DEM raster file for your study area.
+        Make sure you select 'asc' in the file selection pane.
+
+    e.  Next, click on the 'Select output file' box to choose a save location for the processed data files.
+        *NOTE:* the resulting data files might use several gigabytes to hundreds of gigabytes in disk space, depending on the date range and geographic extent of your study area.
+        
+    f. Click 'Start TS' to begin.
+       It may take several days depending on the date range and geographic extent of your study area.
+       
+    g.  Repeat the steps above for 'Future Time Series'.
+        You will be asked to select a climate model from the dropdown list (for fireSense we are using CCSM4 RCP 4.5 and 8.5).
+
+    h. (Optional) After downloading all the climate data, you may wish to upload to a cloud-accessible location (e.g., Google Drive) to make it easy for collaborators to access the raw files if needed.
+
+4.  Create raster maps of MDC for use with fireSense:
+
+    a.  Use `climateData::makeMDC()` to create the MDC rasters.
+    
+    b.  Upload these to Google Drive (make note of the Google file ids) for use with `prepInputs()` in your study area data prep module.
+    
+# Project script configuration
+
+0.  The main project script is `00-global.R`.
+    All subsequent scripts are `source`d from this file.
+
+1.  Set user (or machine) specific options in `config.yml`, such as cache path, cache type, Google account info, etc.
+
+2.  Additional  user options can be added to the config file, just remember to assign these values in `01-init.R`, even if they aren't used until later scripts.
+
+3.  Simulation paths (e.g., those used by modules) are defined in `02-paths.R`.
+    Use relative paths only.
+    Different cache paths may be specified for finer control.
+
+4.  Any additional packages used can be specified in `03-packages.R`.
+
+5.  Package options are set in `04-options.R`.
+    User-specific options should not be defined here (set these in `config.yml`).
+
+6.  The Google Drive file ids defined in `05-google-ids.R` will be blank to start with.
+    As you run the subsequent scripts and upload simulation results, you can add the Google file ids to the list defined here.
+    This allows future runs to skip long-running or intensive computations, such as those required to run `fireSense_SpreadFit`, and download a pre-computed result.
+
+7.  You run your study area data prep module by invoking this script.
+    This script may require additional updating/editing (e.g., the name of the module you created).
+
+8.  Subsequent scripts (07a, 07b, 07c, 08a, 08b, and 08c) shouldn't need much tweaking by the user.
+
+9.  The main dynamic simulation is run by `09-main-sim.R`.
