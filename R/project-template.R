@@ -118,7 +118,7 @@ setMethod(
       fnames[[2]] <- file.path(nestedPath, "global.R")
 
       projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "basic-project.R.template"))
-    } else {
+    } else if (type == "advanced") {
       fnames <- append(fnames, list(
         file.path(nestedPath, "00-global.R"),
         file.path(nestedPath, "01-init.R"),
@@ -130,7 +130,8 @@ setMethod(
         file.path(nestedPath, "07-dataPrep.R"),
         file.path(nestedPath, "08-pre-sim.R"),
         file.path(nestedPath, "09-main-sim.R"),
-        file.path(nestedPath, "config.yml")
+        file.path(nestedPath, "config.yml"),
+        file.path(nestedPath, ".Rprofile")
       ))
 
       projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-00-global.R.template"))
@@ -145,6 +146,43 @@ setMethod(
       projectTemplates[[11]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-09-main-sim.R.template"))
 
       projectTemplates[[12]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
+      projectTemplates[[13]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
+    } else if (type == "LandR-fireSense") {
+      fnames <- append(fnames, list(
+        file.path(nestedPath, "00-global.R"),
+        file.path(nestedPath, "01-init.R"),
+        file.path(nestedPath, "02-paths.R"),
+        file.path(nestedPath, "03-packages.R"),
+        file.path(nestedPath, "04-options.R"),
+        file.path(nestedPath, "05-google-ids.R"),
+        file.path(nestedPath, "06-studyArea.R"),
+        file.path(nestedPath, "07a-dataPrep_2001.R"),
+        file.path(nestedPath, "07b-dataPrep_2011.R"),
+        file.path(nestedPath, "07c-dataPrep_fS.R"),
+        file.path(nestedPath, "08a-ignitionFit.R"),
+        file.path(nestedPath, "08b-escapeFit.R"),
+        file.path(nestedPath, "08c-spreadFit.R"),
+        file.path(nestedPath, "09-main-sim.R"),
+        file.path(nestedPath, "config.yml")
+      ))
+
+      projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-00-global.R.template"))
+      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-01-init.R.template"))
+      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-02-paths.R.template"))
+      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-03-packages.R.template"))
+      projectTemplates[[6]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-04-options.R.template"))
+      projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-05-google-ids.R.template"))
+      projectTemplates[[8]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-06-studyArea.R.template"))
+      projectTemplates[[9]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-07a-dataPrep_2001.R.template"))
+      projectTemplates[[10]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-07b-dataPrep_2011.R.template"))
+      projectTemplates[[11]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-07c-dataPrep_fS.R.template"))
+      projectTemplates[[12]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-08a-ignitionFit.R.template"))
+      projectTemplates[[13]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-08b-escapeFit.R.template"))
+      projectTemplates[[14]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-08c-spreadFit.R.template"))
+      projectTemplates[[15]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-09-main-sim.R.template"))
+
+      projectTemplates[[16]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
+      projectTemplates[[17]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
     }
 
     lapply(seq_along(fnames), function(i) {
