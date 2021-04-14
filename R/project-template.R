@@ -103,7 +103,7 @@ setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "character", open = "logical"),
   definition = function(name, path, type, open = interactive()) {
-    stopifnot(type %in% c("basic", "advanced"))
+    stopifnot(type %in% c("basic", "advanced", "LandR-fireSense"))
 
     nestedPath <- checkPath(file.path(path, name), create = TRUE)
     fnames <- list()
