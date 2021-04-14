@@ -1,0 +1,68 @@
+default:
+  batchmode: false
+  cachedb: "sqlite"
+  cacheformat: "qs"
+  cloud:
+    cachedir: "" ## add your Google cache directory id here
+    googleuser: ""
+    usecloud: false
+  codechecks: true
+  inputpaths: null
+  mapresfact: 1
+  messagingNumCharsModule: 21
+  paths:
+    cachedir: "cache"
+    scratchdir: "/tmp/scratch/LandR-fireSense"
+  plot: true
+  reproduciblealgorithm: 2
+  studyarea: "XX"
+  usememoise: false
+  useprerun: true
+  userequire: true
+
+production:
+  batchmode: true
+  codechecks: false
+  plot: false
+
+user1:
+  inherits: production
+  cachedb: !expr if (grepl("spades", Sys.info()[["nodename"]])) "sqlite" else "postgresql"
+  cacheformat: "qs"
+  cloud:
+    #cachedir: ""
+    googleuser: "achubaty@for-cast.ca"
+    usecloud: false ## TODO: use cloud cache
+  codechecks: false ## TODO: set false after all fixed
+  paths:
+    scratchdir: "/tmp/scratch/LandR-fireSense"
+  slackchannel: "@slackusername"
+  studyarea: "XX"
+  useprerun: FALSE
+
+user2:
+  cachedb: "sqlite"
+  cacheformat: "qs"
+  cloud:
+    #cachedir: ""
+    googleuser: "user2@gmail.com"
+    usecloud: false
+  codechecks: true ## TODO: set false after all fixed
+  reproduciblealgorithm: 2
+  paths:
+    scratchdir: !expr if (Sys.info()[["nodename"]] == "computer1") "D:/User/scratch" else '/mnt/scratch/username/'
+
+user3:
+  cachedb: "sqlite"
+  cacheformat: "qs"
+  cloud:
+    #cachedir: ""
+    googleuser: "user3@gmail.com""
+    usecloud: false
+  codechecks: false
+  inputpaths: ~/data
+  messagingNumCharsModule: 24
+  paths:
+    scratchdir: "/tmp/scratch/LandR-fireSense"
+  reproduciblealgorithm: 2
+  usememoise: true

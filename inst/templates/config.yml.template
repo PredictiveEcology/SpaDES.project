@@ -5,8 +5,6 @@ default:
   paths:
     cachedir: "cache"
     scratchdir: "/tmp/scratch"
-  params:
-    endtime: 10
   plot: true
   slackchannel: ""
 
