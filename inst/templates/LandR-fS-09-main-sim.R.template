@@ -20,7 +20,7 @@ dynamicObjects <- list(
   fireSense_IgnitionFitted = ignitionOut[["fireSense_IgnitionFitted"]],
   fireSense_EscapeFitted = escapeOut[["fireSense_EscapeFitted"]],
   fireSense_SpreadFitted = spreadOut[["fireSense_SpreadFitted"]],
-  covMinMax = spreadOut[["covMinMax"]],
+  covMinMax_spread = spreadOut[["covMinMax_spread"]],
   covMinMax_ignition = ignitionOut[["covMinMax_ignition"]],
   landcoverDT = fSsimDataPrep[["landcoverDT"]],
   nonForest_timeSinceDisturbance2001 = fSsimDataPrep[["nonForest_timeSinceDisturbance2001"]],
