@@ -24,9 +24,6 @@ Suggests:
     rstudioapi,
     slackr,
     testthat (>= 1.0.2)
-Remotes:
-    PredictiveEcology/reproducible,
-    PredictiveEcology/SpaDES.core
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
