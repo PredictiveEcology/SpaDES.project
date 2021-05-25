@@ -51,14 +51,6 @@ jobs:
           writeLines(sprintf("R-%i.%i", getRversion()$major, getRversion()$minor), ".github/R-version")
         shell: Rscript {0}
 
-      - name: Install additional dependencies
-        run: |
-          install.packages('igraph', repos = 'https://cran.rstudio.com')
-          remotes::install_github('PredictiveEcology/Require@development')
-          remotes::install_github('PredictiveEcology/reproducible@development')
-          remotes::install_github('PredictiveEcology/SpaDES.core@development')
-        shell: Rscript {0}
-
       - name: Cache R packages
         if: runner.os != 'Windows'
         uses: actions/cache@v1
@@ -70,10 +62,19 @@ jobs:
       - name: Install system dependencies
         if: runner.os == 'Linux'
         run: |
+          sudo apt install libglpk-dev
           while read -r cmd
           do
             eval sudo $cmd
           done < <(Rscript -e 'cat(remotes::system_requirements("ubuntu", "20.04"), sep = "\n")')
+
+      - name: Install additional prerequisite packages
+        run: |
+          install.packages('igraph', repos = 'https://cran.rstudio.com')
+          remotes::install_github('PredictiveEcology/Require@development')
+          remotes::install_github('PredictiveEcology/reproducible@development')
+          remotes::install_github('PredictiveEcology/SpaDES.core@development')
+        shell: Rscript {0}
 
       - name: Install dependencies
         run: |
