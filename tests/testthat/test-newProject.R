@@ -17,7 +17,7 @@ test_that("newProject (advanced) creates necessary files", {
   expect_true(dir.exists(file.path(myProjDir, "inputs")))
   expect_true(dir.exists(file.path(myProjDir, "modules")))
   expect_true(dir.exists(file.path(myProjDir, "outputs")))
-  expect_true(dir.exists(file.path(myProjDir, "packages")))
+  expect_true(dir.exists(file.path(dirname(myProjDir), "advancedProject_packages")))
 
   expect_true(file.exists(file.path(myProjDir, ".Rprofile")))
   expect_true(file.exists(file.path(myProjDir, "config.yml")))

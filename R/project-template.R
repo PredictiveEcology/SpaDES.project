@@ -12,7 +12,13 @@
 #'             \code{"basic"} (default), and \code{"advanced"}.
 #' @param open  Logical. Should the new project file be opened after creation?
 #'              Default \code{TRUE} in an interactive session.
-#'
+#' @param ...  Additional arguments. Currently only the following are implemented:
+#'             \describe{
+#'               \item{\code{pkgPath}}{
+#'                 Path to project's package directory.
+#'                 Defaults to \file{<projectName>_packages} in the project's parent directory.
+#'               }
+#'             }
 #' @export
 #' @rdname newProject
 #'
@@ -24,7 +30,7 @@
 #' ## use advanced project setup
 #' myAdvProjDir <- newProject("myAdvProject", tempdir(), type = "advanced")
 #' }
-setGeneric("newProject", function(name, path, type, open) {
+setGeneric("newProject", function(name, path, type, open, ...) {
   standardGeneric("newProject")
 })
 
@@ -34,7 +40,7 @@ setGeneric("newProject", function(name, path, type, open) {
 setMethod(
   "newProject",
   signature = c(name = "character", path = "character", type = "character", open = "logical"),
-  definition = function(name, path, type, open) {
+  definition = function(name, path, type, open, ...) {
     checkPath(path, create = TRUE)
     projDir <- checkPath(file.path(path, name), create = TRUE)
 
@@ -44,14 +50,14 @@ setMethod(
     checkPath(file.path(projDir, "outputs"), create = TRUE)
 
     if (type != "basic")
-      checkPath(file.path(projDir, "packages"), create = TRUE)
+      checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
 
     if (interactive() && Sys.getenv("RSTUDIO") == "1") {
       if (requireNamespace("rstudioapi", quietly = TRUE))
         rstudioapi::initializeProject(path = projDir)
     }
 
-    newProjectCode(name, path, type, open)
+    newProjectCode(name, path, type, open, ...)
 
     return(projDir)
 })
@@ -61,8 +67,8 @@ setMethod(
 setMethod(
   "newProject",
   signature = c(name = "character", path = "character", type = "missing", open = "missing"),
-  definition = function(name, path, type, open) {
-    newProject(name, path, open = interactive(), type = "basic")
+  definition = function(name, path, type, open, ...) {
+    newProject(name, path, open = interactive(), type = "basic", ...)
 })
 
 #' @export
@@ -70,8 +76,8 @@ setMethod(
 setMethod(
   "newProject",
   signature = c(name = "character", path = "character", type = "character", open = "missing"),
-  definition = function(name, path, type, open) {
-    newProject(name, path, type = type, open = interactive())
+  definition = function(name, path, type, open, ...) {
+    newProject(name, path, type = type, open = interactive(), ...)
 })
 
 #' @export
@@ -79,8 +85,8 @@ setMethod(
 setMethod(
   "newProject",
   signature = c(name = "character", path = "character", type = "missing", open = "logical"),
-  definition = function(name, path, type, open) {
-    newProject(name, path, type = "basic", open = open)
+  definition = function(name, path, type, open, ...) {
+    newProject(name, path, type = "basic", open = open, ...)
 })
 
 #' Create new module code file
@@ -91,7 +97,7 @@ setMethod(
 #' @export
 #' @rdname newProjectCode
 #'
-setGeneric("newProjectCode", function(name, path, type, open) {
+setGeneric("newProjectCode", function(name, path, type, open, ...) {
   standardGeneric("newProjectCode")
 })
 
@@ -102,13 +108,20 @@ setGeneric("newProjectCode", function(name, path, type, open) {
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "character", open = "logical"),
-  definition = function(name, path, type, open = interactive()) {
+  definition = function(name, path, type, open = interactive(), ...) {
     stopifnot(type %in% c("basic", "advanced", "LandR-fireSense"))
+
+    dots <- list(...)
+    pkgPath <- if (is.null(dots$pkgPath)) {
+      checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
+    } else {
+      checkPath(dots$pkgPath, create = TRUE)
+    }
 
     nestedPath <- checkPath(file.path(path, name), create = TRUE)
     fnames <- list()
 
-    projectData <- list(projName = name)
+    projectData <- list(projName = name, pkgPath = pkgPath)
     projectTemplates <- list()
 
     fnames[[1]] <- file.path(nestedPath, "README.md")
@@ -199,8 +212,8 @@ setMethod(
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "missing", open = "missing"),
-  definition = function(name, path, type, open) {
-    newProjectCode(name = name, path = path, type = "basic", open = interactive())
+  definition = function(name, path, type, open, ...) {
+    newProjectCode(name = name, path = path, type = "basic", open = interactive(), ...)
 })
 
 #' @export
@@ -208,8 +221,8 @@ setMethod(
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "missing", open = "logical"),
-  definition = function(name, path, type, open) {
-    newProjectCode(name = name, path = path, type = "basic", open = open)
+  definition = function(name, path, type, open, ...) {
+    newProjectCode(name = name, path = path, type = "basic", open = open, ...)
 })
 
 #' @export
@@ -217,6 +230,6 @@ setMethod(
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "character", open = "missing"),
-  definition = function(name, path, type, open) {
-    newProjectCode(name = name, path = path, type = type, open = interactive())
+  definition = function(name, path, type, open, ...) {
+    newProjectCode(name = name, path = path, type = type, open = interactive(), ...)
 })
