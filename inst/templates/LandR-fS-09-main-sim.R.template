@@ -10,19 +10,20 @@ dynamicModules <- list("fireSense_dataPrepPredict",
                        "Biomass_core",
                        "Biomass_regeneration")
 
+#TODO: remove as.data.table where appropriate
 dynamicObjects <- list(
   biomassMap = biomassMaps2011$biomassMap,
   climateComponentsTouse = fSsimDataPrep[["climateComponentsToUse"]],
-  cohortData = fSsimDataPrep[["cohortData2011"]],
-  ecoregion = biomassMaps2011[["ecoregion"]],
+  cohortData = as.data.table(fSsimDataPrep[["cohortData2011"]]),
+  ecoregion = as.data.table(biomassMaps2011[["ecoregion"]]),
   ecoregionMap = biomassMaps2011[["ecoregionMap"]],
   flammableRTM = fSsimDataPrep[["flammableRTM"]],
   fireSense_IgnitionFitted = ignitionOut[["fireSense_IgnitionFitted"]],
   fireSense_EscapeFitted = escapeOut[["fireSense_EscapeFitted"]],
   fireSense_SpreadFitted = spreadOut[["fireSense_SpreadFitted"]],
-  covMinMax_spread = spreadOut[["covMinMax_spread"]],
-  covMinMax_ignition = ignitionOut[["covMinMax_ignition"]],
-  landcoverDT = fSsimDataPrep[["landcoverDT"]],
+  covMinMax_spread = as.data.table(spreadOut[["covMinMax_spread"]]),
+  covMinMax_ignition = as.data.table(ignitionOut[["covMinMax_ignition"]]),
+  landcoverDT = as.data.table(fSsimDataPrep[["landcoverDT"]]),
   nonForest_timeSinceDisturbance = fSsimDataPrep[["nonForest_timeSinceDisturbance2011"]],
   minRelativeB = as.data.table(biomassMaps2011[["minRelativeB"]]), ## biomassMaps2011 needs bugfix to qs
   PCAveg = fSsimDataPrep[["PCAveg"]],
@@ -34,19 +35,19 @@ dynamicObjects <- list(
   speciesEcoregion = as.data.table(biomassMaps2011[["speciesEcoregion"]]), ## biomassMaps2011 needs bugfix to qs
   speciesLayers = biomassMaps2011[["speciesLayers"]], ## TODO: does Biomass_core actually need this?
   sppColorVect = biomassMaps2011[["sppColorVect"]],
-  sppEquiv = fSsimDataPrep[["sppEquiv"]], ## biomassMaps2011 needs bugfix to qs
+  sppEquiv = as.data.table(fSsimDataPrep[["sppEquiv"]]), ## biomassMaps2011 needs bugfix to qs
   studyArea = biomassMaps2011[["studyArea"]],
   studyAreaLarge = biomassMaps2011[["studyAreaLarge"]],
   studyAreaReporting = biomassMaps2011[["studyAreaReporting"]],
   sufficientLight = as.data.frame(biomassMaps2011[["sufficientLight"]]), ## biomassMaps2011 needs bugfix to qs
-  terrainDT = fSsimDataPrep[["terrainDT"]],
+  terrainDT = as.data.table(fSsimDataPrep[["terrainDT"]]),
   vegComponentsToUse = fSsimDataPrep[["vegComponentsToUse"]]
 )
 
 dynamicParams <- list(
   Biomass_core = list(
     'sppEquivCol' = fSsimDataPrep@params$fireSense_dataPrepFit$sppEquivCol,
-    'vegLeadingProportion' = 0, #apparently sppColorVect has no mixed color
+    'vegLeadingProportion' = 0, #must be 0 if no 'mixed' color in sim$sppColorVect
     .plotInitialTime = NA
   ),
   Biomass_regeneration = list(
