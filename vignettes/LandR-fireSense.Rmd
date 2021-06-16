@@ -93,6 +93,9 @@ We strongly recommend using git for version control, and using git submodules to
 
 Optionally, you can add branch info for each of the submodules by editing the `.gitmodules` file and running `git submodule sync`.
 
+As of 15/06/2021, the development branch is recommended for the following submodules:
+fireSense, fireSense_IgnitionFit, fireSense_IgnitionPredict, fireSense_SpreadFit, and fireSense_SpreadPredict
+
 *NOTE:* Alternatively, each of these modules can be fetched using `SpaDES.install::getModule()`, which will download the latest versions. However, this approach makes it harder to update modules in the future.
 
 # Create data prep module for your study area
