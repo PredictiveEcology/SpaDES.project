@@ -37,6 +37,7 @@ setGeneric("newProject", function(name, path, type, open, ...) {
 #' @export
 #' @rdname newProject
 #' @importFrom Require checkPath
+#' @importFrom SpaDES.core setPaths
 setMethod(
   "newProject",
   signature = c(name = "character", path = "character", type = "character", open = "logical"),
@@ -44,10 +45,20 @@ setMethod(
     checkPath(path, create = TRUE)
     projDir <- checkPath(file.path(path, name), create = TRUE)
 
-    checkPath(file.path(projDir, "cache"), create = TRUE)
-    checkPath(file.path(projDir, "inputs"), create = TRUE)
-    checkPath(file.path(projDir, "modules"), create = TRUE)
-    checkPath(file.path(projDir, "outputs"), create = TRUE)
+    cachePath <- "cache"
+    inputPath <- "inputs"
+    modulePath <- "modules"
+    outputPath <- "outputs"
+
+    checkPath(file.path(projDir, cachePath), create = TRUE)
+    checkPath(file.path(projDir, inputPath), create = TRUE)
+    checkPath(file.path(projDir, modulePath), create = TRUE)
+    checkPath(file.path(projDir, outputPath), create = TRUE)
+
+    setPaths(cachePath = cachePath,
+             inputPath = inputPath,
+             modulePath = modulePath,
+             outputPath = outputPath)
 
     if (type != "basic")
       checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
