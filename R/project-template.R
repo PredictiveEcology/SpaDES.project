@@ -45,15 +45,10 @@ setMethod(
     checkPath(path, create = TRUE)
     projDir <- checkPath(file.path(path, name), create = TRUE)
 
-    cachePath <- "cache"
-    inputPath <- "inputs"
-    modulePath <- "modules"
-    outputPath <- "outputs"
-
-    checkPath(file.path(projDir, cachePath), create = TRUE)
-    checkPath(file.path(projDir, inputPath), create = TRUE)
-    checkPath(file.path(projDir, modulePath), create = TRUE)
-    checkPath(file.path(projDir, outputPath), create = TRUE)
+    cachePath <- checkPath(file.path(projDir, "cache"), create = TRUE)
+    inputPath <- checkPath(file.path(projDir, "inputs"), create = TRUE)
+    modulePath <- checkPath(file.path(projDir, "modules"), create = TRUE)
+    outputPath <- checkPath(file.path(projDir, "outputs"), create = TRUE)
 
     setPaths(cachePath = cachePath,
              inputPath = inputPath,
