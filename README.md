@@ -10,6 +10,17 @@
 
 Quickly setup 'SpaDES' project directories and add modules using templates.
 
+See package vignettes to get started.
+
+1. Getting started vignette
+2. Managing large SpaDES projects
+3. Using `git` and GitHub
+4. Using LandR and fireSense
+
+Project types:
+
+- LandR-fS
+
 **Website:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
 
 **Wiki:** [https://github.com/PredictiveEcology/SpaDES/wiki](https://github.com/PredictiveEcology/SpaDES/wiki)
