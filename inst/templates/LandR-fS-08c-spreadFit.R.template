@@ -1,7 +1,7 @@
 do.call(setPaths, spreadFitPaths)
 
-source("05-google-ids.R")
-newGoogleIDs <- gdriveSims[["spreadOut"]] == ""
+gid_spreadOut <- gdriveSims[studyArea == studyAreaName & simObject == "spreadOut" & runID == run, gid]
+upload_spreadOut <- reupload | length(gid_spreadOut) == 0
 
 extremeVals <- 4
 lowerParamsNonAnnual <- rep(-extremeVals, times = ncol(fSsimDataPrep$fireSense_nonAnnualSpreadFitCovariates[[1]]) - 1)
@@ -12,6 +12,10 @@ lowerParams <- c(lowerParamsAnnual, lowerParamsNonAnnual)
 upperParams <- c(upperParamsAnnual, upperParamsNonAnnual)
 
 ## Spread log function bounds
+
+## for logistic3p
+# lower <- c(0.22, 0.001, 0.001, lowerParams)
+# upper <- c(0.29, 10, 10, upperParams)
 
 lower <- c(0.25, 0.2, 0.1, lowerParams)
 upper <- c(0.286, 2, 4, upperParams)
@@ -33,21 +37,20 @@ spreadFitParams <- list(
     "iterThresh" = 396L,
     "lower" = lower,
     "maxFireSpread" = max(0.28, upper[1]),
-    "mode" = if (isTRUE(firstRunSpreadFit)) c("fit", "visualize") else "fit", ## combo of "debug", "fit", "visualize"
+    "mode" = c("fit", "visualize"), ## combo of "debug", "fit", "visualize"
     "NP" = length(cores),
     "objFunCoresInternal" = 1L,
     "objfunFireReps" = 100,
     #"onlyLoadDEOptim" = FALSE,
     "rescaleAll" = TRUE,
     "trace" = 1,
-    "SNLL_FS_thresh" = if (peutils::user("emcintir")) NULL else NULL,# NULL means 'autocalibrate' to find suitable threshold value
+    "SNLL_FS_thresh" = NULL, # NULL means 'autocalibrate' to find suitable threshold value
     "upper" = upper,
-    #"urlDEOptimObject" = if (peutils::user("emcintir")) "spreadOut_2021-02-11_Limit4_150_SNLL_FS_thresh_BQS16t" else NULL,
+    #"urlDEOptimObject" = NULL,
     "useCloud_DE" = useCloudCache,
     "verbose" = TRUE,
     "visualizeDEoptim" = FALSE,
-    "useCloud_DE" = useCloudCache,
-    ".plot" = if (isTRUE(firstRunSpreadFit)) TRUE else FALSE,
+    ".plot" = TRUE,
     ".plotSize" = list(height = 1600, width = 2000)
   )
 )
@@ -65,10 +68,10 @@ spreadFitObjects <- list(
   studyArea = fSsimDataPrep[["studyArea"]]
 )
 
-fspreadOut <- file.path(Paths$outputPath, paste0("spreadOut_", studyAreaName, ".qs"))
-if (isTRUE(usePrerun)) {
+fspreadOut <- file.path(Paths$outputPath, paste0("spreadOut_", studyAreaName, "_", run, ".qs"))
+if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
   if (!file.exists(fspreadOut)) {
-    googledrive::drive_download(file = as_id(gdriveSims[["spreadOut"]]), path = fspreadOut)
+    googledrive::drive_download(file = as_id(gid_spreadOut), path = fspreadOut)
   }
   spreadOut <- loadSimList(fspreadOut)
 } else {
@@ -83,36 +86,28 @@ if (isTRUE(usePrerun)) {
     #cloudFolderID = cloudCacheFolderID,
     userTags = c("fireSense_SpreadFit", studyAreaName)
   )
-  saveSimList(
-    sim = spreadOut,
-    filename = fspreadOut,
-    #filebackedDir = dspreadOut,
-    fileBackend = 2
-  )
-  if (isTRUE(newGoogleIDs)) {
-    googledrive::drive_put(media = fspreadOut, path = gdriveURL, name = basename(fspreadOut), verbose = TRUE)
-  } else {
-    googledrive::drive_update(file = as_id(gdriveSims[["spreadOut"]]), media = fspreadOut)
+  saveSimList(spreadOut, fspreadOut, fileBackend = 2)
+
+  if (isTRUE(upload_spreadOut)) {
+    fdf <- googledrive::drive_put(media = fspreadOut, path = gdriveURL, name = basename(fspreadOut))
+    gid_spreadOut <- as.character(fdf$id)
+    rm(fdf)
+    gdriveSims <- update_googleids(
+      data.table(studyArea = studyAreaName, simObject = "spreadOut", runID = run,
+                 gcm = NA, ssp = NA, gid = gid_spreadOut),
+      gdriveSims
+    )
+  }
+
+  source("R/upload_spreadFit.R")
+
+  if (requireNamespace("slackr") & file.exists("~/.slackr")) {
+    slackr::slackr_setup()
+    slackr::slackr_msg(
+      paste0("`fireSense_SpreadFit` for `", runName, "` completed on host `", Sys.info()[["nodename"]], "`."),
+      channel = config::get("slackchannel"), preformatted = FALSE
+    )
   }
 }
 
-if (firstRunSpreadFit) {
-  filesToUpload <- c("fireSense_SpreadFit_veg_coeffs.txt",
-                   "figures/PCAcoeffLoadings.png",
-                   "figures/spreadFit_coeffs.png")
 
-  gdrive_ID <- switch(studyAreaName,
-                      XX = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",  ## TODO: customize
-                      YY = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
-  lapply(filesToUpload, function(f) {
-    drive_upload(file.path("outputs", studyAreaName, f), as_id(gdrive_ID), overwrite = TRUE)
-  }) ## TODO: upload first time, update subsequently.
-}
-
-if (requireNamespace("slackr") & file.exists("~/.slackr")) {
-  slackr::slackr_setup()
-  slackr::slackr_msg(
-    paste0("`fireSense_SpreadFit` for ", studyAreaName, " completed on host `", Sys.info()[["nodename"]], "`."),
-    channel = config::get("slackchannel"), preformatted = FALSE
-  )
-}

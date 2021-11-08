@@ -147,11 +147,15 @@ Instructions for Ubuntu 20.04 LTS are shown below.
 
 ### Install `SpaDES` and other packages
 
-1. Add <https://drat.predictiveecology.org> to your 'repos' list via `options()`:
+1. Add <https://predictiveecology.r-universe.dev> to your 'repos' list via `options()`:
 
-    ```{r add-PE-drat}
-    r <- getOption("repos")
-    options(repos = c(r, PredictiveEcology = "https://drat.predictiveecology.org"))
+    ```{r add-PE-universe}
+    options(
+      repos = c(
+        predictiveecology = "https://predictiveecology.r-universe.dev",
+        CRAN = "https://cloud.r-project.org"
+      )
+    )
     ```
 
 2. Install `Require` to facilitate package installation:

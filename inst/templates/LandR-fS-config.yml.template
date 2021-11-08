@@ -2,20 +2,25 @@ default:
   batchmode: false
   cachedb: "sqlite"
   cacheformat: "qs"
+  climategcm: "CNRM-ESM2-1" ## '13GCMs_ensemble', 'CanESM5', 'CNRM-ESM2-1', 'CCSM4'
+  climatessp: 370 ## 245, 370, 585
   cloud:
     cachedir: "" ## add your Google cache directory id here
     googleuser: ""
     usecloud: false
   codechecks: true
+  delaystart: 0
   inputpaths: null
-  mapresfact: 1
   messagingNumCharsModule: 21
   paths:
     cachedir: "cache"
     scratchdir: "/tmp/scratch/LandR-fireSense"
   plot: true
   reproduciblealgorithm: 2
+  reupload: false
+  run: 1
   studyarea: "XX"
+  uselandrcs: true
   usememoise: false
   useprerun: true
   userequire: true
@@ -23,6 +28,7 @@ default:
 production:
   batchmode: true
   codechecks: false
+  delaystart: !expr sample(15L:45L, 1) # 15-45 minute delay to stagger starts
   plot: false
 
 user1:

@@ -1,7 +1,7 @@
 do.call(setPaths, escapeFitPaths)
 
-source("05-google-ids.R")
-newGoogleIDs <- gdriveSims[["escapeOut"]] == ""
+gid_escapeOut <- gdriveSims[studyArea == studyAreaName & simObject == "escapeOut", gid]
+upload_escapeOut <- reupload | length(gid_escapeOut) == 0
 
 escapeFitParams <- list(
   fireSense_EscapeFit = list(
@@ -14,9 +14,9 @@ escapeFitObjects <- list(
 )
 
 fescapeOut <- file.path(Paths$outputPath, paste0("escapeOut_", studyAreaName, ".qs"))
-if (isTRUE(usePrerun)) {
+if (isTRUE(usePrerun) & isFALSE(upload_preamble)) {
   if (!file.exists(fescapeOut)) {
-    googledrive::drive_download(file = as_id(gdriveSims[["escapeOut"]]), path = fescapeOut)
+    googledrive::drive_download(file = as_id(gid_escapeOut), path = fescapeOut)
   }
   escapeOut <- loadSimList(fescapeOut)
 } else {
@@ -28,15 +28,17 @@ if (isTRUE(usePrerun)) {
     paths = escapeFitPaths,
     objects = escapeFitObjects
   )
-  saveSimList(
-    sim = escapeOut,
-    filename = fescapeOut,
-    #filebackedDir = descapeOut,
-    fileBackend = 2
-  )
-  if (isTRUE(newGoogleIDs)) {
-    googledrive::drive_put(media = fescapeOut, path = gdriveURL, name = basename(fescapeOut), verbose = TRUE)
-  } else {
-    googledrive::drive_update(file = as_id(gdriveSims[["escapeOut"]]), media = fescapeOut)
+  saveSimList(sim = escapeOut, filename = fescapeOut, fileBackend = 2)
+
+  if (isTRUE(upload_escapeOut)) {
+    fdf <- googledrive::drive_put(media = fescapeOut, path = gdriveURL, name = basename(fescapeOut))
+    gid_escapeOut <- as.character(fdf$id)
+    rm(fdf)
+    gdriveSims <- update_googleids(
+      data.table(studyArea = studyAreaName, simObject = "escapeOut",  runID = NA,
+                 gcm = NA, ssp = NA, gid = gid_escapeOut),
+      gdriveSims
+    )
   }
 }
+
