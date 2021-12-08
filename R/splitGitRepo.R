@@ -1,4 +1,5 @@
 #' This is copied from SpaDES.installl
+#' @param gitRepo A character string in the form GitAccount/GitRepo@Branch or @Commit
 splitGitRepo <- function(gitRepo) {
   grSplit <- strsplit(gitRepo, "/|@")[[1]]
   grAcct <- strsplit(gitRepo, "/")[[1]] # only account and repo

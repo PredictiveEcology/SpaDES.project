@@ -6,6 +6,9 @@
 \usage{
 splitGitRepo(gitRepo)
 }
+\arguments{
+\item{gitRepo}{A character string in the form GitAccount/GitRepo@Branch or @Commit}
+}
 \description{
 This is copied from SpaDES.installl
 }
