@@ -59,6 +59,23 @@ library("devtools")
 install_github("PredictiveEcology/SpaDES.project", ref = "development", dependencies = TRUE)
 ```
 
+### Create a new project with several SpaDES modules
+
+This will create a new RStudio project, download 4 modules from their respective GitHub.com repositories, create a
+controlling `global.R` script and finally open that new project in RStudio. The resulting `global.R` script that will
+technically run, but one or more of the modules will likely be missing some input object that are expected. Most likely
+this will be something like an object called `studyArea`, which is a polygon with the study area. That `global.R` 
+controlling script has numerous comments within it to help get started. It will also deal with installing R packages.
+```
+SpaDES.project::newProject("FactorialTesting", 
+                           path = "~", 
+                           modules = c("PredictiveEcology/Biomass_speciesFactorial",
+                                       "PredictiveEcology/Biomass_speciesParameters@EliotTweaks",
+                                       "PredictiveEcology/Biomass_borealDataPrep@development",
+                                       "PredictiveEcology/Biomass_core@EliotTweaks"), 
+                           overwrite = FALSE)
+```
+
 ## Contributions
 
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for information on how to contribute to this project.
