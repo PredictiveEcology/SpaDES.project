@@ -1,8 +1,3 @@
-## load required packages
-library(data.table)
-library(sp)
-library(raster)
-library(SpaDES)
 
 ## environment setup
 setPaths(cachePath = "cache",
@@ -10,27 +5,31 @@ setPaths(cachePath = "cache",
          modulePath = "modules",
          outputPath = "outputs")
 
+## modules
+{{{moduleLines}}}
+getModule(moduleGitRepos, overwrite = {{{overwrite}}})
+modules <- extractPkgName(moduleGitRepos)
+
+## module documentation
+{{{moduleDocumentation}}}
+
+
 ## simulation initialization
-simTimes <- c(start = 0, end = 10)
+simTimes <- list(start = 0, end = 10)
 
-moduleList <- list("module1", "module2") # rename module1 and module2
-
-parameters <- list(
-  module1 = list(), # rename module1 and provide named list of params
-  module2 = list()  # rename module2 and provide named list of params
-)
+## Set module parameters -- to see options, look at module metadata
+{{{parameterLines}}}
 
 #?inputs
 #?outputs
 
 mySim <- simInit(
   times = simTimes,
-  modules = moduleList,
+  modules = modules,
   params = parameters
 )
 
 ## run the simulation
-mySimOut <- spades(mySim) # opitonally, use `spades(Copy(mySim))`
+mySimOut <- spades(mySim) # optionally, use `spades(Copy(mySim))`
 
-## run a simulation experiment
-# see `?experiment`
+
