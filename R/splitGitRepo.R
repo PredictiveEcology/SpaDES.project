@@ -19,15 +19,14 @@ splitGitRepo <- function(gitRepo) {
 
 # Copied from http://memosisland.blogspot.com/2012/03/check-url-existance-with-r.html
 urlExists <- function(address) {
-  tryCatch ({
+  # tryCatch ({
     con <- url(address)
-    browser()
-    a  <- capture.output(suppressWarnings(readLines(con)))
+    a  <- try(capture.output(suppressWarnings(readLines(con))), silent = TRUE)
     close(con)
-    TRUE;
-  },
-  error = function(err) {
-    occur <- grep("cannot open the connection", capture.output(err));
-    if(length(occur) > 0) FALSE;
-  })
+  urlEx <- if (!is(a, "try-error")) TRUE else FALSE
+  #},
+  # error = function(err) {
+  #   occur <- grep("cannot open the connection", capture.output(err));
+  #   if(length(occur) > 0) FALSE;
+  # })
 }

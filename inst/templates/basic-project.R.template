@@ -10,14 +10,16 @@ setPaths(cachePath = "cache",
 getModule(moduleGitRepos, overwrite = {{{overwrite}}})
 modules <- extractPkgName(moduleGitRepos)
 
-## module documentation
+## Module documentation -- please go to these pages to read about each module
+##  In some cases, there will be important defaults that a user should be aware of
+##  or important objects (like studyArea) that may be essential
 {{{moduleDocumentation}}}
 
 
 ## simulation initialization
 simTimes <- list(start = 0, end = 10)
 
-## Set module parameters -- to see options, look at module metadata
+## Set module parameters -- to see options, look at module documentation
 {{{parameterLines}}}
 
 #?inputs

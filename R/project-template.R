@@ -142,8 +142,10 @@ setMethod(
 
     params <- paste0(paste("parameters = list(\n  "), paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
 
-    # rmds <- normalizePath(winslash = "/", file.path(nestedPath, modulesSimple, paste0(modulesSimple, ".Rmd")), mustWork = FALSE)
+
+    message("Identifying latest documentation for each module", appendLF = FALSE)
     moduleDocumentation <- lapply(modules, function(mod) {
+      message(".", appendLF = FALSE)
       split <- splitGitRepo(mod)
       mds <- c(".md", ".rmd")
       urlFine <- FALSE
@@ -154,7 +156,8 @@ setMethod(
       }
       urlTry
     })
-    moduleDocumentation <- paste0("## ", paste(moduleDocumentation, collapse = "\n## "))
+    moduleDocumentation <- paste0("## ", paste(paste0("browseURL('", moduleDocumentation, "')"), collapse = "\n## "))
+    message("Done!")
 
     projectData <- list(projName = name, pkgPath = pkgPath,
                         moduleLines = mods,
