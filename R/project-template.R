@@ -138,7 +138,7 @@ setMethod(
     # There is a bug in extractPkgName if the remote account is not present
     modulesSimple <- gsub("(@.+)*(\\(.+)*", "", Require::extractPkgName(modules))
     mods <- paste0("moduleGitRepos <- c('",
-                   paste(modules, collapse = "',\n                         '"), "')")
+                   paste(modules, collapse = "',\n                     '"), "')")
 
     params <- paste0(paste("parameters = list(\n  "), paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
 
@@ -160,6 +160,7 @@ setMethod(
     message("Done!")
 
     projectData <- list(projName = name, pkgPath = pkgPath,
+                        projPath = nestedPath,
                         moduleLines = mods,
                         parameterLines = params,
                         overwrite = dots$overwrite,

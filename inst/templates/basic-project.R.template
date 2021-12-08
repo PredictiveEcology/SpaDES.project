@@ -1,9 +1,10 @@
 
 ## environment setup
-setPaths(cachePath = "cache",
-         inputPath = "inputs",
-         modulePath = "modules",
-         outputPath = "outputs")
+projectPath <- "{{{projPath}}}"
+setPaths(cachePath = file.path(projectPath, "cache"),
+         inputPath = file.path(projectPath, "inputs"),
+         modulePath = file.path(projectPath, "modules"),
+         outputPath = file.path(projectPath, "outputs"))
 
 ## modules
 {{{moduleLines}}}
