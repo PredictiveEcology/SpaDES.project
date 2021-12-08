@@ -25,19 +25,17 @@ makeSureAllPackagesInstalled()
 simTimes <- list(start = 0, end = 10)
 
 ## Set module parameters -- to see options, look at module documentation
-## e.g., metadataInModules(metadataItem = "parameters")
 {{{parameterLines}}}
 
 ## Objects to provide to simInit from e.g., .GlobalEnv,
-##    e.g., metadataInModules(metadataItem = "inputObjects")
 objects = list()
 
 ## Module inputs to load on a schedule. There may be specific inputs required by modules that are not
-## supplied by default, e.g., metadataInModules(metadataItem = "inputObjects")
+## supplied by default
 inputs = data.frame()
 
 ## Module outputs to save on a schedule. There may be specific outputs required by modules that are not
-## supplied by default, e.g., metadataInModules(metadataItem = "outputObjects")
+## supplied by default
 outputs = data.frame()
 
 ## See ?simInit for all options
