@@ -1,15 +1,18 @@
 
-## environment setup
-projectPath <- "{{{projPath}}}"
-setPaths(cachePath = file.path(projectPath, "cache"),
-         inputPath = file.path(projectPath, "inputs"),
-         modulePath = file.path(projectPath, "modules"),
-         outputPath = file.path(projectPath, "outputs"))
+## environment setup -- all the functions below rely on knowing where modules
+## are located via this command
+setPaths(cachePath = "cache",
+         inputPath = "inputs",
+         modulePath = "modules",
+         outputPath = "outputs")
 
 ## modules
 {{{moduleLines}}}
 getModule(moduleGitRepos, overwrite = {{{overwrite}}})
 modules <- extractPkgName(moduleGitRepos)
+
+## packages that are required by modules
+makeSureAllPackagesInstalled()
 
 ## Module documentation -- please go to these pages to read about each module
 ##  In some cases, there will be important defaults that a user should be aware of
@@ -17,22 +20,32 @@ modules <- extractPkgName(moduleGitRepos)
 {{{moduleDocumentation}}}
 
 
-## simulation initialization
+## simulation initialization. These may not be appropriate start and end times for one
+## or more of the modules, e.g., they may only be defined with calendar dates
 simTimes <- list(start = 0, end = 10)
 
 ## Set module parameters -- to see options, look at module documentation
+## e.g., metadataInModules(metadataItem = "parameters")
 {{{parameterLines}}}
 
-#?inputs
-#?outputs
+## Module inputs. There may be specific inputs required by modules that are not
+## supplied by default, e.g., metadataInModules(metadataItem = "inputObjects")
+inputs = data.frame()
 
+## Module inputs. There may be specific inputs required by modules that are not
+## supplied by default, e.g., metadataInModules(metadataItem = "outputObjects")
+outputs = data.frame()
+
+## See ?simInit for all options
 mySim <- simInit(
   times = simTimes,
   modules = modules,
-  params = parameters
+  params = parameters,
+  inputs = inputs,
+  outputs = outputs
 )
 
 ## run the simulation
-mySimOut <- spades(mySim) # optionally, use `spades(Copy(mySim))`
+mySimOut <- spades(mySim, debug = 1) # optionally, use `spades(Copy(mySim))`
 
 

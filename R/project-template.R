@@ -72,6 +72,10 @@ setMethod(
 
     newProjectCode(name, path, type, open, modules = modules, ...)
 
+    if (open)
+      if (requireNamespace("rstudioapi"))
+        rstudioapi::openProject(projDir, newSession = TRUE)
+
     return(projDir)
 })
 
@@ -160,7 +164,7 @@ setMethod(
     message("Done!")
 
     projectData <- list(projName = name, pkgPath = pkgPath,
-                        projPath = nestedPath,
+                        # projPath = nestedPath,
                         moduleLines = mods,
                         parameterLines = params,
                         overwrite = dots$overwrite,
@@ -249,7 +253,7 @@ setMethod(
       writeLines(whisker.render(projectTemplates[[i]], projectData), fnames[[i]])
     })
 
-    if (open) .fileEdit(fnames[[2]]) ## global.R
+    # if (open) .fileEdit(fnames[[2]]) ## global.R
 
     return(nestedPath)
 })
