@@ -28,11 +28,15 @@ simTimes <- list(start = 0, end = 10)
 ## e.g., metadataInModules(metadataItem = "parameters")
 {{{parameterLines}}}
 
-## Module inputs. There may be specific inputs required by modules that are not
+## Objects to provide to simInit from e.g., .GlobalEnv,
+##    e.g., metadataInModules(metadataItem = "inputObjects")
+objects = list()
+
+## Module inputs to load on a schedule. There may be specific inputs required by modules that are not
 ## supplied by default, e.g., metadataInModules(metadataItem = "inputObjects")
 inputs = data.frame()
 
-## Module inputs. There may be specific inputs required by modules that are not
+## Module outputs to save on a schedule. There may be specific outputs required by modules that are not
 ## supplied by default, e.g., metadataInModules(metadataItem = "outputObjects")
 outputs = data.frame()
 
@@ -42,6 +46,7 @@ mySim <- simInit(
   modules = modules,
   params = parameters,
   inputs = inputs,
+  objects = objects,
   outputs = outputs
 )
 
