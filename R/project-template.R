@@ -138,36 +138,39 @@ setMethod(
     nestedPath <- checkPath(file.path(path, name), create = TRUE)
     fnames <- list()
 
+    projectData <- list(projName = name, pkgPath = pkgPath,
+                        overwrite = dots$overwrite)
+
     # There is a bug in extractPkgName if the remote account is not present
+    if (!is.null(modules)) {
     modulesSimple <- gsub("(@.+)*(\\(.+)*", "", Require::extractPkgName(modules))
     mods <- paste0("moduleGitRepos <- c('",
-                   paste(modules, collapse = "',\n                    '"), "')")
+                     paste(modules, collapse = "',\n                    '"), "')")
 
-    params <- paste0(paste("parameters = list(\n  "), paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
+      params <- paste0(paste("parameters = list(\n  "), paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
 
 
-    message("Identifying latest documentation for each module", appendLF = FALSE)
-    moduleDocumentation <- lapply(modules, function(mod) {
-      message(".", appendLF = FALSE)
-      split <- splitGitRepo(mod)
-      mds <- c(".md", ".rmd")
-      urlFine <- FALSE
-      for (md in mds) {
-        urlTry <- paste0("https://github.com/",split$acct,"/",split$repo,"/blob/",split$br,"/", split$repo, md)
-        urlFine <- urlExists(urlTry)
-        if (isTRUE(urlFine)) break
-      }
-      urlTry
-    })
-    moduleDocumentation <- paste0("## ", paste(paste0("browseURL('", moduleDocumentation, "')"), collapse = "\n## "))
-    message("Done!")
+      message("Identifying latest documentation for each module", appendLF = FALSE)
+      moduleDocumentation <- lapply(modules, function(mod) {
+        message(".", appendLF = FALSE)
+        split <- splitGitRepo(mod)
+        mds <- c(".md", ".rmd")
+        urlFine <- FALSE
+        for (md in mds) {
+          urlTry <- paste0("https://github.com/",split$acct,"/",split$repo,"/blob/",split$br,"/", split$repo, md)
+          urlFine <- urlExists(urlTry)
+          if (isTRUE(urlFine)) break
+        }
+        urlTry
+      })
+      moduleDocumentation <- paste0("## ", paste(paste0("browseURL('", moduleDocumentation, "')"), collapse = "\n## "))
+      message("Done!")
+      projectData <- append(projectData,
+                            list(moduleLines = mods,
+                                 parameterLines = params,
+                                 moduleDocumentation = moduleDocumentation))
 
-    projectData <- list(projName = name, pkgPath = pkgPath,
-                        # projPath = nestedPath,
-                        moduleLines = mods,
-                        parameterLines = params,
-                        overwrite = dots$overwrite,
-                        moduleDocumentation = moduleDocumentation)
+    }
     projectTemplates <- list()
 
 
