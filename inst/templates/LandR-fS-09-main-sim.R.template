@@ -75,8 +75,7 @@ annualRasters <- data.frame(
 annualRasters$file <- paste0(annualRasters$objectName, "_", annualRasters$saveTime, ".tif")
 
 objectsToSaveAnnually <- c(
-  #"activePixelIndex", ## integer vector ## TODO: not an output -- it's in mod?
-  "cohortData"       ## data.table
+  "cohortData", ## data.table
 )
 
 annualObjects <- data.frame(
@@ -133,7 +132,7 @@ dynamicParams <- list(
     .plotInterval = NA,
     .plotInitialTime = .plotInitialTime,
     plotIgnitions = FALSE,
-    whichModulesToPrepare = c("fireSense_IgnitionPredict", "fireSense_EscapePredict", "fireSense_SpreadPredict"),
+    whichModulesToPrepare = c("fireSense_IgnitionPredict", "fireSense_EscapePredict", "fireSense_SpreadPredict")
   )
 )
 

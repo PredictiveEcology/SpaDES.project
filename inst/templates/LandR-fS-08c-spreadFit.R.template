@@ -7,7 +7,7 @@ extremeVals <- 4
 lowerParamsNonAnnual <- rep(-extremeVals, times = ncol(fSsimDataPrep$fireSense_nonAnnualSpreadFitCovariates[[1]]) - 1)
 lowerParamsAnnual <- c(-extremeVals, -extremeVals)
 upperParamsNonAnnual <- rep(extremeVals, times = length(lowerParamsNonAnnual))
-upperParamsAnnual <- c(extremeVals, extremeVals)
+upperParamsAnnual <- c(0, extremeVals) ## youngAge <= 0
 lowerParams <- c(lowerParamsAnnual, lowerParamsNonAnnual)
 upperParams <- c(upperParamsAnnual, upperParamsNonAnnual)
 
@@ -18,7 +18,7 @@ upperParams <- c(upperParamsAnnual, upperParamsNonAnnual)
 # upper <- c(0.29, 10, 10, upperParams)
 
 lower <- c(0.25, 0.2, 0.1, lowerParams)
-upper <- c(0.286, 2, 4, upperParams)
+upper <- c(0.276, 2, 4, upperParams)
 dfT <- cbind(c("lower", "upper"), t(data.frame(lower, upper)))
 message("Upper and Lower parameter bounds are:")
 Require:::messageDF(dfT)
@@ -47,6 +47,7 @@ spreadFitParams <- list(
     "SNLL_FS_thresh" = NULL, # NULL means 'autocalibrate' to find suitable threshold value
     "upper" = upper,
     #"urlDEOptimObject" = NULL,
+    "useCache_DE" = FALSE,
     "useCloud_DE" = useCloudCache,
     "verbose" = TRUE,
     "visualizeDEoptim" = FALSE,
@@ -75,16 +76,12 @@ if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
   }
   spreadOut <- loadSimList(fspreadOut)
 } else {
-  spreadOut <- Cache(
-    simInitAndSpades,
+  spreadOut <- simInitAndSpades(
     times = list(start = 0, end = 1),
     params = spreadFitParams,
     modules = "fireSense_SpreadFit",
     paths = spreadFitPaths,
-    objects = spreadFitObjects,
-    #useCloud = useCloudCache,
-    #cloudFolderID = cloudCacheFolderID,
-    userTags = c("fireSense_SpreadFit", studyAreaName)
+    objects = spreadFitObjects
   )
   saveSimList(spreadOut, fspreadOut, fileBackend = 2)
 
@@ -109,5 +106,4 @@ if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
     )
   }
 }
-
 
