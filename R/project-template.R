@@ -37,29 +37,15 @@
 #' ## use advanced project setup
 #' myAdvProjDir <- newProject("myAdvProject", tempdir(), type = "advanced")
 #' }
-setGeneric("newProject", function(name, path, type, open, ...) {
-  standardGeneric("newProject")
-})
-
 #' @export
 #' @rdname newProject
 #' @importFrom Require checkPath
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "character", open = "logical"),
-  definition = function(name, path, type, open, modules = NULL, ...) {
+newProject <-
+  # signature = c(name = "character", path = "character", type = "character", open = "logical"),
+  # definition =
+  function(name, path = ".", type = "basic", open = interactive(), modules = NULL, ...) {
     checkPath(path, create = TRUE)
     projDir <- checkPath(file.path(path, name), create = TRUE)
-
-    # cachePath <- checkPath(file.path(projDir, "cache"), create = TRUE)
-    # inputPath <- checkPath(file.path(projDir, "inputs"), create = TRUE)
-    # modulePath <- checkPath(file.path(projDir, "modules"), create = TRUE)
-    # outputPath <- checkPath(file.path(projDir, "outputs"), create = TRUE)
-    #
-    # setPaths(cachePath = cachePath,
-    #          inputPath = inputPath,
-    #          modulePath = modulePath,
-    #          outputPath = outputPath)
 
     if (type != "basic")
       checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
@@ -76,34 +62,7 @@ setMethod(
         rstudioapi::openProject(projDir, newSession = TRUE)
 
     return(projDir)
-})
-
-#' @export
-#' @rdname newProject
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "missing", open = "missing"),
-  definition = function(name, path, type, open, modules = NULL, ...) {
-    newProject(name, path, open = interactive(), type = "basic", modules = modules, ...)
-})
-
-#' @export
-#' @rdname newProject
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "character", open = "missing"),
-  definition = function(name, path, type, open, modules = NULL, ...) {
-    newProject(name, path, type = type, open = interactive(), modules = modules, ...)
-})
-
-#' @export
-#' @rdname newProject
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "missing", open = "logical"),
-  definition = function(name, path, type, open, modules = NULL, ...) {
-    newProject(name, path, type = "basic", open = open, modules = modules, ...)
-})
+}
 
 #' Create new module code file
 #'

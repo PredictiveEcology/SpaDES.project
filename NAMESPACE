@@ -3,7 +3,6 @@
 export(newProject)
 export(newProjectCode)
 export(notify_slack)
-exportMethods(newProject)
 exportMethods(newProjectCode)
 import(methods)
 importFrom(Require,checkPath)

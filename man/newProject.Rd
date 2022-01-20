@@ -2,21 +2,16 @@
 % Please edit documentation in R/project-template.R
 \name{newProject}
 \alias{newProject}
-\alias{newProject,character,character,character,logical-method}
-\alias{newProject,character,character,missing,missing-method}
-\alias{newProject,character,character,character,missing-method}
-\alias{newProject,character,character,missing,logical-method}
 \title{Create new SpaDES project}
 \usage{
-newProject(name, path, type, open, ...)
-
-\S4method{newProject}{character,character,character,logical}(name, path, type, open, modules = NULL, ...)
-
-\S4method{newProject}{character,character,missing,missing}(name, path, type, open, modules = NULL, ...)
-
-\S4method{newProject}{character,character,character,missing}(name, path, type, open, modules = NULL, ...)
-
-\S4method{newProject}{character,character,missing,logical}(name, path, type, open, modules = NULL, ...)
+newProject(
+  name,
+  path = ".",
+  type = "basic",
+  open = interactive(),
+  modules = NULL,
+  ...
+)
 }
 \arguments{
 \item{name}{project name (name of project directory)}
@@ -28,6 +23,9 @@ newProject(name, path, type, open, ...)
 
 \item{open}{Logical. Should the new project file be opened after creation?
 Default \code{TRUE} in an interactive session.}
+
+\item{modules}{A character vector of modules to download and put into the project
+(see \code{SpaDES.install::getModule} for how to specify)}
 
 \item{...}{Additional arguments. Currently only the following are implemented:
 \describe{
@@ -41,9 +39,6 @@ Default \code{TRUE} in an interactive session.}
     Defaults to \file{<projectName>_packages} in the project's parent directory.
   }
 }}
-
-\item{modules}{A character vector of modules to download and put into the project
-(see \code{SpaDES.install::getModule} for how to specify)}
 }
 \description{
 Initialize a project with subdirectories \file{cache/}, \file{modules/},
