@@ -30,7 +30,7 @@ Project types:
 ### Current stable release
 
 [![R build status](https://github.com/PredictiveEcology/SpaDES.project/workflows/R-CMD-check/badge.svg?branch=master)](https://github.com/PredictiveEcology/SpaDES.project/actions)
-[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/master/graph/badge.svg)](https://codecov.io/gh/PredictiveEcology/SpaDES.project?branch=master)
+[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/master/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=master)
 
 **Install from CRAN:**
 
@@ -49,7 +49,7 @@ install_github("PredictiveEcology/SpaDES.project", dependencies = TRUE) # master
 ### Development version (unstable)
 
 [![R build status](https://github.com/PredictiveEcology/SpaDES.project/workflows/R-CMD-check/badge.svg?branch=development)](https://github.com/PredictiveEcology/SpaDES.project/actions)
-[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
+[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
 
 **Install from GitHub:**
 

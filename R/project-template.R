@@ -146,9 +146,9 @@ setMethod(
     } else if (type == "advanced") {
       fnames <- append(fnames, list(
         file.path(nestedPath, "00-global.R"),
-        file.path(nestedPath, "01-init.R"),
-        file.path(nestedPath, "02-paths.R"),
-        file.path(nestedPath, "03-packages.R"),
+        file.path(nestedPath, "01-packages.R"),
+        file.path(nestedPath, "02-init.R"),
+        file.path(nestedPath, "03-paths.R"),
         file.path(nestedPath, "04-options.R"),
         file.path(nestedPath, "05-google-ids.R"),
         file.path(nestedPath, "06-studyArea.R"),
@@ -160,16 +160,15 @@ setMethod(
       ))
 
       projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-00-global.R.template"))
-      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-01-init.R.template"))
-      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-02-paths.R.template"))
-      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-03-packages.R.template"))
+      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-01-packages.R.template"))
+      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-02-init.R.template"))
+      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-03-paths.R.template"))
       projectTemplates[[6]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-04-options.R.template"))
       projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-05-google-ids.R.template"))
       projectTemplates[[8]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-06-studyArea.R.template"))
       projectTemplates[[9]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-07-dataPrep.R.template"))
       projectTemplates[[10]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-08-pre-sim.R.template"))
       projectTemplates[[11]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-09-main-sim.R.template"))
-
       projectTemplates[[12]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
       projectTemplates[[13]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
     } else if (type == "LandR-fireSense") {
@@ -192,9 +191,9 @@ setMethod(
       ))
 
       projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-00-global.R.template"))
-      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-01-init.R.template"))
-      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-02-paths.R.template"))
-      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-03-packages.R.template"))
+      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-01-packages.R.template"))
+      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-02-init.R.template"))
+      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-03-paths.R.template"))
       projectTemplates[[6]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-04-options.R.template"))
       projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-05-google-ids.R.template"))
       projectTemplates[[8]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-06-studyArea.R.template"))
@@ -205,9 +204,13 @@ setMethod(
       projectTemplates[[13]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-08b-escapeFit.R.template"))
       projectTemplates[[14]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-08c-spreadFit.R.template"))
       projectTemplates[[15]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-09-main-sim.R.template"))
-
-      projectTemplates[[16]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
-      projectTemplates[[17]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
+      projectTemplates[[16]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_ignitionFit.R.template"))
+      projectTemplates[[17]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_spreadFit.R.template"))
+      projectTemplates[[18]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_spreadFit_coeffs.R.template"))
+      projectTemplates[[19]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_sims.R.template"))
+      projectTemplates[[20]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
+      projectTemplates[[21]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
+      
     }
 
     lapply(seq_along(fnames), function(i) {
