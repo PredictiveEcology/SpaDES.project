@@ -1,7 +1,11 @@
+spreadFitPaths[["cachePath"]] <- file.path(cacheDir, "cache_spreadFit", runName)
 do.call(setPaths, spreadFitPaths)
 
 gid_spreadOut <- gdriveSims[studyArea == studyAreaName & simObject == "spreadOut" & runID == run, gid]
 upload_spreadOut <- reupload | length(gid_spreadOut) == 0
+
+## TODO: remove this workaround
+fSsimDataPrep$fireSense_nonAnnualSpreadFitCovariates[[1]] <- as.data.table(fSsimDataPrep$fireSense_nonAnnualSpreadFitCovariates[[1]])
 
 extremeVals <- 4
 lowerParamsNonAnnual <- rep(-extremeVals, times = ncol(fSsimDataPrep$fireSense_nonAnnualSpreadFitCovariates[[1]]) - 1)
@@ -27,31 +31,32 @@ cores <- rep("localhost", parallel::detectCores() / 2)
 
 spreadFitParams <- list(
   fireSense_SpreadFit = list(
-    # "cacheId_DE" = paste0("DEOptim_", studyAreaName), # This is NWT DEoptim Cache
-    "cloudFolderID_DE" = cloudCacheFolderID,
-    "cores" = cores,
-    "DEoptimTests" = c("adTest", "snll_fs"), # Can be one or both of c("adTest", "snll_fs")
-    "doObjFunAssertions" = FALSE,
-    "iterDEoptim" = 150,
-    "iterStep" = 150,
-    "iterThresh" = 396L,
-    "lower" = lower,
-    "maxFireSpread" = max(0.28, upper[1]),
-    "mode" = c("fit", "visualize"), ## combo of "debug", "fit", "visualize"
-    "NP" = length(cores),
-    "objFunCoresInternal" = 1L,
-    "objfunFireReps" = 100,
-    #"onlyLoadDEOptim" = FALSE,
-    "rescaleAll" = TRUE,
-    "trace" = 1,
-    "SNLL_FS_thresh" = NULL, # NULL means 'autocalibrate' to find suitable threshold value
-    "upper" = upper,
-    #"urlDEOptimObject" = NULL,
+    cloudFolderID_DE = cloudCacheFolderID,
+    cores = cores,
+    DEoptimTests = c("adTest", "snll_fs"),
+    doObjFunAssertions = FALSE,
+    iterDEoptim = 150,
+    iterStep = 150,
+    iterThresh = 396L,
+    libPathDEoptim = libPathDEoptim,
+    lower = lower,
+    maxFireSpread = max(0.28, upper[1]),
+    mode = c("fit", "visualize"), ## combo of "debug", "fit", "visualize"
+    mutuallyExclusive = list("youngAge" = c("class", "nf_")),
+    NP = length(cores),
+    objFunCoresInternal = 1L,
+    objfunFireReps = 100,
+    # onlyLoadDEOptim = FALSE,
+    rescaleAll = TRUE,
+    trace = 1,
+    SNLL_FS_thresh = NULL, # NULL means 'autocalibrate' to find suitable threshold value
+    upper = upper,
+    # urlDEOptimObject = NULL,
     "useCache_DE" = FALSE,
     "useCloud_DE" = useCloudCache,
     "verbose" = TRUE,
     "visualizeDEoptim" = FALSE,
-    ".plot" = TRUE,
+    ".plot" = FALSE, # TRUE,
     ".plotSize" = list(height = 1600, width = 2000)
   )
 )
@@ -69,7 +74,7 @@ spreadFitObjects <- list(
   studyArea = fSsimDataPrep[["studyArea"]]
 )
 
-fspreadOut <- file.path(Paths$outputPath, paste0("spreadOut_", studyAreaName, "_", run, ".qs"))
+fspreadOut <- simFile(paste0("spreadOut_", studyAreaName, "_", run), Paths$outputPath, ext = simFileFormat)
 if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
   if (!file.exists(fspreadOut)) {
     googledrive::drive_download(file = as_id(gid_spreadOut), path = fspreadOut)
@@ -86,6 +91,9 @@ if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
   saveSimList(spreadOut, fspreadOut, fileBackend = 2)
 
   if (isTRUE(upload_spreadOut)) {
+    if (!dir.exists(tempdir())) {
+      dir.create(tempdir()) ## TODO: why is this dir being removed in the first place?
+    }
     fdf <- googledrive::drive_put(media = fspreadOut, path = gdriveURL, name = basename(fspreadOut))
     gid_spreadOut <- as.character(fdf$id)
     rm(fdf)
@@ -106,4 +114,3 @@ if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
     )
   }
 }
-

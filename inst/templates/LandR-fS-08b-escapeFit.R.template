@@ -13,7 +13,7 @@ escapeFitObjects <- list(
   fireSense_escapeCovariates = fSsimDataPrep$fireSense_escapeCovariates
 )
 
-fescapeOut <- file.path(Paths$outputPath, paste0("escapeOut_", studyAreaName, ".qs"))
+fescapeOut <- simFile(paste0("escapeOut_", studyAreaName), Paths$outputPath, ext = simFileFormat)
 if (isTRUE(usePrerun) & isFALSE(upload_preamble)) {
   if (!file.exists(fescapeOut)) {
     googledrive::drive_download(file = as_id(gid_escapeOut), path = fescapeOut)
@@ -41,4 +41,3 @@ if (isTRUE(usePrerun) & isFALSE(upload_preamble)) {
     )
   }
 }
-

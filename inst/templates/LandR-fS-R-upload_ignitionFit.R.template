@@ -3,10 +3,10 @@ Require::Require("googledrive")
 
 source("05-google-ids.R")
 
-file.move(
+try(file.move(
   file.path("outputs", studyAreaName, "figures", "ignitionNoFiresFitted.png"),
   file.path("outputs", studyAreaName, "figures", paste0("ignitionNoFiresFitted_", studyAreaName, ".png"))
-)
+))
 
 file.move(
   file.path("outputs", studyAreaName, "figures", "IgnitionRatePer100.png"),
