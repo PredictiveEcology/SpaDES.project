@@ -1,18 +1,16 @@
 do.call(setPaths, dynamicPaths)
 
-gid_results <- gdriveSims[studyArea == studyAreaName & simObject == "results", gid]
-
 times <- list(start = 2011, end = 2100)
 
 dynamicModules <- list(
   "fireSense_dataPrepPredict",
   "fireSense",
-   "fireSense_IgnitionPredict",
-   "fireSense_EscapePredict",
-   "fireSense_SpreadPredict",
-   "Biomass_core",
-   "Biomass_regeneration",
-   ifelse(isTRUE(useLandR.CS), "gmcsDataPrep", "")
+  "fireSense_IgnitionPredict",
+  "fireSense_EscapePredict",
+  "fireSense_SpreadPredict",
+  "Biomass_core",
+  "Biomass_regeneration",
+  ifelse(isTRUE(useLandR.CS), "gmcsDataPrep", "")
 )
 dynamicModules <- lapply(dynamicModules, function(m) if (nzchar(m)) m)
 dynamicModules[sapply(dynamicModules, is.null)] <- NULL ## this is bananas!
@@ -115,6 +113,7 @@ dynamicOutputs <- rbind(annualRasters, annualObjects, finalYearOutputs)
 
 dynamicParams <- list(
   Biomass_core = list(
+    growthAndMortalityDrivers = ifelse(isTRUE(useLandR.CS), "LandR.CS", "LandR"),
     sppEquivCol = fSsimDataPrep@params$fireSense_dataPrepFit$sppEquivCol,
     vegLeadingProportion = 0, ## apparently `sppColorVect` has no mixed colour
     .plots = c("object", "png", "raw"),

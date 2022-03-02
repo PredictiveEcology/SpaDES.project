@@ -8,10 +8,10 @@ try(file.move(
   file.path("outputs", studyAreaName, "figures", paste0("ignitionNoFiresFitted_", studyAreaName, ".png"))
 ))
 
-file.move(
+try(file.move(
   file.path("outputs", studyAreaName, "figures", "IgnitionRatePer100.png"),
   file.path("outputs", studyAreaName, "figures", paste0("IgnitionRatePer100_", studyAreaName, ".png"))
-)
+))
 
 filesToUpload <- c(
   paste0("figures/ignitionNoFiresFitted_", studyAreaName, ".png"),
@@ -23,4 +23,3 @@ lapply(filesToUpload, function(f) {
   retry(quote(drive_put(file.path("outputs", studyAreaName, f), unique(as_id(gid_results)))),
         retries = 5, exponentialDecayBase = 2)
 })
-

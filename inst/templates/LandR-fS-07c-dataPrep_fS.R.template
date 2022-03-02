@@ -25,7 +25,7 @@ fSdataPrepObjects <- list(
   historicalClimateRasters = simOutPreamble[["historicalClimateRasters"]],
   pixelGroupMap2001 = biomassMaps2001[["pixelGroupMap"]],
   pixelGroupMap2011 = biomassMaps2011[["pixelGroupMap"]],
-  rasterToMatch = simOutPreamble[["rasterToMatch"]], ## this needs to be masked
+  rasterToMatch = simOutPreamble[["rasterToMatch"]],
   rstLCC = biomassMaps2011[["rstLCC"]],
   sppEquiv = simOutPreamble[["sppEquiv"]],
   standAgeMap2001 = biomassMaps2001[["standAgeMap"]],
