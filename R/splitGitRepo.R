@@ -1,5 +1,10 @@
-#' This is copied from SpaDES.installl
-#' @param gitRepo A character string in the form GitAccount/GitRepo@Branch or @Commit
+#' Split a GitHub repo into its parts
+#'
+#' copied from \pkg{SpaDES.install}
+#'
+#' @param gitRepo A character string in the form `GitAccount/GitRepo@Branch` or `@Commit`
+#'
+#' @keywords internal
 splitGitRepo <- function(gitRepo) {
   grSplit <- strsplit(gitRepo, "/|@")[[1]]
   grAcct <- strsplit(gitRepo, "/")[[1]] # only account and repo
@@ -18,7 +23,12 @@ splitGitRepo <- function(gitRepo) {
   list(acct = acct, repo = repo, br = br)
 }
 
-# Copied from http://memosisland.blogspot.com/2012/03/check-url-existance-with-r.html
+#' check if url exists
+#'
+#' Copied from <http://memosisland.blogspot.com/2012/03/check-url-existance-with-r.html>
+#'
+#' @importFrom utils capture.output
+#' @keywords internal
 urlExists <- function(address) {
   # tryCatch ({
     con <- url(address)

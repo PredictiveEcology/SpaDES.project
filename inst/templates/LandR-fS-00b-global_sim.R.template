@@ -10,8 +10,9 @@ if (delayStart > 0 & run == 1) {
   Sys.sleep(delayStart*6)
 }
 
-usePrerun = TRUE; reupload = FALSE
 source("06-studyArea.R")
+
+usePrerun = TRUE; reupload = FALSE
 source("07a-dataPrep_2001.R")
 source("07b-dataPrep_2011.R")
 source("07c-dataPrep_fS.R")

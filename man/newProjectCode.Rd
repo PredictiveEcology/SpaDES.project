@@ -36,7 +36,7 @@ Default \code{TRUE} in an interactive session.}
 \describe{
   \item{\code{overwrite}}{
     If modules are specified, should a new module be downloaded even
-    if it already exists, i.e., overwrite (and destroy).the existing.
+    if it already exists, i.e., overwrite (and destroy) the existing one.
     Default is \code{FALSE}
   }
   \item{\code{pkgPath}}{

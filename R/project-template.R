@@ -18,7 +18,7 @@
 #'             \describe{
 #'               \item{\code{overwrite}}{
 #'                 If modules are specified, should a new module be downloaded even
-#'                 if it already exists, i.e., overwrite (and destroy).the existing.
+#'                 if it already exists, i.e., overwrite (and destroy) the existing one.
 #'                 Default is \code{FALSE}
 #'               }
 #'               \item{\code{pkgPath}}{
@@ -26,8 +26,6 @@
 #'                 Defaults to \file{<projectName>_packages} in the project's parent directory.
 #'               }
 #'             }
-#' @export
-#' @rdname newProject
 #'
 #' @examples
 #' \dontrun{
@@ -40,26 +38,24 @@
 #' @export
 #' @rdname newProject
 #' @importFrom Require checkPath
-newProject <-
-  # signature = c(name = "character", path = "character", type = "character", open = "logical"),
-  # definition =
-  function(name, path = ".", type = "basic", open = interactive(), modules = NULL, ...) {
-    checkPath(path, create = TRUE)
+newProject <- function(name, path = ".", type = "basic", open = interactive(), modules = NULL, ...) {
+    has_rstudioapi <- requireNamespace("rstudioapi", quietly = TRUE)
+
     projDir <- checkPath(file.path(path, name), create = TRUE)
 
-    if (type != "basic")
+    if (type != "basic") {
       checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
+    }
 
-    if (interactive() && Sys.getenv("RSTUDIO") == "1") {
-      if (requireNamespace("rstudioapi", quietly = TRUE))
+    if (interactive() & Sys.getenv("RSTUDIO") == "1" & has_rstudioapi) {
         rstudioapi::initializeProject(path = projDir)
     }
 
     newProjectCode(name, path, type, open, modules = modules, ...)
 
-    if (open)
-      if (requireNamespace("rstudioapi"))
-        rstudioapi::openProject(projDir, newSession = TRUE)
+    if (open & has_rstudioapi) {
+      rstudioapi::openProject(projDir, newSession = TRUE)
+    }
 
     return(projDir)
 }
@@ -71,13 +67,13 @@ newProject <-
 #' @author Alex Chubaty
 #' @export
 #' @rdname newProjectCode
-#'
 setGeneric("newProjectCode", function(name, path, type, open, modules = NULL, ...) {
   standardGeneric("newProjectCode")
 })
 
 #' @export
 #' @importFrom Require checkPath
+#' @importFrom utils modifyList
 #' @importFrom whisker whisker.render
 #' @rdname newProjectCode
 setMethod(
@@ -95,9 +91,19 @@ setMethod(
     }
 
     nestedPath <- checkPath(file.path(path, name), create = TRUE)
-    fnames <- list()
 
-    projectData <- list(projName = name, pkgPath = pkgPath,
+    cachePath <- checkPath(file.path(nestedPath, "cache"), create = TRUE)
+    inputPath <- checkPath(file.path(nestedPath, "inputs"), create = TRUE)
+    modulePath <- checkPath(file.path(nestedPath, "modules"), create = TRUE)
+    outputPath <- checkPath(file.path(nestedPath, "outputs"), create = TRUE)
+
+    # setPaths(cachePath = cachePath,
+    #          inputPath = inputPath,
+    #          modulePath = modulePath,
+    #          outputPath = outputPath)
+
+    projectData <- list(projName = name,
+                        pkgPath = pkgPath,
                         overwrite = dots$overwrite)
 
     # There is a bug in extractPkgName if the remote account is not present
@@ -106,8 +112,8 @@ setMethod(
       mods <- paste0("moduleGitRepos <- c('",
                      paste(modules, collapse = "',\n                    '"), "')")
 
-      params <- paste0(paste("parameters = list(\n  "), paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
-
+      params <- paste0(paste("parameters = list(\n  "),
+                       paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
 
       message("Identifying latest documentation for each module", appendLF = FALSE)
       moduleDocumentation <- lapply(modules, function(mod) {
@@ -116,108 +122,136 @@ setMethod(
         mds <- c(".md", ".rmd")
         urlFine <- FALSE
         for (md in mds) {
-          urlTry <- paste0("https://github.com/",split$acct,"/",split$repo,"/blob/",split$br,"/", split$repo, md)
+          urlTry <- paste0("https://github.com/", split$acct, "/", split$repo, "/blob/",
+                           split$br, "/", split$repo, md)
           urlFine <- urlExists(urlTry)
           if (isTRUE(urlFine)) break
         }
         urlTry
       })
-      moduleDocumentation <- paste0("## ", paste(paste0("browseURL('", moduleDocumentation, "')"), collapse = "\n## "))
+      moduleDocumentation <- paste0("## ", paste(paste0("browseURL('", moduleDocumentation, "')"),
+                                                 collapse = "\n## "))
       message("Done!")
       projectData <- append(projectData,
                             list(moduleLines = mods,
                                  parameterLines = params,
                                  moduleDocumentation = moduleDocumentation))
-
     }
-    projectTemplates <- list()
 
+    ## start with files needed for all project types
+    fnames <- list(
+      "README.md",
+      ".Renviron",
+      ".Rprofile"
+    )
+    tnames <- list(
+      "README.md.template",
+      "Renviron.template",
+      "Rprofile.template"
+    )
 
-    fnames[[1]] <- file.path(nestedPath, "README.md")
-    projectTemplates[[1]] <- readLines(file.path(.pkgEnv[["templatePath"]], "README.md.template"))
-
+    ## additional files/templates for each project type
     if (type == "basic") {
-      fnames[[2]] <- file.path(nestedPath, "global.R")
-
-      projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "firstLinesPackages.R.template"))
-      projectTemplates[[2]] <- c(projectTemplates[[2]],
-                                 readLines(file.path(.pkgEnv[["templatePath"]], "basic-project.R.template")))
-
+      fnames <- append(fnames, "global.R")
+      tnames <- append(tnames, "basic-project.R.template")
     } else if (type == "advanced") {
       fnames <- append(fnames, list(
-        file.path(nestedPath, "00-global.R"),
-        file.path(nestedPath, "01-packages.R"),
-        file.path(nestedPath, "02-init.R"),
-        file.path(nestedPath, "03-paths.R"),
-        file.path(nestedPath, "04-options.R"),
-        file.path(nestedPath, "05-google-ids.R"),
-        file.path(nestedPath, "06-studyArea.R"),
-        file.path(nestedPath, "07-dataPrep.R"),
-        file.path(nestedPath, "08-pre-sim.R"),
-        file.path(nestedPath, "09-main-sim.R"),
-        file.path(nestedPath, "config.yml"),
-        file.path(nestedPath, ".Rprofile")
+        "config.yml",
+        "00-global.R",
+        "01-packages.R",
+        "02-init.R",
+        "03-paths.R",
+        "04-options.R",
+        "05-google-ids.R",
+        "06-studyArea.R",
+        "07-dataPrep.R",
+        "08-pre-sim.R",
+        "09-main-sim.R"
       ))
 
-      projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-00-global.R.template"))
-      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-01-packages.R.template"))
-      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-02-init.R.template"))
-      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-03-paths.R.template"))
-      projectTemplates[[6]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-04-options.R.template"))
-      projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-05-google-ids.R.template"))
-      projectTemplates[[8]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-06-studyArea.R.template"))
-      projectTemplates[[9]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-07-dataPrep.R.template"))
-      projectTemplates[[10]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-08-pre-sim.R.template"))
-      projectTemplates[[11]] <- readLines(file.path(.pkgEnv[["templatePath"]], "advanced-09-main-sim.R.template"))
-      projectTemplates[[12]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
-      projectTemplates[[13]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
+      tnames <- append(tnames, list(
+        "config.yml.template",
+        "advanced-00-global.R.template",
+        "advanced-01-packages.R.template",
+        "advanced-02-init.R.template",
+        "advanced-03-paths.R.template",
+        "advanced-04-options.R.template",
+        "advanced-05-google-ids.R.template",
+        "advanced-06-studyArea.R.template",
+        "advanced-07-dataPrep.R.template",
+        "advanced-08-pre-sim.R.template",
+        "advanced-09-main-sim.R.template"
+      ))
     } else if (type == "LandR-fireSense") {
+      checkPath(file.path(nestedPath, "R"), create = TRUE)
+      checkPath(file.path(nestedPath, "scripts"), create = TRUE)
+
       fnames <- append(fnames, list(
-        file.path(nestedPath, "00-global.R"),
-        file.path(nestedPath, "01-init.R"),
-        file.path(nestedPath, "02-paths.R"),
-        file.path(nestedPath, "03-packages.R"),
-        file.path(nestedPath, "04-options.R"),
-        file.path(nestedPath, "05-google-ids.R"),
-        file.path(nestedPath, "06-studyArea.R"),
-        file.path(nestedPath, "07a-dataPrep_2001.R"),
-        file.path(nestedPath, "07b-dataPrep_2011.R"),
-        file.path(nestedPath, "07c-dataPrep_fS.R"),
-        file.path(nestedPath, "08a-ignitionFit.R"),
-        file.path(nestedPath, "08b-escapeFit.R"),
-        file.path(nestedPath, "08c-spreadFit.R"),
-        file.path(nestedPath, "09-main-sim.R"),
-        file.path(nestedPath, "config.yml")
+        "config.yml",
+        "00a-global_fit.R",
+        "00b-global_sim.R",
+        "01-packages.R",
+        "02-init.R",
+        "03-paths.R",
+        "04-options.R",
+        "05-google-ids.R",
+        "05-google-ids.csv",
+        "06-studyArea.R",
+        "07a-dataPrep_2001.R",
+        "07b-dataPrep_2011.R",
+        "07c-dataPrep_fS.R",
+        "08a-ignitionFit.R",
+        "08b-escapeFit.R",
+        "08c-spreadFit.R",
+        "09-main-sim.R",
+        "R/upload_ignitionFit.R",
+        "R/upload_spreadFit.R",
+        "R/upload_fSDatPrepFit_vegCoeffs.R",
+        "R/upload_sims.R",
+        "R/upload_sims.R",
+        "scripts/submodules.sh"
       ))
 
-      projectTemplates[[2]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-00-global.R.template"))
-      projectTemplates[[3]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-01-packages.R.template"))
-      projectTemplates[[4]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-02-init.R.template"))
-      projectTemplates[[5]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-03-paths.R.template"))
-      projectTemplates[[6]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-04-options.R.template"))
-      projectTemplates[[7]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-05-google-ids.R.template"))
-      projectTemplates[[8]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-06-studyArea.R.template"))
-      projectTemplates[[9]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-07a-dataPrep_2001.R.template"))
-      projectTemplates[[10]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-07b-dataPrep_2011.R.template"))
-      projectTemplates[[11]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-07c-dataPrep_fS.R.template"))
-      projectTemplates[[12]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-08a-ignitionFit.R.template"))
-      projectTemplates[[13]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-08b-escapeFit.R.template"))
-      projectTemplates[[14]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-08c-spreadFit.R.template"))
-      projectTemplates[[15]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-09-main-sim.R.template"))
-      projectTemplates[[16]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_ignitionFit.R.template"))
-      projectTemplates[[17]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_spreadFit.R.template"))
-      projectTemplates[[18]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_spreadFit_coeffs.R.template"))
-      projectTemplates[[19]] <- readLines(file.path(.pkgEnv[["templatePath"]], "LandR-fS-R-upload_sims.R.template"))
-      projectTemplates[[20]] <- readLines(file.path(.pkgEnv[["templatePath"]], "config.yml.template"))
-      projectTemplates[[21]] <- readLines(file.path(.pkgEnv[["templatePath"]], "Rprofile.template"))
-      
+      tnames <- append(tnames, list(
+        "config.yml.template",
+        "LandR-fS-00a-global_fit.R.template",
+        "LandR-fS-00b-global_sim.R.template",
+        "LandR-fS-01-packages.R.template",
+        "LandR-fS-02-init.R.template",
+        "LandR-fS-03-paths.R.template",
+        "LandR-fS-04-options.R.template",
+        "LandR-fS-05-google-ids.R.template",
+        "LandR-fS-05-google-ids.csv.template",
+        "LandR-fS-06-studyArea.R.template",
+        "LandR-fS-07a-dataPrep_2001.R.template",
+        "LandR-fS-07b-dataPrep_2011.R.template",
+        "LandR-fS-07c-dataPrep_fS.R.template",
+        "LandR-fS-08a-ignitionFit.R.template",
+        "LandR-fS-08b-escapeFit.R.template",
+        "LandR-fS-08c-spreadFit.R.template",
+        "LandR-fS-09-main-sim.R.template",
+        "LandR-fS-R-upload_ignitionFit.R.template",
+        "LandR-fS-R-upload_spreadFit.R.template",
+        "LandR-fS-R-upload_fSDatPrepFit_vegCoeffs.R.template",
+        "LandR-fS-R-upload_sims.R.template",
+        "LandR-fS-R-upload_sims.R.template",
+        "LandR-fS-scripts-submodules.sh.template"
+      ))
     }
 
-    lapply(seq_along(fnames), function(i) {
-      writeLines(whisker.render(projectTemplates[[i]], projectData), fnames[[i]])
+    stopifnot(identical(length(fnames), length(tnames)))
+
+    projectTemplates <- lapply(tnames, function(t) {
+      readLines(file.path(.pkgEnv[["templatePath"]], t))
     })
 
-    # if (open) .fileEdit(fnames[[2]]) ## global.R
+    lapply(seq_along(fnames), function(i) {
+      writeLines(whisker.render(projectTemplates[[i]], projectData), file.path(nestedPath, fnames[[i]]))
+    })
+
+    if (open) {
+      lapply(grep("^00.-global.*[.]R$", file.path(nestedPath, fnames)), .fileEdit)
+    }
 
     return(nestedPath)
 })

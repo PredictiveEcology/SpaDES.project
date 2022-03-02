@@ -18,7 +18,8 @@ cloudCacheFolderID <- config::get("cloud")[["cachedir"]]
 codeChecks <- config::get("codechecks")
 delayStart <- config::get("delaystart")
 fitUsing <- if (grepl("for-cast[.]ca", Sys.info()[["nodename"]])) 3 else 0
-libPathDEoptim <- config::get("paths")[["libpathdeoptim"]]
+libPathDEoptim <- file.path(config::get("paths")[["libpathdeoptim"]], version$platform,
+                            paste0(version$major, ".", strsplit(version$minor, "[.]")[[1]][1]))
 messagingNumCharsModule <- config::get("messagingNumCharsModule")
 newGoogleIDs <- FALSE ## gets rechecked/updated for each script (06, 07x, 08x) based on script 05
 nReps <- config::get("nreps")

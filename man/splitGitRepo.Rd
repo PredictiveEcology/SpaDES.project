@@ -2,13 +2,14 @@
 % Please edit documentation in R/splitGitRepo.R
 \name{splitGitRepo}
 \alias{splitGitRepo}
-\title{This is copied from SpaDES.installl}
+\title{Split a GitHub repo into its parts}
 \usage{
 splitGitRepo(gitRepo)
 }
 \arguments{
-\item{gitRepo}{A character string in the form GitAccount/GitRepo@Branch or @Commit}
+\item{gitRepo}{A character string in the form `GitAccount/GitRepo@Branch` or `@Commit`}
 }
 \description{
-This is copied from SpaDES.installl
+copied from \pkg{SpaDES.install}
 }
+\keyword{internal}

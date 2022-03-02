@@ -9,7 +9,7 @@ biggestObj <- as.numeric(object.size(fSsimDataPrep[["fireSense_ignitionCovariate
 
 form <- fSsimDataPrep[["fireSense_ignitionFormula"]]
 
-nCores <- pmin(14, pemisc::optimalClusterNum(biggestObj)/2 - 6)
+nCores <- pmin(14, pemisc::optimalClusterNum(biggestObj)/2 - 6) ## TODO: adjust per size of study area and RAM avail.
 ignitionFitParams <- list(
   fireSense_IgnitionFit = list(
     # .plotInitialTime = 1,
