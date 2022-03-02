@@ -11,7 +11,6 @@ git submodule add https://github.com/PredictiveEcology/Biomass_borealDataPrep mo
 git submodule add https://github.com/PredictiveEcology/Biomass_core modules/Biomass_core
 git submodule add https://github.com/PredictiveEcology/Biomass_regeneration modules/Biomass_regeneration
 git submodule add https://github.com/PredictiveEcology/Biomass_speciesData modules/Biomass_speciesData
-git submodule add https://github.com/PredictiveEcology/Biomass_speciesFactorial modules/Biomass_speciesFactorial
 git submodule add https://github.com/PredictiveEcology/Biomass_speciesParameters modules/Biomass_speciesParameters
 git submodule add https://github.com/ianmseddy/gmcsDataPrep modules/gmcsDataPrep
 
@@ -32,12 +31,10 @@ git submodule add https://github.com/PredictiveEcology/Biomass_speciesFactorial 
 
 ####################################################################################################
 
+git submodule init
 cd modules
 
-cd canClimateData && git checkout development
-#cd ../<REPO> && git checkout development ## TODO: change branches for your study area module if needed
-
-cd ../Biomass_borealDataPrep && git checkout development
+cd Biomass_borealDataPrep && git checkout development
 cd ../Biomass_core && git checkout development
 cd ../Biomass_regeneration && git checkout development
 cd ../Biomass_speciesData && git checkout development
@@ -57,5 +54,7 @@ cd ../fireSense_SpreadPredict && git checkout development
 #cd ../fireSense_dataPrepFit && git checkout development
 cd ../fireSense_dataPrepPredict && git checkout development
 
-cd ../..
+#cd ../canClimateData && git checkout development
+#cd ../<REPO> && git checkout development ## TODO: change branches for your study area module if needed
 
+cd ../..
