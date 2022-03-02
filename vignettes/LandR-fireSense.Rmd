@@ -72,24 +72,7 @@ Require("PredictiveEcology/climateData")
 
 We strongly recommend using git for version control, and using git submodules to manage individual project modules.
 
-    cd /path/to/my/projects/myNewProject
-
-    ## add LandR modules
-    git submodule add https://github.com/PredictiveEcology/Biomass_borealDataPrep modules/Biomass_borealDataPrep
-    git submodule add https://github.com/PredictiveEcology/Biomass_core modules/Biomass_core
-    git submodule add https://github.com/PredictiveEcology/Biomass_regeneration modules/Biomass_regeneration
-    git submodule add https://github.com/PredictiveEcology/Biomass_speciesData modules/Biomass_speciesData
-
-    ## add fireSense modules
-    git submodule add https://github.com/PredictiveEcology/fireSense modules/fireSense
-    git submodule add https://github.com/PredictiveEcology/fireSense_dataPrepFit modules/fireSense_dataPrepFit
-    git submodule add https://github.com/PredictiveEcology/fireSense_dataPrepPredict modules/fireSense_dataPrepPredict
-    git submodule add https://github.com/PredictiveEcology/fireSense_IgnitionFit modules/fireSense_IgnitionFit
-    git submodule add https://github.com/PredictiveEcology/fireSense_IgnitionPredict modules/fireSense_IgnitionPredict
-    git submodule add https://github.com/PredictiveEcology/fireSense_EscapeFit modules/fireSense_EscapeFit
-    git submodule add https://github.com/PredictiveEcology/fireSense_EscapePredict modules/fireSense_EscapePredict
-    git submodule add https://github.com/PredictiveEcology/fireSense_SpreadFit modules/fireSense_SpreadFit
-    git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict modules/fireSense_SpreadPredict
+Use the `scripts/submodules.sh` script to add git submodules and checkout the correct branches (as of 2022-03-01, the development branch is recommended for most submodules).
 
 Optionally, you can add branch info for each of the submodules by editing the `.gitmodules` file and running `git submodule sync`.
 
@@ -134,8 +117,16 @@ For a concrete example of a study area module used for the Western Boreal Initia
 
 # Climate data preparation
 
-We have used ClimateNA (<http://climatena.ca/>) to downscale monthly climate data to get historic and future projected monthly drought code (MDC) rasters for our study areas.
-Unfortunately, ClimateNA does not currently have a scriptable programming interface, and these climate layers must be assembled manually using the ClimateNA point-and-click graphical tool.
+The `canClimateData` module deals with preparing climate data for use fireSense and LandR.CS.
+We have pre-downloaded several climate scenarios for several provincial and territorial jurisdictions in Canada.
+See <https://github.com/PredictiveEcology/canClimateData#available-data-sets>.
+
+If your study area of interest does not lie completely within one of these prebuilt study areas, or if you want to use different climate scenarios, you will need to download the necessary data using ClimateNA (<http://climatena.ca/>) to downscale monthly climate data and get historic and future projected monthly drought code (MDC) rasters for your study area(s).
+These climate layers must be assembled manually using the ClimateNA point-and-click graphical tool, and manually zipping them.
+**UPDATE:** Recent versions of ClimateNA support a scriptable programming interface; however, we have not yet created the scripts necessary to assemble these datasets programatically.
+Please see the ClimateNA documentation for some basic examples.
+
+See also <https://github.com/PredictiveEcology/canClimateData#additional-data-sets>.
 
 1.  Download and install the ClimateNA software (Windows only).
 
@@ -183,37 +174,58 @@ Unfortunately, ClimateNA does not currently have a scriptable programming interf
 
     h. (Optional) After downloading all the climate data, you may wish to upload to a cloud-accessible location (e.g., Google Drive) to make it easy for collaborators to access the raw files if needed.
 
-4.  Create raster maps of MDC for use with fireSense:
-
-    a.  Use `climateData::makeMDC()` to create the MDC rasters.
-    
-    b.  Upload these to Google Drive (make note of the Google file ids) for use with `prepInputs()` in your study area data prep module.
+4.  Upload these to Google Drive (make note of the Google file ids) for use `canClimateData` module.
     
 # Project script configuration
 
-0.  The main project script is `00-global.R`.
+0.  The main project scripts are `00a-global_fit.R` and `00b-global_sim.R`, which are run either for fitting or for the main simulations (once pre-run fit objects are available).
     All subsequent scripts are `source`d from this file.
 
-1.  Set user (or machine) specific options in `config.yml`, such as cache path, cache type, Google account info, etc.
+1.  All necessary packages are specified and installed in `01-packages.R`.
 
-2.  Additional  user options can be added to the config file, just remember to assign these values in `01-init.R`, even if they aren't used until later scripts.
+2.  Set user (or machine) specific options in `config.yml`, such as cache path, cache type, Google account info, etc.
 
-3.  Simulation paths (e.g., those used by modules) are defined in `02-paths.R`.
+3.  Additional  user options can be added to the config file, just remember to assign these values in `02-init.R`, even if they aren't used until later scripts.
+
+4.  Simulation paths (e.g., those used by modules) are defined in `03-paths.R`.
     Use relative paths only.
     Different cache paths may be specified for finer control.
-
-4.  Any additional packages used can be specified in `03-packages.R`.
 
 5.  Package options are set in `04-options.R`.
     User-specific options should not be defined here (set these in `config.yml`).
 
-6.  The Google Drive file ids defined in `05-google-ids.R` will be blank to start with.
+6.  The Google Drive file ids defined in `05-google-ids.csv` will be blank to start with.
     As you run the subsequent scripts and upload simulation results, you can add the Google file ids to the list defined here.
     This allows future runs to skip long-running or intensive computations, such as those required to run `fireSense_SpreadFit`, and download a pre-computed result.
 
 7.  You run your study area data prep module by invoking this script.
-    This script may require additional updating/editing (e.g., the name of the module you created).
+    This script may require additional updating/editing (e.g., the name of the module you created), and you will need to create a preamble module that produces the following output objects:
+    
+    ```r
+    createsOutput("rasterToMatch", objectClass = "RasterLayer",
+                  desc = "template raster"),
+    createsOutput("rasterToMatchLarge", objectClass = "RasterLayer",
+                  desc = "template raster for larger area"),
+    createsOutput("rasterToMatchReporting", objectClass = "RasterLayer",
+                  desc = "template raster for reporting area"),
+    createsOutput("sppColorVect", objectClass = "character",
+                  desc = "species colours for plotting"),
+    createsOutput("sppEquiv", objectClass = "character",
+                  desc = "table of LandR species names equivalencies"),
+    createsOutput("sppEquivCol", objectClass = "character",
+                  desc = "name of column to use in sppEquiv"),
+    createsOutput("studyArea", objectClass = "SpatialPolygonsDataFrame",
+                  desc = "study area used for simulation (buffered to mitigate edge effects)"),
+    createsOutput("studyAreaLarge", objectClass = "SpatialPolygonsDataFrame",
+                  desc = "study area used for module parameterization (buffered)"),
+    createsOutput("studyAreaPSP", objectClass = "SpatialPolygonsDataFrame",
+                 desc = paste("this area will be used to subset PSP plots before building the statistical model.",
+                              "Currently PSP datasets with repeat measures exist only for Saskatchewan,",
+                              "Alberta, and Boreal British Columbia")),
+    createsOutput("studyAreaReporting", objectClass = "SpatialPolygonsDataFrame",
+                  desc = "study area used for reporting/post-processing")
+    ```
 
-8.  Subsequent scripts (07a, 07b, 07c, 08a, 08b, and 08c) shouldn't need much tweaking by the user.
+8.  Subsequent scripts (07a, 07b, 07c, 08a, 08b, and 08c) shouldn't need much tweaking by the user, but there are a few places (marked by `## TODO:`) where the user must specify things like how to set up compute clusters, etc.
 
 9.  The main dynamic simulation is run by `09-main-sim.R`.

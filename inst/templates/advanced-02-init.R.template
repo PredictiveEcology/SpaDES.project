@@ -1,7 +1,8 @@
 if (file.exists(".Renviron")) readRenviron(".Renviron")
 
-library(config)
-library(magrittr)
+.starttime <- Sys.time()
+
+Require("config")
 
 cacheDir <- config::get("paths")[["cachedir"]]
 inputDir <- "inputs"

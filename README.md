@@ -10,6 +10,17 @@
 
 Quickly setup 'SpaDES' project directories and add modules using templates.
 
+See package vignettes to get started.
+
+1. Getting started vignette
+2. Managing large SpaDES projects
+3. Using `git` and GitHub
+4. Using LandR and fireSense
+
+Project types:
+
+- LandR-fS
+
 **Website:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
 
 **Wiki:** [https://github.com/PredictiveEcology/SpaDES/wiki](https://github.com/PredictiveEcology/SpaDES/wiki)
@@ -19,7 +30,7 @@ Quickly setup 'SpaDES' project directories and add modules using templates.
 ### Current stable release
 
 [![R build status](https://github.com/PredictiveEcology/SpaDES.project/workflows/R-CMD-check/badge.svg?branch=master)](https://github.com/PredictiveEcology/SpaDES.project/actions)
-[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/master/graph/badge.svg)](https://codecov.io/gh/PredictiveEcology/SpaDES.project?branch=master)
+[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/master/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=master)
 
 **Install from CRAN:**
 
@@ -38,7 +49,7 @@ install_github("PredictiveEcology/SpaDES.project", dependencies = TRUE) # master
 ### Development version (unstable)
 
 [![R build status](https://github.com/PredictiveEcology/SpaDES.project/workflows/R-CMD-check/badge.svg?branch=development)](https://github.com/PredictiveEcology/SpaDES.project/actions)
-[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
+[![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
 
 **Install from GitHub:**
 

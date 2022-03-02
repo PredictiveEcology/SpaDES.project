@@ -8,15 +8,15 @@
 \alias{newProjectCode,character,character,character,missing-method}
 \title{Create new module code file}
 \usage{
-newProjectCode(name, path, type, open)
+newProjectCode(name, path, type, open, ...)
 
-\S4method{newProjectCode}{character,character,character,logical}(name, path, type, open = interactive())
+\S4method{newProjectCode}{character,character,character,logical}(name, path, type, open = interactive(), ...)
 
-\S4method{newProjectCode}{character,character,missing,missing}(name, path, type, open)
+\S4method{newProjectCode}{character,character,missing,missing}(name, path, type, open, ...)
 
-\S4method{newProjectCode}{character,character,missing,logical}(name, path, type, open)
+\S4method{newProjectCode}{character,character,missing,logical}(name, path, type, open, ...)
 
-\S4method{newProjectCode}{character,character,character,missing}(name, path, type, open)
+\S4method{newProjectCode}{character,character,character,missing}(name, path, type, open, ...)
 }
 \arguments{
 \item{name}{project name (name of project directory)}
@@ -28,6 +28,14 @@ newProjectCode(name, path, type, open)
 
 \item{open}{Logical. Should the new project file be opened after creation?
 Default \code{TRUE} in an interactive session.}
+
+\item{...}{Additional arguments. Currently only the following are implemented:
+\describe{
+  \item{\code{pkgPath}}{
+    Path to project's package directory.
+    Defaults to \file{<projectName>_packages} in the project's parent directory.
+  }
+}}
 }
 \description{
 Create new module code file

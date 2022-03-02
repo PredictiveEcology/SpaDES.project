@@ -86,7 +86,12 @@ Remember that each module should be self-contained, and that data are typically 
     - 'manually' via `.Rprofile`
 
 ```{r setup-packages, eval = FALSE}
-drat:::add("PredictiveEcology")
+options(
+  repos = c(
+    predictiveecology = "https://predictiveecology.r-universe.dev",
+    CRAN = "https://cloud.r-project.org"
+  )
+)
 
 if (!require("Require")) {install.packages("Require"); library(Require)}
 Require::setup("packages")

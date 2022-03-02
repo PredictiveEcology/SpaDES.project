@@ -1,44 +1,83 @@
 do.call(setPaths, preamblePaths)
 
-source("05-google-ids.R")
-newGoogleIDs <- gdriveSims[["simOutPreamble"]] == ""
+gid_preamble <- gdriveSims[studyArea == studyAreaName & simObject == "simOutPreamble" &
+                             gcm == climateGCM & ssp == climateSSP, gid]
+upload_preamble <- run == 1 & (reupload | length(gid_preamble) == 0)
 
-preambleObjects <- list()
+preambleObjects <- list(
+  .runName = runName
+)
+
+preambleModules <- list("YOUR_MODULE_NAME", "canClimateData") ## TODO: use your module name
 
 preambleParams <- list(
+  canClimateData = list(
+    .useCache = ".inputObjects"
+    climateGCM = climateGCM,
+    climateSSP = climateSSP,
+    historicalFireYears = 1991:2020,
+    studyAreaName = studyAreaName,
+    runName = runName
+  ),
   YOUR_MODULE_NAME = list( ## TODO: use your module name
-    ".useCache" = TRUE,
-    "historicalFireYears" = 1991:2019,
-    "studyAreaName" = studyAreaName
+    .useCache = FALSE, # ".inputObjects",
+    runName = runName
   )
 )
 
-fsimOutPreamble <- file.path(Paths$outputPath, paste0("simOutPreamble_", studyAreaName, ".qs"))
-if (isTRUE(usePrerun)) {
+fsimOutPreamble <- simFile(paste0("simOutPreamble_", studyAreaName, "_", climateGCM, "_", climateSSP),
+                           Paths$outputPath, ext = simFileFormat)
+if (isTRUE(usePrerun) & isFALSE(upload_preamble)) {
   if (!file.exists(fsimOutPreamble)) {
-    googledrive::drive_download(file = as_id(gdriveSims[["simOutPreamble"]]), path = fsimOutPreamble)
+    googledrive::drive_download(file = as_id(gid_preamble), path = fsimOutPreamble)
   }
   simOutPreamble <- loadSimList(fsimOutPreamble)
 } else {
-  simOutPreamble <- Cache(simInitAndSpades,
-                          times = list(start = 0, end = 1),
-                          params = preambleParams,
-                          modules = c("YOUR_MODULE_NAME"), ## TODO: use your module name
-                          objects = preambleObjects,
-                          paths = preamblePaths,
-                          #useCloud = useCloudCache,
-                          #cloudFolderID = cloudCacheFolderID,
-                          userTags = c("YOUR_MODULE_NAME", studyAreaName) ## TODO: use your module name
+  simOutPreamble <- simInitAndSpades(
+    times = list(start = 0, end = 1),
+    params = preambleParams,
+    modules = preambleModules,
+    loadOrder = unlist(preambleModules),
+    objects = preambleObjects,
+    paths = preamblePaths#,
+    #useCache = "overwrite",
+    #useCloud = useCloudCache,
+    #cloudFolderID = cloudCacheFolderID,
+    #userTags = c("preamble", studyAreaName)
   )
-  saveSimList(
-    sim = simOutPreamble,
-    filename = fsimOutPreamble,
-    #filebackedDir = dsimOutPreamble,
-    fileBackend = 2 ## 0 = no change; 1 = copy rasters to fileBackedDir; 2 = rasters to memory
-  )
-  if (isTRUE(newGoogleIDs)) {
-    googledrive::drive_put(media = fsimOutPreamble, path = gdriveURL, name = basename(fsimOutPreamble), verbose = TRUE)
-  } else {
-    googledrive::drive_update(file = as_id(gdriveSims[["simOutPreamble"]]), media = fsimOutPreamble)
+  saveSimList(sim = simOutPreamble, filename = fsimOutPreamble, fileBackend = 2)
+
+  if (isTRUE(upload_preamble)) {
+    fdf <- googledrive::drive_put(media = fsimOutPreamble, path = gdriveURL, name = basename(fsimOutPreamble))
+    gid_preamble <- as.character(fdf$id)
+    rm(fdf)
+    gdriveSims <- update_googleids(
+      data.table(studyArea = studyAreaName, simObject = "simOutPreamble", runID = NA,
+                 gcm = climateGCM, ssp = climateSSP, gid = gid_preamble),
+      gdriveSims
+    )
   }
 }
+
+if (isTRUE(firstRunMDCplots)) {
+  ggMDC <- fireSenseUtils::compareMDC(
+    historicalMDC = simOutPreamble$historicalClimateRasters$MDC,
+    projectedMDC = simOutPreamble$projectedClimateRasters$MDC,
+    flammableRTM = simOutPreamble$flammableRTM
+  )
+  fggMDC <- file.path(preamblePaths$outputPath, "figures", paste0("compareMDC_", studyAreaName, "_",
+                                                                  climateGCM, "_", climateSSP, ".png"))
+  checkPath(dirname(fggMDC), create = TRUE)
+
+  ggplot2::ggsave(plot = ggMDC, filename = fggMDC)
+
+  if (isTRUE(upload_preamble)) {
+    googledrive::drive_put(
+      media = fggMDC,
+      path = unique(as_id(gdriveSims[studyArea == studyAreaName & simObject == "results", gid])),
+      name = basename(fggMDC)
+    )
+  }
+}
+
+nSpecies <- length(unique(simOutPreamble$sppEquiv$LandR))

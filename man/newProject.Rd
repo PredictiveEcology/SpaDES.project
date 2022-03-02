@@ -8,15 +8,15 @@
 \alias{newProject,character,character,missing,logical-method}
 \title{Create new SpaDES project}
 \usage{
-newProject(name, path, type, open)
+newProject(name, path, type, open, ...)
 
-\S4method{newProject}{character,character,character,logical}(name, path, type, open)
+\S4method{newProject}{character,character,character,logical}(name, path, type, open, ...)
 
-\S4method{newProject}{character,character,missing,missing}(name, path, type, open)
+\S4method{newProject}{character,character,missing,missing}(name, path, type, open, ...)
 
-\S4method{newProject}{character,character,character,missing}(name, path, type, open)
+\S4method{newProject}{character,character,character,missing}(name, path, type, open, ...)
 
-\S4method{newProject}{character,character,missing,logical}(name, path, type, open)
+\S4method{newProject}{character,character,missing,logical}(name, path, type, open, ...)
 }
 \arguments{
 \item{name}{project name (name of project directory)}
@@ -28,6 +28,14 @@ newProject(name, path, type, open)
 
 \item{open}{Logical. Should the new project file be opened after creation?
 Default \code{TRUE} in an interactive session.}
+
+\item{...}{Additional arguments. Currently only the following are implemented:
+\describe{
+  \item{\code{pkgPath}}{
+    Path to project's package directory.
+    Defaults to \file{<projectName>_packages} in the project's parent directory.
+  }
+}}
 }
 \description{
 Initialize a project with subdirectories \file{cache/}, \file{modules/},
