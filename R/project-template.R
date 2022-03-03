@@ -53,8 +53,12 @@ newProject <- function(name, path = ".", type = "basic", open = interactive(), m
 
     newProjectCode(name, path, type, open, modules = modules, ...)
 
-    if (open & has_rstudioapi) {
-      rstudioapi::openProject(projDir, newSession = TRUE)
+    if (open) {
+      if (has_rstudioapi) {
+        rstudioapi::openProject(projDir, newSession = TRUE)
+      } else {
+        lapply(grep("global.*[.]R$", dir(projDir, full.names = TRUE), value = TRUE), .fileEdit)
+      }
     }
 
     return(projDir)
@@ -249,9 +253,9 @@ setMethod(
       writeLines(whisker.render(projectTemplates[[i]], projectData), file.path(nestedPath, fnames[[i]]))
     })
 
-    if (open) {
-      lapply(grep("^00.-global.*[.]R$", file.path(nestedPath, fnames)), .fileEdit)
-    }
+    # if (open) {
+    #   lapply(grep("^00.-global.*[.]R$", file.path(nestedPath, fnames)), .fileEdit)
+    # }
 
     return(nestedPath)
 })
