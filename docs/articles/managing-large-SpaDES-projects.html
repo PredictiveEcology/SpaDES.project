@@ -25,6 +25,8 @@
 </script>
 </head>
 <body data-spy="scroll" data-target="#toc">
+    
+
     <div class="container template-article">
       <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
@@ -37,18 +39,12 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.0.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.4</span>
       </span>
     </div>
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-<li>
-  <a href="../index.html">
-    <span class="fas fa-home fa-lg"></span>
-     
-  </a>
-</li>
 <li>
   <a href="../reference/index.html">Reference</a>
 </li>
@@ -73,10 +69,13 @@
     </li>
   </ul>
 </li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
 <li>
-  <a href="https://github.com/PredictiveEcology/SpaDES.project/">
+  <a href="https://github.com/PredictiveEcology/SpaDES.project/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
      
   </a>
@@ -91,14 +90,14 @@
 
       
 
-      </header><script src="managing-large-SpaDES-projects_files/header-attrs-2.7/header-attrs.js"></script><div class="row">
+      </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
       <h1 data-toc-skip>Managing large SpaDES projects</h1>
-                        <h4 class="author">Alex M. Chubaty</h4>
+                        <h4 data-toc-skip class="author">Alex M. Chubaty</h4>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/master/vignettes/managing-large-SpaDES-projects.Rmd"><code>vignettes/managing-large-SpaDES-projects.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/HEAD/vignettes/managing-large-SpaDES-projects.Rmd" class="external-link"><code>vignettes/managing-large-SpaDES-projects.Rmd</code></a></small>
       <div class="hidden name"><code>managing-large-SpaDES-projects.Rmd</code></div>
 
     </div>
@@ -108,9 +107,9 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="co">#library("SpaDES.project")</span></code></pre></div>
 <p><em>This vignette expands upon blog posts originally posted on the Predictive Ecology website<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>.</em></p>
-<div id="project-directory-structure" class="section level2">
-<h2 class="hasAnchor">
-<a href="#project-directory-structure" class="anchor"></a>Project directory structure</h2>
+<div class="section level2">
+<h2 id="project-directory-structure">Project directory structure<a class="anchor" aria-label="anchor" href="#project-directory-structure"></a>
+</h2>
 <p>The simplest structure is to use a single directory for all project-related components:</p>
 <pre><code>myProject/
 |_  cache/            # use this for your simulation cachePath
@@ -126,9 +125,9 @@
 |_  packages/         # project-specific package library
 ...</code></pre>
 <p>Most SpaDES users will get modules via <code>downloadModule()</code>, and should save these modules in the project’s <code>modules/</code> sub-directory. New modules should also be created in this directory. Remember that each module should be self-contained, and that data are typically stored in the module’s <code>data/</code> sub-directory (though, see below re: <code>inputs/</code>).</p>
-<div id="filepaths" class="section level3">
-<h3 class="hasAnchor">
-<a href="#filepaths" class="anchor"></a>Filepaths</h3>
+<div class="section level3">
+<h3 id="filepaths">Filepaths<a class="anchor" aria-label="anchor" href="#filepaths"></a>
+</h3>
 <ul>
 <li><p>use relative file paths <em>within</em> the main project directory</p></li>
 <li>
@@ -137,15 +136,15 @@
 <li>use per-user and per-machine configurations, or setup symlinks to these location that point to their system-specific locations</li>
 <li>e.g., <code>myProject/scratch --&gt; /scratch/myUser/myProject/</code>
 </li>
-<li>e.g., use <code><a href="https://rdrr.io/r/base/file.path.html">file.path(tempdir(), "myProject")</a></code> instead of <code>/tmp/myProject</code> to ensure cross-platform availability e.g., on Windows</li>
+<li>e.g., use <code>file.path(tempdir(), "myProject")</code> instead of <code>/tmp/myProject</code> to ensure cross-platform availability e.g., on Windows</li>
 </ul>
 </li>
-<li><p>do <em>not</em> use <code><a href="https://rdrr.io/r/base/getwd.html">getwd()</a></code> nor <code><a href="https://rdrr.io/r/base/getwd.html">setwd()</a></code> within scripts, modules, etc.</p></li>
+<li><p>do <em>not</em> use <code><a href="https://rdrr.io/r/base/getwd.html" class="external-link">getwd()</a></code> nor <code><a href="https://rdrr.io/r/base/getwd.html" class="external-link">setwd()</a></code> within scripts, modules, etc.</p></li>
 </ul>
 </div>
-<div id="project-caches-cache" class="section level3">
-<h3 class="hasAnchor">
-<a href="#project-caches-cache" class="anchor"></a>Project caches (<code>cache/</code>)</h3>
+<div class="section level3">
+<h3 id="project-caches-cache">Project caches (<code>cache/</code>)<a class="anchor" aria-label="anchor" href="#project-caches-cache"></a>
+</h3>
 <ul>
 <li>why use cache</li>
 <li>using cache subdirs / separate caches per stage in workflow</li>
@@ -154,27 +153,27 @@
 </li>
 </ul>
 </div>
-<div id="simulation-inputs-inputs" class="section level3">
-<h3 class="hasAnchor">
-<a href="#simulation-inputs-inputs" class="anchor"></a>Simulation inputs (<code>inputs/</code>)</h3>
+<div class="section level3">
+<h3 id="simulation-inputs-inputs">Simulation inputs (<code>inputs/</code>)<a class="anchor" aria-label="anchor" href="#simulation-inputs-inputs"></a>
+</h3>
 <ul>
 <li>why this preferred over module cache directories (reduce duplication of common data objects)</li>
 <li>if using <code>git</code>, make sure this directory is listed in <code>.gitignore</code>
 </li>
 </ul>
 </div>
-<div id="simulation-outputs-outputs" class="section level3">
-<h3 class="hasAnchor">
-<a href="#simulation-outputs-outputs" class="anchor"></a>Simulation outputs (<code>outputs/</code>)</h3>
+<div class="section level3">
+<h3 id="simulation-outputs-outputs">Simulation outputs (<code>outputs/</code>)<a class="anchor" aria-label="anchor" href="#simulation-outputs-outputs"></a>
+</h3>
 <ul>
 <li>specify unique output subdirectory for each run/rep (these are typically scenario-specific)</li>
 <li>if using <code>git</code>, make sure this directory is listed in <code>.gitignore</code>
 </li>
 </ul>
 </div>
-<div id="standalone-package-library-packages" class="section level3">
-<h3 class="hasAnchor">
-<a href="#standalone-package-library-packages" class="anchor"></a>Standalone package library (<code>packages/</code>)</h3>
+<div class="section level3">
+<h3 id="standalone-package-library-packages">Standalone package library (<code>packages/</code>)<a class="anchor" aria-label="anchor" href="#standalone-package-library-packages"></a>
+</h3>
 <ul>
 <li>don’t muck with system packages / interfere with other projects</li>
 <li>how to configure:
@@ -187,16 +186,21 @@
 </li>
 </ul>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu">drat</span><span class="fu">:::</span><span class="fu"><a href="https://rdrr.io/pkg/drat/man/addRepo.html">add</a></span><span class="op">(</span><span class="st">"PredictiveEcology"</span><span class="op">)</span>
+<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">options</a></span><span class="op">(</span>
+  repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>
+    predictiveecology <span class="op">=</span> <span class="st">"https://predictiveecology.r-universe.dev"</span>,
+    CRAN <span class="op">=</span> <span class="st">"https://cloud.r-project.org"</span>
+  <span class="op">)</span>
+<span class="op">)</span>
 
-<span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html">require</a></span><span class="op">(</span><span class="st"><a href="https://Require.predictiveecology.org">"Require"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="st">"Require"</span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://Require.predictiveecology.org">Require</a></span><span class="op">)</span><span class="op">}</span>
-<span class="fu">Require</span><span class="fu">::</span><span class="fu"><a href="https://Require.predictiveecology.org/reference/setup.html">setup</a></span><span class="op">(</span><span class="st">"packages"</span><span class="op">)</span>
-<span class="fu"><a href="https://Require.predictiveecology.org/reference/Require.html">Require</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="st">"SpaDES"</span>, <span class="st">"SpaDES.experiment"</span>, <span class="st">"raster"</span>, <span class="st">"LandR"</span>, <span class="st">"dplyr"</span>, <span class="st">"data.table"</span>, <span class="st">"amc"</span><span class="op">)</span><span class="op">)</span></code></pre></div>
+<span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://Require.predictiveecology.org" class="external-link">"Require"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"Require"</span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://Require.predictiveecology.org" class="external-link">Require</a></span><span class="op">)</span><span class="op">}</span>
+<span class="fu">Require</span><span class="fu">::</span><span class="fu"><a href="https://Require.predictiveecology.org/reference/setup.html" class="external-link">setup</a></span><span class="op">(</span><span class="st">"packages"</span><span class="op">)</span>
+<span class="fu"><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"SpaDES"</span>, <span class="st">"SpaDES.experiment"</span>, <span class="st">"raster"</span>, <span class="st">"LandR"</span>, <span class="st">"dplyr"</span>, <span class="st">"data.table"</span>, <span class="st">"amc"</span><span class="op">)</span><span class="op">)</span></code></pre></div>
 </div>
 </div>
-<div id="control-scripts" class="section level2">
-<h2 class="hasAnchor">
-<a href="#control-scripts" class="anchor"></a>Control scripts</h2>
+<div class="section level2">
+<h2 id="control-scripts">Control scripts<a class="anchor" aria-label="anchor" href="#control-scripts"></a>
+</h2>
 <p>Although individual modules will be doing most of the heavy lifting during simulations, these modules still need to be initialized and parameterized correctly. Smaller projects may simply rely on a single ‘global’ control script (e.g., <code>global.R</code>) to run the simulations. However, larger, more complex, projects benefit from splitting up the workflow across a series of control scripts, which should be sequenced and grouped based on their function. This allows each ‘stage’ of the workflow to e.g., be cached or independently executed. For example, a project directory may contain the following control scripts:</p>
 <pre><code>|_ 00-global.R       # the main control script; source()'s the others
 |_ 01-init.R         # parameter initialization
@@ -207,27 +211,27 @@
 |_ 06-postprocessing.R # post-simulation analyses/results summaries
 ...                    # other scripts</code></pre>
 <p>In addition to these R scripts, other scripts (e.g., <code>bash</code>, <code>slurm</code>) may be used to setup batch runs and/or run simulations on HPC clusters.</p>
-<div id="main-script" class="section level3">
-<h3 class="hasAnchor">
-<a href="#main-script" class="anchor"></a>Main script</h3>
+<div class="section level3">
+<h3 id="main-script">Main script<a class="anchor" aria-label="anchor" href="#main-script"></a>
+</h3>
 <p>The primary (global, a.k.a. main) script defines the (usually linear) flow of the other scripts and should be kept as clutter-free as possible. The simplest approach to structuring your workflow is to assume the user will run the main script interactively (e.g., line-by-line) or from the command line (e.g., <code>Rscript 00-global.R</code>). In order to facilitate running this global script for use with different simulation scenarios, on different machines, by different users, as well as being able to easily reuse scripts with different, but related projects, it’s important to reduce idiosyncracies in these scripts by putting user-configurable components into separate config or options files. To ensure these can quickly be rerun, it’s critical to stash intermediate results so that long or intensive computations don’t need to be rerun each time.</p>
 </div>
-<div id="project-configuration-files" class="section level3">
-<h3 class="hasAnchor">
-<a href="#project-configuration-files" class="anchor"></a>Project configuration files</h3>
+<div class="section level3">
+<h3 id="project-configuration-files">Project configuration files<a class="anchor" aria-label="anchor" href="#project-configuration-files"></a>
+</h3>
 <p>This workflow recognizes that there are frequently different types of configurable projects parameters. - Some are intended to be set by the user for their machine (e.g., scratch path, or number of CPU threads or amount of RAM to use). - Some are set using different values depending on the desired scenario or replicate being run. These may be passed to individual modules, but controlled at the top level of the simulation control scripts. - Some are package- or module-level options that differ from the defaults, or are explicitly being defined to reduce ambiguity and increase transparency (both of which help reduce coding errors, and speed up debugging).</p>
 <p>It is useful to try to group these configurable parameters based on when/how they are used in the simulation, and to keep them organized (e.g., alphabetized) so it’s easy to scan the list of parameters and identify their corresponding values. Thus, there are two (or optionally, three) main places where these values may be set (and thus three places where you should check if you are updating/changing parameters or their values).</p>
 <p>The first place is in <code>01-init.R</code> (and optionally, some these values may additionally read in from a config file using e.g., the <code>config</code> package). Parameter values are set here early on and may use those objects later in various places (including e.g., <code>04-options.R</code>). When running simulations, it’s typical that a user would be running multiple concurrent simulations and would set a configuration value for the first simulation (A), and want to change the value for the next simulation (B). A problem arises where if the first simulation (A) hasn’t gotten far enough along in the scripts to already have read these values into memory, simulation A could read in the updated value from disk intended for simulation B. Thus, all config values coming from a file (being read from disk) need to be read in as early as possible so if the file changes it won’t interfere with in-progress (or queued future) simulations (i.e., reduce race conditions).</p>
 <p>To mitigate this, it is useful to encode run information, including key parameter values, in the simulation <code>runName</code>, so that in can be extracted during the simulation. E.g., for <code>runName = "AOU_CCSM4_RCP85_res250_rep01"</code>: - <code>AOU</code> specifies the study area (one of <code>AOU</code> or <code>ROF</code>); - <code>CCSM4_RCP85</code> specifies the climate scenario; - <code>res250</code> is the pixel resolution; and - <code>rep01</code> specifies the replicate/run/realization number. Thus, the construction of the <code>runName</code> can be done by a high-level control script rather than having the user manually edit a configuration file, which is especially useful when doing batch runs.</p>
 <p>(An alternative approach is to use separate “config” or “param” files for each set of simulations, which for complex projects with multiple defined runs could mean tens or hundreds of nearly identical text files needing to be maintained and updated. Thus, adding a new config option (or removing one) means editing and updating <em>all</em> of those files. Though this approach has other merits, this is a very large drawback.)</p>
 <p>As alluded to above, another place where configuration parameters are set is in <code>04-options.R</code>. This is a single place where all package-level options are set. They should be listed alphabetically, so that it’s easy for a human to read, find, and modify values. Where these values are not hardcoded to a fixed value (e.g., <code>Ncpus = 8L</code>), they should be set using variables defined in <code>01-init.R</code> (e.g., <code>Ncpus = ncores</code>, where <code>ncores</code> was previously defined as <code>parallel::detectCores() / 2</code>)</p>
-<div id="replication-and-scenarios" class="section level4">
-<h4 class="hasAnchor">
-<a href="#replication-and-scenarios" class="anchor"></a>Replication and scenarios</h4>
+<div class="section level4">
+<h4 id="replication-and-scenarios">Replication and scenarios<a class="anchor" aria-label="anchor" href="#replication-and-scenarios"></a>
+</h4>
 <p>The simplest way to provide information about replicate or run id, as well as scenarios, is to provide them as part of the simulation run name (as described above).</p>
 <p>The run name (and other metadata about the simulation) can also be inserted into the <code>simList</code> as a ‘dot-object’:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">objects4sim</span> <span class="op">&lt;-</span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html">list</a></span><span class="op">(</span>
+<code class="sourceCode R"><span class="va">objects4sim</span> <span class="op">&lt;-</span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>
   <span class="va">...</span>,
   .runName <span class="op">=</span> <span class="va">runName</span> <span class="co">## runName is a character string</span>
 <span class="op">)</span>
@@ -237,9 +241,9 @@
 <span class="va">mySim</span> <span class="op">&lt;-</span> <span class="fu">simInit</span><span class="op">(</span><span class="va">...</span>, objects <span class="op">=</span> <span class="va">objects4sim</span><span class="op">)</span></code></pre></div>
 <p>Simulation outputs should be saved in run-specific output directories, thus we suggest using <code>runName</code> as part of the simulations’ output path. This also helps the user when browsing the outputs in the filesystem when examining results.</p>
 </div>
-<div id="per-user-and-per-machine-config" class="section level4">
-<h4 class="hasAnchor">
-<a href="#per-user-and-per-machine-config" class="anchor"></a>Per-user and per-machine config</h4>
+<div class="section level4">
+<h4 id="per-user-and-per-machine-config">Per-user and per-machine config<a class="anchor" aria-label="anchor" href="#per-user-and-per-machine-config"></a>
+</h4>
 <p>Lorem ipsum …</p>
 <ul>
 <li>clearly define which <code>01-init.R</code> vars are ‘global’ and which are intended to be changed by the user</li>
@@ -248,25 +252,25 @@
 </ul>
 </div>
 </div>
-<div id="save-or-cache-intermediate-results" class="section level3">
-<h3 class="hasAnchor">
-<a href="#save-or-cache-intermediate-results" class="anchor"></a>Save or cache intermediate results</h3>
-<p>For each computational ‘stage’ of a project workflow, try to ensure that (at a minimum) intermediate results are saved to a file locally. This can be done using the <code>Cache()</code> mechanisms build provided the <code>reproducible</code> and <code>SpaDES.core</code> packages, and can also involve additional “manual” saving of objects using <code><a href="https://rdrr.io/r/base/readRDS.html">saveRDS()</a></code> or <code><a href="https://rdrr.io/pkg/qs/man/qsave.html">qs::qsave()</a></code>. These objects can be scripted to be loaded on subsequent runs.</p>
-<p>To quickly get started with the project on a new machine, one can take advantage of cloud storage provided by Google Drive, and upload/download these saved objects using <code><a href="https://googledrive.tidyverse.org/reference/drive_upload.html">googledrive::drive_upload()</a></code> and <code><a href="https://googledrive.tidyverse.org/reference/drive_download.html">googledrive::drive_download</a></code>. Examples of this use are provided in the advanced project template scripts.</p>
+<div class="section level3">
+<h3 id="save-or-cache-intermediate-results">Save or cache intermediate results<a class="anchor" aria-label="anchor" href="#save-or-cache-intermediate-results"></a>
+</h3>
+<p>For each computational ‘stage’ of a project workflow, try to ensure that (at a minimum) intermediate results are saved to a file locally. This can be done using the <code>Cache()</code> mechanisms build provided the <code>reproducible</code> and <code>SpaDES.core</code> packages, and can also involve additional “manual” saving of objects using <code><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS()</a></code> or <code><a href="https://rdrr.io/pkg/qs/man/qsave.html" class="external-link">qs::qsave()</a></code>. These objects can be scripted to be loaded on subsequent runs.</p>
+<p>To quickly get started with the project on a new machine, one can take advantage of cloud storage provided by Google Drive, and upload/download these saved objects using <code><a href="https://googledrive.tidyverse.org/reference/drive_upload.html" class="external-link">googledrive::drive_upload()</a></code> and <code><a href="https://googledrive.tidyverse.org/reference/drive_download.html" class="external-link">googledrive::drive_download</a></code>. Examples of this use are provided in the advanced project template scripts.</p>
 </div>
 </div>
-<div id="version-control" class="section level2">
-<h2 class="hasAnchor">
-<a href="#version-control" class="anchor"></a>Version control</h2>
-<div id="simple-module-versioning" class="section level3">
-<h3 class="hasAnchor">
-<a href="#simple-module-versioning" class="anchor"></a>Simple module versioning</h3>
+<div class="section level2">
+<h2 id="version-control">Version control<a class="anchor" aria-label="anchor" href="#version-control"></a>
+</h2>
+<div class="section level3">
+<h3 id="simple-module-versioning">Simple module versioning<a class="anchor" aria-label="anchor" href="#simple-module-versioning"></a>
+</h3>
 <p>Every module has a version number in its metadata. To download a specific version of a module via <code>downloadModule()</code>, specify the <code>version</code> argument. This should be included in your project’s main script / Rmd file. <em>Every project should be explicit about which versions of the modules it is using.</em></p>
 </div>
-<div id="using-git" class="section level3">
-<h3 class="hasAnchor">
-<a href="#using-git" class="anchor"></a>Using git</h3>
-<p>More advanced users and developers may choose to use more recent or in-development versions of the modules instead of the versions in the <code>SpaDES-modules</code> repository (and accessed via <code>downloadModule()</code>). Many <code>SpaDES</code> module authors/developers use GitHub for version control, so we can get tagged module versions as well as in-development versions of the code. To use version-controlled <code>SpaDES</code> modules in your project, we use <a href="https://git-scm.com/book/en/v2/Git-Tools-Submodules">git submodules</a>.</p>
+<div class="section level3">
+<h3 id="using-git">Using git<a class="anchor" aria-label="anchor" href="#using-git"></a>
+</h3>
+<p>More advanced users and developers may choose to use more recent or in-development versions of the modules instead of the versions in the <code>SpaDES-modules</code> repository (and accessed via <code>downloadModule()</code>). Many <code>SpaDES</code> module authors/developers use GitHub for version control, so we can get tagged module versions as well as in-development versions of the code. To use version-controlled <code>SpaDES</code> modules in your project, we use <a href="https://git-scm.com/book/en/v2/Git-Tools-Submodules" class="external-link">git submodules</a>.</p>
 <p>Here, we assume that you are familiar with git (and GitHub) and are also using it for version control of your own project.</p>
 <pre><code>myProject/            # a version controlled git repo
 |_  .git/
@@ -282,10 +286,10 @@
 |_  outputs/          # should be .gitignore'd
 ...</code></pre>
 <p><strong>Remember that large data files should not managed using <code>git</code>.</strong> Each module’s data directory should have it’s own <code>.gitignore</code> file. These data files should be easily retrieved via download or created by the module. <em>This also means you should add <code>inputs/</code>, <code>outputs/</code>, and <code>cache/</code> to your project directory’s <code>.gitignore</code> file!</em></p>
-<div id="using-git-submodules" class="section level4">
-<h4 class="hasAnchor">
-<a href="#using-git-submodules" class="anchor"></a>Using git submodules</h4>
-<p>We will add each of the <code>SpaDES</code> modules to our project as git submodules via the command line (but <a href="https://support.gitkraken.com/working-with-repositories/submodules">GitKraken does support git submodules</a>). (You’ll need to delete the <code>moduleN/</code> sub-directories within <code>modules</code>.)</p>
+<div class="section level4">
+<h4 id="using-git-submodules">Using git submodules<a class="anchor" aria-label="anchor" href="#using-git-submodules"></a>
+</h4>
+<p>We will add each of the <code>SpaDES</code> modules to our project as git submodules via the command line (but <a href="https://support.gitkraken.com/working-with-repositories/submodules" class="external-link">GitKraken does support git submodules</a>). (You’ll need to delete the <code>moduleN/</code> sub-directories within <code>modules</code>.)</p>
 <pre><code>cd ~/Documents/myProject/modules
 git submodule add https://github.com/USERNAMEA/module1
 git submodule add https://github.com/USERNAMEA/module2
@@ -318,9 +322,9 @@ git push</code></pre>
 </div>
 </div>
 </div>
-<div id="parent-and-child-modules" class="section level2">
-<h2 class="hasAnchor">
-<a href="#parent-and-child-modules" class="anchor"></a>Parent and child modules</h2>
+<div class="section level2">
+<h2 id="parent-and-child-modules">Parent and child modules<a class="anchor" aria-label="anchor" href="#parent-and-child-modules"></a>
+</h2>
 <p>Another option (as a developer) to make working with multiple <code>SpaDES</code> modules easier, is to create a parent module that specifies a group of modules as its children. In this way, a user only needs to call <code>downloadModule()</code> or <code>simInit()</code> specifying the parent module name.</p>
 <p>Even though a parent (and grandparent, etc.) module can be thought hierarchically above child modules, remember that from a directory structure standpoint, all modules (child or parent) are at the same level:</p>
 <pre><code>myProject/            # a version controlled git repo
@@ -339,16 +343,16 @@ git push</code></pre>
 ...</code></pre>
 <p>Here, all of these modules (including the parent) can be git modules, and thus managed independently.</p>
 </div>
-<div id="summary" class="section level2">
-<h2 class="hasAnchor">
-<a href="#summary" class="anchor"></a>Summary</h2>
+<div class="section level2">
+<h2 id="summary">Summary<a class="anchor" aria-label="anchor" href="#summary"></a>
+</h2>
 <p>The take away here is that when it comes to basic project organization, use a single directory for the project, and organize <code>SpaDES</code> modules within a single sub-directory therein. If you’re using <code>git</code> version control (and you really should be using version control!) then <code>git</code> submodules offer an elegant way to manage dependencies.</p>
 </div>
-<div id="other-resources" class="section level2">
-<h2 class="hasAnchor">
-<a href="#other-resources" class="anchor"></a>Other resources</h2>
+<div class="section level2">
+<h2 id="other-resources">Other resources<a class="anchor" aria-label="anchor" href="#other-resources"></a>
+</h2>
 <ul>
-<li>Using alternative cache backends [<a href="https://reproducible.predictiveecology.org/articles/Cache-using-postgresql.html">link</a>]</li>
+<li>Using alternative cache backends [<a href="https://reproducible.predictiveecology.org/articles/Cache-using-postgresql.html" class="external-link">link</a>]</li>
 </ul>
 </div>
 <div class="footnotes">
@@ -371,11 +375,13 @@ git push</code></pre>
 
 
       <footer><div class="copyright">
-  <p>Developed by Alex M Chubaty.</p>
+  <p></p>
+<p>Developed by Alex M Chubaty.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
+  <p></p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
 </div>
 
       </footer>
@@ -383,6 +389,8 @@ git push</code></pre>
 
   
 
+
+  
 
   </body>
 </html>

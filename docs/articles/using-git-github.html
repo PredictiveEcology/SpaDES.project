@@ -25,6 +25,8 @@
 </script>
 </head>
 <body data-spy="scroll" data-target="#toc">
+    
+
     <div class="container template-article">
       <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
@@ -37,18 +39,12 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.0.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.4</span>
       </span>
     </div>
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-<li>
-  <a href="../index.html">
-    <span class="fas fa-home fa-lg"></span>
-     
-  </a>
-</li>
 <li>
   <a href="../reference/index.html">Reference</a>
 </li>
@@ -73,10 +69,13 @@
     </li>
   </ul>
 </li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
 <li>
-  <a href="https://github.com/PredictiveEcology/SpaDES.project/">
+  <a href="https://github.com/PredictiveEcology/SpaDES.project/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
      
   </a>
@@ -91,54 +90,54 @@
 
       
 
-      </header><script src="using-git-github_files/header-attrs-2.7/header-attrs.js"></script><div class="row">
+      </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
       <h1 data-toc-skip>Using git for project development</h1>
-                        <h4 class="author">Alex M. Chubaty</h4>
+                        <h4 data-toc-skip class="author">Alex M. Chubaty</h4>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/master/vignettes/using-git-github.Rmd"><code>vignettes/using-git-github.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/HEAD/vignettes/using-git-github.Rmd" class="external-link"><code>vignettes/using-git-github.Rmd</code></a></small>
       <div class="hidden name"><code>using-git-github.Rmd</code></div>
 
     </div>
 
     
     
-<div id="what-is-git" class="section level2">
-<h2 class="hasAnchor">
-<a href="#what-is-git" class="anchor"></a>What is <code>git</code>?</h2>
+<div class="section level2">
+<h2 id="what-is-git">What is <code>git</code>?<a class="anchor" aria-label="anchor" href="#what-is-git"></a>
+</h2>
 <p>Git is a version control system used extensively for software development. Unlike ‘file-based’ versioning you may be familiar with using Dropbox or Google Docs, <code>git</code> provides line-by-line (character-by-character) versioning for text files. It is especially powerful for collaborative projects, allowing easy merging of changed files by multiple authors. While it may seem a bit daunting at first, like any other professional tool, a small investment learning to use this system pays dividends down the road.</p>
 </div>
-<div id="installation" class="section level2">
-<h2 class="hasAnchor">
-<a href="#installation" class="anchor"></a>Installation</h2>
-<div id="commandline-tools" class="section level3">
-<h3 class="hasAnchor">
-<a href="#commandline-tools" class="anchor"></a>Commandline tools</h3>
-<p>See <a href="https://git-scm.com/book/en/v2/Getting-Started-Installing-Git" class="uri">https://git-scm.com/book/en/v2/Getting-Started-Installing-Git</a> for instructions for your operating system.</p>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<div class="section level3">
+<h3 id="commandline-tools">Commandline tools<a class="anchor" aria-label="anchor" href="#commandline-tools"></a>
+</h3>
+<p>See <a href="https://git-scm.com/book/en/v2/Getting-Started-Installing-Git" class="external-link uri">https://git-scm.com/book/en/v2/Getting-Started-Installing-Git</a> for instructions for your operating system.</p>
 </div>
-<div id="desktop-clients" class="section level3">
-<h3 class="hasAnchor">
-<a href="#desktop-clients" class="anchor"></a>Desktop clients</h3>
-<p>Getting started with <code>git</code> is relatively easy using a graphical user interface (GUI), like the one <a href="https://support.rstudio.com/hc/en-us/articles/200532077-Version-Control-with-Git-and-SVN">built into Rstudio</a>. However, to really get going with <code>git</code> I recommend <a href="https://gitkraken.com">GitKraken</a> – an extremely powerful and user-friendly <code>git</code> GUI.</p>
+<div class="section level3">
+<h3 id="desktop-clients">Desktop clients<a class="anchor" aria-label="anchor" href="#desktop-clients"></a>
+</h3>
+<p>Getting started with <code>git</code> is relatively easy using a graphical user interface (GUI), like the one <a href="https://support.rstudio.com/hc/en-us/articles/200532077-Version-Control-with-Git-and-SVN" class="external-link">built into Rstudio</a>. However, to really get going with <code>git</code> I recommend <a href="https://gitkraken.com" class="external-link">GitKraken</a> – an extremely powerful and user-friendly <code>git</code> GUI.</p>
 <p>There are several excellent resources to help you get started with <code>git</code>, GitHub, and GitKraken:</p>
 <ul>
-<li><a href="https://git-scm.com/book/en/v2" class="uri">https://git-scm.com/book/en/v2</a></li>
-<li><a href="https://docs.github.com/en/github/getting-started-with-github" class="uri">https://docs.github.com/en/github/getting-started-with-github</a></li>
-<li><a href="https://www.gitkraken.com/learn/git/tutorials" class="uri">https://www.gitkraken.com/learn/git/tutorials</a></li>
+<li><a href="https://git-scm.com/book/en/v2" class="external-link uri">https://git-scm.com/book/en/v2</a></li>
+<li><a href="https://docs.github.com/en/github/getting-started-with-github" class="external-link uri">https://docs.github.com/en/github/getting-started-with-github</a></li>
+<li><a href="https://www.gitkraken.com/learn/git/tutorials" class="external-link uri">https://www.gitkraken.com/learn/git/tutorials</a></li>
 </ul>
 </div>
 </div>
-<div id="getting-started-with-github" class="section level2">
-<h2 class="hasAnchor">
-<a href="#getting-started-with-github" class="anchor"></a>Getting started with GitHub</h2>
-<p>Setup a PAT following <a href="https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token">these instructions</a>, then edit <code>~/.Renviron</code> to include the following:</p>
-<pre><code>GITHUB_PAT=xxxxxxxxxxxxxxxx</code></pre>
+<div class="section level2">
+<h2 id="getting-started-with-github">Getting started with GitHub<a class="anchor" aria-label="anchor" href="#getting-started-with-github"></a>
+</h2>
+<p>Setup a PAT following <a href="https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token" class="external-link">these instructions</a>, then edit <code>~/.Renviron</code> to include the following:</p>
+<pre><code><span class="va">GITHUB_PAT</span><span class="op">=</span><span class="va">xxxxxxxxxxxxxxxx</span></code></pre>
 </div>
-<div id="additonal-commandline-setup" class="section level2">
-<h2 class="hasAnchor">
-<a href="#additonal-commandline-setup" class="anchor"></a>Additonal commandline setup</h2>
+<div class="section level2">
+<h2 id="additonal-commandline-setup">Additonal commandline setup<a class="anchor" aria-label="anchor" href="#additonal-commandline-setup"></a>
+</h2>
 <p>Set your name and email for commits:</p>
 <pre><code>git config --global user.name "YOURNAME"
 git config --global user.email "YOUREMAIL@EMAIL.COM"</code></pre>
@@ -147,15 +146,15 @@ git config --global user.email "YOUREMAIL@EMAIL.COM"</code></pre>
 <p>Use ssh instead of https with GitHub:</p>
 <pre><code>git config --global url.ssh://git@github.com/.insteadOf https://github.com/</code></pre>
 </div>
-<div id="development-workflow" class="section level2">
-<h2 class="hasAnchor">
-<a href="#development-workflow" class="anchor"></a>Development workflow</h2>
+<div class="section level2">
+<h2 id="development-workflow">Development workflow<a class="anchor" aria-label="anchor" href="#development-workflow"></a>
+</h2>
 <p>Git workflows are branch-based. The <code>main</code> branch is the primary branch from which others are derived, and contains the code of the latest release. The <code>development</code> branch contains the latest contributions and other code that will appear in the next release. Other branches can be created as needed to implement features, fix bugs, or try out new algorithms, before being merged into <code>development</code> (and eventually into <code>main</code>).</p>
-<p>Before merging branches, it is useful to create a <a href="https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request">pull request</a> (PR) via GitHub, to allow for code review as well as trigger any automated tests and code checks.</p>
+<p>Before merging branches, it is useful to create a <a href="https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request" class="external-link">pull request</a> (PR) via GitHub, to allow for code review as well as trigger any automated tests and code checks.</p>
 </div>
-<div id="git-submodules" class="section level2">
-<h2 class="hasAnchor">
-<a href="#git-submodules" class="anchor"></a>Git submodules</h2>
+<div class="section level2">
+<h2 id="git-submodules">Git submodules<a class="anchor" aria-label="anchor" href="#git-submodules"></a>
+</h2>
 <p>Another vignette discussed how to manage large SpaDES projects, and suggested the following project directory structure:</p>
 <pre><code>myProject/            # a version controlled git repo
   |_  .git/
@@ -170,7 +169,7 @@ git config --global user.email "YOUREMAIL@EMAIL.COM"</code></pre>
     |_  module5/      # can be a git submodule
   |_  outputs/          # should be .gitignore'd
   ...</code></pre>
-<p>The layout of a project directory is somewhat flexible, but this approach works especially well if you’re a module developer using <a href="https://git-scm.com/book/en/v2/Git-Tools-Submodules">git submodules</a> for each of your module subdirectories. And each module really should be its own git repository:</p>
+<p>The layout of a project directory is somewhat flexible, but this approach works especially well if you’re a module developer using <a href="https://git-scm.com/book/en/v2/Git-Tools-Submodules" class="external-link">git submodules</a> for each of your module subdirectories. And each module really should be its own git repository:</p>
 <ul>
 <li>people don’t need to pull everything in just to work on a single module;</li>
 <li>makes it possible to use git submodules for [Rstudio] projects;</li>
@@ -207,31 +206,31 @@ myProject/
   ...</code></pre>
 <p>These allow you to have each module and project be a git repository, and if you’re worried about storage space it ensures you only keep one copy of a module no matter how many projects it’s used with. However, there can e several drawbacks to this approach. First off, it is inconsistent with the way Rstudio projects work, because not all project-related files are in the same directory. This means you need to take extra care to ensure that you set your module path using a <em>relative</em> file path (<em>e.g.</em>, <code>../modules</code>), and you’ll need to take even more care to update this path if you move the <code>modules/</code> directory or are sharing your project code (because your collaborator may store their modules in a different location). Second, if you are working with multiple projects and each one uses the same module(s) but different versions, it’s going to be extremely inconvenient to have to manually reset them when switching projects. As with package libraries, it’s best practice to keep projects’ modules isolated (i.e., standalone) as much as possible.</p>
 <p>In the end, which approach you use will depend on your level of git-savviness (and that of your collaborators), and how comfortable you are using git submodules.</p>
-<div id="cloning-a-project-with-submodules" class="section level3">
-<h3 class="hasAnchor">
-<a href="#cloning-a-project-with-submodules" class="anchor"></a>Cloning a project with submodules</h3>
+<div class="section level3">
+<h3 id="cloning-a-project-with-submodules">Cloning a project with submodules<a class="anchor" aria-label="anchor" href="#cloning-a-project-with-submodules"></a>
+</h3>
 <pre><code>git clone --recurse-submodules -j8 git://github.com/foo/bar.git</code></pre>
 </div>
-<div id="adding-submodules-to-a-project" class="section level3">
-<h3 class="hasAnchor">
-<a href="#adding-submodules-to-a-project" class="anchor"></a>Adding submodules to a project</h3>
+<div class="section level3">
+<h3 id="adding-submodules-to-a-project">Adding submodules to a project<a class="anchor" aria-label="anchor" href="#adding-submodules-to-a-project"></a>
+</h3>
 <pre><code>git submodule add https://github.com/USERNAME/REPO &lt;path/to/submodule&gt;</code></pre>
 </div>
-<div id="updating-submodules" class="section level3">
-<h3 class="hasAnchor">
-<a href="#updating-submodules" class="anchor"></a>Updating submodules</h3>
+<div class="section level3">
+<h3 id="updating-submodules">Updating submodules<a class="anchor" aria-label="anchor" href="#updating-submodules"></a>
+</h3>
 <p>Within a project repository, git tracks specific submodule commits, not their branches. So switching to a submodule directory and running git pull will likely warn you that you are in a detached <code>HEAD</code> state. Before making changes to code in a submodule directory, be sure to switch to the branch you want to use using <code>git checkout &lt;branch-name&gt;</code>.</p>
 <p>To get your latest updates on another machine, you need to update the project repo and the submodules:</p>
 <pre><code>git pull              ## updates the project repo
 git submodule update  ## updates submodules based on project repo changes</code></pre>
 </div>
 </div>
-<div id="additional-resources" class="section level2">
-<h2 class="hasAnchor">
-<a href="#additional-resources" class="anchor"></a>Additional resources</h2>
+<div class="section level2">
+<h2 id="additional-resources">Additional resources<a class="anchor" aria-label="anchor" href="#additional-resources"></a>
+</h2>
 <ul>
-<li><a href="https://github.github.com/training-kit/downloads/github-git-cheat-sheet.pdf" class="uri">https://github.github.com/training-kit/downloads/github-git-cheat-sheet.pdf</a></li>
-<li><a href="https://www.gitkraken.com/resources/gitkraken-cheat-sheet" class="uri">https://www.gitkraken.com/resources/gitkraken-cheat-sheet</a></li>
+<li><a href="https://github.github.com/training-kit/downloads/github-git-cheat-sheet.pdf" class="external-link uri">https://github.github.com/training-kit/downloads/github-git-cheat-sheet.pdf</a></li>
+<li><a href="https://www.gitkraken.com/resources/gitkraken-cheat-sheet" class="external-link uri">https://www.gitkraken.com/resources/gitkraken-cheat-sheet</a></li>
 </ul>
 </div>
   </div>
@@ -247,11 +246,13 @@ git submodule update  ## updates submodules based on project repo changes</code>
 
 
       <footer><div class="copyright">
-  <p>Developed by Alex M Chubaty.</p>
+  <p></p>
+<p>Developed by Alex M Chubaty.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
+  <p></p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
 </div>
 
       </footer>
@@ -259,6 +260,8 @@ git submodule update  ## updates submodules based on project repo changes</code>
 
   
 
+
+  
 
   </body>
 </html>

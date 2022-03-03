@@ -25,6 +25,8 @@
 </script>
 </head>
 <body data-spy="scroll" data-target="#toc">
+    
+
     <div class="container template-article">
       <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
@@ -37,18 +39,12 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.0.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.4</span>
       </span>
     </div>
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
-<li>
-  <a href="../index.html">
-    <span class="fas fa-home fa-lg"></span>
-     
-  </a>
-</li>
 <li>
   <a href="../reference/index.html">Reference</a>
 </li>
@@ -73,10 +69,13 @@
     </li>
   </ul>
 </li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
 <li>
-  <a href="https://github.com/PredictiveEcology/SpaDES.project/">
+  <a href="https://github.com/PredictiveEcology/SpaDES.project/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
      
   </a>
@@ -91,23 +90,23 @@
 
       
 
-      </header><script src="LandR-fireSense_files/header-attrs-2.7/header-attrs.js"></script><div class="row">
+      </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
       <h1 data-toc-skip>Working with LandR-fireSense</h1>
-                        <h4 class="author">Alex M. Chubaty and Ian M. S. Eddy</h4>
+                        <h4 data-toc-skip class="author">Alex M. Chubaty and Ian M. S. Eddy</h4>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/master/vignettes/LandR-fireSense.Rmd"><code>vignettes/LandR-fireSense.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/HEAD/vignettes/LandR-fireSense.Rmd" class="external-link"><code>vignettes/LandR-fireSense.Rmd</code></a></small>
       <div class="hidden name"><code>LandR-fireSense.Rmd</code></div>
 
     </div>
 
     
     
-<div id="getting-started-with-landr-and-firesense" class="section level2">
-<h2 class="hasAnchor">
-<a href="#getting-started-with-landr-and-firesense" class="anchor"></a>Getting started with LandR and fireSense</h2>
+<div class="section level3">
+<h3 id="getting-started-with-landr-and-firesense">Getting started with LandR and fireSense<a class="anchor" aria-label="anchor" href="#getting-started-with-landr-and-firesense"></a>
+</h3>
 <p>This guide provides a template project setup for using the LandR forest succession model with the FireSense climate-sensitive fire model. There are several components you, as the project user/developer, will need to develop and customize for your project, which will be noted below.</p>
 <p>Please ensure you have reviewed the following, and have completed the prerequisite installations of R, RStudio, <code>SpaDES</code>, GIS software, and <code>git</code>.</p>
 <!-- TODO: ensure these are linked correctly -->
@@ -117,11 +116,11 @@
 <li><a href="using-git-github">Using git and GitHub</a></li>
 </ol>
 </div>
-<div id="create-new-project" class="section level2">
-<h2 class="hasAnchor">
-<a href="#create-new-project" class="anchor"></a>Create new project</h2>
+<div class="section level3">
+<h3 id="create-new-project">Create new project<a class="anchor" aria-label="anchor" href="#create-new-project"></a>
+</h3>
 <ol style="list-style-type: decimal">
-<li><p>Start by creating a new git repository on GitHub (see <a href="https://docs.github.com/en/github/getting-started-with-github/create-a-repo" class="uri">https://docs.github.com/en/github/getting-started-with-github/create-a-repo</a>) which will host your project.</p></li>
+<li><p>Start by creating a new git repository on GitHub (see <a href="https://docs.github.com/en/github/getting-started-with-github/create-a-repo" class="external-link uri">https://docs.github.com/en/github/getting-started-with-github/create-a-repo</a>) which will host your project.</p></li>
 <li>
 <p>Clone your new repo to your local machine:</p>
 <pre><code>git clone https://github.com/USERNAME/MYREPO /path/to/my/projects/myNewProject</code></pre>
@@ -129,95 +128,80 @@
 <li>
 <p>Create a new SpaDES project at this location:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/">"SpaDES.project"</a></span><span class="op">)</span>
+<code class="sourceCode R"><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span>
 
 <span class="fu"><a href="../reference/newProject.html">newProject</a></span><span class="op">(</span><span class="st">"myNewProject"</span>, <span class="st">"path/to/my/projects"</span>, type <span class="op">=</span> <span class="st">"LandR-fireSense"</span>, open <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></code></pre></div>
 </li>
-<li><p>Open your project in Rstudio (see <a href="https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects" class="uri">https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects</a>).</p></li>
+<li><p>Open your project in Rstudio (see <a href="https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects" class="external-link uri">https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects</a>).</p></li>
 </ol>
 </div>
-<div id="ensure-packages-installed-to-project-library" class="section level2">
-<h2 class="hasAnchor">
-<a href="#ensure-packages-installed-to-project-library" class="anchor"></a>Ensure packages installed to project library</h2>
+<div class="section level3">
+<h3 id="ensure-packages-installed-to-project-library">Ensure packages installed to project library<a class="anchor" aria-label="anchor" href="#ensure-packages-installed-to-project-library"></a>
+</h3>
 <p>It’s best to use a standalone package library, and we highly recommend using one here.</p>
 <p>Check that the project’s <code>packages/</code> subdirectory is being used:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/libPaths.html">.libPaths</a></span><span class="op">(</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths</a></span><span class="op">(</span><span class="op">)</span></code></pre></div>
 <p>Ensure some key packages are installed (remaining packages used by modules will be installed on first run).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span><span class="op">(</span><span class="st">"Require"</span><span class="op">)</span>
+<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"Require"</span><span class="op">)</span>
 
-<span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://Require.predictiveecology.org">Require</a></span><span class="op">)</span>
-<span class="fu"><a href="https://Require.predictiveecology.org/reference/Require.html">Require</a></span><span class="op">(</span><span class="st">"PredictiveEcology/climateData"</span><span class="op">)</span></code></pre></div>
+<span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://Require.predictiveecology.org" class="external-link">Require</a></span><span class="op">)</span>
+<span class="fu"><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require</a></span><span class="op">(</span><span class="st">"PredictiveEcology/climateData"</span><span class="op">)</span></code></pre></div>
 </div>
-<div id="add-landr-and-firesense-modules" class="section level2">
-<h2 class="hasAnchor">
-<a href="#add-landr-and-firesense-modules" class="anchor"></a>Add LandR and fireSense modules</h2>
+<div class="section level3">
+<h3 id="add-landr-and-firesense-modules">Add LandR and fireSense modules<a class="anchor" aria-label="anchor" href="#add-landr-and-firesense-modules"></a>
+</h3>
 <p>We strongly recommend using git for version control, and using git submodules to manage individual project modules.</p>
-<pre><code>cd /path/to/my/projects/myNewProject
-
-## add LandR modules
-git submodule add https://github.com/PredictiveEcology/Biomass_borealDataPrep modules/Biomass_borealDataPrep
-git submodule add https://github.com/PredictiveEcology/Biomass_core modules/Biomass_core
-git submodule add https://github.com/PredictiveEcology/Biomass_regeneration modules/Biomass_regeneration
-git submodule add https://github.com/PredictiveEcology/Biomass_speciesData modules/Biomass_speciesData
-
-## add fireSense modules
-git submodule add https://github.com/PredictiveEcology/fireSense modules/fireSense
-git submodule add https://github.com/PredictiveEcology/fireSense_dataPrepFit modules/fireSense_dataPrepFit
-git submodule add https://github.com/PredictiveEcology/fireSense_dataPrepPredict modules/fireSense_dataPrepPredict
-git submodule add https://github.com/PredictiveEcology/fireSense_IgnitionFit modules/fireSense_IgnitionFit
-git submodule add https://github.com/PredictiveEcology/fireSense_IgnitionPredict modules/fireSense_IgnitionPredict
-git submodule add https://github.com/PredictiveEcology/fireSense_EscapeFit modules/fireSense_EscapeFit
-git submodule add https://github.com/PredictiveEcology/fireSense_EscapePredict modules/fireSense_EscapePredict
-git submodule add https://github.com/PredictiveEcology/fireSense_SpreadFit modules/fireSense_SpreadFit
-git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict modules/fireSense_SpreadPredict</code></pre>
+<p>Use the <code>scripts/submodules.sh</code> script to add git submodules and checkout the correct branches (as of 2022-03-01, the development branch is recommended for most submodules).</p>
 <p>Optionally, you can add branch info for each of the submodules by editing the <code>.gitmodules</code> file and running <code>git submodule sync</code>.</p>
-<p><em>NOTE:</em> Alternatively, each of these modules can be fetched using <code>SpaDES.install::getModule()</code>, which will download the latest versions. However, this approach makes it harder to update modules in the future.</p>
+<p><em>NOTE:</em> Alternatively, each of these modules can be fetched using <code><a href="https://rdrr.io/pkg/SpaDES.install/man/getModule.html" class="external-link">SpaDES.install::getModule()</a></code>, which will download the latest versions. However, this approach makes it harder to update modules in the future.</p>
 </div>
-<div id="create-data-prep-module-for-your-study-area" class="section level1">
-<h1 class="hasAnchor">
-<a href="#create-data-prep-module-for-your-study-area" class="anchor"></a>Create data prep module for your study area</h1>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="section level2">
+<h2 id="create-data-prep-module-for-your-study-area">Create data prep module for your study area<a class="anchor" aria-label="anchor" href="#create-data-prep-module-for-your-study-area"></a>
+</h2>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="fu">newModule</span><span class="op">(</span><span class="st">"myStudyArea_dataPrep"</span>, path <span class="op">=</span> <span class="st">"modules"</span><span class="op">)</span></code></pre></div>
 <p>At a minimum, this module needs to create the following objects to be passed to the LandR and fireSense data prep modules:</p>
-<pre><code>  outputObjects = bindrows(
-    createsOutput("historicalClimateRasters", objectClass = "list",
-                  desc = "list of a single raster stack - historical MDC calculated from ClimateNA data"),
-    createsOutput("projectedClimateRasters", objectClass = "list",
-                  desc = "list of a single raster stack - projected MDC calculated from ClimateNA data"),
-    createsOutput("rasterToMatch", objectClass = "RasterLayer",
-                  desc = "template raster"),
-    createsOutput("rasterToMatchLarge", objectClass = "RasterLayer",
-                  desc = "template raster for larger area"),
-    createsOutput("rasterToMatchReporting", objectClass = "RasterLayer",
-                  desc = "template raster for reporting area"),
-    createsOutput("sppColorVect", objectClass = "character",
-                  desc = "species colours for plotting"),
-    createsOutput("sppEquiv", objectClass = "character",
-                  desc = "table of LandR species names equivalencies"),
-    createsOutput("sppEquivCol", objectClass = "character",
-                  desc = "name of column to use in sppEquiv"),
-    createsOutput("standAgeMap2011", objectClass = "RasterLayer",
-                  desc = "time since disturbance raster for year 2011"),
-    createsOutput("studyArea", objectClass = "SpatialPolygonsDataFrame",
-                  desc = "study area used for simulation (buffered to mitigate edge effects)"),
-    createsOutput("studyAreaLarge", objectClass = "SpatialPolygonsDataFrame",
-                  desc = "study area used for module parameterization (buffered)"),
-    createsOutput("studyAreaReporting", objectClass = "SpatialPolygonsDataFrame",
-                  desc = "study area used for reporting/post-processing")
-  )</code></pre>
-<p>For a concrete example of a study area module used for the Western Boreal Initiative (WBI), see <a href="https://github.com/PredictiveEcology/WBI_dataPrep_studyArea/" class="uri">https://github.com/PredictiveEcology/WBI_dataPrep_studyArea/</a>.</p>
+<pre><code><span class="va">outputObjects</span> <span class="op">=</span> <span class="fu">bindrows</span><span class="op">(</span>
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"historicalClimateRasters"</span>, objectClass <span class="op">=</span> <span class="st">"list"</span>,
+                  desc <span class="op">=</span> <span class="st">"list of a single raster stack - historical MDC calculated from ClimateNA data"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"projectedClimateRasters"</span>, objectClass <span class="op">=</span> <span class="st">"list"</span>,
+                  desc <span class="op">=</span> <span class="st">"list of a single raster stack - projected MDC calculated from ClimateNA data"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"rasterToMatch"</span>, objectClass <span class="op">=</span> <span class="st">"RasterLayer"</span>,
+                  desc <span class="op">=</span> <span class="st">"template raster"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"rasterToMatchLarge"</span>, objectClass <span class="op">=</span> <span class="st">"RasterLayer"</span>,
+                  desc <span class="op">=</span> <span class="st">"template raster for larger area"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"rasterToMatchReporting"</span>, objectClass <span class="op">=</span> <span class="st">"RasterLayer"</span>,
+                  desc <span class="op">=</span> <span class="st">"template raster for reporting area"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"sppColorVect"</span>, objectClass <span class="op">=</span> <span class="st">"character"</span>,
+                  desc <span class="op">=</span> <span class="st">"species colours for plotting"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"sppEquiv"</span>, objectClass <span class="op">=</span> <span class="st">"character"</span>,
+                  desc <span class="op">=</span> <span class="st">"table of LandR species names equivalencies"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"sppEquivCol"</span>, objectClass <span class="op">=</span> <span class="st">"character"</span>,
+                  desc <span class="op">=</span> <span class="st">"name of column to use in sppEquiv"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"standAgeMap2011"</span>, objectClass <span class="op">=</span> <span class="st">"RasterLayer"</span>,
+                  desc <span class="op">=</span> <span class="st">"time since disturbance raster for year 2011"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"studyArea"</span>, objectClass <span class="op">=</span> <span class="st">"SpatialPolygonsDataFrame"</span>,
+                  desc <span class="op">=</span> <span class="st">"study area used for simulation (buffered to mitigate edge effects)"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"studyAreaLarge"</span>, objectClass <span class="op">=</span> <span class="st">"SpatialPolygonsDataFrame"</span>,
+                  desc <span class="op">=</span> <span class="st">"study area used for module parameterization (buffered)"</span><span class="op">)</span>,
+    <span class="fu">createsOutput</span><span class="op">(</span><span class="st">"studyAreaReporting"</span>, objectClass <span class="op">=</span> <span class="st">"SpatialPolygonsDataFrame"</span>,
+                  desc <span class="op">=</span> <span class="st">"study area used for reporting/post-processing"</span><span class="op">)</span>
+  <span class="op">)</span></code></pre>
+<p>For a concrete example of a study area module used for the Western Boreal Initiative (WBI), see <a href="https://github.com/PredictiveEcology/WBI_dataPrep_studyArea/" class="external-link uri">https://github.com/PredictiveEcology/WBI_dataPrep_studyArea/</a>.</p>
 </div>
-<div id="climate-data-preparation" class="section level1">
-<h1 class="hasAnchor">
-<a href="#climate-data-preparation" class="anchor"></a>Climate data preparation</h1>
-<p>We have used ClimateNA (<a href="http://climatena.ca/" class="uri">http://climatena.ca/</a>) to downscale monthly climate data to get historic and future projected monthly drought code (MDC) rasters for our study areas. Unfortunately, ClimateNA does not currently have a scriptable programming interface, and these climate layers must be assembled manually using the ClimateNA point-and-click graphical tool.</p>
+<div class="section level2">
+<h2 id="climate-data-preparation">Climate data preparation<a class="anchor" aria-label="anchor" href="#climate-data-preparation"></a>
+</h2>
+<p>The <code>canClimateData</code> module deals with preparing climate data for use fireSense and LandR.CS. We have pre-downloaded several climate scenarios for several provincial and territorial jurisdictions in Canada. See <a href="https://github.com/PredictiveEcology/canClimateData#available-data-sets" class="external-link uri">https://github.com/PredictiveEcology/canClimateData#available-data-sets</a>.</p>
+<p>If your study area of interest does not lie completely within one of these prebuilt study areas, or if you want to use different climate scenarios, you will need to download the necessary data using ClimateNA (<a href="http://climatena.ca/" class="external-link uri">http://climatena.ca/</a>) to downscale monthly climate data and get historic and future projected monthly drought code (MDC) rasters for your study area(s). These climate layers must be assembled manually using the ClimateNA point-and-click graphical tool, and manually zipping them. <strong>UPDATE:</strong> Recent versions of ClimateNA support a scriptable programming interface; however, we have not yet created the scripts necessary to assemble these datasets programatically. Please see the ClimateNA documentation for some basic examples.</p>
+<p>See also <a href="https://github.com/PredictiveEcology/canClimateData#additional-data-sets" class="external-link uri">https://github.com/PredictiveEcology/canClimateData#additional-data-sets</a>.</p>
 <ol style="list-style-type: decimal">
 <li>
 <p>Download and install the ClimateNA software (Windows only).</p>
 <ol style="list-style-type: lower-alpha">
-<li><p>Go to <a href="http://climatebc.ca/downloads/download.html" class="uri">http://climatebc.ca/downloads/download.html</a> and register your email. You will receive a confirmation email containing a link to download the latest version.</p></li>
+<li><p>Go to <a href="http://climatebc.ca/downloads/download.html" class="external-link uri">http://climatebc.ca/downloads/download.html</a> and register your email. You will receive a confirmation email containing a link to download the latest version.</p></li>
 <li><p>Download and extract the zip file from the link in the email. This extracts the standalone program and its files; it does not ‘install’ the program in the traditional sense.</p></li>
 <li>
 <p>Windows security restrictions may prevent you from running the program. Right click the executable file and go to ‘Properties’. Check the ‘Unblock’ box under the ‘Security’ heading, and ‘Apply’ the settings.</p>
@@ -226,9 +210,9 @@ git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict m
 </ol>
 </li>
 <li>
-<p>Download a suitable digital elevation model (DEM) that covers your study area. We have used the <a href="https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-30-arc-second-elevation-gtopo30?qt-science_center_objects=0#qt-science_center_objects">USGS GTOPO30 product</a> to produce 1 or 3 arc minute DEMs.</p>
+<p>Download a suitable digital elevation model (DEM) that covers your study area. We have used the <a href="https://www.usgs.gov/centers/eros/science/usgs-eros-archive-digital-elevation-global-30-arc-second-elevation-gtopo30?qt-science_center_objects=0#qt-science_center_objects" class="external-link">USGS GTOPO30 product</a> to produce 1 or 3 arc minute DEMs.</p>
 <ol style="list-style-type: lower-alpha">
-<li>Use <code><a href="https://rdrr.io/pkg/climateData/man/makeClimateDEM.html">climateData::makeClimateDEM()</a></code> to prepare the DEM for your study area.</li>
+<li>Use <code>climateData::makeClimateDEM()</code> to prepare the DEM for your study area.</li>
 </ol>
 </li>
 <li>
@@ -247,28 +231,46 @@ git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict m
 <li><p>(Optional) After downloading all the climate data, you may wish to upload to a cloud-accessible location (e.g., Google Drive) to make it easy for collaborators to access the raw files if needed.</p></li>
 </ol>
 </li>
-<li>
-<p>Create raster maps of MDC for use with fireSense:</p>
-<ol style="list-style-type: lower-alpha">
-<li><p>Use <code><a href="https://rdrr.io/pkg/climateData/man/makeMDC.html">climateData::makeMDC()</a></code> to create the MDC rasters.</p></li>
-<li><p>Upload these to Google Drive (make note of the Google file ids) for use with <code>prepInputs()</code> in your study area data prep module.</p></li>
-</ol>
-</li>
+<li><p>Upload these to Google Drive (make note of the Google file ids) for use <code>canClimateData</code> module.</p></li>
 </ol>
 </div>
-<div id="project-script-configuration" class="section level1">
-<h1 class="hasAnchor">
-<a href="#project-script-configuration" class="anchor"></a>Project script configuration</h1>
+<div class="section level2">
+<h2 id="project-script-configuration">Project script configuration<a class="anchor" aria-label="anchor" href="#project-script-configuration"></a>
+</h2>
 <ol start="0" style="list-style-type: decimal">
-<li><p>The main project script is <code>00-global.R</code>. All subsequent scripts are <code>source</code>d from this file.</p></li>
+<li><p>The main project scripts are <code>00a-global_fit.R</code> and <code>00b-global_sim.R</code>, which are run either for fitting or for the main simulations (once pre-run fit objects are available). All subsequent scripts are <code>source</code>d from this file.</p></li>
+<li><p>All necessary packages are specified and installed in <code>01-packages.R</code>.</p></li>
 <li><p>Set user (or machine) specific options in <code>config.yml</code>, such as cache path, cache type, Google account info, etc.</p></li>
-<li><p>Additional user options can be added to the config file, just remember to assign these values in <code>01-init.R</code>, even if they aren’t used until later scripts.</p></li>
-<li><p>Simulation paths (e.g., those used by modules) are defined in <code>02-paths.R</code>. Use relative paths only. Different cache paths may be specified for finer control.</p></li>
-<li><p>Any additional packages used can be specified in <code>03-packages.R</code>.</p></li>
+<li><p>Additional user options can be added to the config file, just remember to assign these values in <code>02-init.R</code>, even if they aren’t used until later scripts.</p></li>
+<li><p>Simulation paths (e.g., those used by modules) are defined in <code>03-paths.R</code>. Use relative paths only. Different cache paths may be specified for finer control.</p></li>
 <li><p>Package options are set in <code>04-options.R</code>. User-specific options should not be defined here (set these in <code>config.yml</code>).</p></li>
-<li><p>The Google Drive file ids defined in <code>05-google-ids.R</code> will be blank to start with. As you run the subsequent scripts and upload simulation results, you can add the Google file ids to the list defined here. This allows future runs to skip long-running or intensive computations, such as those required to run <code>fireSense_SpreadFit</code>, and download a pre-computed result.</p></li>
-<li><p>You run your study area data prep module by invoking this script. This script may require additional updating/editing (e.g., the name of the module you created).</p></li>
-<li><p>Subsequent scripts (07a, 07b, 07c, 08a, 08b, and 08c) shouldn’t need much tweaking by the user.</p></li>
+<li><p>The Google Drive file ids defined in <code>05-google-ids.csv</code> will be blank to start with. As you run the subsequent scripts and upload simulation results, you can add the Google file ids to the list defined here. This allows future runs to skip long-running or intensive computations, such as those required to run <code>fireSense_SpreadFit</code>, and download a pre-computed result.</p></li>
+<li>
+<p>You run your study area data prep module by invoking this script. This script may require additional updating/editing (e.g., the name of the module you created), and you will need to create a preamble module that produces the following output objects:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"rasterToMatch"</span>, <span class="at">objectClass =</span> <span class="st">"RasterLayer"</span>,</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"template raster"</span>),</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"rasterToMatchLarge"</span>, <span class="at">objectClass =</span> <span class="st">"RasterLayer"</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"template raster for larger area"</span>),</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"rasterToMatchReporting"</span>, <span class="at">objectClass =</span> <span class="st">"RasterLayer"</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"template raster for reporting area"</span>),</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"sppColorVect"</span>, <span class="at">objectClass =</span> <span class="st">"character"</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"species colours for plotting"</span>),</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"sppEquiv"</span>, <span class="at">objectClass =</span> <span class="st">"character"</span>,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"table of LandR species names equivalencies"</span>),</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"sppEquivCol"</span>, <span class="at">objectClass =</span> <span class="st">"character"</span>,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"name of column to use in sppEquiv"</span>),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"studyArea"</span>, <span class="at">objectClass =</span> <span class="st">"SpatialPolygonsDataFrame"</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"study area used for simulation (buffered to mitigate edge effects)"</span>),</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"studyAreaLarge"</span>, <span class="at">objectClass =</span> <span class="st">"SpatialPolygonsDataFrame"</span>,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"study area used for module parameterization (buffered)"</span>),</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"studyAreaPSP"</span>, <span class="at">objectClass =</span> <span class="st">"SpatialPolygonsDataFrame"</span>,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>             <span class="at">desc =</span> <span class="fu">paste</span>(<span class="st">"this area will be used to subset PSP plots before building the statistical model."</span>,</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>                          <span class="st">"Currently PSP datasets with repeat measures exist only for Saskatchewan,"</span>,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>                          <span class="st">"Alberta, and Boreal British Columbia"</span>)),</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="fu">createsOutput</span>(<span class="st">"studyAreaReporting"</span>, <span class="at">objectClass =</span> <span class="st">"SpatialPolygonsDataFrame"</span>,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>              <span class="at">desc =</span> <span class="st">"study area used for reporting/post-processing"</span>)</span></code></pre></div>
+</li>
+<li><p>Subsequent scripts (07a, 07b, 07c, 08a, 08b, and 08c) shouldn’t need much tweaking by the user, but there are a few places (marked by <code>## TODO:</code>) where the user must specify things like how to set up compute clusters, etc.</p></li>
 <li><p>The main dynamic simulation is run by <code>09-main-sim.R</code>.</p></li>
 </ol>
 </div>
@@ -285,11 +287,13 @@ git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict m
 
 
       <footer><div class="copyright">
-  <p>Developed by Alex M Chubaty.</p>
+  <p></p>
+<p>Developed by Alex M Chubaty.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
+  <p></p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
 </div>
 
       </footer>
@@ -297,6 +301,8 @@ git submodule add https://github.com/PredictiveEcology/fireSense_SpreadPredict m
 
   
 
+
+  
 
   </body>
 </html>
