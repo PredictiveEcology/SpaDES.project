@@ -1,5 +1,4 @@
-Known issues: https://github.com/PredictiveEcology/SpaDES.project/issues
-
+Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
 version 0.0.4
 =============
@@ -9,5 +8,9 @@ version 0.0.4
 version 0.0.2
 =============
 
-## dependencies
-* remove SpaDES.core as a package `Imports`. Now in `Suggests`
+* remove `SpaDES.core` from `Imports` to `Suggests`.
+
+version 0.0.1
+=============
+
+* initial version
