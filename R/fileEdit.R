@@ -21,9 +21,14 @@
 .fileEdit <- function(file) {
   if (Sys.getenv("RSTUDIO") == "1") {
     file <- gsub(file, pattern = "\\./", replacement = "")
-    message("Using RStudio, open file manually with:\n",
-            paste0("file.edit('", file, "')")
-    )
+    if (requireNamespace("rstudioapi")) {
+      rstudioapi::navigateToFile(file)
+    } else {
+      message("Using RStudio, open file manually with:\n",
+              paste0("file.edit('", file, "')")
+      )
+    }
+
   } else {
     file.edit(file)
   }

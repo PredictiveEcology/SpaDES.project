@@ -19,6 +19,8 @@ See package vignettes to get started.
 
 Project types:
 
+- basic
+- advanced
 - LandR-fS
 
 **Website:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
@@ -57,6 +59,25 @@ install_github("PredictiveEcology/SpaDES.project", dependencies = TRUE) # master
 #install.packages("devtools")
 library("devtools")
 install_github("PredictiveEcology/SpaDES.project", ref = "development", dependencies = TRUE)
+```
+
+### Create a new project with several SpaDES modules
+
+This will create a new RStudio project, download 4 modules from their respective GitHub.com repositories, create a
+control script (e.g., `global.R`) and finally open that new project in RStudio.
+The resulting control script that will technically run, but one or more of the modules will likely be missing some input object that are expected.
+Most likely this will be something like an object called `studyArea`, which is a polygon with the study area.
+That control script has numerous comments within it to help get started.
+It will also deal with installing R packages.
+
+```r
+SpaDES.project::newProject("FactorialTesting", 
+                           path = "tempdir()", 
+                           modules = c("PredictiveEcology/Biomass_speciesFactorial",
+                                       "PredictiveEcology/Biomass_speciesParameters@EliotTweaks",
+                                       "PredictiveEcology/Biomass_borealDataPrep@development",
+                                       "PredictiveEcology/Biomass_core@EliotTweaks"), 
+                           overwrite = FALSE)
 ```
 
 ## Contributions

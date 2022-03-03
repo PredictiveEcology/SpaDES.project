@@ -1,36 +1,54 @@
-## load required packages
-library(data.table)
-library(sp)
-library(raster)
-library(SpaDES)
 
-## environment setup
+## environment setup -- all the functions below rely on knowing where modules
+## are located via this command
 setPaths(cachePath = "cache",
          inputPath = "inputs",
          modulePath = "modules",
          outputPath = "outputs")
 
-## simulation initialization
-simTimes <- c(start = 0, end = 10)
+## modules
+{{{moduleLines}}}
+getModule(moduleGitRepos, overwrite = {{{overwrite}}})
+modules <- extractPkgName(moduleGitRepos)
 
-moduleList <- list("module1", "module2") # rename module1 and module2
+## packages that are required by modules
+makeSureAllPackagesInstalled()
 
-parameters <- list(
-  module1 = list(), # rename module1 and provide named list of params
-  module2 = list()  # rename module2 and provide named list of params
-)
+## Module documentation -- please go to these pages to read about each module
+##  In some cases, there will be important defaults that a user should be aware of
+##  or important objects (like studyArea) that may be essential
+{{{moduleDocumentation}}}
 
-#?inputs
-#?outputs
 
+## simulation initialization. These may not be appropriate start and end times for one
+## or more of the modules, e.g., they may only be defined with calendar dates
+simTimes <- list(start = 0, end = 10)
+
+## Set module parameters -- to see options, look at module documentation
+{{{parameterLines}}}
+
+## Objects to provide to simInit from e.g., .GlobalEnv,
+objects = list()
+
+## Module inputs to load on a schedule. There may be specific inputs required by modules that are not
+## supplied by default
+inputs = data.frame()
+
+## Module outputs to save on a schedule. There may be specific outputs required by modules that are not
+## supplied by default
+outputs = data.frame()
+
+## See ?simInit for all options
 mySim <- simInit(
   times = simTimes,
-  modules = moduleList,
-  params = parameters
+  modules = modules,
+  params = parameters,
+  inputs = inputs,
+  objects = objects,
+  outputs = outputs
 )
 
 ## run the simulation
-mySimOut <- spades(mySim) # opitonally, use `spades(Copy(mySim))`
+mySimOut <- spades(mySim, debug = 1) # optionally, use `spades(Copy(mySim))`
 
-## run a simulation experiment
-# see `?experiment`
+

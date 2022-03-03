@@ -8,15 +8,15 @@
 \alias{newProjectCode,character,character,character,missing-method}
 \title{Create new module code file}
 \usage{
-newProjectCode(name, path, type, open, ...)
+newProjectCode(name, path, type, open, modules = NULL, ...)
 
-\S4method{newProjectCode}{character,character,character,logical}(name, path, type, open = interactive(), ...)
+\S4method{newProjectCode}{character,character,character,logical}(name, path, type, open = interactive(), modules = NULL, ...)
 
-\S4method{newProjectCode}{character,character,missing,missing}(name, path, type, open, ...)
+\S4method{newProjectCode}{character,character,missing,missing}(name, path, type, open, modules = NULL, ...)
 
-\S4method{newProjectCode}{character,character,missing,logical}(name, path, type, open, ...)
+\S4method{newProjectCode}{character,character,missing,logical}(name, path, type, open, modules = NULL, ...)
 
-\S4method{newProjectCode}{character,character,character,missing}(name, path, type, open, ...)
+\S4method{newProjectCode}{character,character,character,missing}(name, path, type, open, modules = NULL, ...)
 }
 \arguments{
 \item{name}{project name (name of project directory)}
@@ -29,8 +29,16 @@ newProjectCode(name, path, type, open, ...)
 \item{open}{Logical. Should the new project file be opened after creation?
 Default \code{TRUE} in an interactive session.}
 
+\item{modules}{A character vector of modules to download and put into the project
+(see \code{SpaDES.install::getModule} for how to specify)}
+
 \item{...}{Additional arguments. Currently only the following are implemented:
 \describe{
+  \item{\code{overwrite}}{
+    If modules are specified, should a new module be downloaded even
+    if it already exists, i.e., overwrite (and destroy) the existing one.
+    Default is \code{FALSE}
+  }
   \item{\code{pkgPath}}{
     Path to project's package directory.
     Defaults to \file{<projectName>_packages} in the project's parent directory.

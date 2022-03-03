@@ -12,15 +12,20 @@
 #'             \code{"basic"} (default), and \code{"advanced"}.
 #' @param open  Logical. Should the new project file be opened after creation?
 #'              Default \code{TRUE} in an interactive session.
+#' @param modules A character vector of modules to download and put into the project
+#'   (see \code{SpaDES.install::getModule} for how to specify)
 #' @param ...  Additional arguments. Currently only the following are implemented:
 #'             \describe{
+#'               \item{\code{overwrite}}{
+#'                 If modules are specified, should a new module be downloaded even
+#'                 if it already exists, i.e., overwrite (and destroy) the existing one.
+#'                 Default is \code{FALSE}
+#'               }
 #'               \item{\code{pkgPath}}{
 #'                 Path to project's package directory.
 #'                 Defaults to \file{<projectName>_packages} in the project's parent directory.
 #'               }
 #'             }
-#' @export
-#' @rdname newProject
 #'
 #' @examples
 #' \dontrun{
@@ -30,70 +35,34 @@
 #' ## use advanced project setup
 #' myAdvProjDir <- newProject("myAdvProject", tempdir(), type = "advanced")
 #' }
-setGeneric("newProject", function(name, path, type, open, ...) {
-  standardGeneric("newProject")
-})
-
 #' @export
 #' @rdname newProject
 #' @importFrom Require checkPath
-#' @importFrom SpaDES.core setPaths
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "character", open = "logical"),
-  definition = function(name, path, type, open, ...) {
-    checkPath(path, create = TRUE)
+newProject <- function(name, path = ".", type = "basic", open = interactive(), modules = NULL, ...) {
+    has_rstudioapi <- requireNamespace("rstudioapi", quietly = TRUE)
+
     projDir <- checkPath(file.path(path, name), create = TRUE)
 
-    cachePath <- checkPath(file.path(projDir, "cache"), create = TRUE)
-    inputPath <- checkPath(file.path(projDir, "inputs"), create = TRUE)
-    modulePath <- checkPath(file.path(projDir, "modules"), create = TRUE)
-    outputPath <- checkPath(file.path(projDir, "outputs"), create = TRUE)
-
-    setPaths(cachePath = cachePath,
-             inputPath = inputPath,
-             modulePath = modulePath,
-             outputPath = outputPath)
-
-    if (type != "basic")
+    if (type != "basic") {
       checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
+    }
 
-    if (interactive() && Sys.getenv("RSTUDIO") == "1") {
-      if (requireNamespace("rstudioapi", quietly = TRUE))
+    if (interactive() & Sys.getenv("RSTUDIO") == "1" & has_rstudioapi) {
         rstudioapi::initializeProject(path = projDir)
     }
 
-    newProjectCode(name, path, type, open, ...)
+    newProjectCode(name, path, type, open, modules = modules, ...)
+
+    if (open) {
+      if (has_rstudioapi) {
+        rstudioapi::openProject(projDir, newSession = TRUE)
+      } else {
+        lapply(grep("global.*[.]R$", dir(projDir, full.names = TRUE), value = TRUE), .fileEdit)
+      }
+    }
 
     return(projDir)
-})
-
-#' @export
-#' @rdname newProject
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "missing", open = "missing"),
-  definition = function(name, path, type, open, ...) {
-    newProject(name, path, open = interactive(), type = "basic", ...)
-})
-
-#' @export
-#' @rdname newProject
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "character", open = "missing"),
-  definition = function(name, path, type, open, ...) {
-    newProject(name, path, type = type, open = interactive(), ...)
-})
-
-#' @export
-#' @rdname newProject
-setMethod(
-  "newProject",
-  signature = c(name = "character", path = "character", type = "missing", open = "logical"),
-  definition = function(name, path, type, open, ...) {
-    newProject(name, path, type = "basic", open = open, ...)
-})
+}
 
 #' Create new module code file
 #'
@@ -102,22 +71,23 @@ setMethod(
 #' @author Alex Chubaty
 #' @export
 #' @rdname newProjectCode
-#'
-setGeneric("newProjectCode", function(name, path, type, open, ...) {
+setGeneric("newProjectCode", function(name, path, type, open, modules = NULL, ...) {
   standardGeneric("newProjectCode")
 })
 
 #' @export
 #' @importFrom Require checkPath
+#' @importFrom utils modifyList
 #' @importFrom whisker whisker.render
 #' @rdname newProjectCode
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "character", open = "logical"),
-  definition = function(name, path, type, open = interactive(), ...) {
+  definition = function(name, path, type, open = interactive(), modules = NULL, ...) {
     stopifnot(type %in% c("basic", "advanced", "LandR-fireSense"))
 
     dots <- list(...)
+    dots <- modifyList(list(overwrite = FALSE), dots)
     pkgPath <- if (is.null(dots$pkgPath)) {
       checkPath(file.path(path, paste0(name, "_packages")), create = TRUE)
     } else {
@@ -125,6 +95,52 @@ setMethod(
     }
 
     nestedPath <- checkPath(file.path(path, name), create = TRUE)
+
+    cachePath <- checkPath(file.path(nestedPath, "cache"), create = TRUE)
+    inputPath <- checkPath(file.path(nestedPath, "inputs"), create = TRUE)
+    modulePath <- checkPath(file.path(nestedPath, "modules"), create = TRUE)
+    outputPath <- checkPath(file.path(nestedPath, "outputs"), create = TRUE)
+
+    # setPaths(cachePath = cachePath,
+    #          inputPath = inputPath,
+    #          modulePath = modulePath,
+    #          outputPath = outputPath)
+
+    projectData <- list(projName = name,
+                        pkgPath = pkgPath,
+                        overwrite = dots$overwrite)
+
+    # There is a bug in extractPkgName if the remote account is not present
+    if (!is.null(modules)) {
+      modulesSimple <- gsub("(@.+)*(\\(.+)*", "", Require::extractPkgName(modules))
+      mods <- paste0("moduleGitRepos <- c('",
+                     paste(modules, collapse = "',\n                    '"), "')")
+
+      params <- paste0(paste("parameters = list(\n  "),
+                       paste(modulesSimple, " = list()", collapse = ",\n  "), "\n)")
+
+      message("Identifying latest documentation for each module", appendLF = FALSE)
+      moduleDocumentation <- lapply(modules, function(mod) {
+        message(".", appendLF = FALSE)
+        split <- splitGitRepo(mod)
+        mds <- c(".md", ".rmd")
+        urlFine <- FALSE
+        for (md in mds) {
+          urlTry <- paste0("https://github.com/", split$acct, "/", split$repo, "/blob/",
+                           split$br, "/", split$repo, md)
+          urlFine <- urlExists(urlTry)
+          if (isTRUE(urlFine)) break
+        }
+        urlTry
+      })
+      moduleDocumentation <- paste0("## ", paste(paste0("browseURL('", moduleDocumentation, "')"),
+                                                 collapse = "\n## "))
+      message("Done!")
+      projectData <- append(projectData,
+                            list(moduleLines = mods,
+                                 parameterLines = params,
+                                 moduleDocumentation = moduleDocumentation))
+    }
 
     ## start with files needed for all project types
     fnames <- list(
@@ -233,15 +249,13 @@ setMethod(
       readLines(file.path(.pkgEnv[["templatePath"]], t))
     })
 
-    projectData <- list(projName = name, pkgPath = pkgPath)
-
     lapply(seq_along(fnames), function(i) {
       writeLines(whisker.render(projectTemplates[[i]], projectData), file.path(nestedPath, fnames[[i]]))
     })
 
-    if (open) {
-      lapply(grep("^00.-global.*[.]R$", file.path(nestedPath, fnames)), .fileEdit)
-    }
+    # if (open) {
+    #   lapply(grep("^00.-global.*[.]R$", file.path(nestedPath, fnames)), .fileEdit)
+    # }
 
     return(nestedPath)
 })
@@ -251,8 +265,8 @@ setMethod(
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "missing", open = "missing"),
-  definition = function(name, path, type, open, ...) {
-    newProjectCode(name = name, path = path, type = "basic", open = interactive(), ...)
+  definition = function(name, path, type, open, modules = NULL, ...) {
+    newProjectCode(name = name, path = path, type = "basic", open = interactive(), modules = modules, ...)
 })
 
 #' @export
@@ -260,8 +274,8 @@ setMethod(
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "missing", open = "logical"),
-  definition = function(name, path, type, open, ...) {
-    newProjectCode(name = name, path = path, type = "basic", open = open, ...)
+  definition = function(name, path, type, open, modules = NULL, ...) {
+    newProjectCode(name = name, path = path, type = "basic", open = open, modules = modules, ...)
 })
 
 #' @export
@@ -269,6 +283,7 @@ setMethod(
 setMethod(
   "newProjectCode",
   signature = c(name = "character", path = "character", type = "character", open = "missing"),
-  definition = function(name, path, type, open, ...) {
-    newProjectCode(name = name, path = path, type = type, open = interactive(), ...)
+  definition = function(name, path, type, open, modules = NULL, ...) {
+    newProjectCode(name = name, path = path, type = type, open = interactive(), modules = NULL, ...)
 })
+

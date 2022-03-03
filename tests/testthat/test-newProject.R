@@ -34,3 +34,5 @@ test_that("newProject (advanced) creates necessary files", {
 
   unlink(myProjDir, recursive = TRUE) ## cleanup
 })
+
+## TODO: test LandR-fireSense project

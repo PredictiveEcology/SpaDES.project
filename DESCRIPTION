@@ -5,7 +5,7 @@ Description: Quickly setup 'SpaDES' project directories and add modules using te
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Version: 0.0.1.9000
+Version: 0.0.4
 Authors@R: c(
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7146-8135")),
@@ -19,7 +19,6 @@ Depends:
 Imports:
     methods,
     Require,
-    SpaDES.core,
     whisker
 Suggests:
     covr,
@@ -27,6 +26,7 @@ Suggests:
     rmarkdown,
     rstudioapi,
     slackr,
+    SpaDES.core,
     testthat (>= 1.0.2)
 Encoding: UTF-8
 Language: en-CA
@@ -34,3 +34,4 @@ License: GPL-3
 VignetteBuilder: knitr, rmarkdown
 BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
+RoxygenNote: 7.1.2
