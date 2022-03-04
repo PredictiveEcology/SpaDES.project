@@ -217,7 +217,7 @@ setMethod(
       ))
 
       tnames <- append(tnames, list(
-        "config.yml.template",
+        "LandR-fS-config.yml.template",
         "LandR-fS-00a-global_fit.R.template",
         "LandR-fS-00b-global_sim.R.template",
         "LandR-fS-01-packages.R.template",
@@ -286,4 +286,3 @@ setMethod(
   definition = function(name, path, type, open, modules = NULL, ...) {
     newProjectCode(name = name, path = path, type = type, open = interactive(), modules = NULL, ...)
 })
-
