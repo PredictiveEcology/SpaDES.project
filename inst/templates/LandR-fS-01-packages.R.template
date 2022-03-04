@@ -36,7 +36,7 @@ if (FALSE) {
 
 out <- makeSureAllPackagesInstalled(modulePath = "modules")
 
-Require(c("RCurl", "RPostgres", "XML"), require = FALSE)
+Require(c("config", "RCurl", "RPostgres", "XML"), require = FALSE)
 
 ## NOTE: always load packages LAST, after installation above;
 ##       ensure plyr loaded before dplyr or there will be problems
@@ -44,4 +44,4 @@ Require(c("data.table", "plyr", "pryr",
           "PredictiveEcology/reproducible@development (>= 1.2.8.9040)",
           "PredictiveEcology/LandR@development", ## TODO: workaround weird raster/sf method problem
           "PredictiveEcology/SpaDES.core@development (>= 1.0.10.9003)",
-          "archive", "config", "googledrive", "httr", "slackr"), upgrade = FALSE)
+          "archive", "googledrive", "httr", "slackr"), upgrade = FALSE)
