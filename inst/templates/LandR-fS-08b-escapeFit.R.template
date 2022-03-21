@@ -31,7 +31,7 @@ if (isTRUE(usePrerun) & isFALSE(upload_preamble)) {
   saveSimList(sim = escapeOut, filename = fescapeOut, fileBackend = 2)
 
   if (isTRUE(upload_escapeOut)) {
-    fdf <- googledrive::drive_put(media = fescapeOut, path = gdriveURL, name = basename(fescapeOut))
+    fdf <- googledrive::drive_put(media = fescapeOut, path = as_id(gdriveURL), name = basename(fescapeOut))
     gid_escapeOut <- as.character(fdf$id)
     rm(fdf)
     gdriveSims <- update_googleids(

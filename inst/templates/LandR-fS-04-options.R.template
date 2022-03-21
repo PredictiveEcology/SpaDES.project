@@ -54,5 +54,6 @@ opts <- options(
 httr::set_config(httr::config(http_version = 0))
 httr::timeout(seconds = 10)
 
+## TODO: configure and use Google Service Account token for larger projects
 drive_auth(email = config::get("cloud")[["googleuser"]], use_oob = quickPlot::isRstudioServer())
 message(crayon::silver("Authenticating as: "), crayon::green(drive_user()$emailAddress))

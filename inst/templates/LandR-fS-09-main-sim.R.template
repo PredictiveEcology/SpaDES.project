@@ -111,6 +111,7 @@ finalYearOutputs <- data.frame(
 
 dynamicOutputs <- rbind(annualRasters, annualObjects, finalYearOutputs)
 
+fs_predict_modules <- c("fireSense_IgnitionPredict", "fireSense_EscapePredict", "fireSense_SpreadPredict")
 dynamicParams <- list(
   Biomass_core = list(
     growthAndMortalityDrivers = ifelse(isTRUE(useLandR.CS), "LandR.CS", "LandR"),
@@ -125,10 +126,8 @@ dynamicParams <- list(
   fireSense_dataPrepPredict = list(
     fireTimeStep = 1,
     sppEquivCol = simOutPreamble$sppEquivCol,
-    whichModulesToPrepare = c("fireSense_IgnitionPredict",
-                              "fireSense_EscapePredict",
-                              "fireSense_SpreadPredict"),
-    missingLCCgroup = fSsimDataPrep@params$fireSense_dataPrepFit$missingLCCgroup
+    missingLCCgroup = fSsimDataPrep@params$fireSense_dataPrepFit$missingLCCgroup,
+    whichModulesToPrepare = fs_predict_modules
   ),
   fireSense_ignitionPredict = list(
     ##
@@ -137,7 +136,7 @@ dynamicParams <- list(
     .plotInterval = NA,
     .plotInitialTime = .plotInitialTime,
     plotIgnitions = FALSE,
-    whichModulesToPrepare = c("fireSense_IgnitionPredict", "fireSense_EscapePredict", "fireSense_SpreadPredict")
+    whichModulesToPrepare = fs_predict_modules
   ),
   gmcsDataPrep = list(
     doPlotting = TRUE,
