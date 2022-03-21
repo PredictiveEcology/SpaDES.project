@@ -94,7 +94,7 @@ if (isTRUE(usePrerun) & isFALSE(upload_spreadOut)) {
     if (!dir.exists(tempdir())) {
       dir.create(tempdir()) ## TODO: why is this dir being removed in the first place?
     }
-    fdf <- googledrive::drive_put(media = fspreadOut, path = gdriveURL, name = basename(fspreadOut))
+    fdf <- googledrive::drive_put(media = fspreadOut, path = as_id(gdriveURL), name = basename(fspreadOut))
     gid_spreadOut <- as.character(fdf$id)
     rm(fdf)
     gdriveSims <- update_googleids(

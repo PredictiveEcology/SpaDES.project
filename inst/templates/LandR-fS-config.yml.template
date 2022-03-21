@@ -12,12 +12,13 @@ default:
   delaystart: 0
   inputpaths: null
   messagingNumCharsModule: 21
+  nreps: 5
   paths:
     cachedir: "cache"
     inputpaths: null
     libpathdeoptim: !expr Require::checkPath(ifelse(nzchar(Sys.getenv("PRJ_PKG_DIR")), Sys.getenv("PRJ_PKG_DIR"), "packages"))
-    scratchdir: "scratch"
-  plot: false
+    scratchdir: !expr file.path(dirname(tempdir()), "scratch")
+  plot: true
   reproduciblealgorithm: 2
   reupload: false
   run: 1

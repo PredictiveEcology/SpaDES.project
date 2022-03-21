@@ -57,7 +57,7 @@ if (isTRUE(usePrerun) & isFALSE(upload_biomassMaps2011)) {
   saveSimList(biomassMaps2011, fbiomassMaps2011, fileBackend = 2)
 
   if (isTRUE(upload_biomassMaps2011)) {
-    fdf <- googledrive::drive_put(media = fbiomassMaps2011, path = gdriveURL, name = basename(fbiomassMaps2011))
+    fdf <- googledrive::drive_put(media = fbiomassMaps2011, path = as_id(gdriveURL), name = basename(fbiomassMaps2011))
     gid_biomassMaps2011 <- as.character(fdf$id)
     rm(fdf)
     gdriveSims <- update_googleids(
@@ -68,4 +68,4 @@ if (isTRUE(usePrerun) & isFALSE(upload_biomassMaps2011)) {
   }
 }
 
-rm(dataPrepOutputs2001, dataPrepParams2001, dataPrepOutputs2011, dataPrepParams2011)
+rm(dataPrepObjects, dataPrepOutputs2001, dataPrepParams2001, dataPrepOutputs2011, dataPrepParams2011)

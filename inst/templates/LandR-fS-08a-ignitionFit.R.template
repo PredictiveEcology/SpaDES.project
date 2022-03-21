@@ -53,7 +53,7 @@ if (isTRUE(usePrerun) & isFALSE(upload_ignitionOut)) {
   saveSimList(sim = ignitionOut, filename = fignitionOut, fileBackend = 2)
 
   if (isTRUE(upload_ignitionOut)) {
-    fdf <- googledrive::drive_put(media = fignitionOut, path = gdriveURL, name = basename(fignitionOut))
+    fdf <- googledrive::drive_put(media = fignitionOut, path = as_id(gdriveURL), name = basename(fignitionOut))
     gid_ignitionOut <- as.character(fdf$id)
     rm(fdf)
     gdriveSims <- update_googleids(
