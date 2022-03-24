@@ -25,7 +25,19 @@
     <loc>http://spades-project.predictiveecology.org/articles/getting-started.html</loc>
   </url>
   <url>
+    <loc>http://spades-project.predictiveecology.org/articles/i-getting-started.html</loc>
+  </url>
+  <url>
+    <loc>http://spades-project.predictiveecology.org/articles/ii-managing-large-SpaDES-projects.html</loc>
+  </url>
+  <url>
+    <loc>http://spades-project.predictiveecology.org/articles/iii-using-git-github.html</loc>
+  </url>
+  <url>
     <loc>http://spades-project.predictiveecology.org/articles/index.html</loc>
+  </url>
+  <url>
+    <loc>http://spades-project.predictiveecology.org/articles/iv-LandR-fireSense.html</loc>
   </url>
   <url>
     <loc>http://spades-project.predictiveecology.org/articles/managing-large-SpaDES-projects.html</loc>
