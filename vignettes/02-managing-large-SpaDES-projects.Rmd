@@ -80,22 +80,29 @@ Remember that each module should be self-contained, and that data are typically 
 
 ### Standalone package library (`packages/`)
 
-- don't muck with system packages / interfere with other projects
-- how to configure:
-    - using `Require`
-    - 'manually' via `.Rprofile`
+We don't want project libraries interefereing with other projects, or our user's default package library, so it's best to use a standalone package library.
+This is easily setup using the `Require` package, and optionally, using an environment variable (`PRJ_PKG_DIR`) to set the relative package library path for the project.
+Setting this by default in `.Rprofile` is useful, but note that `.Rprofile` won't always be read when sourcing your global control script, or e.g. from `Rscript` calls from the terminal.
 
 ```{r setup-packages, eval = FALSE}
-options(
-  repos = c(
-    predictiveecology = "https://predictiveecology.r-universe.dev",
-    CRAN = "https://cloud.r-project.org"
-  )
+if (file.exists(".Renviron")) readRenviron(".Renviron")
+
+pkgDir <- Sys.getenv("PRJ_PKG_DIR")
+if (!nzchar(pkgDir)) {
+  pkgDir <- "packages" ## default: use subdir within project directory
+}
+pkgDir <- normalizePath(
+  file.path(pkgDir, version$platform, paste0(version$major, ".", strsplit(version$minor, "[.]")[[1]][1])),
+  winslash = "/",
+  mustWork = FALSE
 )
 
-if (!require("Require")) {install.packages("Require"); library(Require)}
-Require::setup("packages")
-Require(c("SpaDES", "SpaDES.experiment", "raster", "LandR", "dplyr", "data.table", "amc"))
+if (!dir.exists(pkgDir)) {
+  dir.create(pkgDir, recursive = TRUE)
+}
+
+.libPaths(pkgDir)
+message("Using libPaths:\n", paste(.libPaths(), collapse = "\n"))
 ```
 
 ## Control scripts
@@ -108,9 +115,9 @@ For example, a project directory may contain the following control scripts:
 
 ```
 |_ 00-global.R       # the main control script; source()'s the others
-|_ 01-init.R         # parameter initialization
-|_ 02-paths.R        # define and create paths
-|_ 03-packages.R     # load/declare packages used
+|_ 01-packages.R     # install/load all packages used
+|_ 02-init.R         # parameter initialization
+|_ 03-paths.R        # define and create paths
 |_ 04-options.R      # set R and package options
 |_ 05-runSim.R       # initialize and run the simulation
 |_ 06-postprocessing.R # post-simulation analyses/results summaries
@@ -126,6 +133,43 @@ The simplest approach to structuring your workflow is to assume the user will ru
 In order to facilitate running this global script for use with different simulation scenarios, on different machines, by different users, as well as being able to easily reuse scripts with different, but related projects, it's important to reduce idiosyncracies in these scripts by putting user-configurable components into separate config or options files.
 To ensure these can quickly be rerun, it's critical to stash intermediate results so that long or intensive computations don't need to be rerun each time.
 
+### Package installation and loading
+
+Check that all necessary packages are declared, and ensure they are installed _before_ loading any of them, or you will encounter problems with namespaces being loaded and being unable to detach packages during installation.
+
+The `Require` package facilitates this, and checks for modules' package dependencies:
+
+```{r package-install}
+if (!require("Require", quietly = TRUE)) {
+  install.packages("Require")
+  library(Require)
+}
+
+.spatialPkgs <- c("lwgeom", "rgdal", "rgeos", "sf", "sp", "stars", "raster", "terra")
+
+Require("PredictiveEcology/SpaDES.install@development")
+
+installSpaDES(dontUpdate = .spatialPkgs, upgrade = "never")
+
+if (FALSE) {
+  installSpatialPackages()
+  #install.packages(c("raster", "terra"), repos = "https://rspatial.r-universe.dev")
+  sf::sf_extSoftVersion() ## want at least GEOS 3.9.0, GDAL 3.2.1, PROJ 7.2.1
+}
+
+out <- makeSureAllPackagesInstalled(modulePath = "modules")
+
+Require(c("config", "RCurl", "RPostgres", "tictoc", "XML"), require = FALSE)
+
+## NOTE: always load packages LAST, after installation above;
+##       ensure plyr loaded before dplyr or there will be problems
+Require(c("data.table", "plyr", "pryr",
+          "PredictiveEcology/reproducible@development (>= 1.2.8.9040)",
+          "PredictiveEcology/LandR@development", ## TODO: workaround weird raster/sf method problem
+          "PredictiveEcology/SpaDES.core@development (>= 1.0.10.9003)",
+          "archive", "googledrive", "httr", "slackr"), upgrade = FALSE)
+```
+
 ### Project configuration files
 
 This workflow recognizes that there are frequently different types of configurable projects parameters.
@@ -136,11 +180,15 @@ This workflow recognizes that there are frequently different types of configurab
 It is useful to try to group these configurable parameters based on when/how they are used in the simulation, and to keep them organized (e.g., alphabetized) so it's easy to scan the list of parameters and identify their corresponding values.
 Thus, there are two (or optionally, three) main places where these values may be set (and thus three places where you should check if you are updating/changing parameters or their values).
 
-The first place is in `01-init.R` (and optionally, some these values may additionally read in from a config file using e.g., the `config` package).
+The first place is in `02-init.R` (and optionally, some these values may additionally read in from a config file using e.g., the `config` package).
 Parameter values are set here early on and may use those objects later in various places (including e.g., `04-options.R`).
-When running simulations, it's typical that a user would be running multiple concurrent simulations and would set a configuration value for the first simulation (A), and want to change the value for the next simulation (B).
+
+**NB:** When running simulations, it's typical that a user would be running multiple concurrent simulations and would set a configuration value for the first simulation (A), and want to change the value for the next simulation (B).
 A problem arises where if the first simulation (A) hasn't gotten far enough along in the scripts to already have read these values into memory, simulation A could read in the updated value from disk intended for simulation B.
 Thus, all config values coming from a file (being read from disk) need to be read in as early as possible so if the file changes it won't interfere with in-progress (or queued future) simulations (i.e., reduce race conditions).
+*Do not reload config or other "controller" values from disk part way through a simulation.*
+This warning also extends to making manual changes in scripts: do not change a value in a script for a subset of runs.
+It becomes difficult to mentally keep track of these changes when switching between runs, and even if you can keep things straight for your self, your collaborators may mot be so lucky!
 
 To mitigate this, it is useful to encode run information, including key parameter values, in the simulation `runName`, so that in can be extracted during the simulation.
 E.g., for `runName = "AOU_CCSM4_RCP85_res250_rep01"`:
@@ -150,14 +198,18 @@ E.g., for `runName = "AOU_CCSM4_RCP85_res250_rep01"`:
 - `rep01` specifies the replicate/run/realization number.
 Thus, the construction of the `runName` can be done by a high-level control script rather than having the user manually edit a configuration file, which is especially useful when doing batch runs.
 
-(An alternative approach is to use separate "config" or "param" files for each set of simulations, which for complex projects with multiple defined runs could mean tens or hundreds of nearly identical text files needing to be maintained and updated.
+An alternative approach is to use separate "config" or "param" files for each set of simulations, which for complex projects with multiple defined runs could mean tens or hundreds of nearly identical text files needing to be maintained and updated.
 Thus, adding a new config option (or removing one) means editing and updating _all_ of those files.
-Though this approach has other merits, this is a very large drawback.)
+Though this approach has other merits, this is a very large drawback.
 
 As alluded to above, another place where configuration parameters are set is in `04-options.R`.
 This is a single place where all package-level options are set.
 They should be listed alphabetically, so that it's easy for a human to read, find, and modify values.
-Where these values are not hardcoded to a fixed value (e.g., `Ncpus = 8L`), they should be set using variables defined in `01-init.R` (e.g., `Ncpus = ncores`, where `ncores` was previously defined as `parallel::detectCores() / 2`)
+Where these values are not hardcoded to a fixed value (e.g., `Ncpus = 8L`), they should be set using variables defined in `02-init.R` (e.g., `Ncpus = ncores`, where `ncores` was previously defined as `min(parallel::detectCores() / 2, 120)`)
+
+The goal is to be able to use a single script for all your simulations.
+Run names, study areas, etc. should be controlled externally to this (i.e., don't hardcode runNames unless the control script iterates through a loop of all your study areas.)
+If using a loop to iterate through e.g., study areas, it's useful to use lock files (see below) to prevent simultaneous runs from interfering with one another.
 
 #### Replication and scenarios
 
@@ -179,12 +231,35 @@ mySim <- simInit(..., objects = objects4sim)
 Simulation outputs should be saved in run-specific output directories, thus we suggest using `runName` as part of the simulations' output path.
 This also helps the user when browsing the outputs in the filesystem when examining results.
 
+##### Lockfiles
+
+Simulation-specific lock files can be used to help prevent simultaneous runs from interfering with one another when a single control script is used to loop through multiple parameter values or scenarios.
+
+A simple example of using lockfiles for each iteration of `studyArea` is provided below:
+
+```r
+lapply(studyAreas, function(studyAreaName) {
+   ...
+
+  lockfile <- file.path(outputPath, paste0("00-LOCK_", studyAreaName))
+  if (file.exists(lockfile)) {
+    message("Found lockfile for study area ", studyAreaName, ". Skipping.")
+    next
+  } else {
+    file.create(lockfile)
+    on.exit({unlink(lockfile)}, add = TRUE)
+  }
+
+  ...
+})
+```
+
 #### Per-user and per-machine config
 
-Lorem ipsum ...
-
-- clearly define which `01-init.R` vars are 'global' and which are intended to be changed by the user
-- `config` package + `config.yml`?
+I like using `config` package plus a `config.yml` file to set user- and machine-specific options (like scratch directory paths, cache settings, etc.). 
+Using `config` is opitonal though, as thes can be defined in `02-init.R`.
+The important thing is to clearly identify which parameters/values are 'global' for all simulations, and which are intended to be changed by the user.
+Note that no parameters that are expected to be changed for the purposes of running different simulation parameters (e.g., study area) should be set here (see above).
 
 ### Save or cache intermediate results
 
