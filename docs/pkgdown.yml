@@ -2,11 +2,11 @@ pandoc: 2.14.0.3
 pkgdown: 2.0.2
 pkgdown_sha: ~
 articles:
-  LandR-fireSense: LandR-fireSense.html
-  getting-started: getting-started.html
-  managing-large-SpaDES-projects: managing-large-SpaDES-projects.html
-  using-git-github: using-git-github.html
-last_built: 2022-03-03T04:29Z
+  i-getting-started: i-getting-started.html
+  ii-managing-large-SpaDES-projects: ii-managing-large-SpaDES-projects.html
+  iii-using-git-github: iii-using-git-github.html
+  iv-LandR-fireSense: iv-LandR-fireSense.html
+last_built: 2022-03-24T23:08Z
 urls:
   reference: http://spades-project.predictiveecology.org/reference
   article: http://spades-project.predictiveecology.org/articles
