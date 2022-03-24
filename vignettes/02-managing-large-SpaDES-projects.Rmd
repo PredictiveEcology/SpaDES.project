@@ -13,7 +13,8 @@ editor_options:
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE
 )
 ```
 
@@ -61,30 +62,73 @@ Remember that each module should be self-contained, and that data are typically 
 
 - do _not_ use `getwd()` nor `setwd()` within scripts, modules, etc.
 
+It's useful to define all your projects paths in a single location (i.e., `03-paths.R`).
+Paths can be defined for e.g., data preparation steps, simulation runs, and post-processing stages:
+
+1. Use named lists:
+
+    ```{r paths}
+    scratchDir <- checkPath(file.path(scratchDir, studyAreaName), create = TRUE) ## basedir set in config
+
+    defaultPaths <- list(
+      cachePath = cacheDir,
+      modulePath = "modules",
+      inputPath = "inputs",
+      outputPath = file.path("outputs", studyAreaName),
+      scratchPath = scratchDir
+    )
+    
+    dataPrepPaths <- defaultPaths
+    dataPrepPaths[["cachePath"]] <- file.path(cacheDir, "cache_dataPrep")
+
+    ## main (dynamic) simulation
+    dynamicPaths <- defaultPaths
+    dynamicPaths[["cachePath"]] <- file.path(cacheDir, "cache_sim")
+    dynamicPaths[["outputPath"]] <- file.path("outputs", runName)
+    
+    ## postprocessing paths
+    posthocPaths <- defaultPaths
+    posthocPaths[["cachePath"]] <- file.path(cacheDir, "cache_posthoc", studyAreaName)
+    posthocPaths[["outputPath"]] <- dirname(defaultPaths[["outputPath"]])
+    ```
+
+2. Use `SpaDES.core::setPaths()` at the top of each script for each stage, to ensure those paths are used:
+
+    ```{r setPaths}
+    do.call(setPaths, dataPrepPaths)
+    ```
+
+3. Even when using `setPaths()`, you should still pass the named path lists to `simInit()` and `spades()` calls.
+   Likewise, pass e.g., `dataPrepPaths[["cachePath"]] ` directly to `Cache()` calls.
+   (See below for parallel-safe best practices.)
+
+4. Be careful switching paths partway through a script!
+
 ### Project caches (`cache/`)
 
-- why use cache
-- using cache subdirs / separate caches per stage in workflow
-- mention using alt cache db backends
+- Caching reduces computation time for long or computationally intensive steps.
+- Using separate cache directories for each stage in the workflow can be helpful, especially during development, where you may need to clear caches frequently during testing.
+- By default, `Cache()` uses an sqlite database as the backend, and stores objects as `qs` files.
+- Other database backends are possible: PostgreSQL is the most well-tested of these (see <https://reproducible.predictiveecology.org/articles/Cache-using-postgresql.html>).
 - if using `git`, make sure this directory is listed in `.gitignore`
 
 ### Simulation inputs (`inputs/`)
 
-- why this preferred over module cache directories (reduce duplication of common data objects)
+- Using a single location for all project data is often preferred over the default behaviour of storing module data in each module's `data/` directories because it reduces duplication of common data objects.
 - if using `git`, make sure this directory is listed in `.gitignore`
 
 ### Simulation outputs (`outputs/`)
 
-- specify unique output subdirectory for each run/rep (these are typically scenario-specific)
-- if using `git`, make sure this directory is listed in `.gitignore`
+- Specify unique output subdirectories for each run/rep (these are typically scenario-specific).
+- If using `git`, make sure this directory is listed in `.gitignore`
 
 ### Standalone package library (`packages/`)
 
-We don't want project libraries interefereing with other projects, or our user's default package library, so it's best to use a standalone package library.
+We don't want project libraries interfering with other projects, or our user's default package library, so it's best to use a standalone package library.
 This is easily setup using the `Require` package, and optionally, using an environment variable (`PRJ_PKG_DIR`) to set the relative package library path for the project.
 Setting this by default in `.Rprofile` is useful, but note that `.Rprofile` won't always be read when sourcing your global control script, or e.g. from `Rscript` calls from the terminal.
 
-```{r setup-packages, eval = FALSE}
+```{r setup-packages}
 if (file.exists(".Renviron")) readRenviron(".Renviron")
 
 pkgDir <- Sys.getenv("PRJ_PKG_DIR")
@@ -237,7 +281,7 @@ Simulation-specific lock files can be used to help prevent simultaneous runs fro
 
 A simple example of using lockfiles for each iteration of `studyArea` is provided below:
 
-```r
+```{r lockfiles}
 lapply(studyAreas, function(studyAreaName) {
    ...
 
@@ -254,10 +298,29 @@ lapply(studyAreas, function(studyAreaName) {
 })
 ```
 
+##### Parallel-safe best practices
+
+1. Be aware of and avoid race conditions:
+
+    a. if multiple processes are expected to access the same file at once (e.g., reading an input file at the start of the simulation), add a random delay using `Sys.sleep()` to stagger reads;
+    b. never write to the same file at the same time! use unique paths/filenames;
+    c. avoid simultaneous network calls (especially uploads);
+    e. use an alternate `Cache()` database backend that can better-handle many concurrent reads/writes;
+
+2. Use `reproducible::retry()` to re-attempt failed operations, e.g., if timeouts or other 'random' errors occur.
+
+3. Ensure file permissions are properly set on network drives.
+
+4. Don't use the `Paths` "shortcut" in control scripts; use the named path list directly.
+
+5. Avoid passing large objects or large amounts of data among compute nodes -- this adds substantial overhead!
+
+6. Care must be taken when serializing certain objects with reference semantics: typically when writing to `rds`/`qs` file or when passing data among compute nodes (specifically, `terra` objects need to be `wrap`ped and subsequently unwrapped using `rast()`).
+
 #### Per-user and per-machine config
 
 I like using `config` package plus a `config.yml` file to set user- and machine-specific options (like scratch directory paths, cache settings, etc.). 
-Using `config` is opitonal though, as thes can be defined in `02-init.R`.
+Using `config` is optional though, as these usr- and machine-specific settings can also be defined in `02-init.R`.
 The important thing is to clearly identify which parameters/values are 'global' for all simulations, and which are intended to be changed by the user.
 Note that no parameters that are expected to be changed for the purposes of running different simulation parameters (e.g., study area) should be set here (see above).
 
