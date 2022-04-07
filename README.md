@@ -12,10 +12,10 @@ Quickly setup 'SpaDES' project directories and add modules using templates.
 
 See package vignettes to get started.
 
-1. [Getting started vignette](vignettes/01-getting-started.Rmd)
-2. [Managing large SpaDES projects](vignettes/02-managing-large-SpaDES-projects.Rmd)
-3. [Using `git` and GitHub](vignettes/03-using-git-github.Rmd)
-4. [Using LandR and fireSense](vignettes/04-LandR-fireSense.Rmd)
+1. [Getting started vignette](vignettes/i-getting-started.Rmd)
+2. [Managing large SpaDES projects](vignettes/ii-managing-large-SpaDES-projects.Rmd)
+3. [Using `git` and GitHub](vignettes/iii-using-git-github.Rmd)
+4. [Using LandR and fireSense](vignettes/iv-LandR-fireSense.Rmd)
 
 Project types:
 
