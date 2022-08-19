@@ -29,15 +29,15 @@ Default \code{TRUE} in an interactive session.}
 
 \item{...}{Additional arguments. Currently only the following are implemented:
 \describe{
-  \item{\code{overwrite}}{
-    If modules are specified, should a new module be downloaded even
-    if it already exists, i.e., overwrite (and destroy) the existing one.
-    Default is \code{FALSE}
-  }
-  \item{\code{pkgPath}}{
-    Path to project's package directory.
-    Defaults to \file{<projectName>_packages} in the project's parent directory.
-  }
+\item{\code{overwrite}}{
+If modules are specified, should a new module be downloaded even
+if it already exists, i.e., overwrite (and destroy) the existing one.
+Default is \code{FALSE}
+}
+\item{\code{pkgPath}}{
+Path to project's package directory.
+Defaults to \file{<projectName>_packages} in the project's parent directory.
+}
 }}
 }
 \description{

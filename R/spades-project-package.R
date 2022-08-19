@@ -1,4 +1,4 @@
-#' Project templates using \code{SpaDES}
+#' Project templates using `SpaDES`
 #'
 #' @description
 #'

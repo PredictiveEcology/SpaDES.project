@@ -1,4 +1,4 @@
-#' The \code{SpaDES.project} package environment
+#' The `SpaDES.project` package environment
 #'
 #' Environment used internally to store internal package objects and methods.
 #'

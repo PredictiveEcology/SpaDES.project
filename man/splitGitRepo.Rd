@@ -7,7 +7,7 @@
 splitGitRepo(gitRepo)
 }
 \arguments{
-\item{gitRepo}{A character string in the form `GitAccount/GitRepo@Branch` or `@Commit`}
+\item{gitRepo}{A character string in the form \code{GitAccount/GitRepo@Branch} or \verb{@Commit}}
 }
 \description{
 copied from \pkg{SpaDES.install}

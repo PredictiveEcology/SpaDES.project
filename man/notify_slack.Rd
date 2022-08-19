@@ -13,5 +13,5 @@ notify_slack(runName, channel)
 }
 \description{
 Requires the suggested \pkg{slackr} package to be installed, and configured.
-(You need a webhook setup, and a config file at `~/.slackr`. See their package documentation.)
+(You need a webhook setup, and a config file at \verb{~/.slackr}. See their package documentation.)
 }

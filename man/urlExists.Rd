@@ -7,6 +7,6 @@
 urlExists(address)
 }
 \description{
-Copied from <http://memosisland.blogspot.com/2012/03/check-url-existance-with-r.html>
+Copied from \url{http://memosisland.blogspot.com/2012/03/check-url-existance-with-r.html}
 }
 \keyword{internal}

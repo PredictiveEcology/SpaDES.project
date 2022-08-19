@@ -1,7 +1,7 @@
 #' Create new SpaDES project
 #'
 #' Initialize a project with subdirectories \file{cache/}, \file{modules/},
-#' \file{inputs/}, \file{outputs/}, and \code{setPaths} accordingly.
+#' \file{inputs/}, \file{outputs/}, and `setPaths` accordingly.
 #' If invoked from Rstudio, will also create a new Rstudio project file.
 #'
 #' This extends the basic SpaDES project template provided by \pkg{SpaDES.core}.
@@ -9,19 +9,19 @@
 #' @param name project name (name of project directory)
 #' @param path path to directory in which to create the project directory
 #' @param type character string giving the project type. Possible values include:
-#'             \code{"basic"} (default), and \code{"advanced"}.
+#'             `"basic"` (default), and `"advanced"`.
 #' @param open  Logical. Should the new project file be opened after creation?
-#'              Default \code{TRUE} in an interactive session.
+#'              Default `TRUE` in an interactive session.
 #' @param modules A character vector of modules to download and put into the project
-#'   (see \code{SpaDES.install::getModule} for how to specify)
+#'   (see `SpaDES.install::getModule` for how to specify)
 #' @param ...  Additional arguments. Currently only the following are implemented:
 #'             \describe{
-#'               \item{\code{overwrite}}{
+#'               \item{`overwrite`}{
 #'                 If modules are specified, should a new module be downloaded even
 #'                 if it already exists, i.e., overwrite (and destroy) the existing one.
-#'                 Default is \code{FALSE}
+#'                 Default is `FALSE`
 #'               }
-#'               \item{\code{pkgPath}}{
+#'               \item{`pkgPath`}{
 #'                 Path to project's package directory.
 #'                 Defaults to \file{<projectName>_packages} in the project's parent directory.
 #'               }
