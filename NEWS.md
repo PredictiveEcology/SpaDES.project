@@ -8,7 +8,7 @@ version 0.0.4
 version 0.0.2
 =============
 
-* remove `SpaDES.core` from `Imports` to `Suggests`.
+* move `SpaDES.core` from `Imports` to `Suggests`.
 
 version 0.0.1
 =============
