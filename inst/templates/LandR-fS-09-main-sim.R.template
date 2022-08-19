@@ -113,6 +113,9 @@ dynamicOutputs <- rbind(annualRasters, annualObjects, finalYearOutputs)
 
 fs_predict_modules <- c("fireSense_IgnitionPredict", "fireSense_EscapePredict", "fireSense_SpreadPredict")
 dynamicParams <- list(
+  .globals = list(
+    initialB = NA
+  ),
   Biomass_core = list(
     growthAndMortalityDrivers = ifelse(isTRUE(useLandR.CS), "LandR.CS", "LandR"),
     sppEquivCol = fSsimDataPrep@params$fireSense_dataPrepFit$sppEquivCol,
