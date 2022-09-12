@@ -37,8 +37,8 @@
 #' }
 #' @export
 #' @rdname newProject
-#' @importFrom Require checkPath
 newProject <- function(name, path = ".", type = "basic", open = interactive(), modules = NULL, ...) {
+    browser()
     has_rstudioapi <- requireNamespace("rstudioapi", quietly = TRUE)
 
     projDir <- checkPath(file.path(path, name), create = TRUE)
@@ -76,7 +76,6 @@ setGeneric("newProjectCode", function(name, path, type, open, modules = NULL, ..
 })
 
 #' @export
-#' @importFrom Require checkPath
 #' @importFrom utils modifyList
 #' @importFrom whisker whisker.render
 #' @rdname newProjectCode
