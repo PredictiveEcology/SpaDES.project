@@ -19,6 +19,7 @@ Depends:
 Imports:
     methods,
     Require,
+    utils,
     whisker
 Suggests:
     covr,
