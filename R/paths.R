@@ -60,21 +60,21 @@ setMethod("normPath",
           signature(path = "list"),
           definition = function(path) {
             return(normPath(unlist(path)))
-          })
+})
 
 #' @rdname normPath
 setMethod("normPath",
           signature(path = "NULL"),
           definition = function(path) {
             return(character(0))
-          })
+})
 
 #' @rdname normPath
 setMethod("normPath",
           signature(path = "missing"),
           definition = function() {
             return(character(0))
-          })
+})
 
 
 
@@ -138,31 +138,31 @@ setMethod(
       return(path)
     }
     #}
-  })
+})
 
 #' @rdname checkPath
 setMethod("checkPath",
           signature(path = "character", create = "missing"),
           definition = function(path) {
             return(checkPath(path, create = FALSE))
-          })
+})
 
 #' @rdname checkPath
 setMethod("checkPath",
           signature(path = "NULL", create = "ANY"),
           definition = function(path) {
             stop("Invalid path: cannot be NULL.")
-          })
+})
 
 #' @rdname checkPath
 setMethod("checkPath",
           signature(path = "missing", create = "ANY"),
           definition = function() {
             stop("Invalid path: no path specified.")
-          })
+})
 
 
-#' Set the package directory for a projecxt
+#' Set the package directory for a project
 #'
 #' This function will create a sub-folder of the `lib.loc` directory that
 #' is based on the R version and the platform, as per the standard R package directory
@@ -187,4 +187,3 @@ setProjPkgDir <- function(lib.loc = "packages") {
   .libPaths(pkgDir)
   message("Using libPaths:\n", paste(.libPaths(), collapse = "\n"))
 }
-

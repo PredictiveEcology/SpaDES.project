@@ -2,7 +2,7 @@
 % Please edit documentation in R/paths.R
 \name{setProjPkgDir}
 \alias{setProjPkgDir}
-\title{Set the package directory for a projecxt}
+\title{Set the package directory for a project}
 \usage{
 setProjPkgDir(lib.loc = "packages")
 }
