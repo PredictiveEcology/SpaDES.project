@@ -3,6 +3,7 @@
 export(newProject)
 export(newProjectCode)
 export(notify_slack)
+export(reproducibilityReceipt)
 export(setProjPkgDir)
 exportMethods(newProjectCode)
 import(methods)
