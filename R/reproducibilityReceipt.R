@@ -4,14 +4,14 @@
 #' Based on suggestions in a Twitter thread by Miles McBain
 #' (<https://twitter.com/MilesMcBain/status/1263272935197782016?s=20>).
 #'
-#' Add the following to your Rmd files:
+#' Add the following to your Rmd files (without the backslashes):
 #'
 #' \verb{
 #' -----
 #'
-#' ```{r details, echo=FALSE}
+#' \```{r details, echo=FALSE}
 #' pemisc::reproducibilityReceipt()
-#' ```
+#' \```
 #' }
 #'
 #' @param title Header title for the inserted details section.
