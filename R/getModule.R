@@ -1,3 +1,9 @@
+utils::globalVariables(c(
+  c("Account", "GitSubFolder", "Repo", "destFile", "filepath",
+    "hasSubFolder", "repoLocation")
+))
+
+
 #' Simple function to download a SpaDES module as GitHub repository
 #'
 #' @param ... One or more github repositories as character strings that contain
@@ -14,8 +20,8 @@
 #'   set, it will use `getOption("spades.modulePath")`, otherwise it will use `"."`.
 #'
 #' @export
-#' @importFrom utils download.file unzip
-#' @importFrom Require getGitHubFile isWindows
+#' @importFrom utils download.file unzip compareVersion
+#' @importFrom Require checkPath normPath
 getModule <- function(..., overwrite = FALSE, modulePath) {
 
   gitRepo = unlist(list(...))
@@ -102,3 +108,20 @@ getModule <- function(..., overwrite = FALSE, modulePath) {
 
   return(out)
 }
+
+
+#' non-exported objects and functions from other packages
+#'
+#' @importFrom utils getFromNamespace
+#' @keywords internal
+#' @rdname imports
+splitGitRepo <- utils::getFromNamespace("splitGitRepo", "Require")
+
+#' @rdname imports
+getGitHubFile <- utils::getFromNamespace("getGitHubFile", "Require")
+
+#' @rdname imports
+isWindows <- utils::getFromNamespace("isWindows", "Require")
+
+#' @rdname imports
+messageDF <- utils::getFromNamespace("messageDF", "Require")
