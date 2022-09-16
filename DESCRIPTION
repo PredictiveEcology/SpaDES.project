@@ -19,8 +19,7 @@ Depends:
 Imports:
     methods,
     Require,
-    utils,
-    whisker
+    utils
 Suggests:
     covr,
     details,
@@ -32,7 +31,6 @@ Suggests:
     sessioninfo,
     sf,
     slackr,
-    SpaDES.core,
     testthat (>= 1.0.2)
 Encoding: UTF-8
 Language: en-CA
