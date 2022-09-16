@@ -1,7 +1,7 @@
 Package: SpaDES.project
 Type: Package
 Title: Project Templates Using 'SpaDES'
-Description: Quickly setup 'SpaDES' project directories and add modules using templates.
+Description: Quickly setup a 'SpaDES' project directories and add modules using templates.
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project

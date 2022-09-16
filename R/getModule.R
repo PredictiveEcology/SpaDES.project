@@ -15,6 +15,7 @@
 #'
 #' @export
 #' @importFrom utils download.file unzip
+#' @importFrom Require getGitHubFile isWindows
 getModule <- function(..., overwrite = FALSE, modulePath) {
 
   gitRepo = unlist(list(...))
