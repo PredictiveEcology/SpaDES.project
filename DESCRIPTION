@@ -17,14 +17,14 @@ Authors@R: c(
 Depends:
     R (>= 4.0)
 Imports:
+    data.table,
     methods,
     Require,
+    rprojroot,
     utils
 Suggests:
     covr,
     details,
-    git2r,
-    here,
     knitr,
     rmarkdown,
     rstudioapi,

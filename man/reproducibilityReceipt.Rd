@@ -2,9 +2,24 @@
 % Please edit documentation in R/reproducibilityReceipt.R
 \name{reproducibilityReceipt}
 \alias{reproducibilityReceipt}
+\alias{gitInfo}
+\alias{submoduleInfo}
+\alias{sessInfo}
+\alias{spatialLibs}
+\alias{timestamp}
 \title{Reproducibility receipt for Rmarkdown documents}
 \usage{
-reproducibilityReceipt(title = "Reproducibility receipt")
+reproducibilityReceipt(title = "Reproducibility receipt", prjDir = NULL)
+
+gitInfo(prjDir = NULL)
+
+submoduleInfo(prjDir = NULL)
+
+sessInfo()
+
+spatialLibs()
+
+timestamp()
 }
 \arguments{
 \item{title}{Header title for the inserted details section.}

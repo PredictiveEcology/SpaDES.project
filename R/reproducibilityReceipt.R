@@ -1,3 +1,5 @@
+.spatialPkgs <- paste("lwgeom", "raster", "rgdal", "s2", "sf", "sp", "terra", sep = "|")
+
 #' Reproducibility receipt for Rmarkdown documents
 #'
 #' Insert git repository and R session info into Rmarkdown documents.
@@ -17,36 +19,92 @@
 #' @param title Header title for the inserted details section.
 #'
 #' @export
-reproducibilityReceipt <- function(title = "Reproducibility receipt") {
+#' @importFrom rprojroot find_root is_rstudio_project
+reproducibilityReceipt <- function(title = "Reproducibility receipt", prjDir = NULL) {
+  if (is.null(prjDir)) {
+    prjDir <- find_root(is_rstudio_project, path = prjDir)
+  }
+
   if (requireNamespace("details", quietly = TRUE)) {
     details::details({
-      if (requireNamespace("git2r", quietly = TRUE)) {
-        if (requireNamespace("here", quietly = TRUE)) {
-          if (git2r::in_repository(".")) {
-            gitinfo <- git2r::repository(here::here())
-          } else {
-            gitinfo <- NULL
-          }
-        }
-      }
-
-      if (requireNamespace("sessioninfo", quietly = TRUE)) {
-        sessinfo <- sessioninfo::session_info()
-      } else {
-        sessinfo <- utils::sessionInfo()
-      }
-
-      .spatialPkgs <- paste("raster", "rgdal", "sf", "sp", "terra", sep = "|")
-      if (any(grepl(.spatialPkgs, sessinfo))) {
-        spatialLibs <- sf::sf_extSoftVersion()
-      }
-
-      timestamp <- Sys.time()
-
-      list(`Git repository` = gitinfo, `External spatial libraries` = spatialLibs,
-           `R session info` = sessinfo, `Timestamp` = timestamp)
+      list(`Git repository` = gitInfo(prjDir),
+           `External spatial libraries` = spatialLibs(),
+           `R session info` = sessInfo(),
+           `Timestamp` = timestamp())
     }, summary = title)
   } else {
-    stop("Suggested packages 'details', 'git2r', and 'sessioninfo' are required.")
+    stop("Suggested package 'details'is required.")
   }
+}
+
+#' @export
+#' @importFrom rprojroot find_root is_git_root
+#' @rdname reproducibilityReceipt
+gitInfo <- function(prjDir = NULL) {
+  if (is.null(prjDir)) {
+    prjDir <- find_root(is_git_root, path = prjDir)
+  }
+
+  cwd <- setwd(prjDir)
+  on.exit(setwd(cwd), add = TRUE)
+  local <- gsub("[*] ", "", grep("[*]", system(paste(Sys.which("git"), "branch"), intern = TRUE), value = TRUE))
+
+  remote <- system(paste(Sys.which("git"), "remote -v"), intern = TRUE)
+  remote <- strsplit(unique(gsub(" (.*)$", "", remote)), "\t")[[1]]
+  remote <- paste0(local, " @ ", remote[1], " (", remote[2], ")")
+
+  head <- system(paste(Sys.which("git"), "log -1 --format='[%h] %as: %s'"), intern = TRUE)
+
+  list(Local = local,
+       Remote = remote,
+       Head = head,
+       Submodules = submoduleInfo(prjDir))
+}
+
+#' @export
+#' @importFrom data.table as.data.table rbindlist
+#' @importFrom rprojroot find_root is_git_root
+#' @rdname reproducibilityReceipt
+submoduleInfo <- function(prjDir = NULL) {
+  if (is.null(prjDir)) {
+    prjDir <- find_root(is_git_root, path = prjDir)
+  }
+
+  cwd <- setwd(prjDir)
+  on.exit(setwd(cwd), add = TRUE)
+  submodules <- system(paste(Sys.which("git"), "submodule status"), intern = TRUE)
+  submodules <- rbindlist(lapply(strsplit(gsub("^ ", "", submodules), " "), function(m) {
+    d <- as.data.table(t(m))
+    colnames(d) <- c("commit", "directory", "ref")
+    d
+  }))
+
+  submodules
+}
+
+#' @export
+#' @rdname reproducibilityReceipt
+sessInfo <- function() {
+  if (requireNamespace("sessioninfo", quietly = TRUE)) {
+    sessioninfo::session_info()
+  } else {
+    message("Suggested package 'sessioninfo' provides more useful session info.")
+    utils::sessionInfo()
+  }
+}
+
+#' @export
+#' @rdname reproducibilityReceipt
+spatialLibs <- function() {
+  if (requireNamespace("sf", quietly = TRUE) && any(grepl(.spatialPkgs, sessInfo()))) {
+    sf::sf_extSoftVersion()
+  } else {
+    NULL
+  }
+}
+
+#' @export
+#' @rdname reproducibilityReceipt
+timestamp <- function() {
+  Sys.time()
 }
