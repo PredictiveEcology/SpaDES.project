@@ -41,6 +41,7 @@ getModule <- function(..., overwrite = FALSE, modulePath) {
     repoFull <- file.path(modulePath, gr$repo)
     repoFullNormalized <- normalizePath(repoFull, mustWork = FALSE, winslash = "/")
 
+    browser()
     if (dir.exists(repoFull)) {
       versionOK <- FALSE
       if (!is.na(vn)) {
@@ -80,7 +81,7 @@ getModule <- function(..., overwrite = FALSE, modulePath) {
 
     zipFileName <- normalizePath(paste0(repoFull, ".zip"), winslash = "/", mustWork = FALSE)
     for (i in 1:2) {
-      url <- paste0("http://github.com/", ar, "/archive/", gr$br, ".zip")
+      url <- paste0("https://github.com/", ar, "/archive/", gr$br, ".zip")
       suppressWarnings(out <- try(download.file(url, destfile = zipFileName), silent = TRUE))
       if (is(out, "try-error") && identical(gr$br, "main")) {
         gr$br <- "master"

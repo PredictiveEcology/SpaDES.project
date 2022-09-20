@@ -7,7 +7,7 @@
 \alias{messageDF}
 \title{non-exported objects and functions from other packages}
 \usage{
-splitGitRepo(gitRepo)
+splitGitRepo(gitRepo, default = "PredictiveEcology", masterOrMain = NULL)
 
 getGitHubFile(
   pkg,
