@@ -9,7 +9,7 @@
 \alias{timestamp}
 \title{Reproducibility receipt for Rmarkdown documents}
 \usage{
-reproducibilityReceipt(title = "Reproducibility receipt", prjDir = NULL)
+reproducibilityReceipt(prjDir = NULL, title = "Reproducibility receipt")
 
 gitInfo(prjDir = NULL)
 
@@ -22,6 +22,8 @@ spatialLibs()
 timestamp()
 }
 \arguments{
+\item{prjDir}{path to project directory}
+
 \item{title}{Header title for the inserted details section.}
 }
 \description{

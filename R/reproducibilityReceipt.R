@@ -16,25 +16,36 @@
 #' \```
 #' }
 #'
+#' @param prjDir path to project directory
 #' @param title Header title for the inserted details section.
 #'
 #' @export
 #' @importFrom rprojroot find_root is_rstudio_project
-reproducibilityReceipt <- function(title = "Reproducibility receipt", prjDir = NULL) {
+reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility receipt") {
   if (is.null(prjDir)) {
     prjDir <- find_root(is_rstudio_project, path = prjDir)
   }
 
   if (requireNamespace("details", quietly = TRUE)) {
     details::details({
-      list(`Git repository` = gitInfo(prjDir),
-           `External spatial libraries` = spatialLibs(),
-           `R session info` = sessInfo(),
-           `Timestamp` = timestamp())
+      projectSessionInfo(prjDir)
     }, summary = title)
   } else {
-    stop("Suggested package 'details'is required.")
+    stop("Suggested package 'details' is required.")
   }
+}
+
+#' @export
+#' @importFrom rprojroot find_root is_rstudio_project
+projectSessionInfo <- function(prjDir) {
+  if (is.null(prjDir)) {
+    prjDir <- find_root(is_rstudio_project, path = prjDir)
+  }
+
+  list(`Git repository` = gitInfo(prjDir),
+       `External spatial libraries` = spatialLibs(),
+       `R session info` = sessInfo(),
+       `Timestamp` = timestamp())
 }
 
 #' @export
