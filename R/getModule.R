@@ -82,7 +82,9 @@ getModule <- function(..., overwrite = FALSE, modulePath) {
     zipFileName <- normalizePath(paste0(repoFull, ".zip"), winslash = "/", mustWork = FALSE)
     for (i in 1:2) {
       url <- paste0("https://github.com/", ar, "/archive/", gr$br, ".zip")
-      suppressWarnings(out <- try(download.file(url, destfile = zipFileName), silent = TRUE))
+      suppressWarnings({
+        out <- try(download.file(url, destfile = zipFileName), silent = TRUE)
+      })
       if (is(out, "try-error") && identical(gr$br, "main")) {
         gr$br <- "master"
       } else {
