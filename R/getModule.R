@@ -41,7 +41,6 @@ getModule <- function(..., overwrite = FALSE, modulePath) {
     repoFull <- file.path(modulePath, gr$repo)
     repoFullNormalized <- normalizePath(repoFull, mustWork = FALSE, winslash = "/")
 
-    browser()
     if (dir.exists(repoFull)) {
       versionOK <- FALSE
       if (!is.na(vn)) {
