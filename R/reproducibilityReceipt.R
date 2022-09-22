@@ -23,6 +23,7 @@
 #'
 #' @export
 #' @importFrom rprojroot find_root is_rstudio_project
+#' @seealso [`projectSessionInfo`]
 reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility receipt") {
   if (is.null(prjDir)) {
     prjDir <- find_root(is_rstudio_project, path = prjDir)
@@ -37,9 +38,31 @@ reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility recei
   }
 }
 
+#' Project session info
+#'
+#' Get detailed information about the software environment being used for a project,
+#' including git repository information, externally installed spatial library info,
+#' R session info, and timestamp.
+#'
+#' Can be displayed inside an Rmarkdown document using `[reproducibilityReceipt()]`,
+#' saved inside the project directory, or added to a SpaDES `simList` to improve
+#' reproducibility of these workflows.
+#'
+#' @param prjDir path to project directory
+#'
 #' @export
 #' @importFrom rprojroot find_root is_rstudio_project
-projectSessionInfo <- function(prjDir) {
+#'
+#' @examples
+#' \dontrun{
+#' ## get project session info for current project
+#' projectSessionInfo()
+#'
+#' ## replace default session info in a simList
+#' mySimOut <- SpaDES.core::simInitAndSpades()
+#' mySimOut@.xData[["._sessionInfo"]] <- projectSessionInfo()
+#' }
+projectSessionInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
     prjDir <- find_root(is_rstudio_project, path = prjDir)
   }

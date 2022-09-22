@@ -42,3 +42,6 @@ pemisc::reproducibilityReceipt()
 \```
 }
 }
+\seealso{
+\code{\link{projectSessionInfo}}
+}

@@ -34,7 +34,9 @@ This function bundles a sequence of functions: \code{.libPaths()}, \code{getModu
 \code{Require}
 }
 \examples{
+\dontrun{
 setupProject("test", list(modulePath = "m"),
              modules = "PredictiveEcology/Biomass_core",
              packages = "fpCompare")
+}
 }
