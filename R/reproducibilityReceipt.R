@@ -1,4 +1,6 @@
-.spatialPkgs <- paste("lwgeom", "raster", "rgdal", "s2", "sf", "sp", "terra", sep = "|")
+.spatialPkgs <- utils::getFromNamespace(".spatialPkgs", "Require")
+.spatialPkgs <- .spatialPkgs[-which(.spatialPkgs %in% c("units"))]
+.spatialPkgsRegex <- paste(.spatialPkgs, collapse = "|")
 
 #' Reproducibility receipt for Rmarkdown documents
 #'
@@ -107,7 +109,7 @@ sessInfo <- function() {
 #' @export
 #' @rdname reproducibilityReceipt
 spatialLibs <- function() {
-  if (requireNamespace("sf", quietly = TRUE) && any(grepl(.spatialPkgs, sessInfo()))) {
+  if (requireNamespace("sf", quietly = TRUE) && any(grepl(.spatialPkgsRegex, sessInfo()))) {
     sf::sf_extSoftVersion()
   } else {
     NULL
