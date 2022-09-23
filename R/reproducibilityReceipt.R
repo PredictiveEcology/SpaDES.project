@@ -1,5 +1,3 @@
-.spatialPkgs <- utils::getFromNamespace(".spatialPkgs", "Require")
-.spatialPkgs <- .spatialPkgs[-which(.spatialPkgs %in% c("units"))]
 .spatialPkgsRegex <- paste(.spatialPkgs, collapse = "|")
 
 #' Reproducibility receipt for Rmarkdown documents
