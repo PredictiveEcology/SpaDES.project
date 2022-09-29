@@ -18,22 +18,42 @@
 #'
 #' @param prjDir path to project directory
 #' @param title Header title for the inserted details section.
+#' @param writeTo If provided, an markdown filename to write to (e.g., `outputs/<runName>/INFO.md`).
+#'                File path is assumed to be relative to `prjDir`.
 #'
 #' @export
 #' @importFrom rprojroot find_root is_rstudio_project
+#' @importFrom tools file_ext file_path_sans_ext
 #' @seealso [`projectSessionInfo`]
-reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility receipt") {
+#' @rdname reproducibilityReceipt
+reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility receipt", writeTo = NULL) {
   if (is.null(prjDir)) {
     prjDir <- find_root(is_rstudio_project, path = prjDir)
   }
 
-  if (requireNamespace("details", quietly = TRUE)) {
+  rr <- if (requireNamespace("details", quietly = TRUE)) {
     details::details({
       projectSessionInfo(prjDir)
     }, summary = title)
   } else {
     stop("Suggested package 'details' is required.")
   }
+
+  if (!is.null(writeTo)) {
+    if (!identical(tools::file_ext(writeTo), "md")) {
+      writeTo <- paste0(tools::file_path_sans_ext(writeTo), ".md")
+    }
+
+    writeTo <- normPath(file.path(prjDir, writeTo))
+
+    if (file.exists(writeTo)) {
+      stop("File ", writeTo, " exists and will not be overwritten.") ## TODO: allow append
+    } else {
+      cat(paste0("# ", title, "\n"), rr, file = writeTo, sep = "\n")
+    }
+  }
+
+  return(rr)
 }
 
 #' Project session info

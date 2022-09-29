@@ -12,7 +12,7 @@
 An object of class \code{character} of length 9.
 }
 \usage{
-splitGitRepo(gitRepo)
+splitGitRepo(gitRepo, default = "PredictiveEcology", masterOrMain = NULL)
 
 getGitHubFile(
   pkg,

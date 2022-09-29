@@ -9,7 +9,11 @@
 \alias{timestamp}
 \title{Reproducibility receipt for Rmarkdown documents}
 \usage{
-reproducibilityReceipt(prjDir = NULL, title = "Reproducibility receipt")
+reproducibilityReceipt(
+  prjDir = NULL,
+  title = "Reproducibility receipt",
+  writeTo = NULL
+)
 
 gitInfo(prjDir = NULL)
 
@@ -25,6 +29,9 @@ timestamp()
 \item{prjDir}{path to project directory}
 
 \item{title}{Header title for the inserted details section.}
+
+\item{writeTo}{If provided, an markdown filename to write to (e.g., \verb{outputs/<runName>/INFO.md}).
+File path is assumed to be relative to \code{prjDir}.}
 }
 \description{
 Insert git repository and R session info into Rmarkdown documents.
