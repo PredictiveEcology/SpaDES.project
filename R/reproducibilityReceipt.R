@@ -28,7 +28,7 @@
 #' @rdname reproducibilityReceipt
 reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility receipt", writeTo = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_rstudio_project, path = prjDir)
+    prjDir <- find_root(is_rstudio_project, path = getwd())
   }
 
   rr <- if (requireNamespace("details", quietly = TRUE)) {
@@ -82,7 +82,7 @@ reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility recei
 #' }
 projectSessionInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_rstudio_project, path = prjDir)
+    prjDir <- find_root(is_rstudio_project, path = getwd())
   }
 
   list(`Git repository` = gitInfo(prjDir),
@@ -96,7 +96,7 @@ projectSessionInfo <- function(prjDir = NULL) {
 #' @rdname reproducibilityReceipt
 gitInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_git_root, path = prjDir)
+    prjDir <- find_root(is_git_root, path = getwd())
   }
 
   cwd <- setwd(prjDir)
@@ -121,7 +121,7 @@ gitInfo <- function(prjDir = NULL) {
 #' @rdname reproducibilityReceipt
 submoduleInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_git_root, path = prjDir)
+    prjDir <- find_root(is_git_root, path = getwd())
   }
 
   cwd <- setwd(prjDir)
