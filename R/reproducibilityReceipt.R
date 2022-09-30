@@ -22,13 +22,12 @@
 #'                File path is assumed to be relative to `prjDir`.
 #'
 #' @export
-#' @importFrom rprojroot find_root is_rstudio_project
 #' @importFrom tools file_ext file_path_sans_ext
 #' @seealso [`projectSessionInfo`]
 #' @rdname reproducibilityReceipt
 reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility receipt", writeTo = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_rstudio_project, path = getwd())
+    prjDir <- findProjectPath()
   }
 
   rr <- if (requireNamespace("details", quietly = TRUE)) {
@@ -70,7 +69,6 @@ reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility recei
 #' @param prjDir path to project directory
 #'
 #' @export
-#' @importFrom rprojroot find_root is_rstudio_project
 #'
 #' @examples
 #' \dontrun{
@@ -83,7 +81,7 @@ reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility recei
 #' }
 projectSessionInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_rstudio_project, path = getwd())
+    prjDir <- findProjectPath()
   }
 
   list(`Git repository` = gitInfo(prjDir),
@@ -93,11 +91,10 @@ projectSessionInfo <- function(prjDir = NULL) {
 }
 
 #' @export
-#' @importFrom rprojroot find_root is_git_root
 #' @rdname reproducibilityReceipt
 gitInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_git_root, path = getwd())
+    prjDir <- findProjectPath()
   }
 
   cwd <- setwd(prjDir)
@@ -118,11 +115,10 @@ gitInfo <- function(prjDir = NULL) {
 
 #' @export
 #' @importFrom data.table as.data.table rbindlist
-#' @importFrom rprojroot find_root is_git_root
 #' @rdname reproducibilityReceipt
 submoduleInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
-    prjDir <- find_root(is_git_root, path = getwd())
+    prjDir <- findProjectPath()
   }
 
   cwd <- setwd(prjDir)
