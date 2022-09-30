@@ -51,9 +51,10 @@ reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility recei
     } else {
       cat(paste0("# ", title, "\n"), rr, file = writeTo, sep = "\n")
     }
+    return(invisible(rr))
+  } else {
+    return(rr)
   }
-
-  return(rr)
 }
 
 #' Project session info
