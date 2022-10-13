@@ -4,7 +4,15 @@
 \alias{setupProject}
 \title{Sets up a new or existing SpaDES project}
 \usage{
-setupProject(name, paths, modules, packages)
+setupProject(
+  name,
+  paths,
+  modules,
+  packages,
+  setLinuxBinaryRepo = TRUE,
+  overwrite = FALSE,
+  verbose = 1
+)
 }
 \arguments{
 \item{name}{The name of the project; if this is a GitHub project, then it should
@@ -23,6 +31,15 @@ managing their git status outside of this function.}
 
 \item{packages}{A vector of packages that are needed. This will be passed to
 \code{Require}}
+
+\item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
+on Linux (ignored if Windows)}
+
+\item{overwrite}{Logical. Passed to \code{getModule}}
+
+\item{verbose}{An integer specifying how much verbosity should be shown. Passed
+to various internal functions, including \code{Require}. Default is 1. The higher the number
+the more verbosity. Set to -1 for almost no messaging.}
 }
 \description{
 The main things this function does are: creates folder structures, downloads or
@@ -35,8 +52,9 @@ This function bundles a sequence of functions: \code{.libPaths()}, \code{getModu
 }
 \examples{
 \dontrun{
-setupProject("test", list(modulePath = "m"),
-             modules = "PredictiveEcology/Biomass_core",
-             packages = "fpCompare")
+setupProject(name = "SpaDES.project",
+             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project"),
+             modules = c("PredictiveEcology/Biomass_borealDataPrep@development")
+)
 }
 }
