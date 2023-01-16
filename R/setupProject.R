@@ -9,7 +9,7 @@
 #'    `"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"`
 #' @param paths a list with named elements, specifically, `modulePath`, `projectPath`,
 #'   `packagePath` and all others that are in `SpaDES.core::setPaths()` `(
-#'   inputPath, outputPath, scratchPath, cachePath, rasterTmpDir)``
+#'   inputPath, outputPath, scratchPath, cachePath, rasterTmpDir)`
 #' @param modules a character string of modules to pass to `getModule`. These
 #'   should be in the form `GitHubAccount/Repo@branch` e.g.,
 #'   `"PredictiveEcology/Biomass_core@development"`. If the project is a git repository,
@@ -17,6 +17,9 @@
 #'   managing their git status outside of this function.
 #' @param packages A vector of packages that are needed. This will be passed to
 #'   `Require`
+#' @param optionsStyle A numeric representing a set of pre-determined options. Currently,
+#' this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
+#' no moduleCodeChecks) or 0 (no options).
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows)
 #' @param overwrite Logical. Passed to `getModule`
@@ -33,39 +36,61 @@
 #' @examples
 #' \dontrun{
 #' setupProject(name = "SpaDES.project",
-#'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project"),
-#'              modules = c("PredictiveEcology/Biomass_borealDataPrep@development")
+#'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+#'                           scratchPath = tempdir()),
+#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+#'              useGit = TRUE
 #' )
 #' }
-setupProject <- function(name, paths, modules, packages, setLinuxBinaryRepo = TRUE,
+setupProject <- function(name, paths, modules, packages,
+                         optionsStyle = 1,
+                         require = c("reproducible", "SpaDES.core"),
+                         useGit = FALSE, setLinuxBinaryRepo = TRUE,
+                         standAlone = TRUE, libPaths = paths$packagePath,
                          overwrite = FALSE, verbose = 1) {
-  nameSimple <- extractPkgName(name)
-  curDir <- getwd()
-  inProject <- identical(basename(curDir), nameSimple)
-  isAbs <- unlist(lapply(paths, isAbsolutePath))
-  if (is.null(paths$projectPath)) stop("Please specify paths$projectPath as an absolute path")
-  if (is.null(paths$packagePath))
-    paths$packagePath <- file.path("packages", version$platform, substr(getRversion(), 1, 3))
-  if (is.null(paths$modulePath)) paths$modulePath <- "m"
-  paths[!isAbs] <- lapply(paths[!isAbs], function(x) file.path(paths$projectPath, x))
-  paths <- lapply(paths, normPath)
-  paths <- lapply(paths, checkPath, create = TRUE)
-  if (!inProject) {
-    setwd(paths$projectPath)
-  }
 
-  # paths <- lapply(paths, normPath)
-  getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
-  if (isTRUE(setLinuxBinaryRepo))
-    Require::setLinuxBinaryRepo()
-  modulePackages <- packagesInModules(modulePath = paths$modulePath)
-  modulesSimple <- Require::extractPkgName(modules)
-  modulePackages <- modulePackages[modulesSimple]
+  libPaths <- substitute(libPaths)
+  paths <- setupPaths(name, paths, standAlone, libPaths)
+
+  setupOptions(optionsStyle)
+
+  modulePackages <- setupModules(paths, modules, useGit = useGit, overwrite = overwrite, verbose = verbose)
+
   if (missing(packages))
     packages <- NULL
-  out <- Require::Require(c(unname(unlist(modulePackages)), packages), require = FALSE,
-                          verbose = verbose)
+  packages <- c(unname(unlist(modulePackages)), packages)
 
+  setupPackages(packages, require = require,
+                setLinuxBinaryRepo = setLinuxBinaryRepo,
+                standAlone = standAlone,
+                libPaths = paths$packagePath, verbose = verbose)
+
+  setupGitIgnore(paths, verbose)
+
+  return(paths)
+}
+
+
+#' @importFrom data.table data.tble
+setupOptions <- function(optionsStyle) {
+  os <- list()
+  if (optionsStyle == 1) {
+    os <- list(reproducible.cacheSaveFormat = "qs",
+               reproducible.useTerra = TRUE,
+               reproducible.useMemoise = TRUE,
+               reproducible.rasterRead = "terra::rast",
+               reproducible.showSimilar = TRUE,
+               spades.moduleCodeChecks = FALSE
+    )
+  }
+
+  if (length(os)) {
+    options(os)
+    messageDF(data.table::data.table(option = names(os), values = os))
+  }
+}
+
+setupGitIgnore <- function(paths, verbose) {
   gitIgnoreFile <- ".gitignore"
   if (file.exists(gitIgnoreFile)) {
     gif <- readLines(gitIgnoreFile, warn = FALSE)
@@ -77,15 +102,287 @@ setupProject <- function(name, paths, modules, packages, setLinuxBinaryRepo = TR
     insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
     gif[insertLine] <- file.path(basename(paths$modulePath), "*")
 
-    writeLines(con = gitIgnoreFile, gif)
+    writeLines(con = gitIgnoreFile, unique(gif))
     Require:::messageVerbose(verboseLevel = 1, verbose = verbose,
                              ".gitignore file updated with packagePath and modulePath; ",
                              "this may need to be confirmed manually")
   }
-
-  return(paths)
 }
 
+
+
+setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, standAlone, verbose) {
+  if (isTRUE(setLinuxBinaryRepo))
+    Require::setLinuxBinaryRepo()
+  if (missing(packages))
+    packages <- NULL
+  Require:::messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
+  out <- Require::Require(packages, require = require, standAlone = standAlone,
+                          libPaths = libPaths,
+                          verbose = verbose)
+
+  invisible(NULL)
+}
+
+# modulesOrig <- modules
+
+setupModules <- function(paths, modules, useGit, overwrite, verbose) {
+  anyfailed <- character()
+  modulesOrig <- modules
+  modulesOrigPkgName <- extractPkgName(modulesOrig)
+  if (!useGit) {
+    modNam <- extractPkgName(modules)
+    whExist <- dir.exists(file.path(paths$modulePath, modNam))
+    modsToDL <- modules
+    if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
+    if (length(modsToDL)) {
+      out <-
+        Map(modToDL = modsToDL, function(modToDL) {
+        Require:::downloadRepo(modToDL, subFolder = NA, destDir = paths$modulePath, overwrite = overwrite)
+      })
+      # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
+      allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
+      anyfailed <- modsToDL[!allworked]
+      modules <- anyfailed
+    }
+  }
+
+  if (isTRUE(useGit) || length(anyfailed)) {
+    modulesWOat <- gsub("@.+$", "", modules)
+    lapply(modulesWOat, function(m) {
+      modPath <- file.path(paths$modulePath, extractPkgName(m))
+      if (!dir.exists(modPath)) {
+        cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
+        system(cmd)
+      } else {
+        Require:::messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
+      }
+    })
+  }
+
+  modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
+  modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
+  modulePackages[modulesSimple]
+
+}
+
+
+#' @importFrom Require normPath checkPath
+setupPaths <- function(name, paths, standAlone, libPaths) {
+
+  nameSimple <- extractPkgName(name)
+
+  curDir <- getwd()
+  inProject <- identical(basename(curDir), nameSimple)
+
+  if (missing(paths)) {
+    projPth <- if  (inProject) file.path(".") else file.path(".", name)
+    paths <- list(projectPath = normPath(projPth))
+  }
+
+
+  if (is.null(paths$projectPath))
+    stop("Please specify paths$projectPath as an absolute path")
+
+  if (is.null(libPaths) || is.call(libPaths)) {
+    if (is.null(paths$packagePath)) {
+      pkgPth <- tools::R_user_dir("data")
+      paths$packagePath <- file.path(pkgPth, name, "packages", version$platform, substr(getRversion(), 1, 3))
+      if (is.call(libPaths)) {
+        libPaths <- eval(libPaths, envir = environment(), enclos = environment())
+      }
+    }
+  } else {
+    paths$packagePath <- libPaths
+  }
+
+  if (is.null(paths$modulePath)) paths$modulePath <- file.path(paths$projectPath, "m")
+  isAbs <- unlist(lapply(paths, isAbsolutePath))
+  paths[!isAbs] <- lapply(paths[!isAbs], function(x) file.path(paths$projectPath, x))
+  paths <- lapply(paths, normPath)
+  paths <- lapply(paths, checkPath, create = TRUE)
+  if (!inProject) {
+    setwd(paths$projectPath)
+  }
+
+  if (is.null(paths$scratchPath)) {
+    paths$scratchPath <- file.path(tempdir(), "SpaDES.project", name)
+  }
+  if (!is.null(paths$scratchPath)) {
+    paths <- Require::modifyList2(
+      list(scratchPath = file.path(paths$scratchPath),
+           rasterPath = file.path(paths$scratchPath, "raster"),
+           terraPath = file.path(paths$scratchPath, "terra")
+      ),
+      paths)
+
+  }
+
+  paths <- Require::modifyList2(
+    list(cachePath = file.path(paths$projectPath, "cache"),
+         inputPath = file.path(paths$projectPath, "input"),
+         outputPath = file.path(paths$projectPath, "output")
+    ),
+    paths)
+
+  spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
+               "scratchPath", "terraPath")
+
+  for (pkg in c("Require", "data.table", "rprojroot")) {
+    pkgDir <- file.path(.libPaths(), pkg)
+    files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
+    newFiles <- file.path(paths$packagePath, pkg, files1)
+    lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+    oldFiles <- file.path(pkgDir[1], files1)
+    exist <- file.exists(oldFiles)
+    if (any(!exist))
+      file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
+  }
+  Require::setLibPaths(paths$packagePath, standAlone = standAlone,
+                       updateRprofile = TRUE,
+                       exact = FALSE, verbose = getOption("Require.verbose"))
+
+
+  # if (requireNamespace("SpaDES.core"))
+  do.call(setPaths, paths[spPaths])
+
+  paths[order(names(paths))]
+}
+
+setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, scratchPath,
+                     terraPath, silent = FALSE) {
+  defaults <- list(
+    CP = FALSE,
+    IP = FALSE,
+    MP = FALSE,
+    OP = FALSE,
+    RP = FALSE,
+    SP = FALSE,
+    TP = FALSE
+  )
+  if (missing(cachePath)) {
+    cachePath <- .getOption("reproducible.cachePath") # nolint
+    defaults$CP <- TRUE
+  }
+  if (missing(inputPath)) {
+    inputPath <- getOption("spades.inputPath") # nolint
+    defaults$IP <- TRUE
+  }
+  if (missing(modulePath)) {
+    modulePath <- getOption("spades.modulePath") # nolint
+    defaults$MP <- TRUE
+  }
+  if (missing(outputPath)) {
+    outputPath <- getOption("spades.outputPath") # nolint
+    defaults$OP <- TRUE
+  }
+  if (missing(rasterPath)) { ## TODO: deprecate
+    rasterPath <- file.path(getOption("spades.scratchPath"), "raster") # nolint
+    defaults$RP <- TRUE
+  }
+  if (missing(scratchPath)) {
+    scratchPath <- getOption("spades.scratchPath") # nolint
+    defaults$SP <- TRUE
+  }
+  if (missing(terraPath)) {
+    terraPath <- file.path(getOption("spades.scratchPath"), "terra") # nolint
+    defaults$TP <- TRUE
+  }
+
+  allDefault <- all(unlist(defaults))
+
+  originalPaths <- .paths()
+  newPaths <- lapply(list(
+    cachePath = cachePath,
+    inputPath = inputPath,
+    modulePath = modulePath,
+    outputPath = outputPath,
+    rasterPath = rasterPath,
+    scratchPath = scratchPath,
+    terraPath = terraPath
+  ), checkPath, create = TRUE)
+
+  ## set the new paths via options
+  options(
+    rasterTmpDir = newPaths$rasterPath,
+    reproducible.cachePath = cachePath,
+    spades.inputPath = inputPath,
+    spades.modulePath = unlist(modulePath),
+    spades.outputPath = outputPath,
+    spades.scratchPath = scratchPath
+  )
+
+  if (requireNamespace("terra", quietly = TRUE)) {
+    terra::terraOptions(tempdir = terraPath)
+  }
+
+  ## message the user
+  modPaths <- if (length(modulePath) > 1) {
+    paste0("c('", paste(normPath(modulePath), collapse = "', '"), "')")
+  } else {
+    normPath(modulePath)
+  }
+
+  if (!silent) {
+    if (!allDefault) {
+      message(
+        "Setting:\n",
+        "  options(\n",
+        if (!defaults$CP) paste0("    reproducible.cachePath = '", normPath(cachePath), "'\n"),
+        if (!defaults$IP) paste0("    spades.inputPath = '", normPath(inputPath), "'\n"),
+        if (!defaults$OP) paste0("    spades.outputPath = '", normPath(outputPath), "'\n"),
+        if (!defaults$MP) paste0("    spades.modulePath = '" , modPaths, "'\n"),
+        if (!defaults$SP) paste0("    spades.scratchPath = '", normPath(scratchPath), "'\n"),
+        "  )"
+      )
+    }
+
+    if (any(unlist(defaults))) {
+      message(
+        "Paths set to:\n",
+        "  options(\n",
+        "    rasterTmpDir = '", normPath(rasterPath), "'\n",
+        "    reproducible.cachePath = '", normPath(cachePath), "'\n",
+        "    spades.inputPath = '", normPath(inputPath), "'\n",
+        "    spades.outputPath = '", normPath(outputPath), "'\n",
+        "    spades.modulePath = '", modPaths, "'\n", # normPath'ed above
+        "    spades.scratchPath = '", normPath(scratchPath), "'\n",
+        "  )\n",
+        "  terra::terraOptions(tempdir = '", normPath(terraPath), "'"
+      )
+    }
+  }
+
+  return(invisible(originalPaths))
+}
+
+.paths <- function() {
+  if (!is.null(.getOption("spades.cachePath"))) {
+    message("option('spades.cachePath') is being deprecated. Please use ",
+            "option('reproducible.cachePath').\n",
+            "Setting option('reproducible.cachePath' = getOption('spades.cachePath'))")
+  }
+
+  list(
+    cachePath = .getOption("reproducible.cachePath"), # nolint
+    inputPath = getOption("spades.inputPath"), # nolint
+    modulePath = getOption("spades.modulePath"), # nolint
+    outputPath = getOption("spades.outputPath"), # nolint
+    rasterPath = file.path(getOption("spades.scratchPath"), "raster"), # nolint
+    scratchPath = getOption("spades.scratchPath"), # nolint
+    terraPath = file.path(getOption("spades.scratchPath"), "terra") # nolint
+  )
+}
+
+.getOption <- function(x, default = NULL) {
+  optionDefault <- options(x)[[1]]
+  if (is.null(optionDefault)) optionDefault <- default
+  if (is.function(optionDefault)) {
+    optionDefault()
+  } else {
+    optionDefault
+  }
+}
 
 # options(repos = c(CRAN = "http://cloud.r-project.org"))
 # # 3 packages (could be just 2) are needed to manage the setup; these are installed in default .libPaths()
@@ -123,4 +420,5 @@ setupProject <- function(name, paths, modules, packages, setLinuxBinaryRepo = TR
 # 4. setLinuxBinaryRepo()
 # 5. SpaDES.project::packagesInModules
 # 6. Require::Require(c(unname(unlist(outs)), packages), require = FALSE, standAlone = TRUE)
+
 

@@ -9,6 +9,7 @@ setupProject(
   paths,
   modules,
   packages,
+  useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
   overwrite = FALSE,
   verbose = 1
@@ -54,7 +55,8 @@ This function bundles a sequence of functions: \code{.libPaths()}, \code{getModu
 \dontrun{
 setupProject(name = "SpaDES.project",
              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project"),
-             modules = c("PredictiveEcology/Biomass_borealDataPrep@development")
+             modules = c("PredictiveEcology/Biomass_borealDataPrep@development",
+             useGit = TRUE)
 )
 }
 }
