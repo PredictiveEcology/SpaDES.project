@@ -4,23 +4,28 @@
 \alias{getModule}
 \title{Simple function to download a SpaDES module as GitHub repository}
 \usage{
-getModule(..., overwrite = FALSE, modulePath)
+getModule(
+  modules,
+  modulePath,
+  overwrite = FALSE,
+  verbose = getOption("Require.verbose", 1L)
+)
 }
 \arguments{
-\item{...}{One or more github repositories as character strings that contain
-SpaDES modules. These should be presented in the standard R way, with
-\code{account/repository@branch}. If \code{account} is omitted, then \verb{"PredictiveEcology} will
-be assumed.}
+\item{modulePath}{A local path in which to place the full module, within
+a subfolder ... i.e., the source code will be downloaded to here:
+\code{file.path(modulePath, repository)}. If omitted, and \code{options(spades.modulePath)} is
+set, it will use \code{getOption("spades.modulePath")}, otherwise it will use \code{"."}.}
 
 \item{overwrite}{A logical vector of same length (or length 1) \code{gitRepo}.
 If \code{TRUE}, then the download will delete any
 existing folder with the same name as the \code{repository}
 provided in \code{gitRepo}}
 
-\item{modulePath}{A local path in which to place the full module, within
-a subfolder ... i.e., the source code will be downloaded to here:
-\code{file.path(modulePath, repository)}. If omitted, and \code{options(spades.modulePath)} is
-set, it will use \code{getOption("spades.modulePath")}, otherwise it will use \code{"."}.}
+\item{...}{One or more github repositories as character strings that contain
+SpaDES modules. These should be presented in the standard R way, with
+\code{account/repository@branch}. If \code{account} is omitted, then \verb{"PredictiveEcology} will
+be assumed.}
 }
 \description{
 Simple function to download a SpaDES module as GitHub repository

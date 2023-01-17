@@ -21,91 +21,67 @@ utils::globalVariables(c(
 #' @export
 #' @importFrom utils download.file unzip compareVersion
 #' @importFrom Require checkPath normPath
-getModule <- function(..., overwrite = FALSE, modulePath) {
+getModule <- function(modules, modulePath, overwrite = FALSE,
+                      verbose = getOption("Require.verbose", 1L)) {
 
-  gitRepo = unlist(list(...))
-  if (missing(modulePath)) modulePath <- getOption("spades.modulePath")
-  if (is.null(modulePath)) modulePath <- "."
-  if (!dir.exists(modulePath)) dir.create(modulePath, recursive = TRUE)
-  out <- Map(gitRep = gitRepo, overwriteInner = overwrite, function(gitRep, overwriteInner) {
+  anyfailed <- character()
+  modulesOrig <- modules
+  modNam <- extractPkgName(modules)
+  whExist <- dir.exists(file.path(modulePath, modNam))
+  modsToDL <- modules
 
-    gitRepOrig <- gitRep
-    vn <- Require::extractVersionNumber(gitRep)
-    inequ <- Require::extractInequality(gitRep)
-    if (!is.na(vn)) {
-      gitRep <- gsub(" *\\(.+", "", gitRep)
-    }
-    gr <- splitGitRepo(gitRep)
-    ar <- file.path(gr$acct, gr$repo)
-    repoFull <- file.path(modulePath, gr$repo)
-    repoFullNormalized <- normalizePath(repoFull, mustWork = FALSE, winslash = "/")
+  if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
+  if (length(modsToDL)) {
+    tmpdir <- file.path(tempdir(), .rndstr(1))
+    Require::checkPath(tmpdir, create = TRUE)
+    od <- setwd(tmpdir)
+    on.exit(setwd(od))
 
-    if (dir.exists(repoFull)) {
-      versionOK <- FALSE
-      if (!is.na(vn)) {
-        fn <- getGitHubFile(paste0(gr$acct, "/", gr$repo, "@", gr$br), filename = paste0(gr$repo, ".R"))
-        dircreated <- Require::checkPath(file.path(dirname(fn$destFile), gr$repo), create = TRUE)
-        newTempName <- file.path(dircreated, paste0(gr$repo, ".R"))
-        file.rename(fn$destFile, newTempName)
-        verOnline <- metadataInModules(gr$repo, "version", modulePath = dirname(dircreated))
-        verInstalled <- metadataInModules(gr$repo, "version", modulePath = modulePath)
-        if (!is.null(verInstalled)) {
-          compVersOnline <- compareVersion(as.character(verOnline[[gr$repo]]), vn)
-          compVersInstalled <- compareVersion(as.character(verInstalled[[gr$repo]]), vn)
-          versionOnlineOK <- eval(parse(text = paste0(compVersOnline, inequ, 0)))
-          if (!versionOnlineOK) message("Version request cannot be satisfied at ", gitRepOrig)
-          versionOK <- eval(parse(text = paste0(compVersInstalled, inequ, 0)))
+    out <-
+      Map(modToDL = modsToDL, function(modToDL) {
+        dd <- .rndstr(1)
+        modNameShort <- Require::extractPkgName(modToDL)
+        Require::checkPath(dd, create = TRUE)
+        mess <- capture.output(type = "message",
+                       withCallingHandlers(Require:::downloadRepo(modToDL, subFolder = NA,
+                               destDir = dd, overwrite = overwrite,
+                               verbose = verbose + 1),
+                            warning = function(w) {
+                              warns <- grep("No such file or directory|extracting from zip file", w$message,
+                                            value = TRUE, invert = TRUE)
+                              if (length(warns))
+                                warning(warns)
+                              invokeRestart("muffleWarning")
+                            }
+        ))
+        files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+        if (length(files)) {
+          newFiles <- file.path(modulePath, modNameShort, files)
+          lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+          file.copy(file.path(dd, modNameShort, files),
+                    file.path(modulePath, modNameShort, files), overwrite = TRUE)
         } else {
-          versionOK <- FALSE
+          message(modToDL, " could not be downloaded; does it exist? and are permissions correct?")
         }
-      }
-      if (isTRUE(overwriteInner) && !versionOK) {
-        message(repoFullNormalized, " exists; overwriting")
-        unlink(repoFullNormalized, recursive = TRUE)
-      } else {
-        if (versionOK) {
-          message(
-            repoFullNormalized,
-            " directory already exists, overwrite = TRUE, but version number is OK. Not overwriting. ",
-            "To overwrite, either delete the module manually, change the minimum version number, ",
-            "or remove version number comparison"
-          )
-        } else {
-          message(repoFullNormalized, " directory already exists. Use overwrite = TRUE if you want to overwrite it")
-        }
-        return(repoFullNormalized)
-      }
-    }
 
-    zipFileName <- normalizePath(paste0(repoFull, ".zip"), winslash = "/", mustWork = FALSE)
-    for (i in 1:2) {
-      url <- paste0("https://github.com/", ar, "/archive/", gr$br, ".zip")
-      suppressWarnings({
-        out <- try(download.file(url, destfile = zipFileName), silent = TRUE)
       })
-      if (is(out, "try-error") && identical(gr$br, "main")) {
-        gr$br <- "master"
-      } else {
-        break
-      }
-    }
-    out <- unzip(zipFileName, exdir = modulePath) # unzip it
+    # out <- getModule(modules, modulePath = modulePath, overwrite = overwrite)
+    allworked <- Require::extractPkgName(modsToDL) %in% dir(modulePath)
+    anyfailed <- modsToDL[!allworked]
+    modules <- anyfailed
+  }
 
-    if (!is.null(out)) {
-      dirnames <- dirname(out)
-      badDirname <- unique(dirnames)[which.min(nchar(unique(dirnames)))]
-      file.rename(badDirname, gsub(basename(badDirname), gr$repo, badDirname)) # it was downloaded with a branch suffix
-      message(gitRep, " downloaded and placed in ", repoFullNormalized)
-    } else {
-      warning("The zipfile: ", zipFileName, " failed to unzip for unknown causes")
-    }
-    unlink(zipFileName)
-    # possRmd <- normalizePath(winslash = "/", file.path(repoFull, paste0(gr$repo, ".Rmd")), mustWork = FALSE)
-    # if (file.exists(possRmd)) {
-    #   message("To run it, try: \nfile.edit('", possRmd, "')")
-    # }
-    return(repoFullNormalized)
-  })
+  successes <- setdiff(modulesOrig, anyfailed)
+  if (length(successes)) {
+    df <- data.frame(modules = modulesOrig)
+    df[match(successes, df$modules), "downloaded"] <- TRUE
+    df[match(successes, df$modules), "modulePath"] <- modulePath
 
-  return(out)
+    messageDF(df)
+    if (length(anyfailed)) {
+      message("Will try using `git clone` ... ")
+    }
+  }
+
+  return(list(success = successes, failed = anyfailed))
 }
