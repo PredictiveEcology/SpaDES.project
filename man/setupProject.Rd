@@ -22,7 +22,7 @@ setupProject(
   standAlone = TRUE,
   libPaths = paths$packagePath,
   overwrite = FALSE,
-  verbose = 1
+  verbose = getOption("Require.verbose", 1L)
 )
 
 setupPaths(name, paths, inProject, standAlone, libPaths)
@@ -63,18 +63,33 @@ managing their git status outside of this function.}
 this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
 no moduleCodeChecks) or 0 (no options).}
 
+\item{require}{An optional character vector of packages to attach
+(with \code{require})}
+
 \item{restart}{If the \code{projectPath} is not the current path, and the session is in
 Rstudio, and interactive, it will restart with a new Rstudio session with a
 new project, with a root path set to \code{projectPath}. Default is \code{FALSE}.}
 
+\item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone}. Otherwise it will
+get modules with \code{getModules}.}
+
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}
+
+\item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
+packages installed in a project-level library, it \code{TRUE}. Default is \code{TRUE}.}
+
+\item{libPaths}{A character vector. Passed to \code{Require::libPaths}, which will
+in turn pass to \code{.libPaths(libPaths)}}
 
 \item{overwrite}{Logical. Passed to \code{getModule}}
 
 \item{verbose}{An integer specifying how much verbosity should be shown. Passed
 to various internal functions, including \code{Require}. Default is 1. The higher the number
 the more verbosity. Set to -1 for almost no messaging.}
+
+\item{inProject}{A logical. If \code{TRUE}, then the current directory is
+inside the \code{paths$projectPath}.}
 }
 \value{
 \code{setupProject} will return a length-2 named list (\code{modules}, \code{paths}) that can be passed

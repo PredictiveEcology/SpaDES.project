@@ -19,6 +19,16 @@
 #'   managing their git status outside of this function.
 #' @param packages A vector of packages that are needed. This will be passed to
 #'   `Require`
+#' @param require An optional character vector of packages to attach
+#'   (with `require`)
+#' @param useGit A logical. If `TRUE`, it will use `git clone`. Otherwise it will
+#' get modules with `getModules`.
+#' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
+#'   packages installed in a project-level library, it `TRUE`. Default is `TRUE`.
+#' @param libPaths A character vector. Passed to `Require::libPaths`, which will
+#'   in turn pass to `.libPaths(libPaths)`
+#' @param inProject A logical. If `TRUE`, then the current directory is
+#'  inside the `paths$projectPath`.
 #' @param restart If the `projectPath` is not the current path, and the session is in
 #'   Rstudio, and interactive, it will restart with a new Rstudio session with a
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
@@ -72,7 +82,7 @@ setupProject <- function(name, paths, modules, packages,
                          restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
-                         overwrite = FALSE, verbose = 1) {
+                         overwrite = FALSE, verbose = getOption("Require.verbose", 1L)) {
 
   libPaths <- substitute(libPaths)
   if (missing(name)) {
@@ -305,40 +315,43 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
   modulesOrig <- modules
   modulesOrigPkgName <- extractPkgName(modulesOrig)
   if (!useGit) {
-    modNam <- extractPkgName(modules)
-    whExist <- dir.exists(file.path(paths$modulePath, modNam))
-    modsToDL <- modules
-
-    if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
-    if (length(modsToDL)) {
-      tmpdir <- file.path(tempdir(), Require:::.rndstr(1))
-      Require::checkPath(tmpdir, create = TRUE)
-      od <- setwd(tmpdir)
-      on.exit(setwd(od))
-
-      out <-
-        Map(modToDL = modsToDL, function(modToDL) {
-          dd <- Require:::.rndstr(1)
-          modNameShort <- Require::extractPkgName(modToDL)
-          Require::checkPath(dd, create = TRUE)
-          Require:::downloadRepo(modToDL, subFolder = NA,
-                                 destDir = dd, overwrite = overwrite,
-                                 verbose = verbose + 1)
-          files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-          newFiles <- file.path(paths$modulePath, modNameShort, files)
-          lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-          file.copy(file.path(dd, modNameShort, files),
-                    file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
-
-        })
-      # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
-      allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
-      browser()
-      if (allworked)
-        Require:::messageVerbose()
-      anyfailed <- modsToDL[!allworked]
-      modules <- anyfailed
-    }
+    out <- getModule(modules, paths$modulePath, overwrite)
+    anyfailed <- out$failed
+    modules <- anyfailed
+    # modNam <- extractPkgName(modules)
+    # whExist <- dir.exists(file.path(paths$modulePath, modNam))
+    # modsToDL <- modules
+    #
+    # if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
+    # if (length(modsToDL)) {
+    #   tmpdir <- file.path(tempdir(), .rndstr(1))
+    #   Require::checkPath(tmpdir, create = TRUE)
+    #   od <- setwd(tmpdir)
+    #   on.exit(setwd(od))
+    #
+    #   out <-
+    #     Map(modToDL = modsToDL, function(modToDL) {
+    #       dd <- .rndstr(1)
+    #       modNameShort <- Require::extractPkgName(modToDL)
+    #       Require::checkPath(dd, create = TRUE)
+    #       Require:::downloadRepo(modToDL, subFolder = NA,
+    #                              destDir = dd, overwrite = overwrite,
+    #                              verbose = verbose + 1)
+    #       files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+    #       newFiles <- file.path(paths$modulePath, modNameShort, files)
+    #       lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+    #       file.copy(file.path(dd, modNameShort, files),
+    #                 file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
+    #
+    #     })
+    #   # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
+    #   allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
+    #   browser()
+    #   if (allworked)
+    #     Require:::messageVerbose()
+    #   anyfailed <- modsToDL[!allworked]
+    #   modules <- anyfailed
+    # }
   }
 
   if (isTRUE(useGit) || length(anyfailed)) {
