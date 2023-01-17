@@ -47,12 +47,10 @@ install_github("PredictiveEcology/SpaDES.project", dependencies = TRUE)
 [![R build status](https://github.com/PredictiveEcology/SpaDES.project/workflows/R-CMD-check/badge.svg?branch=development)](https://github.com/PredictiveEcology/SpaDES.project/actions)
 [![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
 
-**Install from GitHub:**
+**Install development version:**
 
 ```r
-#install.packages("devtools")
-library("devtools")
-install_github("PredictiveEcology/SpaDES.project", ref = "development", dependencies = TRUE)
+install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
 ```
 
 ### Get modules in a new project 
@@ -60,12 +58,9 @@ install_github("PredictiveEcology/SpaDES.project", ref = "development", dependen
 This is a lightweight way to get SpaDES modules
 
 ```r
-SpaDES.project::getModule( modulePath = tempdir(), 
-                           modules = c("PredictiveEcology/Biomass_speciesFactorial",
-                                       "PredictiveEcology/Biomass_speciesParameters@development",
-                                       "PredictiveEcology/Biomass_borealDataPrep@development",
-                                       "PredictiveEcology/Biomass_core@development"), 
-                           overwrite = FALSE)
+setupProject(paths = list(projectPath = tempdir()),
+             modules = c("PredictiveEcology/Biomass_borealDataPrep@development",
+                         "PredictiveEcology/Biomass_core@development"))
 ```
 
 ## Complete workflow following the PERFICT approach
@@ -80,49 +75,19 @@ folder, install 4 SpaDES modules, the install all necessary R packages to run th
 
 prjPath <- "/path/to/project"
 
-options(repos = c(CRAN = "https://cloud.r-project.org"))
-
 # install and load packages -------------------------------------------------------------------
-
-pkgPath <- file.path(prjPath, "packages", version$platform,
-                     paste0(version$major, ".", strsplit(version$minor, "[.]")[[1]][1]))
-                     dir.create(pkgPath, recursive = TRUE)
-
-# Project will use a stand alone R package directory                    
-.libPaths(pkgPath, include.site = FALSE) ## install packages in project library (proj-lib)
-
-if (!"remotes" %in% rownames(installed.packages())) {
-  install.packages("remotes")
-}
-
-if (!"Require" %in% rownames(installed.packages())) {
-  remotes::install_github("PredictiveEcology/Require@archivedPkg", upgrade = FALSE)
-}
-
-## use binary linux packages if on Ubuntu
-Require::setLinuxBinaryRepo()
-
-Require::Require(c("PredictiveEcology/SpaDES.project@transition"), 
-                 standAlone = TRUE, 
-                 require = FALSE) # don't load packages
-
-modulePath <- file.path(prjPath, "modules")
-
-## Get SpaDES modules; here using known modules on GitHub.com
-SpaDES.project::getModule( modulePath = modulePath, 
-                           modules = c("PredictiveEcology/Biomass_speciesFactorial",
-                                       "PredictiveEcology/Biomass_speciesParameters@development",
-                                       "PredictiveEcology/Biomass_borealDataPrep@development",
-                                       "PredictiveEcology/Biomass_core@development"), 
-                           overwrite = FALSE)
-
-
-outs <- SpaDES.project::packagesInModules(modulePath = modulePath)  ## gets list of module dependencies
-Require::Require(c(unname(unlist(outs)), "SpaDES.core"),
-                 require = FALSE,   ## don't load packages
-                 standAlone = TRUE) ## install all dependencies in proj-lib (ignore user/system lib)
+while (!require("SpaDES.project", quietly = TRUE)) 
+  install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+  
+## Get SpaDES modules; here using known modules on GitHub.com, with R packages in project-specific library
+spOut = setupProject(paths = list(projectPath = prjPath),
+                     standAlone = TRUE,
+                     modules = c("PredictiveEcology/Biomass_speciesFactorial",
+                                 "PredictiveEcology/Biomass_speciesParameters@development",
+                                 "PredictiveEcology/Biomass_borealDataPrep@development",
+                                 "PredictiveEcology/Biomass_core@development"))
 ```
-The next steps after this would be to start using SpaDES.core
+
 
 
 ## Contributions
