@@ -34,20 +34,10 @@ See package vignettes to get started.
 # install.packages("SpaDES.project")
 ```
 
-**Install from GitHub:**
-
-```r
-#install.packages("devtools")
-library("devtools")
-install_github("PredictiveEcology/SpaDES.project", dependencies = TRUE) 
-```
-
 ### Development version (unstable)
 
 [![R build status](https://github.com/PredictiveEcology/SpaDES.project/workflows/R-CMD-check/badge.svg?branch=development)](https://github.com/PredictiveEcology/SpaDES.project/actions)
 [![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
-
-**Install development version:**
 
 ```r
 install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
@@ -55,7 +45,6 @@ install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
 
 ### Get modules in a new project 
 
-This is a lightweight way to get SpaDES modules
 
 ```r
 setupProject(paths = list(projectPath = tempdir()),
@@ -73,19 +62,22 @@ folder, install 4 SpaDES modules, the install all necessary R packages to run th
 
 # project basics ------------------------------------------------------------------------------
 
-prjPath <- "/path/to/project"
+prjPath <- file.path(tempdir(), "testProject")
 
 # install and load packages -------------------------------------------------------------------
 while (!require("SpaDES.project", quietly = TRUE)) 
   install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
   
 ## Get SpaDES modules; here using known modules on GitHub.com, with R packages in project-specific library
-spOut = setupProject(paths = list(projectPath = prjPath),
+spOut <- setupProject(paths = list(projectPath = prjPath),
                      standAlone = TRUE,
                      modules = c("PredictiveEcology/Biomass_speciesFactorial",
                                  "PredictiveEcology/Biomass_speciesParameters@development",
                                  "PredictiveEcology/Biomass_borealDataPrep@development",
                                  "PredictiveEcology/Biomass_core@development"))
+spOut$objects$studyArea <- LandR::randomStudyArea(center = NULL, size = 1e6, seed = 32)
+spOut$objects$studyAreaLarge <- LandR::randomStudyArea(center = NULL, size = 2e6, seed = 32)
+do.call(simInit, spOut)
 ```
 
 
