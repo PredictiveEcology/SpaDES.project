@@ -9,8 +9,12 @@ setupProject(
   paths,
   modules,
   packages,
+  optionsStyle = 1,
+  require = c("reproducible", "SpaDES.core"),
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
+  standAlone = TRUE,
+  libPaths = paths$packagePath,
   overwrite = FALSE,
   verbose = 1
 )
@@ -21,8 +25,7 @@ indicate the full Github repository and branch name, e.g.,
 \code{"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"}}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
-\code{packagePath} and all others that are in \code{SpaDES.core::setPaths()} `(
-inputPath, outputPath, scratchPath, cachePath, rasterTmpDir)``}
+\code{packagePath} and all others that are in \code{SpaDES.core::setPaths()} \verb{( inputPath, outputPath, scratchPath, cachePath, rasterTmpDir)}}
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
 should be in the form \code{GitHubAccount/Repo@branch} e.g.,
@@ -32,6 +35,10 @@ managing their git status outside of this function.}
 
 \item{packages}{A vector of packages that are needed. This will be passed to
 \code{Require}}
+
+\item{optionsStyle}{A numeric representing a set of pre-determined options. Currently,
+this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
+no moduleCodeChecks) or 0 (no options).}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}
@@ -54,9 +61,25 @@ This function bundles a sequence of functions: \code{.libPaths()}, \code{getModu
 \examples{
 \dontrun{
 setupProject(name = "SpaDES.project",
-             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project"),
-             modules = c("PredictiveEcology/Biomass_borealDataPrep@development",
-             useGit = TRUE)
+             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+                          scratchPath = tempdir()),
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+             useGit = TRUE
 )
+
+
+SpaDES.project::setupProject(
+  paths = list(projectPath = "~/CeresPaper"),
+  standAlone = TRUE,
+  require =
+    c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+      "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
+  modules = c("CeresBarros/Biomass_speciesData@master",
+              "CeresBarros/Biomass_borealDataPrep@development",
+              "CeresBarros/Biomass_core@master",
+              "CeresBarros/Biomass_validationKNN@master",
+              "CeresBarros/Biomass_speciesParameters@development")
+
+  )
 }
 }

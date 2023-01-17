@@ -41,6 +41,21 @@
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development",
 #'              useGit = TRUE
 #' )
+#'
+#'
+#' SpaDES.project::setupProject(
+#'   paths = list(projectPath = "~/CeresPaper"),
+#'   standAlone = TRUE,
+#'   require =
+#'     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+#'       "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
+#'   modules = c("CeresBarros/Biomass_speciesData@master",
+#'               "CeresBarros/Biomass_borealDataPrep@development",
+#'               "CeresBarros/Biomass_core@master",
+#'               "CeresBarros/Biomass_validationKNN@master",
+#'               "CeresBarros/Biomass_speciesParameters@development")
+#'
+#'   )
 #' }
 setupProject <- function(name, paths, modules, packages,
                          optionsStyle = 1,
@@ -50,15 +65,29 @@ setupProject <- function(name, paths, modules, packages,
                          overwrite = FALSE, verbose = 1) {
 
   libPaths <- substitute(libPaths)
-  paths <- setupPaths(name, paths, standAlone, libPaths)
+  if (missing(name)) {
+    if (!is.null(paths$projectPath))
+      name <- basename(normPath(paths$projectPath))
+    else
+      stop("Must provide either a name or a paths$projectPath")
+  }
+
+  nameSimple <- extractPkgName(name)
+
+  curDir <- getwd()
+  inProject <- identical(basename(curDir), nameSimple)
+
+  paths <- setupPaths(name, paths, inProject, standAlone, libPaths)
 
   setupOptions(optionsStyle)
 
-  modulePackages <- setupModules(paths, modules, useGit = useGit, overwrite = overwrite, verbose = verbose)
+  modulePackages <- setupModules(paths, modules, useGit = useGit,
+                                 overwrite = overwrite, verbose = verbose)
 
   if (missing(packages))
     packages <- NULL
   packages <- c(unname(unlist(modulePackages)), packages)
+
 
   setupPackages(packages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
@@ -66,6 +95,17 @@ setupProject <- function(name, paths, modules, packages,
                 libPaths = paths$packagePath, verbose = verbose)
 
   setupGitIgnore(paths, verbose)
+
+  if (!inProject) {
+    if (interactive() && getOption("SpaDES.project.restart", TRUE))
+      if (requireNamespace("rstudioapi")) {
+        message("... restarting Rstudio inside the project")
+        rstudioapi::openProject(path = paths$projectPath)
+      } else {
+        stop("Please open this in a new Rstudio project at ",
+             paths$projectPath)
+      }
+  }
 
   return(paths)
 }
@@ -124,7 +164,6 @@ setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, stand
   invisible(NULL)
 }
 
-# modulesOrig <- modules
 
 setupModules <- function(paths, modules, useGit, overwrite, verbose) {
   anyfailed <- character()
@@ -134,11 +173,28 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
     modNam <- extractPkgName(modules)
     whExist <- dir.exists(file.path(paths$modulePath, modNam))
     modsToDL <- modules
+
     if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
     if (length(modsToDL)) {
+      tmpdir <- file.path(tempdir(), Require:::.rndstr(1))
+      Require::checkPath(tmpdir, create = TRUE)
+      od <- setwd(tmpdir)
+      on.exit(setwd(od))
+
       out <-
         Map(modToDL = modsToDL, function(modToDL) {
-        Require:::downloadRepo(modToDL, subFolder = NA, destDir = paths$modulePath, overwrite = overwrite)
+          dd <- Require:::.rndstr(1)
+          modNameShort <- Require::extractPkgName(modToDL)
+          Require::checkPath(dd, create = TRUE)
+          Require:::downloadRepo(modToDL, subFolder = NA,
+                               destDir = dd, overwrite = overwrite,
+                               verbose = verbose + 1)
+          files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+          newFiles <- file.path(paths$modulePath, modNameShort, files)
+          lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+          file.copy(file.path(dd, modNameShort, files),
+                    file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
+
       })
       # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
       allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
@@ -168,12 +224,7 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
 
 
 #' @importFrom Require normPath checkPath
-setupPaths <- function(name, paths, standAlone, libPaths) {
-
-  nameSimple <- extractPkgName(name)
-
-  curDir <- getwd()
-  inProject <- identical(basename(curDir), nameSimple)
+setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
 
   if (missing(paths)) {
     projPth <- if  (inProject) file.path(".") else file.path(".", name)
@@ -228,22 +279,27 @@ setupPaths <- function(name, paths, standAlone, libPaths) {
   spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
                "scratchPath", "terraPath")
 
-  for (pkg in c("Require", "data.table", "rprojroot")) {
+  deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
+  deps <- c(deps, "rstudioapi")
+
+  for (pkg in deps) {
     pkgDir <- file.path(.libPaths(), pkg)
+    de <- dir.exists(pkgDir)
+    pkgDir <- pkgDir[de][1]
     files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
     newFiles <- file.path(paths$packagePath, pkg, files1)
     lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-    oldFiles <- file.path(pkgDir[1], files1)
+    oldFiles <- file.path(pkgDir, files1)
     exist <- file.exists(oldFiles)
     if (any(!exist))
       file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
   }
+
   Require::setLibPaths(paths$packagePath, standAlone = standAlone,
                        updateRprofile = TRUE,
                        exact = FALSE, verbose = getOption("Require.verbose"))
 
 
-  # if (requireNamespace("SpaDES.core"))
   do.call(setPaths, paths[spPaths])
 
   paths[order(names(paths))]
