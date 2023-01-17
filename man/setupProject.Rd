@@ -107,7 +107,6 @@ See table for details.
 \if{html}{\out{<div class="sourceCode">}}\preformatted{    options(reproducible.cacheSaveFormat = "qs",
             reproducible.useTerra = TRUE,
             reproducible.useMemoise = TRUE,
-            reproducible.rasterRead = "terra::rast",
             reproducible.showSimilar = TRUE,
             spades.moduleCodeChecks = FALSE)
 }\if{html}{\out{</div>}}

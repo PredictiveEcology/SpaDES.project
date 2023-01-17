@@ -20,7 +20,7 @@ Depends:
 Imports:
     data.table,
     methods,
-    Require (>= 0.2.6.9001),
+    Require (>= 0.2.6),
     rprojroot,
     utils
 Suggests:

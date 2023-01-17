@@ -279,7 +279,6 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
 #'     options(reproducible.cacheSaveFormat = "qs",
 #'             reproducible.useTerra = TRUE,
 #'             reproducible.useMemoise = TRUE,
-#'             reproducible.rasterRead = "terra::rast",
 #'             reproducible.showSimilar = TRUE,
 #'             spades.moduleCodeChecks = FALSE)
 #' ````
@@ -291,7 +290,6 @@ setupOptions <- function(optionsStyle) {
     os <- list(reproducible.cacheSaveFormat = "qs",
                reproducible.useTerra = TRUE,
                reproducible.useMemoise = TRUE,
-               reproducible.rasterRead = "terra::rast",
                reproducible.showSimilar = TRUE,
                spades.moduleCodeChecks = FALSE
     )
