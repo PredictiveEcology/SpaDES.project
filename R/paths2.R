@@ -4,8 +4,10 @@
 #' is based on the R version and the platform, as per the standard R package directory
 #' naming convention
 #' @param lib.loc The folder for installing packages inside of
+#' @inheritParams Require::Require
 #' @export
-setProjPkgDir <- function(lib.loc = "packages") {
+setProjPkgDir <- function(lib.loc = "packages",
+                          verbose = getOption("Require.verbose", 1L)) {
   pkgDir <- Sys.getenv("PRJ_PKG_DIR")
   if (!nzchar(pkgDir)) {
     pkgDir <- lib.loc ## default: use subdir within project directory
@@ -21,5 +23,6 @@ setProjPkgDir <- function(lib.loc = "packages") {
   }
 
   .libPaths(pkgDir)
-  message("Using libPaths:\n", paste(.libPaths(), collapse = "\n"))
+  messageVerbose("Using libPaths:\n", paste(.libPaths(), collapse = "\n"),
+                 verbose = verbose)
 }

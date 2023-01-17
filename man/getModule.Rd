@@ -12,6 +12,11 @@ getModule(
 )
 }
 \arguments{
+\item{modules}{Character vector of one or more github repositories as character strings that contain
+SpaDES modules. These should be presented in the standard R way, with
+\code{account/repository@branch}. If \code{account} is omitted, then \verb{"PredictiveEcology} will
+be assumed.}
+
 \item{modulePath}{A local path in which to place the full module, within
 a subfolder ... i.e., the source code will be downloaded to here:
 \code{file.path(modulePath, repository)}. If omitted, and \code{options(spades.modulePath)} is
@@ -22,10 +27,12 @@ If \code{TRUE}, then the download will delete any
 existing folder with the same name as the \code{repository}
 provided in \code{gitRepo}}
 
-\item{...}{One or more github repositories as character strings that contain
-SpaDES modules. These should be presented in the standard R way, with
-\code{account/repository@branch}. If \code{account} is omitted, then \verb{"PredictiveEcology} will
-be assumed.}
+\item{verbose}{Numeric or logical indicating how verbose should the function
+be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
+then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
+\code{Require} function, when \code{verbose >= 2}, the return object will have an
+attribute: \code{attr(.., "Require")} which has lots of information about the
+processes of the installs.}
 }
 \description{
 Simple function to download a SpaDES module as GitHub repository

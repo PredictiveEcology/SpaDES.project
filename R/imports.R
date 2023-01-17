@@ -3,16 +3,13 @@
 #' @importFrom utils getFromNamespace
 #' @keywords internal
 #' @rdname imports
-splitGitRepo <- utils::getFromNamespace("splitGitRepo", "Require")
-
-#' @rdname imports
-getGitHubFile <- utils::getFromNamespace("getGitHubFile", "Require")
-
-#' @rdname imports
-isWindows <- utils::getFromNamespace("isWindows", "Require")
-
-#' @rdname imports
 messageDF <- utils::getFromNamespace("messageDF", "Require")
+
+#' @rdname imports
+messageVerbose <- utils::getFromNamespace("messageVerbose", "Require")
+
+#' @rdname imports
+downloadRepo <- utils::getFromNamespace("downloadRepo", "Require")
 
 #' @rdname imports
 .spatialPkgs <- tryCatch({

@@ -20,10 +20,12 @@ packagesInModules <- function(modules, modulePath = getOption("spades.modulePath
 #'
 #' @param needUnlist logical indicating whether to `unlist` the resulting metadata look up
 #'
+#' @inheritParams Require::Require
 #' @export
 #' @rdname metadata
 metadataInModules <- function(modules, metadataItem = "reqdPkgs",
-                              modulePath = getOption("spades.modulePath"), needUnlist) {
+                              modulePath = getOption("spades.modulePath"), needUnlist,
+                              verbose = getOption("Require.verbose", 1L)) {
   if (missing(modules))
     modules <- dir(modulePath)
   names(modules) <- modules
@@ -66,7 +68,8 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
         if (needUnlistInner)
           val <- unlist(val)
       } else {
-        message("Skipping ", metadataItem, " in ", modules, "; it is empty")
+        messageVerbose("Skipping ", metadataItem, " in ", modules, "; it is empty",
+                       verbose = verbose)
         val <- NULL
       }
       val

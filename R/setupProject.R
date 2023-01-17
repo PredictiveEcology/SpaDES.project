@@ -38,9 +38,6 @@
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows)
 #' @param overwrite Logical. Passed to `getModule`
-#' @param verbose An integer specifying how much verbosity should be shown. Passed
-#'   to various internal functions, including `Require`. Default is 1. The higher the number
-#'   the more verbosity. Set to -1 for almost no messaging.
 #'
 #' @export
 #'
@@ -49,6 +46,7 @@
 #' directly to `SpaDES.core::simInit` using a `do.call`. See example.
 #'
 #' @importFrom Require extractPkgName
+#' @inheritParams Require::Require
 #' @rdname setupProject
 #'
 #' @examples
@@ -127,7 +125,8 @@ setupProject <- function(name, paths, modules, packages,
   if (!inProject) {
     if (interactive() && isTRUE(restart)) # getOption("SpaDES.project.restart", TRUE))
       if (requireNamespace("rstudioapi")) {
-        message("... restarting Rstudio inside the project")
+        messageVerbose("... restarting Rstudio inside the project",
+                       verbose = verbose)
         rstudioapi::openProject(path = paths$projectPath)
       } else {
         stop("Please open this in a new Rstudio project at ",
@@ -443,7 +442,7 @@ setupGitIgnore <- function(paths, verbose) {
 
 
 setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, scratchPath,
-                     terraPath, silent = FALSE) {
+                     terraPath, silent = FALSE, verbose = getOption("Require.verbose", 1L)) {
   defaults <- list(
     CP = FALSE,
     IP = FALSE,
@@ -518,7 +517,7 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
 
   if (!silent) {
     if (!allDefault) {
-      message(
+      messageVerbose(
         "Setting:\n",
         "  options(\n",
         if (!defaults$CP) paste0("    reproducible.cachePath = '", normPath(cachePath), "'\n"),
@@ -526,12 +525,13 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
         if (!defaults$OP) paste0("    spades.outputPath = '", normPath(outputPath), "'\n"),
         if (!defaults$MP) paste0("    spades.modulePath = '" , modPaths, "'\n"),
         if (!defaults$SP) paste0("    spades.scratchPath = '", normPath(scratchPath), "'\n"),
-        "  )"
+        "  )",
+        verbose = verbose
       )
     }
 
     if (any(unlist(defaults))) {
-      message(
+      messageVerbose(
         "Paths set to:\n",
         "  options(\n",
         "    rasterTmpDir = '", normPath(rasterPath), "'\n",
@@ -541,7 +541,8 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
         "    spades.modulePath = '", modPaths, "'\n", # normPath'ed above
         "    spades.scratchPath = '", normPath(scratchPath), "'\n",
         "  )\n",
-        "  terra::terraOptions(tempdir = '", normPath(terraPath), "'"
+        "  terra::terraOptions(tempdir = '", normPath(terraPath), "'",
+        verbose = verbose
       )
     }
   }
@@ -549,11 +550,12 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
   return(invisible(originalPaths))
 }
 
-.paths <- function() {
+.paths <- function(verbose = getOption("Require.verbose", 1L)) {
   if (!is.null(.getOption("spades.cachePath"))) {
-    message("option('spades.cachePath') is being deprecated. Please use ",
+    messageVerbose("option('spades.cachePath') is being deprecated. Please use ",
             "option('reproducible.cachePath').\n",
-            "Setting option('reproducible.cachePath' = getOption('spades.cachePath'))")
+            "Setting option('reproducible.cachePath' = getOption('spades.cachePath'))",
+            verbose = verbose)
   }
 
   list(

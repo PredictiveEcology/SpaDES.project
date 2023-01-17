@@ -11,7 +11,8 @@ metadataInModules(
   modules,
   metadataItem = "reqdPkgs",
   modulePath = getOption("spades.modulePath"),
-  needUnlist
+  needUnlist,
+  verbose = getOption("Require.verbose", 1L)
 )
 }
 \arguments{
@@ -22,6 +23,13 @@ metadataInModules(
 \item{metadataItem}{character identifying the metadata field to extract}
 
 \item{needUnlist}{logical indicating whether to \code{unlist} the resulting metadata look up}
+
+\item{verbose}{Numeric or logical indicating how verbose should the function
+be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
+then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
+\code{Require} function, when \code{verbose >= 2}, the return object will have an
+attribute: \code{attr(.., "Require")} which has lots of information about the
+processes of the installs.}
 }
 \value{
 A character vector of sorted, unique packages that are identified in all named

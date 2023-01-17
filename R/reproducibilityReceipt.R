@@ -134,12 +134,14 @@ submoduleInfo <- function(prjDir = NULL) {
 }
 
 #' @export
+#' @inheritParams Require::Require
 #' @rdname reproducibilityReceipt
-sessInfo <- function() {
+sessInfo <- function(verbose = getOption("Require.verbose", 1L)) {
   if (requireNamespace("sessioninfo", quietly = TRUE)) {
     sessioninfo::session_info()
   } else {
-    message("Suggested package 'sessioninfo' provides more useful session info.")
+    messageVerbose("Suggested package 'sessioninfo' provides more useful session info.",
+                   verbose = verbose)
     utils::sessionInfo()
   }
 }

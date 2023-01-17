@@ -84,9 +84,12 @@ in turn pass to \code{.libPaths(libPaths)}}
 
 \item{overwrite}{Logical. Passed to \code{getModule}}
 
-\item{verbose}{An integer specifying how much verbosity should be shown. Passed
-to various internal functions, including \code{Require}. Default is 1. The higher the number
-the more verbosity. Set to -1 for almost no messaging.}
+\item{verbose}{Numeric or logical indicating how verbose should the function
+be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
+then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
+\code{Require} function, when \code{verbose >= 2}, the return object will have an
+attribute: \code{attr(.., "Require")} which has lots of information about the
+processes of the installs.}
 
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
 inside the \code{paths$projectPath}.}

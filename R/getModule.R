@@ -5,7 +5,7 @@ utils::globalVariables(c(
 
 #' Simple function to download a SpaDES module as GitHub repository
 #'
-#' @param ... One or more github repositories as character strings that contain
+#' @param modules Character vector of one or more github repositories as character strings that contain
 #'   SpaDES modules. These should be presented in the standard R way, with
 #'   `account/repository@branch`. If `account` is omitted, then `"PredictiveEcology` will
 #'   be assumed.
@@ -19,7 +19,8 @@ utils::globalVariables(c(
 #'   set, it will use `getOption("spades.modulePath")`, otherwise it will use `"."`.
 #'
 #' @export
-#' @importFrom utils download.file unzip compareVersion
+#' @inheritParams Require::Require
+#' @importFrom utils capture.output
 #' @importFrom Require checkPath normPath
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
@@ -43,7 +44,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         modNameShort <- Require::extractPkgName(modToDL)
         Require::checkPath(dd, create = TRUE)
         mess <- capture.output(type = "message",
-                       withCallingHandlers(Require:::downloadRepo(modToDL, subFolder = NA,
+                       withCallingHandlers(downloadRepo(modToDL, subFolder = NA,
                                destDir = dd, overwrite = overwrite,
                                verbose = verbose + 1),
                             warning = function(w) {
@@ -61,11 +62,11 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
           file.copy(file.path(dd, modNameShort, files),
                     file.path(modulePath, modNameShort, files), overwrite = TRUE)
         } else {
-          message(modToDL, " could not be downloaded; does it exist? and are permissions correct?")
+          messageVerbose(modToDL, " could not be downloaded; does it exist? and are permissions correct?",
+                         verbose = verbose)
         }
 
       })
-    # out <- getModule(modules, modulePath = modulePath, overwrite = overwrite)
     allworked <- Require::extractPkgName(modsToDL) %in% dir(modulePath)
     anyfailed <- modsToDL[!allworked]
     modules <- anyfailed
@@ -79,7 +80,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
     messageDF(df)
     if (length(anyfailed)) {
-      message("Will try using `git clone` ... ")
+      messageVerbose("Will try using `git clone` ... ",
+                     verbose = verbose)
     }
   }
 

@@ -19,7 +19,7 @@ gitInfo(prjDir = NULL)
 
 submoduleInfo(prjDir = NULL)
 
-sessInfo()
+sessInfo(verbose = getOption("Require.verbose", 1L))
 
 spatialLibs()
 
@@ -32,6 +32,13 @@ timestamp()
 
 \item{writeTo}{If provided, an markdown filename to write to (e.g., \verb{outputs/<runName>/INFO.md}).
 File path is assumed to be relative to \code{prjDir}.}
+
+\item{verbose}{Numeric or logical indicating how verbose should the function
+be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
+then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
+\code{Require} function, when \code{verbose >= 2}, the return object will have an
+attribute: \code{attr(.., "Require")} which has lots of information about the
+processes of the installs.}
 }
 \description{
 Insert git repository and R session info into Rmarkdown documents.
