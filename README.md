@@ -65,19 +65,25 @@ folder, install 4 SpaDES modules, the install all necessary R packages to run th
 prjPath <- file.path(tempdir(), "testProject")
 
 # install and load packages -------------------------------------------------------------------
+# installs in user library; in following setupProject call, these will be copied to project library
 while (!require("SpaDES.project", quietly = TRUE)) 
   install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
   
-## Get SpaDES modules; here using known modules on GitHub.com, with R packages in project-specific library
+## Get SpaDES modules; here using known modules on GitHub.com
 spOut <- setupProject(paths = list(projectPath = prjPath),
-                     standAlone = TRUE,
-                     modules = c("PredictiveEcology/Biomass_speciesFactorial",
-                                 "PredictiveEcology/Biomass_speciesParameters@development",
-                                 "PredictiveEcology/Biomass_borealDataPrep@development",
-                                 "PredictiveEcology/Biomass_core@development"))
+                      standAlone = TRUE,        # will put R packages in separate location
+                      packages = "googledrive", # needed inside Biomass_borealDataPrep
+                      modules = c("PredictiveEcology/Biomass_speciesFactorial",
+                                  "PredictiveEcology/Biomass_speciesParameters@development",
+                                  "PredictiveEcology/Biomass_borealDataPrep@development",
+                                  "PredictiveEcology/Biomass_core@development"))
 spOut$objects$studyArea <- LandR::randomStudyArea(center = NULL, size = 1e6, seed = 32)
 spOut$objects$studyAreaLarge <- LandR::randomStudyArea(center = NULL, size = 2e6, seed = 32)
-do.call(simInit, spOut)
+if (require("raster", quietly = TRUE) && interactive()) {
+  raster::plot(spOut$objects$studyAreaLarge)
+  raster::plot(spOut$objects$studyArea, add = TRUE)
+}
+sim <- do.call(simInit, spOut)
 ```
 
 
