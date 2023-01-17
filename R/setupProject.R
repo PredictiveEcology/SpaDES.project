@@ -111,7 +111,7 @@ setupProject <- function(name, paths, modules, packages,
 }
 
 
-#' @importFrom data.table data.tble
+#' @importFrom data.table data.table
 setupOptions <- function(optionsStyle) {
   os <- list()
   if (optionsStyle == 1) {
