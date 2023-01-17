@@ -32,6 +32,7 @@ Suggests:
     sessioninfo,
     sf,
     slackr,
+    terra,
     testthat (>= 1.0.2)
 Remotes: PredictiveEcology/Require@development
 Encoding: UTF-8
