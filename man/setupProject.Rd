@@ -181,6 +181,9 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 
 \examples{
 \dontrun{
+
+setupProject() # simplest case; just creates folders, sets options in current folder
+
 setupProject(name = "SpaDES.project",
              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
                           scratchPath = tempdir()),
@@ -189,7 +192,7 @@ setupProject(name = "SpaDES.project",
 
 
 out <- SpaDES.project::setupProject(
-  paths = list(projectPath = "~/CeresPaper"),
+  paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
   standAlone = TRUE,
   require =
     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",

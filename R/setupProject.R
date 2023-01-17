@@ -53,6 +53,9 @@
 #'
 #' @examples
 #' \dontrun{
+#'
+#' setupProject() # simplest case; just creates folders, sets options in current folder
+#'
 #' setupProject(name = "SpaDES.project",
 #'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
 #'                           scratchPath = tempdir()),
@@ -61,7 +64,7 @@
 #'
 #'
 #' out <- SpaDES.project::setupProject(
-#'   paths = list(projectPath = "~/CeresPaper"),
+#'   paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
 #'   standAlone = TRUE,
 #'   require =
 #'     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
@@ -86,6 +89,9 @@ setupProject <- function(name, paths, modules, packages,
 
   libPaths <- substitute(libPaths)
   if (missing(name)) {
+    if (missing(paths)) {
+      paths <- list(projectPath = ".")
+    }
     if (!is.null(paths$projectPath))
       name <- basename(normPath(paths$projectPath))
     else
@@ -311,65 +317,71 @@ setupOptions <- function(optionsStyle) {
 #' into the `paths$modulePath`
 #'
 setupModules <- function(paths, modules, useGit, overwrite, verbose) {
-  anyfailed <- character()
-  modulesOrig <- modules
-  modulesOrigPkgName <- extractPkgName(modulesOrig)
-  if (!useGit) {
-    out <- getModule(modules, paths$modulePath, overwrite)
-    anyfailed <- out$failed
-    modules <- anyfailed
-    # modNam <- extractPkgName(modules)
-    # whExist <- dir.exists(file.path(paths$modulePath, modNam))
-    # modsToDL <- modules
-    #
-    # if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
-    # if (length(modsToDL)) {
-    #   tmpdir <- file.path(tempdir(), .rndstr(1))
-    #   Require::checkPath(tmpdir, create = TRUE)
-    #   od <- setwd(tmpdir)
-    #   on.exit(setwd(od))
-    #
-    #   out <-
-    #     Map(modToDL = modsToDL, function(modToDL) {
-    #       dd <- .rndstr(1)
-    #       modNameShort <- Require::extractPkgName(modToDL)
-    #       Require::checkPath(dd, create = TRUE)
-    #       Require:::downloadRepo(modToDL, subFolder = NA,
-    #                              destDir = dd, overwrite = overwrite,
-    #                              verbose = verbose + 1)
-    #       files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-    #       newFiles <- file.path(paths$modulePath, modNameShort, files)
-    #       lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-    #       file.copy(file.path(dd, modNameShort, files),
-    #                 file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
-    #
-    #     })
-    #   # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
-    #   allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
-    #   browser()
-    #   if (allworked)
-    #     Require:::messageVerbose()
-    #   anyfailed <- modsToDL[!allworked]
-    #   modules <- anyfailed
-    # }
-  }
+  if (missing(modules)) {
+    modules <- character()
+  } else {
 
-  if (isTRUE(useGit) || length(anyfailed)) {
-    modulesWOat <- gsub("@.+$", "", modules)
-    lapply(modulesWOat, function(m) {
-      modPath <- file.path(paths$modulePath, extractPkgName(m))
-      if (!dir.exists(modPath)) {
-        cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
-        system(cmd)
-      } else {
-        Require:::messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
-      }
-    })
-  }
+    anyfailed <- character()
+    modulesOrig <- modules
+    modulesOrigPkgName <- extractPkgName(modulesOrig)
+    if (!useGit) {
+      out <- getModule(modules, paths$modulePath, overwrite)
+      anyfailed <- out$failed
+      modules <- anyfailed
+      # modNam <- extractPkgName(modules)
+      # whExist <- dir.exists(file.path(paths$modulePath, modNam))
+      # modsToDL <- modules
+      #
+      # if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
+      # if (length(modsToDL)) {
+      #   tmpdir <- file.path(tempdir(), .rndstr(1))
+      #   Require::checkPath(tmpdir, create = TRUE)
+      #   od <- setwd(tmpdir)
+      #   on.exit(setwd(od))
+      #
+      #   out <-
+      #     Map(modToDL = modsToDL, function(modToDL) {
+      #       dd <- .rndstr(1)
+      #       modNameShort <- Require::extractPkgName(modToDL)
+      #       Require::checkPath(dd, create = TRUE)
+      #       Require:::downloadRepo(modToDL, subFolder = NA,
+      #                              destDir = dd, overwrite = overwrite,
+      #                              verbose = verbose + 1)
+      #       files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+      #       newFiles <- file.path(paths$modulePath, modNameShort, files)
+      #       lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+      #       file.copy(file.path(dd, modNameShort, files),
+      #                 file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
+      #
+      #     })
+      #   # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
+      #   allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
+      #   browser()
+      #   if (allworked)
+      #     Require:::messageVerbose()
+      #   anyfailed <- modsToDL[!allworked]
+      #   modules <- anyfailed
+      # }
+    }
 
-  modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
-  modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
-  modulePackages[modulesSimple]
+    if (isTRUE(useGit) || length(anyfailed)) {
+      modulesWOat <- gsub("@.+$", "", modules)
+      lapply(modulesWOat, function(m) {
+        modPath <- file.path(paths$modulePath, extractPkgName(m))
+        if (!dir.exists(modPath)) {
+          cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
+          system(cmd)
+        } else {
+          Require:::messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
+        }
+      })
+    }
+
+    modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
+    modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
+    modules <- modulePackages[modulesSimple]
+  }
+  return(modules)
 
 }
 
@@ -387,12 +399,17 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
 setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, standAlone, verbose) {
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
-  if (missing(packages))
+
+  if (missing(packages)) {
     packages <- NULL
-  Require:::messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
-  out <- Require::Require(packages, require = require, standAlone = standAlone,
-                          libPaths = libPaths,
-                          verbose = verbose)
+  }
+
+  if (length(packages)) {
+    Require:::messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
+    out <- Require::Require(packages, require = require, standAlone = standAlone,
+                            libPaths = libPaths,
+                            verbose = verbose)
+  }
 
   invisible(NULL)
 }

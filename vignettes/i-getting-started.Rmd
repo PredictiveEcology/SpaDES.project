@@ -150,7 +150,7 @@ Instructions for Ubuntu 20.04 LTS are shown below.
 ```
 if (!require("SpaDES.project")) {
   {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
-   require("SpaDES.project)}
+   require("SpaDES.project")}
 }
 setupProject()
 ```
