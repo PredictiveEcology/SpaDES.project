@@ -2,6 +2,11 @@
 % Please edit documentation in R/setupProject.R
 \name{setupProject}
 \alias{setupProject}
+\alias{setupPaths}
+\alias{setupOptions}
+\alias{setupModules}
+\alias{setupPackages}
+\alias{setupGitIgnore}
 \title{Sets up a new or existing SpaDES project}
 \usage{
 setupProject(
@@ -11,6 +16,7 @@ setupProject(
   packages,
   optionsStyle = 1,
   require = c("reproducible", "SpaDES.core"),
+  restart = getOption("SpaDES.project.restart", FALSE),
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
@@ -18,6 +24,23 @@ setupProject(
   overwrite = FALSE,
   verbose = 1
 )
+
+setupPaths(name, paths, inProject, standAlone, libPaths)
+
+setupOptions(optionsStyle)
+
+setupModules(paths, modules, useGit, overwrite, verbose)
+
+setupPackages(
+  packages,
+  require,
+  libPaths,
+  setLinuxBinaryRepo,
+  standAlone,
+  verbose
+)
+
+setupGitIgnore(paths, verbose)
 }
 \arguments{
 \item{name}{The name of the project; if this is a GitHub project, then it should
@@ -40,6 +63,10 @@ managing their git status outside of this function.}
 this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
 no moduleCodeChecks) or 0 (no options).}
 
+\item{restart}{If the \code{projectPath} is not the current path, and the session is in
+Rstudio, and interactive, it will restart with a new Rstudio session with a
+new project, with a root path set to \code{projectPath}. Default is \code{FALSE}.}
+
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}
 
@@ -49,26 +76,104 @@ on Linux (ignored if Windows)}
 to various internal functions, including \code{Require}. Default is 1. The higher the number
 the more verbosity. Set to -1 for almost no messaging.}
 }
+\value{
+\code{setupProject} will return a length-2 named list (\code{modules}, \code{paths}) that can be passed
+directly to \code{SpaDES.core::simInit} using a \code{do.call}. See example.
+
+\code{setupPaths} returns a list of paths that are created. It is also called for its
+side effect which is to call \code{setPaths}, with each of these paths as an argument.
+See table for details.
+
+\code{setupOptions} is run for its side effects.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{    options(reproducible.cacheSaveFormat = "qs",
+            reproducible.useTerra = TRUE,
+            reproducible.useMemoise = TRUE,
+            reproducible.rasterRead = "terra::rast",
+            reproducible.showSimilar = TRUE,
+            spades.moduleCodeChecks = FALSE)
+}\if{html}{\out{</div>}}
+
+\code{setupModules} is run for its side effects, i.e., downloads modules and puts them
+into the \code{paths$modulePath}
+
+\code{setupPackages} is run for its side effects, i.e., installing packages to
+\code{paths$packagePath}.
+
+\code{setupGitIgnore} is run for its side effects, i.e., adding elements to the
+\code{.gitignore} file.
+}
 \description{
-The main things this function does are: creates folder structures, downloads or
-confirms existence of modules, install missing packages from both the modules
-\code{reqdPkgs} fields and the user passed \code{packages}. See Details.
+\code{setupProject} calls a sequence of functions: \code{setupPaths}, \code{setupOptions},
+\code{setupModules}, \code{setupPackages}, \code{setupGitIgnore}. These create folder
+structures, download or confirms existence of modules, install missing
+packages from both the modules \code{reqdPkgs} fields and the user passed
+\code{packages}. See Details.
 }
 \details{
-This function bundles a sequence of functions: \code{.libPaths()}, \code{getModule}, \code{setwd},
-\code{Require}
+\code{setPaths} will fill in any paths that are not explicitly supplied by the
+user as a named list. These paths that can be set are:
+\code{projectPath}, \code{packagePath}, \code{cachePath}, \code{inputPath},
+\code{modulePath}, \code{outputPath}, \code{rasterPath}, \code{scratchPath}, \code{terraPath}.
+These are grouped thematically into three groups of paths:
+\code{projectPath} and \code{packagePath} affect the project, regardless
+of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code{outputPath} and
+\code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
+\code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
+
+\code{setupOptions} is currently very limited. It only allows \code{optionsStyle = 1},
+which sets the following:
+
+\code{setupModules} will download all modules do not yet exist locally. The current
+test for "exists locally" is simply whether the directory exists. If a user
+wants to update the module, \code{overwrite = TRUE} must be set, or else the user can
+remove the folder manually.
+
+\code{setupPackages} will read the modules' metadata \code{reqdPkgs} element. It will combine
+these with any packages passed manually by the user to \code{packages}, and pass all
+these packages to \code{Require::Install(...)}.
+
+\code{setupGitIgnore} will add.
 }
+\section{Paths}{
+
+\tabular{lll}{
+\strong{Path}     \tab \strong{Default if not supplied by user} \tab Effects \cr
+\tab \emph{Project Level Paths}   \tab \cr
+\code{projectPath}\tab if \code{getwd()} is \code{name}, then just \code{getwd}; if not
+\code{file.path(getwd(), name)}  \tab If current project is not this project
+and using \code{Rstudio}, then the current
+project will close and a new project will
+open in the same Rstudio session, unless
+\code{restart = FALSE}\cr
+\code{packagePath}\tab \code{file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))}
+\tab appends this path to \code{.libPaths(packagePath)},
+unless \code{standAlone = TRUE}, in which case,
+it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
+------       \tab -----------                 \tab  -----         \cr
+\tab \emph{Module Level Paths}                 \tab \cr
+\code{cachePath}  \tab \code{file.path(projectPath, "cache")} \tab \code{options(reproducible.cachePath = cachePath)}\cr
+\code{inputPath}  \tab \code{file.path(projectPath, "input")} \tab \code{options(spades.inputPath = inputPath)}\cr
+\code{modulePath} \tab \code{file.path(projectPath, "m")} \tab \code{options(spades.inputPath = outputPath)} \cr
+\code{outputPath} \tab \code{file.path(projectPath, "output")} \tab \code{options(spades.inputPath = modulePath)} \cr
+------       \tab -----------                 \tab  -----         \cr
+\tab \emph{Temporary Paths}                 \tab  \cr
+\code{scratchPath}\tab \code{file.path(tempdir(), name)} \tab \cr
+\code{rasterPath} \tab \code{file.path(scratchPath, "raster")} \tab sets (\code{rasterOptions(tmpdir = rasterPath)}) \cr
+\code{terraPath}  \tab \code{file.path(scratchPath, "terra")} \tab   sets (\code{terraOptions(tempdir = terraPath)})       \cr
+}
+}
+
 \examples{
 \dontrun{
 setupProject(name = "SpaDES.project",
              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
                           scratchPath = tempdir()),
-             modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-             useGit = TRUE
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
 
-SpaDES.project::setupProject(
+out <- SpaDES.project::setupProject(
   paths = list(projectPath = "~/CeresPaper"),
   standAlone = TRUE,
   require =
@@ -81,5 +186,7 @@ SpaDES.project::setupProject(
               "CeresBarros/Biomass_speciesParameters@development")
 
   )
+  if (require("SpaDES.core"))
+    do.call(simInit, out)
 }
 }

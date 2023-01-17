@@ -1,8 +1,10 @@
 #' Sets up a new or existing SpaDES project
 #'
-#' The main things this function does are: creates folder structures, downloads or
-#' confirms existence of modules, install missing packages from both the modules
-#' `reqdPkgs` fields and the user passed `packages`. See Details.
+#' `setupProject` calls a sequence of functions: `setupPaths`, `setupOptions`,
+#' `setupModules`, `setupPackages`, `setupGitIgnore`. These create folder
+#' structures, download or confirms existence of modules, install missing
+#' packages from both the modules `reqdPkgs` fields and the user passed
+#' `packages`. See Details.
 #'
 #' @param name The name of the project; if this is a GitHub project, then it should
 #'   indicate the full Github repository and branch name, e.g.,
@@ -17,6 +19,9 @@
 #'   managing their git status outside of this function.
 #' @param packages A vector of packages that are needed. This will be passed to
 #'   `Require`
+#' @param restart If the `projectPath` is not the current path, and the session is in
+#'   Rstudio, and interactive, it will restart with a new Rstudio session with a
+#'   new project, with a root path set to `projectPath`. Default is `FALSE`.
 #' @param optionsStyle A numeric representing a set of pre-determined options. Currently,
 #' this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
 #' no moduleCodeChecks) or 0 (no options).
@@ -28,22 +33,24 @@
 #'   the more verbosity. Set to -1 for almost no messaging.
 #'
 #' @export
-#' @details
-#' This function bundles a sequence of functions: `.libPaths()`, `getModule`, `setwd`,
-#' `Require`
+#'
+#' @return
+#' `setupProject` will return a length-2 named list (`modules`, `paths`) that can be passed
+#' directly to `SpaDES.core::simInit` using a `do.call`. See example.
 #'
 #' @importFrom Require extractPkgName
+#' @rdname setupProject
+#'
 #' @examples
 #' \dontrun{
 #' setupProject(name = "SpaDES.project",
 #'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
 #'                           scratchPath = tempdir()),
-#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'              useGit = TRUE
+#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
 #'
-#' SpaDES.project::setupProject(
+#' out <- SpaDES.project::setupProject(
 #'   paths = list(projectPath = "~/CeresPaper"),
 #'   standAlone = TRUE,
 #'   require =
@@ -56,10 +63,13 @@
 #'               "CeresBarros/Biomass_speciesParameters@development")
 #'
 #'   )
+#'   if (require("SpaDES.core"))
+#'     do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
                          optionsStyle = 1,
                          require = c("reproducible", "SpaDES.core"),
+                         restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
                          overwrite = FALSE, verbose = 1) {
@@ -96,8 +106,10 @@ setupProject <- function(name, paths, modules, packages,
 
   setupGitIgnore(paths, verbose)
 
+  out <- list(modules = Require::extractPkgName(modules),
+       paths = paths[spPaths])
   if (!inProject) {
-    if (interactive() && getOption("SpaDES.project.restart", TRUE))
+    if (interactive() && isTRUE(restart)) # getOption("SpaDES.project.restart", TRUE))
       if (requireNamespace("rstudioapi")) {
         message("... restarting Rstudio inside the project")
         rstudioapi::openProject(path = paths$projectPath)
@@ -107,122 +119,57 @@ setupProject <- function(name, paths, modules, packages,
       }
   }
 
-  return(paths)
+  return(out)
 }
 
-
-#' @importFrom data.table data.table
-setupOptions <- function(optionsStyle) {
-  os <- list()
-  if (optionsStyle == 1) {
-    os <- list(reproducible.cacheSaveFormat = "qs",
-               reproducible.useTerra = TRUE,
-               reproducible.useMemoise = TRUE,
-               reproducible.rasterRead = "terra::rast",
-               reproducible.showSimilar = TRUE,
-               spades.moduleCodeChecks = FALSE
-    )
-  }
-
-  if (length(os)) {
-    options(os)
-    messageDF(data.table::data.table(option = names(os), values = os))
-  }
-}
-
-setupGitIgnore <- function(paths, verbose) {
-  gitIgnoreFile <- ".gitignore"
-  if (file.exists(gitIgnoreFile)) {
-    gif <- readLines(gitIgnoreFile, warn = FALSE)
-    lineWithPkgPath <- grep(paste0("^", basename(paths$packagePath),"$"), gif)
-    insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths$packagePath), "*")
-
-    lineWithModPath <- grep(paste0("^", basename(paths$modulePath),"$"), gif)
-    insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths$modulePath), "*")
-
-    writeLines(con = gitIgnoreFile, unique(gif))
-    Require:::messageVerbose(verboseLevel = 1, verbose = verbose,
-                             ".gitignore file updated with packagePath and modulePath; ",
-                             "this may need to be confirmed manually")
-  }
-}
-
-
-
-setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, standAlone, verbose) {
-  if (isTRUE(setLinuxBinaryRepo))
-    Require::setLinuxBinaryRepo()
-  if (missing(packages))
-    packages <- NULL
-  Require:::messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
-  out <- Require::Require(packages, require = require, standAlone = standAlone,
-                          libPaths = libPaths,
-                          verbose = verbose)
-
-  invisible(NULL)
-}
-
-
-setupModules <- function(paths, modules, useGit, overwrite, verbose) {
-  anyfailed <- character()
-  modulesOrig <- modules
-  modulesOrigPkgName <- extractPkgName(modulesOrig)
-  if (!useGit) {
-    modNam <- extractPkgName(modules)
-    whExist <- dir.exists(file.path(paths$modulePath, modNam))
-    modsToDL <- modules
-
-    if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
-    if (length(modsToDL)) {
-      tmpdir <- file.path(tempdir(), Require:::.rndstr(1))
-      Require::checkPath(tmpdir, create = TRUE)
-      od <- setwd(tmpdir)
-      on.exit(setwd(od))
-
-      out <-
-        Map(modToDL = modsToDL, function(modToDL) {
-          dd <- Require:::.rndstr(1)
-          modNameShort <- Require::extractPkgName(modToDL)
-          Require::checkPath(dd, create = TRUE)
-          Require:::downloadRepo(modToDL, subFolder = NA,
-                               destDir = dd, overwrite = overwrite,
-                               verbose = verbose + 1)
-          files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-          newFiles <- file.path(paths$modulePath, modNameShort, files)
-          lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-          file.copy(file.path(dd, modNameShort, files),
-                    file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
-
-      })
-      # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
-      allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
-      anyfailed <- modsToDL[!allworked]
-      modules <- anyfailed
-    }
-  }
-
-  if (isTRUE(useGit) || length(anyfailed)) {
-    modulesWOat <- gsub("@.+$", "", modules)
-    lapply(modulesWOat, function(m) {
-      modPath <- file.path(paths$modulePath, extractPkgName(m))
-      if (!dir.exists(modPath)) {
-        cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
-        system(cmd)
-      } else {
-        Require:::messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
-      }
-    })
-  }
-
-  modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
-  modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
-  modulePackages[modulesSimple]
-
-}
-
-
+#'
+#' @details
+#' `setPaths` will fill in any paths that are not explicitly supplied by the
+#' user as a named list. These paths that can be set are:
+#' `projectPath`, `packagePath`, `cachePath`, `inputPath`,
+#' `modulePath`, `outputPath`, `rasterPath`, `scratchPath`, `terraPath`.
+#' These are grouped thematically into three groups of paths:
+#' `projectPath` and `packagePath` affect the project, regardless
+#' of whether a user uses SpaDES modules. `cachePath`, `inputPath`, `outputPath` and
+#' `modulePath` are all used by SpaDES within module contexts. `scratchPath`,
+#' `rasterPath` and `terraPath` are all "temporary" or "scratch" directories.
+#'
+#' @return
+#' `setupPaths` returns a list of paths that are created. It is also called for its
+#' side effect which is to call `setPaths`, with each of these paths as an argument.
+#' See table for details.
+#'
+#' @section Paths:
+#'   \tabular{lll}{
+#' **Path**     \tab **Default if not supplied by user** \tab Effects \cr
+#'                               \tab *Project Level Paths*   \tab \cr
+#' `projectPath`\tab if `getwd()` is `name`, then just `getwd`; if not
+#'                            `file.path(getwd(), name)`  \tab If current project is not this project
+#'                                                             and using `Rstudio`, then the current
+#'                                                             project will close and a new project will
+#'                                                             open in the same Rstudio session, unless
+#'                                                             `restart = FALSE`\cr
+#' `packagePath`\tab `file.path(tools::R_user_dir("data"), name, "packages",
+#'                               version$platform, substr(getRversion(), 1, 3))`
+#'                                                    \tab appends this path to `.libPaths(packagePath)`,
+#'                                                         unless `standAlone = TRUE`, in which case,
+#'                                                         it will set `.libPaths(packagePath,
+#'                                                         include.site = FALSE)` to this path \cr
+#' ------       \tab -----------                 \tab  -----         \cr
+#'              \tab *Module Level Paths*                 \tab \cr
+#' `cachePath`  \tab `file.path(projectPath, "cache")` \tab `options(reproducible.cachePath = cachePath)`\cr
+#' `inputPath`  \tab `file.path(projectPath, "input")` \tab `options(spades.inputPath = inputPath)`\cr
+#' `modulePath` \tab `file.path(projectPath, "m")` \tab `options(spades.inputPath = outputPath)` \cr
+#' `outputPath` \tab `file.path(projectPath, "output")` \tab `options(spades.inputPath = modulePath)` \cr
+#' ------       \tab -----------                 \tab  -----         \cr
+#'              \tab *Temporary Paths*                 \tab  \cr
+#' `scratchPath`\tab `file.path(tempdir(), name)` \tab \cr
+#' `rasterPath` \tab `file.path(scratchPath, "raster")` \tab sets (`rasterOptions(tmpdir = rasterPath)`) \cr
+#' `terraPath`  \tab `file.path(scratchPath, "terra")` \tab   sets (`terraOptions(tempdir = terraPath)`)       \cr
+#' }
+#'
+#' @export
+#' @rdname setupProject
 #' @importFrom Require normPath checkPath
 setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
 
@@ -276,8 +223,6 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
     ),
     paths)
 
-  spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
-               "scratchPath", "terraPath")
 
   deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
   deps <- c(deps, "rstudioapi")
@@ -304,6 +249,168 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
 
   paths[order(names(paths))]
 }
+
+
+#' @export
+#' @rdname setupProject
+#' @details
+#' `setupOptions` is currently very limited. It only allows `optionsStyle = 1`,
+#' which sets the following:
+#'
+#' @return
+#' `setupOptions` is run for its side effects.
+#'
+#' ```
+#'     options(reproducible.cacheSaveFormat = "qs",
+#'             reproducible.useTerra = TRUE,
+#'             reproducible.useMemoise = TRUE,
+#'             reproducible.rasterRead = "terra::rast",
+#'             reproducible.showSimilar = TRUE,
+#'             spades.moduleCodeChecks = FALSE)
+#' ````
+#'
+#' @importFrom data.table data.table
+setupOptions <- function(optionsStyle) {
+  os <- list()
+  if (optionsStyle == 1) {
+    os <- list(reproducible.cacheSaveFormat = "qs",
+               reproducible.useTerra = TRUE,
+               reproducible.useMemoise = TRUE,
+               reproducible.rasterRead = "terra::rast",
+               reproducible.showSimilar = TRUE,
+               spades.moduleCodeChecks = FALSE
+    )
+  }
+
+  if (length(os)) {
+    options(os)
+    messageDF(data.table::data.table(option = names(os), values = os))
+  }
+}
+
+#' @export
+#' @rdname setupProject
+#' @details
+#' `setupModules` will download all modules do not yet exist locally. The current
+#' test for "exists locally" is simply whether the directory exists. If a user
+#' wants to update the module, `overwrite = TRUE` must be set, or else the user can
+#' remove the folder manually.
+#'
+#' @return
+#' `setupModules` is run for its side effects, i.e., downloads modules and puts them
+#' into the `paths$modulePath`
+#'
+setupModules <- function(paths, modules, useGit, overwrite, verbose) {
+  anyfailed <- character()
+  modulesOrig <- modules
+  modulesOrigPkgName <- extractPkgName(modulesOrig)
+  if (!useGit) {
+    modNam <- extractPkgName(modules)
+    whExist <- dir.exists(file.path(paths$modulePath, modNam))
+    modsToDL <- modules
+
+    if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
+    if (length(modsToDL)) {
+      tmpdir <- file.path(tempdir(), Require:::.rndstr(1))
+      Require::checkPath(tmpdir, create = TRUE)
+      od <- setwd(tmpdir)
+      on.exit(setwd(od))
+
+      out <-
+        Map(modToDL = modsToDL, function(modToDL) {
+          dd <- Require:::.rndstr(1)
+          modNameShort <- Require::extractPkgName(modToDL)
+          Require::checkPath(dd, create = TRUE)
+          Require:::downloadRepo(modToDL, subFolder = NA,
+                                 destDir = dd, overwrite = overwrite,
+                                 verbose = verbose + 1)
+          files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+          newFiles <- file.path(paths$modulePath, modNameShort, files)
+          lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+          file.copy(file.path(dd, modNameShort, files),
+                    file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
+
+        })
+      # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
+      allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
+      browser()
+      if (allworked)
+        Require:::messageVerbose()
+      anyfailed <- modsToDL[!allworked]
+      modules <- anyfailed
+    }
+  }
+
+  if (isTRUE(useGit) || length(anyfailed)) {
+    modulesWOat <- gsub("@.+$", "", modules)
+    lapply(modulesWOat, function(m) {
+      modPath <- file.path(paths$modulePath, extractPkgName(m))
+      if (!dir.exists(modPath)) {
+        cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
+        system(cmd)
+      } else {
+        Require:::messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
+      }
+    })
+  }
+
+  modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
+  modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
+  modulePackages[modulesSimple]
+
+}
+
+#' @export
+#' @rdname setupProject
+#' @details
+#' `setupPackages` will read the modules' metadata `reqdPkgs` element. It will combine
+#' these with any packages passed manually by the user to `packages`, and pass all
+#' these packages to `Require::Install(...)`.
+#'
+#' @return
+#' `setupPackages` is run for its side effects, i.e., installing packages to
+#' `paths$packagePath`.
+#'
+setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, standAlone, verbose) {
+  if (isTRUE(setLinuxBinaryRepo))
+    Require::setLinuxBinaryRepo()
+  if (missing(packages))
+    packages <- NULL
+  Require:::messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
+  out <- Require::Require(packages, require = require, standAlone = standAlone,
+                          libPaths = libPaths,
+                          verbose = verbose)
+
+  invisible(NULL)
+}
+
+#' @export
+#' @rdname setupProject
+#' @details
+#' `setupGitIgnore` will add.
+#'
+#' @return
+#' `setupGitIgnore` is run for its side effects, i.e., adding elements to the
+#' `.gitignore` file.
+setupGitIgnore <- function(paths, verbose) {
+  gitIgnoreFile <- ".gitignore"
+  if (file.exists(gitIgnoreFile)) {
+    gif <- readLines(gitIgnoreFile, warn = FALSE)
+    lineWithPkgPath <- grep(paste0("^", basename(paths$packagePath),"$"), gif)
+    insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
+    gif[insertLine] <- file.path(basename(paths$packagePath), "*")
+
+    lineWithModPath <- grep(paste0("^", basename(paths$modulePath),"$"), gif)
+    insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
+    gif[insertLine] <- file.path(basename(paths$modulePath), "*")
+
+    writeLines(con = gitIgnoreFile, unique(gif))
+    Require:::messageVerbose(verboseLevel = 1, verbose = verbose,
+                             ".gitignore file updated with packagePath and modulePath; ",
+                             "this may need to be confirmed manually")
+  }
+}
+
 
 setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, scratchPath,
                      terraPath, silent = FALSE) {
@@ -439,6 +546,10 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
     optionDefault
   }
 }
+
+# These are the setPaths paths that are available
+spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
+             "scratchPath", "terraPath")
 
 # options(repos = c(CRAN = "http://cloud.r-project.org"))
 # # 3 packages (could be just 2) are needed to manage the setup; these are installed in default .libPaths()
