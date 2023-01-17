@@ -357,7 +357,7 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
       #   allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
       #   browser()
       #   if (allworked)
-      #     Require:::messageVerbose()
+      #     messageVerbose()
       #   anyfailed <- modsToDL[!allworked]
       #   modules <- anyfailed
       # }
@@ -371,7 +371,7 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
           cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
           system(cmd)
         } else {
-          Require:::messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
+          messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
         }
       })
     }
@@ -404,7 +404,7 @@ setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, stand
   }
 
   if (length(packages)) {
-    Require:::messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
+    messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     out <- Require::Require(packages, require = require, standAlone = standAlone,
                             libPaths = libPaths,
                             verbose = verbose)
@@ -434,7 +434,7 @@ setupGitIgnore <- function(paths, verbose) {
     gif[insertLine] <- file.path(basename(paths$modulePath), "*")
 
     writeLines(con = gitIgnoreFile, unique(gif))
-    Require:::messageVerbose(verboseLevel = 1, verbose = verbose,
+    messageVerbose(verboseLevel = 1, verbose = verbose,
                              ".gitignore file updated with packagePath and modulePath; ",
                              "this may need to be confirmed manually")
   }
