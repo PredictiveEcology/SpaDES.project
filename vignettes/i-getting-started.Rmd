@@ -147,35 +147,13 @@ Instructions for Ubuntu 20.04 LTS are shown below.
 
 ### Install `SpaDES` and other packages
 
-1. Add <https://predictiveecology.r-universe.dev> to your 'repos' list via `options()`:
-
-    ```{r add-PE-universe}
-    options(
-      repos = c(
-        predictiveecology = "https://predictiveecology.r-universe.dev",
-        CRAN = "https://cloud.r-project.org"
-      )
-    )
-    ```
-
-2. Install `Require` to facilitate package installation:
-
-    ```{r install-Require}
-    install.packages("Require")
-    library(Require)
-    ```
-    
-3. Install `SpaDES.install` to handle subsequent SpaDES package installation:
-
-    ```{r install-SpaDES.install}
-    Require("PredictiveEcology/SpaDES.install")
-    ```
-
-4. Install `SpaDES` and related packages:
-
-    ```{r install-SpaDES}
-    installSpaDES()
-    ```
+```
+if (!require("SpaDES.project")) {
+  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+   require("SpaDES.project)}
+}
+setupProject()
+```
 
 ### Installing Rstudio
 

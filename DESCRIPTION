@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2023-01-16
-Version: 0.0.7.9004
+Version: 0.0.7.9005
 Authors@R: c(
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7146-8135")),
@@ -20,7 +20,7 @@ Depends:
 Imports:
     data.table,
     methods,
-    Require (>= 0.1.2),
+    Require (>= 0.2.6.9001),
     rprojroot,
     utils
 Suggests:
@@ -34,7 +34,8 @@ Suggests:
     slackr,
     terra,
     testthat (>= 1.0.2)
-Remotes: PredictiveEcology/Require@development
+Remotes: 
+    PredictiveEcology/Require@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
