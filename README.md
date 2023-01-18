@@ -69,13 +69,15 @@ while (!require("SpaDES.project", quietly = TRUE))
   install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
   
 ## Get SpaDES modules; here using known modules on GitHub.com
-spOut <- setupProject(paths = list(projectPath = prjPath),
-                      standAlone = TRUE,        # will put R packages in separate location
-                      packages = c("googledrive", "RCurl", "XML"), # needed inside Biomass_borealDataPrep
-                      modules = c("PredictiveEcology/Biomass_speciesFactorial",
-                                  "PredictiveEcology/Biomass_speciesParameters@development",
-                                  "PredictiveEcology/Biomass_borealDataPrep@development",
-                                  "PredictiveEcology/Biomass_core@development"))
+spOut <- 
+  setupProject(paths = list(projectPath = prjPath),
+               standAlone = TRUE,        # will put R packages in separate location
+               packages = c("googledrive", "RCurl", "XML",  # needed inside Biomass_borealDataPrep
+                            "PredictiveEcology/reproducible@development (>= 1.2.16.9018)"), # minor update
+               modules = c("PredictiveEcology/Biomass_speciesFactorial",
+                           "PredictiveEcology/Biomass_speciesParameters@development",
+                           "PredictiveEcology/Biomass_borealDataPrep@development",
+                           "PredictiveEcology/Biomass_core@development"))
 spOut$objects$studyArea <- LandR::randomStudyArea(center = NULL, size = 1e9, seed = 32)
 spOut$objects$studyAreaLarge <- LandR::randomStudyArea(center = NULL, size = 2e9, seed = 32)
 spOut$params = list(.globals = list(sppEquivCol = 'Boreal')) # what species naming convention
@@ -83,7 +85,10 @@ if (require("raster", quietly = TRUE) && interactive()) {
   raster::plot(spOut$objects$studyAreaLarge)
   raster::plot(spOut$objects$studyArea, add = TRUE)
 }
+
 sim <- do.call(simInit, spOut)
+sim$speciesLayers <- raster::dropLayer(sim$speciesLayers, i = c("Pice_Spp", "Pinu_Spp"))
+so <- spades(sim)
 ```
 
 
