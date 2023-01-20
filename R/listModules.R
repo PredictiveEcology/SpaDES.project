@@ -25,6 +25,29 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 }
 
 
+#' Tools for examining modules on known repositories
+#'
+#' When exploring existing modules, these tools help identify and navigate modules
+#' and their interdependencies.
+#'
+#' @return
+#' `listModules` returns a named list of all SpaDES modules in the given repositories with
+#' the `accounts` and `keywords` provided.
+#'
+#' @param keywords A vector of character strings that will be used as keywords for identify
+#' modules
+#'
+#' @param accounts A vector of character strings identifying GitHub accounts e.g.,
+#' `PredictiveEcology` to search.
+#'
+#' @param omit A vector of character strings of repositories to ignore.
+#'
+#' @param purge There is some internal caching that occurs. Setting this to `TRUE` will
+#'   remove any cached data that is part of the requested `accounts` and `keywords`.
+#' @param modules A named list of character strings of full module names, as returned
+#'   by `listModules`.
+#' @inheritParams Require::Require
+#'
 #' @rdname listModules
 #' @export
 #' @examples
@@ -46,11 +69,12 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' graph <- moduleDependenciesToGraph(DT)
 #' vn <- PlotModuleGraph(graph)
 #'
+#' # get all the fireSense modules from the Predictive Ecology GitHub repository
 #' Account <- "PredictiveEcology"
 #' mods <- listModules("fireSense", Account)
 #' out <- setupProject(modules = file.path(Account, mods[[Account]]),
 #'                     paths = list(projectPath = "~/fireSense"))
-listModules <- function(moduleGreps, accounts, omit = c("fireSense_dataPrepFitRas"),
+listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
   names(accounts) <- accounts
@@ -63,7 +87,7 @@ listModules <- function(moduleGreps, accounts, omit = c("fireSense_dataPrepFitRa
     suppressWarnings(repos <- readLines(tf))
     repos <- unlist(strsplit(repos, ","))
 
-    out <- lapply(moduleGreps, function(mg) {
+    out <- lapply(keywords, function(mg) {
       messageVerbose("grepping ", mg, " in ", account, verbose = verbose)
       if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
       outs <- grep(mg, repos, value = TRUE)
@@ -158,6 +182,7 @@ moduleDepenencies <- function(modules, modulePath) {
 
 
 #' @export
+#' @rdname listModules
 moduleDependenciesToGraph <- function(md) {
   mods <- unique(c(md$from, md$to))
   m <- unlist(mods)
@@ -168,6 +193,7 @@ moduleDependenciesToGraph <- function(md) {
 
 
 #' @export
+#' @rdname listModules
 PlotModuleGraph <- function(graph) {
   if (!requireNamespace("igraph") && !requireNamespace("dplyr") && !requireNamespace("visNetwork"))
     stop("need igraph, dplyr and visNetwork")
