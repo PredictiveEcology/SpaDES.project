@@ -21,11 +21,20 @@ setupProject(
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
   libPaths = paths$packagePath,
+  updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L)
 )
 
-setupPaths(name, paths, inProject, standAlone, libPaths)
+setupPaths(
+  name,
+  paths,
+  inProject,
+  standAlone,
+  libPaths,
+  updateRprofile,
+  verbose = getOption("Require.verbose", 1L)
+)
 
 setupOptions(optionsStyle)
 
@@ -33,6 +42,7 @@ setupModules(paths, modules, useGit, overwrite, verbose)
 
 setupPackages(
   packages,
+  modulePackages,
   require,
   libPaths,
   setLinuxBinaryRepo,
@@ -82,6 +92,14 @@ packages installed in a project-level library, it \code{TRUE}. Default is \code{
 \item{libPaths}{A character vector. Passed to \code{Require::libPaths}, which will
 in turn pass to \code{.libPaths(libPaths)}}
 
+\item{updateRprofile}{Logical or Character string. If \code{TRUE}, then this
+function will put several lines of code in the current directory's
+\code{.Rprofile} file setting up the package libraries for this and future
+sessions. If a character string, then this should be the path to an
+\code{.Rprofile} file. To reset back to normal, run \code{setLibPaths()} without a
+\code{libPath}. Default: \code{getOption("Require.updateRprofile", FALSE)}, meaning
+\code{FALSE}, but it can be set with an option or within a single call.}
+
 \item{overwrite}{Logical. Passed to \code{getModule}}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
@@ -93,6 +111,9 @@ processes of the installs.}
 
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
 inside the \code{paths$projectPath}.}
+
+\item{modulePackages}{A named list, where names are the module names, and the elements
+of the list are packages in a form that \code{Require::Require} accepts.}
 }
 \value{
 \code{setupProject} will return a length-2 named list (\code{modules}, \code{paths}) that can be passed
@@ -192,6 +213,11 @@ setupProject(name = "SpaDES.project",
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
+setupProject(name = "SpaDES.project",
+             paths = list(modulePath = "m", projectPath = "SpaDES.project",
+                          scratchPath = tempdir()),
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
 
 out <- SpaDES.project::setupProject(
   paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath

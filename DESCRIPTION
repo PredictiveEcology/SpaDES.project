@@ -26,14 +26,18 @@ Imports:
 Suggests:
     covr,
     details,
+    dplyr,
+    igraph,
     knitr,
     rmarkdown,
     rstudioapi,
     sessioninfo,
     sf,
     slackr,
+    SpaDES.core,
     terra,
-    testthat (>= 1.0.2)
+    testthat (>= 1.0.2),
+    visNetwork
 Remotes: 
     PredictiveEcology/Require@development
 Encoding: UTF-8

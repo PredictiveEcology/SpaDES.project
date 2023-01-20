@@ -6,3 +6,4 @@ inst/doc
 packages
 4.2/*
 m/*
+.Rprofile
