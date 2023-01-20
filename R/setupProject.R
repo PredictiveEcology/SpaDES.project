@@ -47,6 +47,7 @@
 #'
 #' @importFrom Require extractPkgName
 #' @inheritParams Require::Require
+#' @inheritParams Require::setLibPaths
 #' @rdname setupProject
 #'
 #' @examples
@@ -60,6 +61,11 @@
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
+#' setupProject(name = "SpaDES.project",
+#'              paths = list(modulePath = "m", projectPath = "SpaDES.project",
+#'                           scratchPath = tempdir()),
+#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+#' )
 #'
 #' out <- SpaDES.project::setupProject(
 #'   paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
@@ -83,6 +89,7 @@ setupProject <- function(name, paths, modules, packages,
                          restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
+                         updateRprofile = getOption("Require.updateRprofile", FALSE),
                          overwrite = FALSE, verbose = getOption("Require.verbose", 1L)) {
 
   libPaths <- substitute(libPaths)
@@ -110,10 +117,10 @@ setupProject <- function(name, paths, modules, packages,
 
   if (missing(packages))
     packages <- NULL
-  packages <- c(unname(unlist(modulePackages)), packages)
 
+  # require <- c(unname(unlist(modulePackages)), require)
 
-  setupPackages(packages, require = require,
+  setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
                 libPaths = paths$packagePath, verbose = verbose)
@@ -186,11 +193,13 @@ setupProject <- function(name, paths, modules, packages,
 #' @export
 #' @rdname setupProject
 #' @importFrom Require normPath checkPath
-setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
+setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprofile,
+                       verbose = getOption("Require.verbose", 1L)) {
 
-  if (missing(paths)) {
-    projPth <- if  (inProject) file.path(".") else file.path(".", name)
-    paths <- list(projectPath = normPath(projPth))
+  projPth <- if  (inProject) file.path(".") else file.path(".", name)
+  projPth <- normPath(projPth)
+  if (missing(paths) || inProject) {
+    paths <- list(projectPath = projPth)
   }
 
 
@@ -211,7 +220,8 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
 
   if (is.null(paths$modulePath)) paths$modulePath <- file.path(paths$projectPath, "m")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
-  paths[!isAbs] <- lapply(paths[!isAbs], function(x) file.path(paths$projectPath, x))
+  toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
+  paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths$projectPath, x))
   paths <- lapply(paths, normPath)
   paths <- lapply(paths, checkPath, create = TRUE)
   if (!inProject) {
@@ -242,21 +252,29 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths) {
   deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
   deps <- c(deps, "rstudioapi")
 
-  for (pkg in deps) {
-    pkgDir <- file.path(.libPaths(), pkg)
-    de <- dir.exists(pkgDir)
-    pkgDir <- pkgDir[de][1]
-    files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
-    newFiles <- file.path(paths$packagePath, pkg, files1)
-    lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-    oldFiles <- file.path(pkgDir, files1)
-    exist <- file.exists(oldFiles)
-    if (any(!exist))
-      file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
+  depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(deps, collapse = "|"))
+  deps <- setdiff(deps, depsAlreadyInstalled)
+
+  if (length(deps)) {
+    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to new packagePath",
+                   verbose = verbose)
+
+    for (pkg in deps) {
+      pkgDir <- file.path(.libPaths(), pkg)
+      de <- dir.exists(pkgDir)
+      pkgDir <- pkgDir[de][1]
+      files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
+      newFiles <- file.path(paths$packagePath, pkg, files1)
+      lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+      oldFiles <- file.path(pkgDir, files1)
+      exist <- file.exists(oldFiles)
+      if (any(!exist))
+        file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
+    }
   }
 
   Require::setLibPaths(paths$packagePath, standAlone = standAlone,
-                       updateRprofile = TRUE,
+                       updateRprofile = updateRprofile,
                        exact = FALSE, verbose = getOption("Require.verbose"))
 
 
@@ -325,40 +343,6 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
       out <- getModule(modules, paths$modulePath, overwrite)
       anyfailed <- out$failed
       modules <- anyfailed
-      # modNam <- extractPkgName(modules)
-      # whExist <- dir.exists(file.path(paths$modulePath, modNam))
-      # modsToDL <- modules
-      #
-      # if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
-      # if (length(modsToDL)) {
-      #   tmpdir <- file.path(tempdir(), .rndstr(1))
-      #   Require::checkPath(tmpdir, create = TRUE)
-      #   od <- setwd(tmpdir)
-      #   on.exit(setwd(od))
-      #
-      #   out <-
-      #     Map(modToDL = modsToDL, function(modToDL) {
-      #       dd <- .rndstr(1)
-      #       modNameShort <- Require::extractPkgName(modToDL)
-      #       Require::checkPath(dd, create = TRUE)
-      #       Require:::downloadRepo(modToDL, subFolder = NA,
-      #                              destDir = dd, overwrite = overwrite,
-      #                              verbose = verbose + 1)
-      #       files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-      #       newFiles <- file.path(paths$modulePath, modNameShort, files)
-      #       lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-      #       file.copy(file.path(dd, modNameShort, files),
-      #                 file.path(paths$modulePath, modNameShort, files), overwrite = TRUE)
-      #
-      #     })
-      #   # out <- getModule(modules, modulePath = paths$modulePath, overwrite = overwrite)
-      #   allworked <- Require::extractPkgName(modsToDL) %in% dir(paths$modulePath)
-      #   browser()
-      #   if (allworked)
-      #     messageVerbose()
-      #   anyfailed <- modsToDL[!allworked]
-      #   modules <- anyfailed
-      # }
     }
 
     if (isTRUE(useGit) || length(anyfailed)) {
@@ -388,12 +372,14 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
 #' `setupPackages` will read the modules' metadata `reqdPkgs` element. It will combine
 #' these with any packages passed manually by the user to `packages`, and pass all
 #' these packages to `Require::Install(...)`.
+#' @param modulePackages A named list, where names are the module names, and the elements
+#'   of the list are packages in a form that `Require::Require` accepts.
 #'
 #' @return
 #' `setupPackages` is run for its side effects, i.e., installing packages to
 #' `paths$packagePath`.
 #'
-setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, standAlone, verbose) {
+setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo, standAlone, verbose) {
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
 
@@ -401,11 +387,29 @@ setupPackages <- function(packages, require, libPaths, setLinuxBinaryRepo, stand
     packages <- NULL
   }
 
-  if (length(packages)) {
+  if (length(packages) || length(require) || length(unlist(modulePackages))) {
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
-    out <- Require::Require(packages, require = require, standAlone = standAlone,
-                            libPaths = libPaths,
-                            verbose = verbose)
+    continue <- 3L
+    while (continue) {
+      mp <- unname(unlist(modulePackages))
+      requireToTry <- unique(c(mp, require))
+      packagesToTry <- unique(c(packages, mp, requireToTry))
+      out <- try(Require::Require(packagesToTry, require = require, standAlone = standAlone,
+                                  libPaths = libPaths,
+                                  verbose = verbose))
+      if (is(out, "try-error")) {
+        deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
+        miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
+        modulePackages[[names(miss)]] <- setdiff(modulePackages[[names(miss)]], miss)
+        warning("Module ", names(miss), " has reqdPkgs ", paste0(miss, collapse = ", "),
+                ", but branch don't exist; \nplease update module. ",
+                "Omitting that package from this Require call which may mean ",
+                Require::extractPkgName(unname(miss)), " doesn't get installed")
+        continue <- continue - 1L
+      } else {
+        continue <- 0L
+      }
+    }
   }
 
   invisible(NULL)
