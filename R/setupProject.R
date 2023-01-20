@@ -396,7 +396,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       mp <- unname(unlist(modulePackages))
       requireToTry <- unique(c(mp, require))
       packagesToTry <- unique(c(packages, mp, requireToTry))
-      out <- try(Require::Require(packagesToTry, require = require, standAlone = standAlone,
+      out <- try(Require::Require(packagesToTry, require = Require::extractPkgName(requireToTry),
+                                  standAlone = standAlone,
                                   libPaths = libPaths,
                                   verbose = verbose))
       if (is(out, "try-error")) {
