@@ -25,6 +25,8 @@ utils::globalVariables(c(
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
+  modulePath <- normPath(modulePath)
+  modulePath <- checkPath(modulePath, create = TRUE)
   anyfailed <- character()
   modulesOrig <- modules
   modNam <- extractPkgName(modules)
@@ -43,8 +45,10 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         dd <- .rndstr(1)
         modNameShort <- Require::extractPkgName(modToDL)
         Require::checkPath(dd, create = TRUE)
+        messageVerbose(modToDL, " ...", verbose = verbose)
         mess <- capture.output(type = "message",
-                       withCallingHandlers(downloadRepo(modToDL, subFolder = NA,
+                       out <- withCallingHandlers(
+                         downloadRepo(modToDL, subFolder = NA,
                                destDir = dd, overwrite = overwrite,
                                verbose = verbose + 1),
                             warning = function(w) {
@@ -58,9 +62,11 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         files <- dir(file.path(dd, modNameShort), recursive = TRUE)
         if (length(files)) {
           newFiles <- file.path(modulePath, modNameShort, files)
-          lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+          out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
           file.copy(file.path(dd, modNameShort, files),
                     file.path(modulePath, modNameShort, files), overwrite = TRUE)
+          messageVerbose("\b Done!", verbose = verbose)
+
         } else {
           messageVerbose(modToDL, " could not be downloaded; does it exist? and are permissions correct?",
                          verbose = verbose)
@@ -76,7 +82,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   if (length(successes)) {
     df <- data.frame(modules = modulesOrig)
     df[match(successes, df$modules), "downloaded"] <- TRUE
-    df[match(successes, df$modules), "modulePath"] <- modulePath
+    df[match(successes, df$modules), "modulePath"] <- normPath(modulePath)
 
     messageDF(df)
     if (length(anyfailed)) {
