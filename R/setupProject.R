@@ -108,7 +108,7 @@ setupProject <- function(name, paths, modules, packages,
   curDir <- getwd()
   inProject <- identical(basename(curDir), nameSimple)
 
-  paths <- setupPaths(name, paths, inProject, standAlone, libPaths)
+  paths <- setupPaths(name, paths, inProject, standAlone, libPaths, updateRprofile)
 
   setupOptions(optionsStyle)
 
@@ -259,24 +259,26 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
     messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to new packagePath",
                    verbose = verbose)
 
-    for (pkg in deps) {
-      pkgDir <- file.path(.libPaths(), pkg)
-      de <- dir.exists(pkgDir)
-      pkgDir <- pkgDir[de][1]
-      files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
-      newFiles <- file.path(paths$packagePath, pkg, files1)
-      lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-      oldFiles <- file.path(pkgDir, files1)
-      exist <- file.exists(oldFiles)
-      if (any(!exist))
-        file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
-    }
+    if (!identical(normPath(.libPaths()[1]), paths$packagePath))
+      for (pkg in deps) {
+        pkgDir <- file.path(.libPaths(), pkg)
+        de <- dir.exists(pkgDir)
+        pkgDir <- pkgDir[de][1]
+        files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
+        newFiles <- file.path(paths$packagePath, pkg, files1)
+        lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+        oldFiles <- file.path(pkgDir, files1)
+        exist <- file.exists(oldFiles)
+        if (any(!exist))
+          file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
+      }
   }
+
+  changedLibPaths <- !identical(normPath(.libPaths()[1]), paths$packagePath)
 
   Require::setLibPaths(paths$packagePath, standAlone = standAlone,
                        updateRprofile = updateRprofile,
                        exact = FALSE, verbose = getOption("Require.verbose"))
-
 
   do.call(setPaths, paths[spPaths])
 
@@ -411,6 +413,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       }
     }
   }
+
+  messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
 
   invisible(NULL)
 }
