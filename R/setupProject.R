@@ -1,8 +1,13 @@
 #' Sets up a new or existing SpaDES project
 #'
-#' `setupProject` calls a sequence of functions: `setupPaths`, `setupOptions`,
-#' `setupModules`, `setupPackages`, `setupGitIgnore`. These create folder
-#' structures, download or confirms existence of modules, install missing
+#' `setupProject` calls a sequence of functions in this order:
+#' `setupPaths`, `setupOptions`,
+#' `setupModules`, `setupPackages`, `setupTimes`, `setupParams`,
+#' `setupGitIgnore`. Because of this
+#' order, settings in `options` can change `paths`, `times` can be used in `params`,
+#' for example.
+#' This sequence will create folder structures, download or confirms
+#' existence of modules, install missing
 #' packages from both the modules `reqdPkgs` fields and the user passed
 #' `packages`. See Details.
 #'
@@ -10,17 +15,27 @@
 #'   indicate the full Github repository and branch name, e.g.,
 #'    `"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"`
 #' @param paths a list with named elements, specifically, `modulePath`, `projectPath`,
-#'   `packagePath` and all others that are in `SpaDES.core::setPaths()` `(
-#'   inputPath, outputPath, scratchPath, cachePath, rasterTmpDir)`
+#'   `packagePath` and all others that are in `SpaDES.core::setPaths()`
+#'   (i.e., `inputPath`, `outputPath`, `scratchPath`, `cachePath`, `rasterTmpDir`).
 #' @param modules a character string of modules to pass to `getModule`. These
 #'   should be in the form `GitHubAccount/Repo@branch` e.g.,
 #'   `"PredictiveEcology/Biomass_core@development"`. If the project is a git repository,
 #'   then it will not try to re-get these modules; instead it will rely on the user
 #'   managing their git status outside of this function.
-#' @param packages A vector of packages that are needed. This will be passed to
-#'   `Require`
-#' @param require An optional character vector of packages to attach
-#'   (with `require`)
+#' @param times Optional. This will be returned if supplied; if supplied, the values
+#'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
+#'   See help for `SpaDES.core::simInit`.
+#' @param packages Optional. A vector of packages that must exist in the `libPaths`.
+#'   This will be passed to `Require::Install`, i.e., these will be installed, but
+#'   not attached to the search path. See `require`.
+#' @param require Optional. A character vector of packages to install *and* attach
+#'   (with `Require::Require`).
+#' @param options Optional. Either a named list to be passed to `options`
+#'   or a character vector indicating one or more file(s) to source,
+#'   in the order provided. These will be sourced into a temporary environment (not
+#'   the `.GlobalEnv`), so they will not create globally accessible objects. See details.
+#' @param params Optional. Similar to `options`, however, this named list will be
+#'   returned, i.e., there are no side effects.
 #' @param useGit A logical. If `TRUE`, it will use `git clone`. Otherwise it will
 #' get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
@@ -32,17 +47,34 @@
 #' @param restart If the `projectPath` is not the current path, and the session is in
 #'   Rstudio, and interactive, it will restart with a new Rstudio session with a
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
-#' @param optionsStyle A numeric representing a set of pre-determined options. Currently,
-#' this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
-#' no moduleCodeChecks) or 0 (no options).
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows)
 #' @param overwrite Logical. Passed to `getModule`
 #'
 #' @export
 #'
+#' @section `options`:
+#' When `options` is a character string or vector, the files are expected to specify
+#' objects that are composed of named lists. A simplest case would be a file with this:
+#' `opts <- list(reproducible.destinationPath = "~/destPath")`. All named lists will
+#' be parsed into their own environment, and then will be sequentially evaluated (i.e.,
+#' subsequent lists will have access to previous lists), with each named elements
+#' setting or replacing the previously named element of the same name, creating a
+#' single list. This final list will be assigned to `options()` inside `setupOptions`.
+#' Because these are each parsed separately, it is not necessary to assign any list to
+#' an object; and the objects, if named, can be any name, even the same name repeatedly.
+#' The sequential nature means that a user can
+#' have a named list of default settings first in the file, then those defaults can
+#' be overridden by e.g., user-specific or machine-specific values that are
+#' specified subsequently in the same file or in a separate file. Any functions
+#' that are used must be available, e.g., prefixed `Require::normPath`.
+#'
+#' Several helper functions exist within `SpaDES.project` that may be useful, such
+#' as `user(...)`, `machine(...)`
+#'
+#' @seealso [user]
 #' @return
-#' `setupProject` will return a length-2 named list (`modules`, `paths`) that can be passed
+#' `setupProject` will return a length-3 named list (`modules`, `paths`, `params`) that can be passed
 #' directly to `SpaDES.core::simInit` using a `do.call`. See example.
 #'
 #' @importFrom Require extractPkgName
@@ -84,7 +116,7 @@
 #'     do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
-                         optionsStyle = 1,
+                         times, options, params,
                          require = c("reproducible", "SpaDES.core"),
                          restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
@@ -110,7 +142,7 @@ setupProject <- function(name, paths, modules, packages,
 
   paths <- setupPaths(name, paths, inProject, standAlone, libPaths, updateRprofile)
 
-  setupOptions(optionsStyle)
+  opts <- setupOptions(name, options, paths)
 
   modulePackages <- setupModules(paths, modules, useGit = useGit,
                                  overwrite = overwrite, verbose = verbose)
@@ -125,10 +157,14 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths$packagePath, verbose = verbose)
 
+  params <- setupParams(name, params, paths, modules, verbose = verbose)
+
   setupGitIgnore(paths, verbose)
 
-  out <- list(modules = Require::extractPkgName(modules),
-       paths = paths[spPaths])
+  out <- list(
+    modules = Require::extractPkgName(modules),
+    paths = paths[spPaths],
+    params = params)
   if (!inProject) {
     if (interactive() && isTRUE(restart)) # getOption("SpaDES.project.restart", TRUE))
       if (requireNamespace("rstudioapi")) {
@@ -188,6 +224,10 @@ setupProject <- function(name, paths, modules, packages,
 #' `scratchPath`\tab `file.path(tempdir(), name)` \tab \cr
 #' `rasterPath` \tab `file.path(scratchPath, "raster")` \tab sets (`rasterOptions(tmpdir = rasterPath)`) \cr
 #' `terraPath`  \tab `file.path(scratchPath, "terra")` \tab   sets (`terraOptions(tempdir = terraPath)`)       \cr
+#' ------       \tab -----------                 \tab  -----         \cr
+#'              \tab *Other Paths*                 \tab  \cr
+#' `logPath`    \tab `file.path(outputPath(sim), "log")` \tab sets `options("spades.logPath")` accessible by `logPath(sim)`\cr
+#' `tilePath`   \tab Not implemented yet \tab Not implemented yet \cr
 #' }
 #'
 #' @export
@@ -288,38 +328,110 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
 
 #' @export
 #' @rdname setupProject
+#'
 #' @details
-#' `setupOptions` is currently very limited. It only allows `optionsStyle = 1`,
-#' which sets the following:
+#' `setupOptions` can handle sequentially specified values, meaning a user can
+#' first create a list of default options, then a list of user-desired options that
+#' may or may not replace individual values. This can create hierarchies, *based on
+#' order*.
 #'
 #' @return
-#' `setupOptions` is run for its side effects.
+#' `setupOptions` is run for its side effects, namely, changes to the `options()`.
 #'
-#' ```
-#'     options(reproducible.cacheSaveFormat = "qs",
-#'             reproducible.useTerra = TRUE,
-#'             reproducible.useMemoise = TRUE,
-#'             reproducible.showSimilar = TRUE,
-#'             spades.moduleCodeChecks = FALSE)
-#' ````
 #'
 #' @importFrom data.table data.table
-setupOptions <- function(optionsStyle) {
-  os <- list()
-  if (optionsStyle == 1) {
-    os <- list(reproducible.cacheSaveFormat = "qs",
-               reproducible.useTerra = TRUE,
-               reproducible.useMemoise = TRUE,
-               reproducible.showSimilar = TRUE,
-               spades.moduleCodeChecks = FALSE
-    )
-  }
+setupOptions <- function(name, options, paths, verbose = getOption("Require.verbose", 1L)) {
 
-  if (length(os)) {
-    options(os)
-    messageDF(data.table::data.table(option = names(os), values = os))
+  if (missing(options)) {
+    newValuesComplete <- oldValuesComplete <- NULL
+  } else {
+    preOptions <- options()
+
+    if (is.character(options)) {
+      areAbs <- isAbsolutePath(options)
+      if (any(areAbs %in% FALSE)) {
+        options[areAbs %in% FALSE] <- file.path(paths$projectPath, options)
+      }
+
+      options <- parseListsSequentially(files = options)
+
+    }
+
+    postOptions <- options()
+    newValues <- oldValues <- list()
+    if (length(options)) {
+      newValuesComplete <- options
+      oldValuesComplete <- Map(nam = names(options), function(nam) NULL)
+      oldValuesComplete[names(options)] <- preOptions[names(options)]
+      whNULL <- which(lengths(oldValuesComplete) == 0)
+      names(oldValuesComplete[unname(whNULL)]) <- names(options)[whNULL]
+      newValues <- Require::setdiffNamed(options, preOptions)
+      oldValues <- options(newValues)
+      if (length(newValues)) {
+        messageVerbose("The following options have been changed", verbose = verbose)
+        messageDF(data.table::data.table(optionName = names(newValues), newValue = newValues,
+                                         oldValue = oldValues), verbose = verbose)
+      }
+    }
   }
+  return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete)))
 }
+
+
+isUnevaluatedList <- function(p) any({
+  if (grepl("^if$|^<-$", p[[1]])[1]) {
+    if (grepl("^\\{$", p[[3]][[1]])[1]) {
+      grepl("^list$", p[[3]][[2]][[1]])
+    } else {
+      grepl("^list$", p[[3]][[1]]) || is.atomic(p[[3]])
+    }
+  } else {
+    grepl("^list$", p[[1]])
+  }
+  })
+
+parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame()) {
+  envs <- list(envir) # means
+  llOuter <- lapply(files, function(optFiles) {
+    pp <- parse(optFiles)
+    envs2 <- lapply(pp, function(p) {
+      env <- new.env(parent = tail(envs, 1)[[1]])
+      if (isUnevaluatedList(p)) {
+        out <- eval(p, envir = env)
+        if (length(ls(env)) == 0)
+          env$opt <- out
+        envs <<- append(envs, list(env))
+      }
+      env
+    })
+
+    os <- list()
+    if (isTRUE(namedList)) {
+      isNamedList <- mapply(env = envs2, function(env) {
+        isNamedList <- FALSE
+        if (length(ls(env))) {
+          obj <- get(ls(env), env)
+          if (is(obj, "list"))
+            if (!is.null(names(obj)))
+              isNamedList <- TRUE
+        }
+        isNamedList
+      }, SIMPLIFY = TRUE)
+
+      if (isTRUE(any(isNamedList))) {
+        ll <- Map(env = envs2[isNamedList], function(env) {
+          as.list(env)[[1]]
+        })
+        os <- Reduce(modifyList, ll)
+      }
+    }
+    os
+  })
+
+  os <- Reduce(modifyList, llOuter)
+
+}
+
 
 #' @export
 #' @rdname setupProject
@@ -367,6 +479,7 @@ setupModules <- function(paths, modules, useGit, overwrite, verbose) {
   return(modules)
 
 }
+
 
 #' @export
 #' @rdname setupProject
@@ -422,6 +535,69 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 
 #' @export
 #' @rdname setupProject
+#'
+#' @details
+#' `setupParams` can handle hierarchical specified values, meaning a user can
+#' first create a list of default options, then a list of user-desired options that
+#' may or may not replace individual values
+#'
+#' @return
+#' `setupParams` is run for its side effects, namely, changes to the `options()`.
+#'
+#'
+#' @importFrom data.table data.table
+setupParams <- function(name, params, paths, modules, verbose = getOption("Require.verbose", 1L)) {
+  if (missing(params)) {
+    params <- list()
+  } else {
+
+    areAbs <- isAbsolutePath(params)
+    if (any(areAbs %in% FALSE)) {
+      params[areAbs %in% FALSE] <- file.path(paths$projectPath, params)
+    }
+
+    browser()
+
+    params <- parseListsSequentially(files = params)
+
+    if (length(params)) {
+
+      modulesSimple <- Require::extractPkgName(modules)
+      out <- Map(mod = modulesSimple, function(mod) {
+        knownPars <- moduleMetadata(module = mod, path = paths$modulePath,
+                                    defineModuleListItems = "parameters")$parameters$paramName
+        if (!is.null(params[[mod]])) {
+          supplied <- names(params[[mod]])
+          anyGlobals <- intersect(supplied, names(params[[".globals"]]))
+          paramsInclGlobalsSupplied <- unique(c(supplied, anyGlobals))
+          knownParsInMod <- paramsInclGlobalsSupplied %in% knownPars
+          if (any(knownParsInMod %in% FALSE)) {
+            messageVerbose("These parameters set (",
+                           paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
+                           "), but they are not in ", mod,
+                           " metadata; this should be either added to the metadata, ",
+                           "or not set in the params argument")
+          }
+
+        } else {
+          messageVerbose("No parameters set for ", mod, verbose = verbose, verboseLevel = 2)
+        }
+      })
+
+      paramsForModules <- intersect(modulesSimple, names(params))
+      if (length(paramsForModules) < length(params)) {
+        params <- params[paramsForModules]
+        messageVerbose("Only returning params that are relevant for modules supplied", verbose = verbose)
+      }
+      messageVerbose("The following params were created: ", verbose = verbose, verboseLevel = 2)
+      messageVerbose(params, verbose = verbose, verboseLevel = 2)
+    }
+  }
+  return(params)
+}
+
+#' @export
+#' @rdname setupProject
 #' @details
 #' `setupGitIgnore` will add.
 #'
@@ -446,6 +622,7 @@ setupGitIgnore <- function(paths, verbose) {
                              "this may need to be confirmed manually")
   }
 }
+
 
 
 setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, scratchPath,

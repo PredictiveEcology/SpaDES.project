@@ -88,7 +88,7 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     repos <- unlist(strsplit(repos, ","))
 
     out <- lapply(keywords, function(mg) {
-      messageVerbose("grepping ", mg, " in ", account, verbose = verbose)
+      messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
       if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
       outs <- grep(mg, repos, value = TRUE)
       gitRepo <- grep("full_name", outs, value = TRUE)
