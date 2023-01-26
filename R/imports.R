@@ -12,6 +12,16 @@ messageVerbose <- utils::getFromNamespace("messageVerbose", "Require")
 downloadRepo <- utils::getFromNamespace("downloadRepo", "Require")
 
 #' @rdname imports
+splitGitRepo <- utils::getFromNamespace("splitGitRepo", "Require")
+
+#' @rdname imports
+downloadFileMasterMainAuth <- utils::getFromNamespace("downloadFileMasterMainAuth", "Require")
+
+#' @rdname imports
+isGitHub <- utils::getFromNamespace("isGitHub", "Require")
+
+
+#' @rdname imports
 .spatialPkgs <- tryCatch({
   .spatialPkgs <- utils::getFromNamespace(".spatialPkgs", "Require")
 }, error = function(e) {

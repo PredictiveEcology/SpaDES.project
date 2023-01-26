@@ -3,6 +3,7 @@
 export(PlotModuleGraph)
 export(findProjectName)
 export(findProjectPath)
+export(getGithubFile)
 export(getModule)
 export(gitInfo)
 export(listModules)

@@ -37,3 +37,6 @@ processes of the installs.}
 \description{
 Simple function to download a SpaDES module as GitHub repository
 }
+\seealso{
+\link{getGithubFile}
+}

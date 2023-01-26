@@ -19,6 +19,7 @@ utils::globalVariables(c(
 #'   set, it will use `getOption("spades.modulePath")`, otherwise it will use `"."`.
 #'
 #' @export
+#' @seealso [getGithubFile]
 #' @inheritParams Require::Require
 #' @importFrom utils capture.output
 #' @importFrom Require checkPath normPath
@@ -92,4 +93,72 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   }
 
   return(list(success = successes, failed = anyfailed))
+}
+
+
+
+
+# PredictiveEcology/LandWeb/master/01-init.R
+
+
+#' A simple way to get a Github file, authenticated
+#'
+#' This can be used within e.g., the `options` or `params` arguments for
+#' `setupProject` to get a ready-made file for a project.
+#'
+#' @export
+#' @param gitRepoFile Character string that follows the convention
+#'   *GitAccount/GitRepo@Branch/File*, if @Branch is omitted, then it will be
+#'   assumed to be `master` or `main`.
+#' @inheritParams getModule
+#' @seealso [getModule]
+#' @examples
+#' \donttest{
+#'   getGithubFile("PredictiveEcology/LandWeb@development/04-options.R")
+#' }
+getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
+                          verbose = getOption("Require.verbose")) {
+  file <- basename(gitRepoFile)
+  gitRepo <- dirname(gitRepoFile)
+  out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
+                           verbose = getOption("Require.verbose"))
+  if (!isTRUE(out))
+    out <- "Did not download"
+  else {
+    messageVerbose("downloaded ", file)
+  }
+  out <- normPath(file)
+  return(out)
+}
+
+
+downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
+                         verbose = getOption("Require.verbose")) {
+  tryDownload <- TRUE
+  if (file.exists(file))
+    if (overwrite %in% FALSE) {
+      messageVerbose(file, " already exists and overwrite = FALSE")
+      tryDownload <- FALSE
+    }
+
+  if (isTRUE(tryDownload)) {
+    dir.create(destDir, recursive = TRUE, showWarnings = FALSE)
+    gr <- splitGitRepo(gitRepo)
+    ar <- file.path(gr$acct, gr$repo)
+    masterMain <- c("main", "master")
+    br <- if (any(gr$br %in% masterMain)) {
+      # possibly change order -- i.e., put user choice first
+      masterMain[rev(masterMain %in% gr$br + 1)]
+    } else {
+      gr$br
+    }
+    url <- file.path("https://raw.githubusercontent.com/", ar, br, file)
+    tf <- tempfile()
+    out <- suppressWarnings(
+      try(downloadFileMasterMainAuth(url, destfile = tf, need = "master"), silent = TRUE)
+    )
+    if (file.exists(tf))
+      file.copy(tf, basename(file), overwrite = TRUE)
+  }
+
 }

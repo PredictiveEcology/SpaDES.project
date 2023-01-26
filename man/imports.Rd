@@ -5,6 +5,8 @@
 \alias{messageDF}
 \alias{messageVerbose}
 \alias{downloadRepo}
+\alias{splitGitRepo}
+\alias{downloadFileMasterMainAuth}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
 \format{
@@ -21,6 +23,16 @@ downloadRepo(
   overwrite = FALSE,
   destDir = ".",
   verbose = getOption("Require.verbose")
+)
+
+splitGitRepo(gitRepo, default = "PredictiveEcology", masterOrMain = NULL)
+
+downloadFileMasterMainAuth(
+  url,
+  destfile,
+  need = "HEAD",
+  verbose = getOption("Require.verbose"),
+  verboseLevel = 2
 )
 
 .spatialPkgs

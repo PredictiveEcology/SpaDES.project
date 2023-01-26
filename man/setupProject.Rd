@@ -39,7 +39,13 @@ setupPaths(
   verbose = getOption("Require.verbose", 1L)
 )
 
-setupOptions(name, options, paths, verbose = getOption("Require.verbose", 1L))
+setupOptions(
+  name,
+  options,
+  paths,
+  times,
+  verbose = getOption("Require.verbose", 1L)
+)
 
 setupModules(paths, modules, useGit, overwrite, verbose)
 
@@ -58,15 +64,17 @@ setupParams(
   params,
   paths,
   modules,
+  times,
   verbose = getOption("Require.verbose", 1L)
 )
 
 setupGitIgnore(paths, verbose)
 }
 \arguments{
-\item{name}{The name of the project; if this is a GitHub project, then it should
-indicate the full Github repository and branch name, e.g.,
-\code{"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"}}
+\item{name}{Optional. If supplied, the name of the project. If not supplied, an
+attempt will be made to extract the name from the \code{paths$projectPath}.
+If this is a GitHub project, then it should indicate the full Github
+repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"}}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
 \code{packagePath} and all others that are in \code{SpaDES.core::setPaths()}
@@ -200,10 +208,21 @@ may or may not replace individual values
 
 \code{setupGitIgnore} will add.
 }
-\section{\code{options}}{
+\section{\code{options} and \code{params}}{
 
-When \code{options} is a character string or vector, the files are expected to specify
-objects that are composed of named lists. A simplest case would be a file with this:
+If \code{options} and/or \code{params} are a character string or vector, the string(s)
+will be interpretted as files to parse. These files should contain R code that
+specifies named lists, where the names are one or more options (for \code{options})
+or are module names, each with a named list of parameters for that named module.
+This follows the convention used for the \code{params} argument in
+\code{simInit(..., params = )}. The \code{options} file should
+not set \code{options} explicitly; only named lists. This enables options checking
+to occur within \code{setupOptions} and \code{setupParams}.
+
+These files can use \code{paths}, \code{times}, plus any previous list in the sequence of
+\code{params} or \code{options} specified.
+
+A simplest case would be a file with this:
 \code{opts <- list(reproducible.destinationPath = "~/destPath")}. All named lists will
 be parsed into their own environment, and then will be sequentially evaluated (i.e.,
 subsequent lists will have access to previous lists), with each named elements
@@ -216,6 +235,11 @@ have a named list of default settings first in the file, then those defaults can
 be overridden by e.g., user-specific or machine-specific values that are
 specified subsequently in the same file or in a separate file. Any functions
 that are used must be available, e.g., prefixed \code{Require::normPath}.
+
+NOTE: these will only parse items that are atomics (i.e., character, numeric, etc.),
+named lists or either of these that are protected by 1 level of "if". This
+will not work, therefore, for other side-effect elements, like authenticating
+with a cloud service.
 
 Several helper functions exist within \code{SpaDES.project} that may be useful, such
 as \code{user(...)}, \code{machine(...)}
@@ -284,10 +308,20 @@ out <- SpaDES.project::setupProject(
               "CeresBarros/Biomass_speciesParameters@development")
 
   )
+
+# With options and params set
+out <- setupProject(name = "SpaDES.project",
+             options = list(reproducible.useTerra = TRUE),
+             params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+                          scratchPath = tempdir()),
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+
   if (require("SpaDES.core"))
     do.call(simInit, out)
 }
 }
 \seealso{
-\link{user}
+\link{user}, \link{machine}, \link{node}
 }
