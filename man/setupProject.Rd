@@ -6,6 +6,7 @@
 \alias{setupOptions}
 \alias{setupModules}
 \alias{setupPackages}
+\alias{setupParams}
 \alias{setupGitIgnore}
 \title{Sets up a new or existing SpaDES project}
 \usage{
@@ -14,7 +15,9 @@ setupProject(
   paths,
   modules,
   packages,
-  optionsStyle = 1,
+  times,
+  options,
+  params,
   require = c("reproducible", "SpaDES.core"),
   restart = getOption("SpaDES.project.restart", FALSE),
   useGit = FALSE,
@@ -36,7 +39,13 @@ setupPaths(
   verbose = getOption("Require.verbose", 1L)
 )
 
-setupOptions(optionsStyle)
+setupOptions(
+  name,
+  options,
+  paths,
+  times,
+  verbose = getOption("Require.verbose", 1L)
+)
 
 setupModules(paths, modules, useGit, overwrite, verbose)
 
@@ -50,15 +59,26 @@ setupPackages(
   verbose
 )
 
+setupParams(
+  name,
+  params,
+  paths,
+  modules,
+  times,
+  verbose = getOption("Require.verbose", 1L)
+)
+
 setupGitIgnore(paths, verbose)
 }
 \arguments{
-\item{name}{The name of the project; if this is a GitHub project, then it should
-indicate the full Github repository and branch name, e.g.,
-\code{"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"}}
+\item{name}{Optional. If supplied, the name of the project. If not supplied, an
+attempt will be made to extract the name from the \code{paths$projectPath}.
+If this is a GitHub project, then it should indicate the full Github
+repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"}}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
-\code{packagePath} and all others that are in \code{SpaDES.core::setPaths()} \verb{( inputPath, outputPath, scratchPath, cachePath, rasterTmpDir)}}
+\code{packagePath} and all others that are in \code{SpaDES.core::setPaths()}
+(i.e., \code{inputPath}, \code{outputPath}, \code{scratchPath}, \code{cachePath}, \code{rasterTmpDir}).}
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
 should be in the form \code{GitHubAccount/Repo@branch} e.g.,
@@ -66,15 +86,24 @@ should be in the form \code{GitHubAccount/Repo@branch} e.g.,
 then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.}
 
-\item{packages}{A vector of packages that are needed. This will be passed to
-\code{Require}}
+\item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
+This will be passed to \code{Require::Install}, i.e., these will be installed, but
+not attached to the search path. See \code{require}.}
 
-\item{optionsStyle}{A numeric representing a set of pre-determined options. Currently,
-this can be either 1 (cache using qs and memoise, prepInputs uses terra & sf,
-no moduleCodeChecks) or 0 (no options).}
+\item{times}{Optional. This will be returned if supplied; if supplied, the values
+can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
+See help for \code{SpaDES.core::simInit}.}
 
-\item{require}{An optional character vector of packages to attach
-(with \code{require})}
+\item{options}{Optional. Either a named list to be passed to \code{options}
+or a character vector indicating one or more file(s) to source,
+in the order provided. These will be sourced into a temporary environment (not
+the \code{.GlobalEnv}), so they will not create globally accessible objects. See details.}
+
+\item{params}{Optional. Similar to \code{options}, however, this named list will be
+returned, i.e., there are no side effects.}
+
+\item{require}{Optional. A character vector of packages to install \emph{and} attach
+(with \code{Require::Require}).}
 
 \item{restart}{If the \code{projectPath} is not the current path, and the session is in
 Rstudio, and interactive, it will restart with a new Rstudio session with a
@@ -116,21 +145,14 @@ inside the \code{paths$projectPath}.}
 of the list are packages in a form that \code{Require::Require} accepts.}
 }
 \value{
-\code{setupProject} will return a length-2 named list (\code{modules}, \code{paths}) that can be passed
+\code{setupProject} will return a length-3 named list (\code{modules}, \code{paths}, \code{params}) that can be passed
 directly to \code{SpaDES.core::simInit} using a \code{do.call}. See example.
 
 \code{setupPaths} returns a list of paths that are created. It is also called for its
 side effect which is to call \code{setPaths}, with each of these paths as an argument.
 See table for details.
 
-\code{setupOptions} is run for its side effects.
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{    options(reproducible.cacheSaveFormat = "qs",
-            reproducible.useTerra = TRUE,
-            reproducible.useMemoise = TRUE,
-            reproducible.showSimilar = TRUE,
-            spades.moduleCodeChecks = FALSE)
-}\if{html}{\out{</div>}}
+\code{setupOptions} is run for its side effects, namely, changes to the \code{options()}.
 
 \code{setupModules} is run for its side effects, i.e., downloads modules and puts them
 into the \code{paths$modulePath}
@@ -138,13 +160,20 @@ into the \code{paths$modulePath}
 \code{setupPackages} is run for its side effects, i.e., installing packages to
 \code{paths$packagePath}.
 
+\code{setupParams} is run for its side effects, namely, changes to the \code{options()}.
+
 \code{setupGitIgnore} is run for its side effects, i.e., adding elements to the
 \code{.gitignore} file.
 }
 \description{
-\code{setupProject} calls a sequence of functions: \code{setupPaths}, \code{setupOptions},
-\code{setupModules}, \code{setupPackages}, \code{setupGitIgnore}. These create folder
-structures, download or confirms existence of modules, install missing
+\code{setupProject} calls a sequence of functions in this order:
+\code{setupPaths}, \code{setupOptions},
+\code{setupModules}, \code{setupPackages}, \code{setupTimes}, \code{setupParams},
+\code{setupGitIgnore}. Because of this
+order, settings in \code{options} can change \code{paths}, \code{times} can be used in \code{params},
+for example.
+This sequence will create folder structures, download or confirms
+existence of modules, install missing
 packages from both the modules \code{reqdPkgs} fields and the user passed
 \code{packages}. See Details.
 }
@@ -159,8 +188,10 @@ of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code
 \code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
 \code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
 
-\code{setupOptions} is currently very limited. It only allows \code{optionsStyle = 1},
-which sets the following:
+\code{setupOptions} can handle sequentially specified values, meaning a user can
+first create a list of default options, then a list of user-desired options that
+may or may not replace individual values. This can create hierarchies, \emph{based on
+order}.
 
 \code{setupModules} will download all modules do not yet exist locally. The current
 test for "exists locally" is simply whether the directory exists. If a user
@@ -171,8 +202,49 @@ remove the folder manually.
 these with any packages passed manually by the user to \code{packages}, and pass all
 these packages to \code{Require::Install(...)}.
 
+\code{setupParams} can handle hierarchical specified values, meaning a user can
+first create a list of default options, then a list of user-desired options that
+may or may not replace individual values
+
 \code{setupGitIgnore} will add.
 }
+\section{\code{options} and \code{params}}{
+
+If \code{options} and/or \code{params} are a character string or vector, the string(s)
+will be interpretted as files to parse. These files should contain R code that
+specifies named lists, where the names are one or more options (for \code{options})
+or are module names, each with a named list of parameters for that named module.
+This follows the convention used for the \code{params} argument in
+\code{simInit(..., params = )}. The \code{options} file should
+not set \code{options} explicitly; only named lists. This enables options checking
+to occur within \code{setupOptions} and \code{setupParams}.
+
+These files can use \code{paths}, \code{times}, plus any previous list in the sequence of
+\code{params} or \code{options} specified.
+
+A simplest case would be a file with this:
+\code{opts <- list(reproducible.destinationPath = "~/destPath")}. All named lists will
+be parsed into their own environment, and then will be sequentially evaluated (i.e.,
+subsequent lists will have access to previous lists), with each named elements
+setting or replacing the previously named element of the same name, creating a
+single list. This final list will be assigned to \code{options()} inside \code{setupOptions}.
+Because these are each parsed separately, it is not necessary to assign any list to
+an object; and the objects, if named, can be any name, even the same name repeatedly.
+The sequential nature means that a user can
+have a named list of default settings first in the file, then those defaults can
+be overridden by e.g., user-specific or machine-specific values that are
+specified subsequently in the same file or in a separate file. Any functions
+that are used must be available, e.g., prefixed \code{Require::normPath}.
+
+NOTE: these will only parse items that are atomics (i.e., character, numeric, etc.),
+named lists or either of these that are protected by 1 level of "if". This
+will not work, therefore, for other side-effect elements, like authenticating
+with a cloud service.
+
+Several helper functions exist within \code{SpaDES.project} that may be useful, such
+as \code{user(...)}, \code{machine(...)}
+}
+
 \section{Paths}{
 
 \tabular{lll}{
@@ -199,6 +271,10 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 \code{scratchPath}\tab \code{file.path(tempdir(), name)} \tab \cr
 \code{rasterPath} \tab \code{file.path(scratchPath, "raster")} \tab sets (\code{rasterOptions(tmpdir = rasterPath)}) \cr
 \code{terraPath}  \tab \code{file.path(scratchPath, "terra")} \tab   sets (\code{terraOptions(tempdir = terraPath)})       \cr
+------       \tab -----------                 \tab  -----         \cr
+\tab \emph{Other Paths}                 \tab  \cr
+\code{logPath}    \tab \code{file.path(outputPath(sim), "log")} \tab sets \code{options("spades.logPath")} accessible by \code{logPath(sim)}\cr
+\code{tilePath}   \tab Not implemented yet \tab Not implemented yet \cr
 }
 }
 
@@ -232,7 +308,20 @@ out <- SpaDES.project::setupProject(
               "CeresBarros/Biomass_speciesParameters@development")
 
   )
+
+# With options and params set
+out <- setupProject(name = "SpaDES.project",
+             options = list(reproducible.useTerra = TRUE),
+             params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+                          scratchPath = tempdir()),
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+
   if (require("SpaDES.core"))
     do.call(simInit, out)
 }
+}
+\seealso{
+\link{user}, \link{machine}, \link{node}
 }
