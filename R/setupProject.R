@@ -141,7 +141,7 @@
 #'
 #' # using an options file that is remote
 #' out <- setupProject(name = "SpaDES.project",
-#'              options = c("PredictiveEcology/LandWeb@development/04-options"),
+#'              options = c("PredictiveEcology/LandWeb@development/04-options.R"),
 #'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
 #'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
 #'                           scratchPath = tempdir()),
@@ -151,13 +151,16 @@
 #'     do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
-                         times, options, params,
+                         times, options, params, sideEffects,
                          require = c("reproducible", "SpaDES.core"),
                          restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
                          updateRprofile = getOption("Require.updateRprofile", FALSE),
                          overwrite = FALSE, verbose = getOption("Require.verbose", 1L)) {
+
+  paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+  optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
 
   libPaths <- substitute(libPaths)
   if (missing(name)) {
@@ -177,7 +180,7 @@ setupProject <- function(name, paths, modules, packages,
 
   paths <- setupPaths(name, paths, inProject, standAlone, libPaths, updateRprofile)
 
-  opts <- setupOptions(name, options, paths, times, overwrite = overwrite)
+  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite)
 
   modulePackages <- setupModules(paths, modules, useGit = useGit,
                                  overwrite = overwrite, verbose = verbose)
@@ -192,7 +195,7 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths$packagePath, verbose = verbose)
 
-  params <- setupParams(name, params, paths, modules, times, verbose = verbose)
+  params <- setupParams(name, paramsSUB, paths, modules, times, verbose = verbose)
 
   setupGitIgnore(paths, verbose)
 
@@ -381,6 +384,9 @@ setupOptions <- function(name, options, paths, times, overwrite, verbose = getOp
   newValuesComplete <- oldValuesComplete <- NULL
   if (!missing(options)) {
     preOptions <- options()
+
+    optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    options <- evalSUB(optionsSUB, envir = environment(), envir2 = parent.frame())
 
     if (is.character(options)) {
       options <- mapply(opt = options, function(opt) {
@@ -592,6 +598,10 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
   if (missing(params)) {
     params <- list()
   } else {
+
+    paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    params <- evalSUB(val = paramsSUB, envir = environment(), envir2 = parent.frame())
+
     if (is.character(params)) {
       areAbs <- isAbsolutePath(params)
       if (any(areAbs %in% FALSE)) {
@@ -639,7 +649,8 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
         }
         params[[mod]]
       })
-
+      if (hasDotGlobals)
+        params[[".globals"]] <- globs
       messageVerbose("The following params were created: ", verbose = verbose, verboseLevel = 2)
       messageVerbose(params, verbose = verbose, verboseLevel = 2)
     }
@@ -647,6 +658,16 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
   return(params)
 }
 
+evalSUB <- function(val, envir, envir2) {
+  while (inherits(val, "call") || inherits(val, "name")) {
+    val2 <- eval(val, envir = envir)
+    if (identical(val2, val))
+      val <- eval(val, envir = envir2)
+    else
+      val <- val2
+  }
+  val2
+}
 #' @export
 #' @rdname setupProject
 #' @details
