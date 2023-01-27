@@ -37,6 +37,9 @@
 #'   the `.GlobalEnv`), so they will not create globally accessible objects. See details.
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
+#' @param sideEffects Optional. This can be an expression or one or more filenames.
+#'   This/these will be parsed and evaluated, but nothing returned. This is intended
+#'   to be used for any object that needs
 #' @param useGit A logical. If `TRUE`, it will use `git clone`. Otherwise it will
 #' get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
