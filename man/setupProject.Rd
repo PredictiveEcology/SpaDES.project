@@ -37,7 +37,8 @@ setupPaths(
   standAlone,
   libPaths,
   updateRprofile,
-  verbose = getOption("Require.verbose", 1L)
+  verbose = getOption("Require.verbose", 1L),
+  ...
 )
 
 setupOptions(
@@ -74,7 +75,7 @@ setupGitIgnore(paths, verbose)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
-attempt will be made to extract the name from the \code{paths$projectPath}.
+attempt will be made to extract the name from the \code{paths[["projectPath"]]}.
 If this is a GitHub project, then it should indicate the full Github
 repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"}}
 
@@ -146,7 +147,12 @@ attribute: \code{attr(.., "Require")} which has lots of information about the
 processes of the installs.}
 
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
-inside the \code{paths$projectPath}.}
+inside the \code{paths[["projectPath"]]}.}
+
+\item{...}{Passed to \code{install.packages}. Good candidates are e.g., \code{type} or
+\code{dependencies}. This can be used with \code{install_githubArgs} or
+\code{install.packageArgs} which give individual options for those 2 internal
+function calls.}
 
 \item{modulePackages}{A named list, where names are the module names, and the elements
 of the list are packages in a form that \code{Require::Require} accepts.}
@@ -209,21 +215,34 @@ remove the folder manually.
 these with any packages passed manually by the user to \code{packages}, and pass all
 these packages to \code{Require::Install(...)}.
 
-\code{setupParams} can handle hierarchical specified values, meaning a user can
-first create a list of default options, then a list of user-desired options that
-may or may not replace individual values
-
 \code{setupGitIgnore} will add.
 }
-\section{\code{options} and \code{params}}{
+\section{Sequential evaluation}{
 
-If \code{options} and/or \code{params} are a character string or vector, the string(s)
+Throughout these functions, efforts have been made to implement sequential evaluation,
+within files and within lists. This means that a user can \emph{use} the values from an
+upstream element in the list. For example, the following is valid:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{paths = list(projectPath = "here", modulePath = file.path(paths[["projectPath"]], "modules")
+}\if{html}{\out{</div>}}
+
+Because of such sequential evaluation, \code{paths}, \code{options}, and \code{params} files
+can be sequential lists that have impose a hierarchy specified
+by the order. For example, a user can first create a list of \emph{default} options,
+then several lists of user-desired options behind an \verb{if (user("emcintir"))}
+block that add new or override existing elements, followed by \code{machine} specific
+values, such as paths.
+}
+
+\section{Files for \code{paths}, \code{options}, \code{params}}{
+
+If \code{paths}, \code{options} and/or \code{params} are a character string or vector, the string(s)
 will be interpretted as files to parse. These files should contain R code that
-specifies named lists, where the names are one or more options (for \code{options})
+specifies \emph{named lists}, where the names are one or more \code{paths}, \code{options},
 or are module names, each with a named list of parameters for that named module.
-This follows the convention used for the \code{params} argument in
+This last named list for \code{params} follows the convention used for the \code{params} argument in
 \code{simInit(..., params = )}. The \code{options} file should
-not set \code{options} explicitly; only named lists. This enables options checking
+not set \code{options} explicitly; only named lists. This enables options checking/validating
 to occur within \code{setupOptions} and \code{setupParams}.
 
 These files can use \code{paths}, \code{times}, plus any previous list in the sequence of
@@ -333,8 +352,8 @@ out <- setupProject(name = "SpaDES.project",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
-  if (require("SpaDES.core"))
-    do.call(simInit, out)
+if (require("SpaDES.core"))
+  do.call(simInit, out)
 }
 }
 \seealso{

@@ -12,7 +12,7 @@
 #' `packages`. See Details.
 #'
 #' @param name Optional. If supplied, the name of the project. If not supplied, an
-#' attempt will be made to extract the name from the `paths$projectPath`.
+#' attempt will be made to extract the name from the `paths[["projectPath"]]`.
 #' If this is a GitHub project, then it should indicate the full Github
 #' repository and branch name, e.g., `"PredictiveEcology/WBI_forecasts@ChubatyPubNum12"`
 #' @param paths a list with named elements, specifically, `modulePath`, `projectPath`,
@@ -48,7 +48,7 @@
 #' @param libPaths A character vector. Passed to `Require::libPaths`, which will
 #'   in turn pass to `.libPaths(libPaths)`
 #' @param inProject A logical. If `TRUE`, then the current directory is
-#'  inside the `paths$projectPath`.
+#'  inside the `paths[["projectPath"]]`.
 #' @param restart If the `projectPath` is not the current path, and the session is in
 #'   Rstudio, and interactive, it will restart with a new Rstudio session with a
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
@@ -58,14 +58,31 @@
 #'
 #' @export
 #'
-#' @section `options` and `params`:
-#' If `options` and/or `params` are a character string or vector, the string(s)
+#' @section Sequential evaluation:
+#' Throughout these functions, efforts have been made to implement sequential evaluation,
+#' within files and within lists. This means that a user can *use* the values from an
+#' upstream element in the list. For example, the following is valid:
+#'
+#' ```
+#' paths = list(projectPath = "here", modulePath = file.path(paths[["projectPath"]], "modules")
+#' ```
+#' Because of such sequential evaluation, `paths`, `options`, and `params` files
+#' can be sequential lists that have impose a hierarchy specified
+#' by the order. For example, a user can first create a list of *default* options,
+#' then several lists of user-desired options behind an `if (user("emcintir"))`
+#' block that add new or override existing elements, followed by `machine` specific
+#' values, such as paths.
+#'
+#'
+#'
+#' @section Files for `paths`, `options`, `params`:
+#' If `paths`, `options` and/or `params` are a character string or vector, the string(s)
 #' will be interpretted as files to parse. These files should contain R code that
-#' specifies named lists, where the names are one or more options (for `options`)
+#' specifies *named lists*, where the names are one or more `paths`, `options`,
 #' or are module names, each with a named list of parameters for that named module.
-#' This follows the convention used for the `params` argument in
+#' This last named list for `params` follows the convention used for the `params` argument in
 #' `simInit(..., params = )`. The `options` file should
-#' not set `options` explicitly; only named lists. This enables options checking
+#' not set `options` explicitly; only named lists. This enables options checking/validating
 #' to occur within `setupOptions` and `setupParams`.
 #'
 #' These files can use `paths`, `times`, plus any previous list in the sequence of
@@ -151,8 +168,8 @@
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
-#'   if (require("SpaDES.core"))
-#'     do.call(simInit, out)
+#' if (require("SpaDES.core"))
+#'   do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects,
@@ -165,24 +182,18 @@ setupProject <- function(name, paths, modules, packages,
 
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+  pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
 
   libPaths <- substitute(libPaths)
+
+  pathsSUB <- checkProjectPath(pathsSUB, envir = environment(), envir2 = parent.frame())
+
   if (missing(name)) {
-    if (missing(paths)) {
-      paths <- list(projectPath = ".")
-    }
-    if (!is.null(paths$projectPath))
-      name <- basename(normPath(paths$projectPath))
-    else
-      stop("Must provide either a name or a paths$projectPath")
+    name <- basename(normPath(pathsSUB[["projectPath"]]))
   }
+  inProject <- isInProject(name)
 
-  nameSimple <- extractPkgName(name)
-
-  curDir <- getwd()
-  inProject <- identical(basename(curDir), nameSimple)
-
-  paths <- setupPaths(name, paths, inProject, standAlone, libPaths,
+  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
                       updateRprofile)
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite)
@@ -214,10 +225,10 @@ setupProject <- function(name, paths, modules, packages,
       if (requireNamespace("rstudioapi")) {
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
-        rstudioapi::openProject(path = paths$projectPath)
+        rstudioapi::openProject(path = paths[["projectPath"]])
       } else {
         stop("Please open this in a new Rstudio project at ",
-             paths$projectPath)
+             paths[["projectPath"]])
       }
   }
 
@@ -278,17 +289,22 @@ setupProject <- function(name, paths, modules, packages,
 #' @rdname setupProject
 #' @importFrom Require normPath checkPath
 setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprofile,
-                       verbose = getOption("Require.verbose", 1L)) {
+                       verbose = getOption("Require.verbose", 1L), ...) {
 
-  projPth <- if  (inProject) file.path(".") else file.path(".", name)
-  projPth <- normPath(projPth)
-  if (missing(paths) || inProject) {
-    paths <- list(projectPath = projPth)
-  }
+  pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths$projectPath))`
+  pathsSUB <- checkProjectPath(pathsSUB, environment(), parent.frame())
 
+  # projPth <- if  (inProject) file.path(".") else file.path(".", name)
+  # projPth <- normPath(projPth)
+  # if (missing(paths) || inProject) {
+  #   paths <- list(projectPath = projPth)
+  # }
 
-  if (is.null(paths$projectPath))
-    stop("Please specify paths$projectPath as an absolute path")
+  paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = environment(), envir2 = parent.frame())
+  paths <- parseFileLists(paths, paths[["projectPath"]])
+
+  if (is.null(paths[["projectPath"]]))
+    stop("Please specify paths[[\"projectPath\"]] as an absolute path")
 
   if (is.null(libPaths) || is.call(libPaths)) {
     if (is.null(paths$packagePath)) {
@@ -302,14 +318,14 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
     paths$packagePath <- libPaths
   }
 
-  if (is.null(paths$modulePath)) paths$modulePath <- file.path(paths$projectPath, "m")
+  if (is.null(paths$modulePath)) paths$modulePath <- file.path(paths[["projectPath"]], "m")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
-  paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths$projectPath, x))
+  paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
   paths <- lapply(paths, normPath)
   paths <- lapply(paths, checkPath, create = TRUE)
   if (!inProject) {
-    setwd(paths$projectPath)
+    setwd(paths[["projectPath"]])
   }
 
   if (is.null(paths$scratchPath)) {
@@ -326,9 +342,9 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
   }
 
   paths <- Require::modifyList2(
-    list(cachePath = file.path(paths$projectPath, "cache"),
-         inputPath = file.path(paths$projectPath, "input"),
-         outputPath = file.path(paths$projectPath, "output")
+    list(cachePath = file.path(paths[["projectPath"]], "cache"),
+         inputPath = file.path(paths[["projectPath"]], "input"),
+         outputPath = file.path(paths[["projectPath"]], "output")
     ),
     paths)
 
@@ -391,24 +407,26 @@ setupOptions <- function(name, options, paths, times, overwrite, verbose = getOp
     preOptions <- options()
 
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    options <- evalSUB(optionsSUB, envir = environment(), envir2 = parent.frame())
+    options <- evalSUB(optionsSUB, valObjName = "options", envir = environment(), envir2 = parent.frame())
 
-    if (is.character(options)) {
-      options <- mapply(opt = options, function(opt) {
-        isGH <- isGitHub(opt)
-        if (isGH) {
-          opt <- getGithubFile(opt, destDir = paths$projectPath, overwrite = overwrite)
-        }
-        opt
-        }, SIMPLIFY = TRUE)
-      areAbs <- isAbsolutePath(options)
-      if (any(areAbs %in% FALSE)) {
-        options[areAbs %in% FALSE] <- file.path(paths$projectPath, options)
-      }
+    options <- parseFileLists(options, paths[["projectPath"]])
 
-      options <- parseListsSequentially(files = options)
-
-    }
+    # if (is.character(options)) {
+    #   options <- mapply(opt = options, function(opt) {
+    #     isGH <- isGitHub(opt)
+    #     if (isGH) {
+    #       opt <- getGithubFile(opt, destDir = paths[["projectPath"]], overwrite = overwrite)
+    #     }
+    #     opt
+    #     }, SIMPLIFY = TRUE)
+    #   areAbs <- isAbsolutePath(options)
+    #   if (any(areAbs %in% FALSE)) {
+    #     options[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], options)
+    #   }
+    #
+    #   options <- parseListsSequentially(files = options)
+    #
+    # }
 
     postOptions <- options()
     newValues <- oldValues <- list()
@@ -589,11 +607,6 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 #' @export
 #' @rdname setupProject
 #'
-#' @details
-#' `setupParams` can handle hierarchical specified values, meaning a user can
-#' first create a list of default options, then a list of user-desired options that
-#' may or may not replace individual values
-#'
 #' @return
 #' `setupParams` is run for its side effects, namely, changes to the `options()`.
 #'
@@ -605,16 +618,17 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
   } else {
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    params <- evalSUB(val = paramsSUB, envir = environment(), envir2 = parent.frame())
+    params <- evalSUB(val = paramsSUB, valObjName = "params", envir = environment(), envir2 = parent.frame())
+    params <- parseFileLists(params, paths[["projectPath"]])
 
-    if (is.character(params)) {
-      areAbs <- isAbsolutePath(params)
-      if (any(areAbs %in% FALSE)) {
-        params[areAbs %in% FALSE] <- file.path(paths$projectPath, params)
-      }
-
-      params <- parseListsSequentially(files = params)
-    }
+    # if (is.character(params)) {
+    #   areAbs <- isAbsolutePath(params)
+    #   if (any(areAbs %in% FALSE)) {
+    #     params[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], params)
+    #   }
+    #
+    #   params <- parseListsSequentially(files = params)
+    # }
 
     if (length(params)) {
 
@@ -667,16 +681,109 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
   return(params)
 }
 
-evalSUB <- function(val, envir, envir2) {
+
+parseFileLists <- function(obj, projectPath) {
+
+  if (is.character(obj)) {
+    obj <- mapply(opt = obj, function(opt) {
+      isGH <- isGitHub(opt)
+      if (isGH) {
+        opt <- getGithubFile(opt, destDir = paths[["projectPath"]], overwrite = overwrite)
+      }
+      opt
+    }, SIMPLIFY = TRUE)
+    areAbs <- isAbsolutePath(obj)
+    if (any(areAbs %in% FALSE)) {
+      obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj)
+    }
+
+    obj <- parseListsSequentially(files = obj)
+
+  }
+
+  # if (is.character(obj)) {
+  #   areAbs <- isAbsolutePath(obj)
+  #   if (any(areAbs %in% FALSE)) {
+  #     obj[areAbs %in% FALSE] <- file.path(projectPath, obj)
+  #   }
+  #
+  #   obj <- parseListsSequentially(files = obj)
+  # }
+  obj
+}
+
+checkProjectPath <- function(paths, envir, envir2) {
+
+
+  if (missing(paths)) {
+    paths <- list()
+  }
+  if (is.name(paths)) {
+    paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
+  }
+  if (is.null(paths[["projectPath"]])) {
+    prjPth <- list(projectPath = normPath("."))
+    paths <- append(prjPth, as.list(paths))
+    paths <- paths[nzchar(names(paths))]
+  }
+
+  #  name <- basename(normPath(paths[["projectPath"]]))
+  # }
+
+  # if (missing(inProject))
+  #   inProject <- isInProject(name)
+
+  # projPth <- if  (inProject) file.path(".") else file.path(".", name)
+  # projPth <- normPath(projPth)
+  # if (missing(paths) || inProject) {
+  #   paths <- list(projectPath = projPth)
+  # }
+
+
+
+
+  if (!is.null(paths[["projectPath"]])) {
+    paths[["projectPath"]] <- evalSUB(paths[["projectPath"]], valObjName = "paths", envir, envir2)
+   #  name <- basename(normPath(paths[["projectPath"]]))
+  } else {
+    stop("Must provide either a name or a paths[[\"projectPath\"]]")
+  }
+
+  paths
+}
+
+isInProject <- function(name) {
+  identical(basename(getwd()), extractPkgName(name))
+}
+
+evalSUB <- function(val, valObjName, envir, envir2) {
+  val2 <- val
   while (inherits(val, "call") || inherits(val, "name")) {
     val2 <- eval(val, envir = envir)
-    if (identical(val2, val))
+    if (identical(val2, val) && !missing(envir2)) {
       val <- eval(val, envir = envir2)
-    else
+      val2 <- val
+    } else {
       val <- val2
+    }
+    if (missing(envir2))
+      break
+  }
+  if (is(val2, "list") && !is.null(names(val2))) {
+    env <- environment()
+    # Sequential evaluation
+    Map(nam = names(val2), function(nam) {
+      val2[[nam]] <<- evalSUB(val2[[nam]], valObjName = valObjName,
+                              envir = env, envir2 = envir)
+      assign(valObjName, val2, envir = env)
+    }
+    )
+    assign("val2", get(valObjName), envir = env)
   }
   val2
 }
+
+
 #' @export
 #' @rdname setupProject
 #' @details
@@ -886,7 +993,7 @@ spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
 # 6. Require::Require(c(unname(unlist(outs)), packages), require = FALSE, standAlone = TRUE)
 
 
-messageWarnStop <- function(..., type = getOption("SpaDES.project.messageStringency", "message"),
+messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnStop", "message"),
                             verbose = getOption("Require.verbose", 1L)) {
   type %in% c("message", "warning", "stop")
 
