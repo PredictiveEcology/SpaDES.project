@@ -7,6 +7,7 @@
 \alias{downloadRepo}
 \alias{splitGitRepo}
 \alias{downloadFileMasterMainAuth}
+\alias{isGitHub}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
 \format{
@@ -34,6 +35,8 @@ downloadFileMasterMainAuth(
   verbose = getOption("Require.verbose"),
   verboseLevel = 2
 )
+
+isGitHub(pkg, filenames)
 
 .spatialPkgs
 }

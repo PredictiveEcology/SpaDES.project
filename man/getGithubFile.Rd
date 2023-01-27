@@ -34,7 +34,7 @@ This can be used within e.g., the \code{options} or \code{params} arguments for
 }
 \examples{
 \donttest{
-  getGithubFile("PredictiveEcology/LandWeb@rework-config/02-user-config.R")
+  getGithubFile("PredictiveEcology/LandWeb@development/04-options.R")
 }
 }
 \seealso{

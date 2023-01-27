@@ -18,6 +18,7 @@ setupProject(
   times,
   options,
   params,
+  sideEffects,
   require = c("reproducible", "SpaDES.core"),
   restart = getOption("SpaDES.project.restart", FALSE),
   useGit = FALSE,
@@ -44,6 +45,7 @@ setupOptions(
   options,
   paths,
   times,
+  overwrite,
   verbose = getOption("Require.verbose", 1L)
 )
 
@@ -101,6 +103,11 @@ the \code{.GlobalEnv}), so they will not create globally accessible objects. See
 
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.}
+
+\item{sideEffects}{Optional. This can be an expression or one or more filenames.
+This/these will be parsed and evaluated, but nothing returned. This is intended
+to be used for functions, such as cloud authentication, that are run for their
+side effects only.}
 
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}).}
@@ -318,6 +325,14 @@ out <- setupProject(name = "SpaDES.project",
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
+# using an options file that is remote
+out <- setupProject(name = "SpaDES.project",
+             options = c("PredictiveEcology/LandWeb@development/04-options.R"),
+             params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+                          scratchPath = tempdir()),
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
   if (require("SpaDES.core"))
     do.call(simInit, out)
 }

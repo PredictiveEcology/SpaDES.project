@@ -39,7 +39,8 @@
 #'   returned, i.e., there are no side effects.
 #' @param sideEffects Optional. This can be an expression or one or more filenames.
 #'   This/these will be parsed and evaluated, but nothing returned. This is intended
-#'   to be used for any object that needs
+#'   to be used for functions, such as cloud authentication, that are run for their
+#'   side effects only.
 #' @param useGit A logical. If `TRUE`, it will use `git clone`. Otherwise it will
 #' get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
@@ -885,21 +886,21 @@ spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
 # 6. Require::Require(c(unname(unlist(outs)), packages), require = FALSE, standAlone = TRUE)
 
 
-messageWarnStop <- function(..., type = getOption("SpaDES.project.messageStringency", "message")
+messageWarnStop <- function(..., type = getOption("SpaDES.project.messageStringency", "message"),
                             verbose = getOption("Require.verbose", 1L)) {
-    type %in% c("message", "warning", "stop")
+  type %in% c("message", "warning", "stop")
 
-    typeFun <- utils::getFromNamespace(type, "base")
-    typeFunArgs <- list(
-      msg,
-      call. = FALSE
-    )
-    if (type == "message") {
-      typeFun <- messageVerbose
-      typeFunArgs[["call."]] <- NULL
-      typeFunArgs[["verbose"]] <- verbose
+  typeFun <- utils::getFromNamespace(type, "base")
+  typeFunArgs <- list(
+    msg,
+    call. = FALSE
+  )
+  if (type == "message") {
+    typeFun <- messageVerbose
+    typeFunArgs[["call."]] <- NULL
+    typeFunArgs[["verbose"]] <- verbose
 
-    }
-    do.call(typeFun, typeFunArgs)
   }
+  do.call(typeFun, typeFunArgs)
+
 }
