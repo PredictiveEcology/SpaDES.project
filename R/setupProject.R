@@ -626,7 +626,11 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
       }
 
       # This will shrink down to only the modulesSimple -- all others are gone
-      params <- Map(mod = names(params), function(mod) {
+      hasDotGlobals <- isTRUE(".globals" %in% names(params))
+      globs <- if (hasDotGlobals) params[[".globals"]] else NULL
+      mods <- setdiff(names(params), ".globals")
+
+      params <- Map(mod = mods, function(mod) {
         knownPars <- moduleMetadata(module = mod, path = paths$modulePath,
                                     defineModuleListItems = "parameters")$parameters$paramName
         if (!is.null(params[[mod]])) {
