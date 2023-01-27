@@ -330,8 +330,8 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
     ),
     paths)
 
-
-  deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
+  # deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
+  deps <- c("SpaDES.project", "data.table", "Require", "rprojroot")
   deps <- c(deps, "rstudioapi")
 
   depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(deps, collapse = "|"))
