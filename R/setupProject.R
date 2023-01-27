@@ -108,7 +108,8 @@ setupProject <- function(name, paths, modules, packages,
   curDir <- getwd()
   inProject <- identical(basename(curDir), nameSimple)
 
-  paths <- setupPaths(name, paths, inProject, standAlone, libPaths, updateRprofile)
+  paths <- setupPaths(name, paths, inProject, standAlone, libPaths,
+                      updateRprofile)
 
   setupOptions(optionsStyle)
 
@@ -628,3 +629,21 @@ spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
 # 6. Require::Require(c(unname(unlist(outs)), packages), require = FALSE, standAlone = TRUE)
 
 
+messageWarnStop <- function(..., type = getOption("SpaDES.project.messageStringency", "message")
+                            verbose = getOption("Require.verbose", 1L)) {
+    type %in% c("message", "warning", "stop")
+
+    typeFun <- utils::getFromNamespace(type, "base")
+    typeFunArgs <- list(
+      msg,
+      call. = FALSE
+    )
+    if (type == "message") {
+      typeFun <- messageVerbose
+      typeFunArgs[["call."]] <- NULL
+      typeFunArgs[["verbose"]] <- verbose
+
+    }
+    do.call(typeFun, typeFunArgs)
+  }
+}

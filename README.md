@@ -78,6 +78,8 @@ spOut <-
                            "PredictiveEcology/Biomass_speciesParameters@development",
                            "PredictiveEcology/Biomass_borealDataPrep@development",
                            "PredictiveEcology/Biomass_core@development"))
+                           
+                           
 spOut$objects$studyArea <- LandR::randomStudyArea(center = NULL, size = 1e9, seed = 32)
 spOut$objects$studyAreaLarge <- LandR::randomStudyArea(center = NULL, size = 2e9, seed = 32)
 spOut$params = list(.globals = list(sppEquivCol = 'Boreal')) # what species naming convention
