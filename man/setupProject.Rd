@@ -3,6 +3,7 @@
 \name{setupProject}
 \alias{setupProject}
 \alias{setupPaths}
+\alias{setupSideEffects}
 \alias{setupOptions}
 \alias{setupModules}
 \alias{setupPackages}
@@ -19,7 +20,7 @@ setupProject(
   options,
   params,
   sideEffects,
-  require = c("reproducible", "SpaDES.core"),
+  require = NULL,
   restart = getOption("SpaDES.project.restart", FALSE),
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
@@ -27,7 +28,9 @@ setupProject(
   libPaths = paths$packagePath,
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
-  verbose = getOption("Require.verbose", 1L)
+  verbose = getOption("Require.verbose", 1L),
+  envir = environment(),
+  ...
 )
 
 setupPaths(
@@ -37,6 +40,19 @@ setupPaths(
   standAlone,
   libPaths,
   updateRprofile,
+  overwrite,
+  envir = environment(),
+  verbose = getOption("Require.verbose", 1L),
+  ...
+)
+
+setupSideEffects(
+  name,
+  sideEffects,
+  paths,
+  times,
+  overwrite,
+  envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   ...
 )
@@ -47,10 +63,20 @@ setupOptions(
   paths,
   times,
   overwrite,
-  verbose = getOption("Require.verbose", 1L)
+  envir = environment(),
+  verbose = getOption("Require.verbose", 1L),
+  ...
 )
 
-setupModules(paths, modules, useGit, overwrite, verbose)
+setupModules(
+  paths,
+  modules,
+  useGit,
+  overwrite,
+  envir = environment(),
+  verbose = getOption("Require.verbose", 1L),
+  ...
+)
 
 setupPackages(
   packages,
@@ -59,7 +85,9 @@ setupPackages(
   libPaths,
   setLinuxBinaryRepo,
   standAlone,
-  verbose
+  envir = environment(),
+  verbose,
+  ...
 )
 
 setupParams(
@@ -68,10 +96,13 @@ setupParams(
   paths,
   modules,
   times,
-  verbose = getOption("Require.verbose", 1L)
+  overwrite,
+  envir = environment(),
+  verbose = getOption("Require.verbose", 1L),
+  ...
 )
 
-setupGitIgnore(paths, verbose)
+setupGitIgnore(paths, envir = environment(), verbose, ...)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -107,11 +138,12 @@ returned, i.e., there are no side effects.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames.
 This/these will be parsed and evaluated, but nothing returned. This is intended
-to be used for functions, such as cloud authentication, that are run for their
-side effects only.}
+to be used for functions, such as cloud authentication or configurations,
+that are run for their side effects only.}
 
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
-(with \code{Require::Require}).}
+(with \code{Require::Require}). These will be installed and attached at the start
+of \code{setupProject} so that a user can use these during \code{setupProject}.}
 
 \item{restart}{If the \code{projectPath} is not the current path, and the session is in
 Rstudio, and interactive, it will restart with a new Rstudio session with a
@@ -137,7 +169,7 @@ sessions. If a character string, then this should be the path to an
 \code{libPath}. Default: \code{getOption("Require.updateRprofile", FALSE)}, meaning
 \code{FALSE}, but it can be set with an option or within a single call.}
 
-\item{overwrite}{Logical. Passed to \code{getModule}}
+\item{overwrite}{Logical. Passed to \code{getModule}, and \code{setupParams}, \code{setupOptions}}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
@@ -146,13 +178,10 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 attribute: \code{attr(.., "Require")} which has lots of information about the
 processes of the installs.}
 
+\item{...}{Any other named objects a user might want.}
+
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
 inside the \code{paths[["projectPath"]]}.}
-
-\item{...}{Passed to \code{install.packages}. Good candidates are e.g., \code{type} or
-\code{dependencies}. This can be used with \code{install_githubArgs} or
-\code{install.packageArgs} which give individual options for those 2 internal
-function calls.}
 
 \item{modulePackages}{A named list, where names are the module names, and the elements
 of the list are packages in a form that \code{Require::Require} accepts.}
@@ -164,6 +193,8 @@ directly to \code{SpaDES.core::simInit} using a \code{do.call}. See example.
 \code{setupPaths} returns a list of paths that are created. It is also called for its
 side effect which is to call \code{setPaths}, with each of these paths as an argument.
 See table for details.
+
+\code{setupSideEffects} is run for its side effects, with nothing returned to user.
 
 \code{setupOptions} is run for its side effects, namely, changes to the \code{options()}.
 
@@ -200,6 +231,11 @@ These are grouped thematically into three groups of paths:
 of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code{outputPath} and
 \code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
 \code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
+
+\code{setupSideEffects} can handle sequentially specified values, meaning a user can
+first create a list of default options, then a list of user-desired options that
+may or may not replace individual values. This can create hierarchies, \emph{based on
+order}.
 
 \code{setupOptions} can handle sequentially specified values, meaning a user can
 first create a list of default options, then a list of user-desired options that
@@ -309,18 +345,14 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 
 setupProject() # simplest case; just creates folders, sets options in current folder
 
-setupProject(name = "SpaDES.project",
-             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
-                          scratchPath = tempdir()),
-             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-)
-
+# set relative paths & modules
 setupProject(name = "SpaDES.project",
              paths = list(modulePath = "m", projectPath = "SpaDES.project",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
+# load packages using `require`
 out <- SpaDES.project::setupProject(
   paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
   standAlone = TRUE,
@@ -352,8 +384,15 @@ out <- setupProject(name = "SpaDES.project",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
-if (require("SpaDES.core"))
-  do.call(simInit, out)
+
+# using an options file that is remote
+out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  sideEffects = system.file("sideEffects.R", package = "SpaDES.project",
+  mode = "development")
+)
+
+# If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
+#   do.call(simInit, out)
 }
 }
 \seealso{

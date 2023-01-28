@@ -1,3 +1,4 @@
+print(mode)
 quickPlot::dev.useRSGD(useRSGD = quickPlot::isRstudioServer())
 
 httr::set_config(httr::config(http_version = 0))
