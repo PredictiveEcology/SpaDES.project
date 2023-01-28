@@ -30,6 +30,7 @@ setupProject(
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
   envir = environment(),
+  dots,
   ...
 )
 
@@ -37,12 +38,13 @@ setupPaths(
   name,
   paths,
   inProject,
-  standAlone,
-  libPaths,
-  updateRprofile,
-  overwrite,
+  standAlone = TRUE,
+  libPaths = paths$packagePath,
+  updateRprofile = getOption("Require.updateRprofile", FALSE),
+  overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
+  dots,
   ...
 )
 
@@ -54,6 +56,7 @@ setupSideEffects(
   overwrite,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
+  dots,
   ...
 )
 
@@ -65,6 +68,7 @@ setupOptions(
   overwrite,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
+  dots,
   ...
 )
 
@@ -75,6 +79,7 @@ setupModules(
   overwrite,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
+  dots,
   ...
 )
 
@@ -87,6 +92,7 @@ setupPackages(
   standAlone,
   envir = environment(),
   verbose,
+  dots,
   ...
 )
 
@@ -99,10 +105,11 @@ setupParams(
   overwrite,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
+  dots,
   ...
 )
 
-setupGitIgnore(paths, envir = environment(), verbose, ...)
+setupGitIgnore(paths, envir = environment(), verbose, dots, ...)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -177,6 +184,8 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 \code{Require} function, when \code{verbose >= 2}, the return object will have an
 attribute: \code{attr(.., "Require")} which has lots of information about the
 processes of the installs.}
+
+\item{dots}{Any other named objects passed as a list a user might want for other elements.}
 
 \item{...}{Any other named objects a user might want.}
 
@@ -385,7 +394,7 @@ out <- setupProject(name = "SpaDES.project",
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
-# using an options file that is remote
+# setting arbitrary arguments
 out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
   sideEffects = system.file("sideEffects.R", package = "SpaDES.project",
   mode = "development")
