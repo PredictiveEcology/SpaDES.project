@@ -170,8 +170,9 @@
 #'
 #' # setting arbitrary arguments
 #' out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'   sideEffects = system.file("sideEffects.R", package = "SpaDES.project",
-#'   mode = "development")
+#'   sideEffects = system.file("sideEffects.R", package = "SpaDES.project"),
+#'   .mode = "development",
+#'   params = list("Biomass_borealDataPrep" = list(.useCache = .mode))
 #' )
 #'
 #' # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
@@ -213,7 +214,7 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
-                                     envir = envir)
+                                     envir = envir, verbose = verbose)
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
 
@@ -377,12 +378,17 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
   diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
+    if (file.exists(file.path(paths$packagePath, "SpaDES.project", "DESCRIPTION"))) {
     pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
     pvPathsPackagePath <- packageVersion(dai, lib.loc = paths$packagePath)
     if (pvLibLoc > pvPathsPackagePath)
-      list(Package = dai, pvLibLoc, pvPathsPackagePath)
+      out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
     else
-      NULL
+      out <- NULL
+    } else {
+      out <- NULL
+    }
+    out
   })
   diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
   deps <- setdiff(deps, depsAlreadyInstalled)
@@ -452,7 +458,6 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = environment(), envir2 = parent.frame())
 
-    messageVerbose("Parsing and evaluating sideEffects", verbose = verbose)
     sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
                                   overwrite = overwrite, envir = envir, verbose = verbose)
   }
@@ -844,8 +849,8 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
     else
-      val2 <- eval(val, envir = envir)
-    if ((identical(val2, val) && !missing(envir2)) || is.null(val2)) {
+      val2 <- try(eval(val, envir = envir), silent = TRUE)
+    if ((identical(val2, val) && !missing(envir2)) || is.null(val2) || is(val2, "try-error")) {
       val <- eval(val, envir = envir2)
       val2 <- val
     } else {

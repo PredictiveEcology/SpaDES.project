@@ -144,8 +144,6 @@ params <- list(
   )
 )
 
-print(mode)
-
 list(
   CBM_defaults = list(
     .saveInitialTime = 1
