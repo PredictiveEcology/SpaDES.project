@@ -30,7 +30,8 @@
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
 #'   not attached to the search path. See `require`.
 #' @param require Optional. A character vector of packages to install *and* attach
-#'   (with `Require::Require`).
+#'   (with `Require::Require`). These will be installed and attached at the start
+#'   of `setupProject` so that a user can use these during `setupProject`.
 #' @param options Optional. Either a named list to be passed to `options`
 #'   or a character vector indicating one or more file(s) to source,
 #'   in the order provided. These will be sourced into a temporary environment (not
@@ -39,8 +40,8 @@
 #'   returned, i.e., there are no side effects.
 #' @param sideEffects Optional. This can be an expression or one or more filenames.
 #'   This/these will be parsed and evaluated, but nothing returned. This is intended
-#'   to be used for functions, such as cloud authentication, that are run for their
-#'   side effects only.
+#'   to be used for functions, such as cloud authentication or configurations,
+#'   that are run for their side effects only.
 #' @param useGit A logical. If `TRUE`, it will use `git clone`. Otherwise it will
 #' get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
@@ -125,18 +126,14 @@
 #'
 #' setupProject() # simplest case; just creates folders, sets options in current folder
 #'
-#' setupProject(name = "SpaDES.project",
-#'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
-#'                           scratchPath = tempdir()),
-#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-#' )
-#'
+#' # set relative paths & modules
 #' setupProject(name = "SpaDES.project",
 #'              paths = list(modulePath = "m", projectPath = "SpaDES.project",
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
+#' # load packages using `require`
 #' out <- SpaDES.project::setupProject(
 #'   paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
 #'   standAlone = TRUE,
@@ -168,12 +165,13 @@
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
-#' if (require("SpaDES.core"))
-#'   do.call(simInit, out)
+#'
+#' # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
+#' #   do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects,
-                         require = c("reproducible", "SpaDES.core"),
+                         require = NULL,
                          restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
@@ -183,7 +181,7 @@ setupProject <- function(name, paths, modules, packages,
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
-
+  sideEffectsSUB <- substitute(sideEffects)
   libPaths <- substitute(libPaths)
 
   pathsSUB <- checkProjectPath(pathsSUB, envir = environment(), envir2 = parent.frame())
@@ -195,6 +193,15 @@ setupProject <- function(name, paths, modules, packages,
 
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
                       updateRprofile)
+
+  if (!is.null(require)) {
+    Require::Require(require, require = require,
+                     setLinuxBinaryRepo = setLinuxBinaryRepo,
+                     standAlone = standAlone,
+                     libPaths = paths$packagePath, verbose = verbose)
+  }
+
+  sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite)
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite)
 
@@ -211,7 +218,8 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths$packagePath, verbose = verbose)
 
-  params <- setupParams(name, paramsSUB, paths, modules, times, verbose = verbose)
+  params <- setupParams(name, paramsSUB, paths, modules, times,
+                        overwrite = overwrite, verbose = verbose)
 
   setupGitIgnore(paths, verbose)
 
@@ -289,19 +297,14 @@ setupProject <- function(name, paths, modules, packages,
 #' @rdname setupProject
 #' @importFrom Require normPath checkPath
 setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprofile,
-                       verbose = getOption("Require.verbose", 1L), ...) {
+                       overwrite, verbose = getOption("Require.verbose", 1L), ...) {
+  messageVerbose(yellow("setting up paths ..."), verbose = verbose)
 
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths$projectPath))`
   pathsSUB <- checkProjectPath(pathsSUB, environment(), parent.frame())
 
-  # projPth <- if  (inProject) file.path(".") else file.path(".", name)
-  # projPth <- normPath(projPth)
-  # if (missing(paths) || inProject) {
-  #   paths <- list(projectPath = projPth)
-  # }
-
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = environment(), envir2 = parent.frame())
-  paths <- parseFileLists(paths, paths[["projectPath"]])
+  paths <- parseFileLists(paths, paths[["projectPath"]], overwrite = overwrite)
 
   if (is.null(paths[["projectPath"]]))
     stop("Please specify paths[[\"projectPath\"]] as an absolute path")
@@ -352,11 +355,27 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
   deps <- c("SpaDES.project", "data.table", "Require", "rprojroot")
   deps <- c(deps, "rstudioapi")
 
-  depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(deps, collapse = "|"))
+  depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
+  diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
+    pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
+    pvPathsPackagePath <- packageVersion(dai, lib.loc = paths$packagePath)
+    if (pvLibLoc > pvPathsPackagePath)
+      list(Package = dai, pvLibLoc, pvPathsPackagePath)
+    else
+      NULL
+  })
+  diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
   deps <- setdiff(deps, depsAlreadyInstalled)
+  if (length(diffVersionNames)) {
+    messageVerbose("Updating ", paste0(diffVersionNames, collapse = ", "), " in paths$packagePath ",
+                   "because it has been updated in .libPaths()[1]. To turn this updating off, set\n",
+                   "options(SpaDES.project.updateSelf = FALSE)")
+    if (!isFALSE(getOption("SpaDES.project.updateSelf")))
+      deps <- c(deps, diffVersionNames)
+  }
 
   if (length(deps)) {
-    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to new packagePath",
+    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath",
                    verbose = verbose)
 
     if (!identical(normPath(.libPaths()[1]), paths$packagePath))
@@ -382,7 +401,41 @@ setupPaths <- function(name, paths, inProject, standAlone, libPaths, updateRprof
 
   do.call(setPaths, paths[spPaths])
 
+  messageVerbose(yellow("\b done setting up paths"), verbose = verbose)
+
   paths[order(names(paths))]
+}
+
+
+
+#' @export
+#' @rdname setupProject
+#'
+#' @details
+#' `setupSideEffects` can handle sequentially specified values, meaning a user can
+#' first create a list of default options, then a list of user-desired options that
+#' may or may not replace individual values. This can create hierarchies, *based on
+#' order*.
+#'
+#' @return
+#' `setupSideEffects` is run for its side effects, with nothing returned to user.
+#'
+#'
+#' @importFrom data.table data.table
+setupSideEffects <- function(name, sideEffects, paths, times, overwrite, verbose = getOption("Require.verbose", 1L)) {
+
+  if (!missing(sideEffects)) {
+    messageVerbose(yellow("setting up sideEffects..."), verbose = verbose)
+
+    sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = environment(), envir2 = parent.frame())
+
+    messageVerbose("Parsing and evaluating sideEffects", verbose = verbose)
+    sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
+                                  overwrite = overwrite)
+  }
+  messageVerbose(yellow("\b done setting up sideEffects"), verbose = verbose)
+
 }
 
 
@@ -404,29 +457,15 @@ setupOptions <- function(name, options, paths, times, overwrite, verbose = getOp
 
   newValuesComplete <- oldValuesComplete <- NULL
   if (!missing(options)) {
+
+    messageVerbose(yellow("setting up options..."), verbose = verbose)
+
     preOptions <- options()
 
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     options <- evalSUB(optionsSUB, valObjName = "options", envir = environment(), envir2 = parent.frame())
 
-    options <- parseFileLists(options, paths[["projectPath"]])
-
-    # if (is.character(options)) {
-    #   options <- mapply(opt = options, function(opt) {
-    #     isGH <- isGitHub(opt)
-    #     if (isGH) {
-    #       opt <- getGithubFile(opt, destDir = paths[["projectPath"]], overwrite = overwrite)
-    #     }
-    #     opt
-    #     }, SIMPLIFY = TRUE)
-    #   areAbs <- isAbsolutePath(options)
-    #   if (any(areAbs %in% FALSE)) {
-    #     options[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], options)
-    #   }
-    #
-    #   options <- parseListsSequentially(files = options)
-    #
-    # }
+    options <- parseFileLists(options, paths[["projectPath"]], overwrite = overwrite)
 
     postOptions <- options()
     newValues <- oldValues <- list()
@@ -467,7 +506,7 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
     pp <- parse(optFiles)
     envs2 <- lapply(pp, function(p) {
       env <- new.env(parent = tail(envs, 1)[[1]])
-      if (isUnevaluatedList(p)) {
+      if (isUnevaluatedList(p) || isFALSE(namedList)) {
         out <- eval(p, envir = env)
         if (length(ls(env)) == 0)
           env$opt <- out
@@ -572,15 +611,17 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   if (missing(packages)) {
     packages <- NULL
   }
+  messageVerbose(yellow("setting up packages..."), verbose = verbose)
 
-  if (length(packages) || length(require) || length(unlist(modulePackages))) {
+  if (length(packages) || length(unlist(modulePackages))) { # length(require) ||
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
     while (continue) {
       mp <- unname(unlist(modulePackages))
-      requireToTry <- unique(c(mp, require))
-      packagesToTry <- unique(c(packages, mp, requireToTry))
-      out <- try(Require::Require(packagesToTry, require = Require::extractPkgName(requireToTry),
+      # requireToTry <- unique(c(mp, require))
+      packagesToTry <- unique(c(packages, mp))
+      # packagesToTry <- unique(c(packages, mp, requireToTry))
+      out <- try(Require::Install(packagesToTry, # require = Require::extractPkgName(requireToTry),
                                   standAlone = standAlone,
                                   libPaths = libPaths,
                                   verbose = verbose))
@@ -600,6 +641,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   }
 
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
+  messageVerbose(yellow("\b done setting up packages"), verbose = verbose)
 
   invisible(NULL)
 }
@@ -612,23 +654,16 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 #'
 #'
 #' @importFrom data.table data.table
-setupParams <- function(name, params, paths, modules, times, verbose = getOption("Require.verbose", 1L)) {
+setupParams <- function(name, params, paths, modules, times, overwrite, verbose = getOption("Require.verbose", 1L)) {
   if (missing(params)) {
     params <- list()
   } else {
 
+    messageVerbose(yellow("setting up params..."), verbose = verbose)
+
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = environment(), envir2 = parent.frame())
-    params <- parseFileLists(params, paths[["projectPath"]])
-
-    # if (is.character(params)) {
-    #   areAbs <- isAbsolutePath(params)
-    #   if (any(areAbs %in% FALSE)) {
-    #     params[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], params)
-    #   }
-    #
-    #   params <- parseListsSequentially(files = params)
-    # }
+    params <- parseFileLists(params, paths[["projectPath"]], overwrite = overwrite)
 
     if (length(params)) {
 
@@ -649,66 +684,65 @@ setupParams <- function(name, params, paths, modules, times, verbose = getOption
       globs <- if (hasDotGlobals) params[[".globals"]] else NULL
       mods <- setdiff(names(params), ".globals")
 
-      params <- Map(mod = mods, function(mod) {
-        knownPars <- moduleMetadata(module = mod, path = paths$modulePath,
-                                    defineModuleListItems = "parameters")$parameters$paramName
-        if (!is.null(params[[mod]])) {
-          supplied <- names(params[[mod]])
-          anyGlobals <- intersect(supplied, names(params[[".globals"]]))
-          paramsInclGlobalsSupplied <- unique(c(supplied, anyGlobals))
-          knownParsInMod <- paramsInclGlobalsSupplied %in% knownPars
-          overInclusion <- knownParsInMod %in% FALSE
-          if (any(overInclusion)) {
-            params[[mod]] <- params[[mod]][paramsInclGlobalsSupplied[!overInclusion]]
-            messageVerbose("These parameters set (",
-                           paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
-                           "), but they are not in ", mod,
-                           " metadata; this should be either added to the metadata, ",
-                           "or not set in the params argument")
-          }
+      if (requireNamespace("SpaDES.core", quietly = TRUE)) {
+        params <- Map(mod = mods, function(mod) {
+          knownPars <- SpaDES.core::moduleMetadata(module = mod, path = paths$modulePath,
+                                                   defineModuleListItems = "parameters")$parameters$paramName
+          if (!is.null(params[[mod]])) {
+            supplied <- names(params[[mod]])
+            anyGlobals <- intersect(supplied, names(params[[".globals"]]))
+            paramsInclGlobalsSupplied <- unique(c(supplied, anyGlobals))
+            knownParsInMod <- paramsInclGlobalsSupplied %in% knownPars
+            overInclusion <- knownParsInMod %in% FALSE
+            if (any(overInclusion)) {
+              params[[mod]] <- params[[mod]][paramsInclGlobalsSupplied[!overInclusion]]
+              messageVerbose("These parameters set (",
+                             paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
+                             "), but they are not in ", mod,
+                             " metadata; this should be either added to the metadata, ",
+                             "or not set in the params argument")
+            }
 
-        } else {
-          messageVerbose("No parameters set for ", mod, verbose = verbose, verboseLevel = 2)
-        }
-        params[[mod]]
-      })
+          } else {
+            messageVerbose("No parameters set for ", mod, verbose = verbose, verboseLevel = 2)
+          }
+          params[[mod]]
+        })
+      } else {
+        messageVerbose("Skipping checking of parameters supplied against module parameters because ",
+                       "SpaDES.core is not installed. Please install if this check is desired.",
+                       verbose = verbose)
+      }
       if (hasDotGlobals)
         params[[".globals"]] <- globs
       messageVerbose("The following params were created: ", verbose = verbose, verboseLevel = 2)
       messageVerbose(params, verbose = verbose, verboseLevel = 2)
     }
+    messageVerbose(yellow("\b done setting up params"), verbose = verbose)
   }
   return(params)
 }
 
 
-parseFileLists <- function(obj, projectPath) {
+parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite) {
 
   if (is.character(obj)) {
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt)
       if (isGH) {
-        opt <- getGithubFile(opt, destDir = paths[["projectPath"]], overwrite = overwrite)
+        opt <- getGithubFile(opt, destDir = projectPath, overwrite = overwrite)
       }
       opt
     }, SIMPLIFY = TRUE)
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj)
+      obj[areAbs %in% FALSE] <- file.path(projectPath, obj)
     }
 
-    obj <- parseListsSequentially(files = obj)
+    obj <- parseListsSequentially(files = obj, namedList = namedList)
 
   }
 
-  # if (is.character(obj)) {
-  #   areAbs <- isAbsolutePath(obj)
-  #   if (any(areAbs %in% FALSE)) {
-  #     obj[areAbs %in% FALSE] <- file.path(projectPath, obj)
-  #   }
-  #
-  #   obj <- parseListsSequentially(files = obj)
-  # }
   obj
 }
 
