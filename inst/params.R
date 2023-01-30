@@ -1,6 +1,9 @@
+aFn <- function(x) {
+  x
+}
 params <- list(
   .globals = list(
-    fireTimestep = 1L,
+    fireTimestep = aFn(1L),
     initialB = NA,
     reps = 1L:10L,
     sppEquivCol = "LandR",

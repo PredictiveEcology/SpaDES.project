@@ -29,8 +29,9 @@ setupProject(
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
-  envir = environment(),
+  .envir = environment(),
   dots,
+  defaultDots,
   ...
 )
 
@@ -42,7 +43,7 @@ setupPaths(
   libPaths = paths$packagePath,
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
-  envir = environment(),
+  .envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   ...
@@ -54,7 +55,7 @@ setupSideEffects(
   paths,
   times,
   overwrite,
-  envir = environment(),
+  .envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   ...
@@ -66,7 +67,7 @@ setupOptions(
   paths,
   times,
   overwrite,
-  envir = environment(),
+  .envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   ...
@@ -77,7 +78,7 @@ setupModules(
   modules,
   useGit,
   overwrite,
-  envir = environment(),
+  .envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   ...
@@ -90,7 +91,7 @@ setupPackages(
   libPaths,
   setLinuxBinaryRepo,
   standAlone,
-  envir = environment(),
+  .envir = environment(),
   verbose,
   dots,
   ...
@@ -103,13 +104,13 @@ setupParams(
   modules,
   times,
   overwrite,
-  envir = environment(),
+  .envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   ...
 )
 
-setupGitIgnore(paths, envir = environment(), verbose, dots, ...)
+setupGitIgnore(paths, .envir = environment(), verbose, dots, ...)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -185,9 +186,13 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 attribute: \code{attr(.., "Require")} which has lots of information about the
 processes of the installs.}
 
-\item{dots}{Any other named objects passed as a list a user might want for other elements.}
+\item{.envir}{The environment to look in for objects. This is used internally
+by the \verb{setup*} functions and should be left unset by a user.}
 
-\item{...}{Any other named objects a user might want.}
+\item{dots}{Any other named objects passed as a list a user might want for other elements.
+Combined with \code{...}}
+
+\item{...}{Any other named objects a user might want. Combined with \code{dots}.}
 
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
 inside the \code{paths[["projectPath"]]}.}
@@ -396,8 +401,9 @@ out <- setupProject(name = "SpaDES.project",
 
 # setting arbitrary arguments
 out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  sideEffects = system.file("sideEffects.R", package = "SpaDES.project",
-  mode = "development")
+  sideEffects = system.file("sideEffects.R", package = "SpaDES.project"),
+  .mode = "development",
+  params = list("Biomass_borealDataPrep" = list(.useCache = .mode))
 )
 
 # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
