@@ -204,7 +204,7 @@ setupProject <- function(name, paths, modules, packages,
   inProject <- isInProject(name)
 
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
-                      updateRprofile, envir = envir)
+                      updateRprofile) # don't pass envir because paths aren't evaluated yet
 
   if (!is.null(require)) {
     Require::Require(require, require = require,
