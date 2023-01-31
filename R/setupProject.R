@@ -171,25 +171,49 @@
 #' # setting arbitrary arguments
 #' out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
 #'   sideEffects = system.file("sideEffects.R", package = "SpaDES.project"),
-#'   .mode = "development",
-#'   params = list("Biomass_borealDataPrep" = list(.useCache = .mode))
+#'   defaultDots = list(mode = "development",
+#'                      studyAreaName = "MB"),
+#'   mode = mode, studyAreaName = studyAreaName,
+#'   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+#' )
+#'
+#' out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+#'   config = "LandWeb",
+#'   defaultDots = list(mode = "development",
+#'                      studyAreaName = "MB"),
+#'   mode = mode, studyAreaName = studyAreaName,
+#'   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+#' )
+#'
+#' # Pass args from GlobalEnv
+#' studyAreaName <- "AB"
+#' out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+#'                     modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+#'                     defaultDots = list(mode = "development",
+#'                                        studyAreaName = "MB"),
+#'                     mode = "development", studyAreaName = studyAreaName,
 #' )
 #'
 #' # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #' #   do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
-                         times, options, params, sideEffects,
+                         times, options, params, sideEffects, config,
                          require = NULL,
                          restart = getOption("SpaDES.project.restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
                          updateRprofile = getOption("Require.updateRprofile", FALSE),
-                         overwrite = FALSE, envir = environment(),
+                         overwrite = FALSE, # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
+                         defaultDots,
                          dots, ...) {
 
-  dotsToHere(dots, ...)
+  envir = environment()
+
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
 
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -214,6 +238,7 @@ setupProject <- function(name, paths, modules, packages,
                      libPaths = paths$packagePath, verbose = verbose)
   }
 
+
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
                                      envir = envir, verbose = verbose)
 
@@ -232,27 +257,45 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths$packagePath, envir = envir, verbose = verbose)
 
-  params <- setupParams(name, paramsSUB, paths, modules, times,
-                        overwrite = overwrite, envir = envir, verbose = verbose)
+  if (!missing(config)) {
+    messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
+    if (!requireNamespace("SpaDES.config")) {
+      Require::Install("PredictiveEcology/SpaDES.config@development")
+    }
+    out <- do.call(SpaDES.config::useConfig, append(
+      list(config), mget(names(dotsSUB), envir = envir, inherits = FALSE)))
 
-  setupGitIgnore(paths, envir = envir, verbose)
+  } else {
+    params <- setupParams(name, paramsSUB, paths, modules, times,
+                          overwrite = overwrite, envir = envir, verbose = verbose)
 
-  out <- list(
-    modules = Require::extractPkgName(modules),
-    paths = paths[spPaths],
-    params = params)
+    setupGitIgnore(paths, envir = envir, verbose)
 
-  if (!inProject) {
-    if (interactive() && isTRUE(restart)) # getOption("SpaDES.project.restart", TRUE))
-      if (requireNamespace("rstudioapi")) {
-        messageVerbose("... restarting Rstudio inside the project",
-                       verbose = verbose)
-        rstudioapi::openProject(path = paths[["projectPath"]])
-      } else {
-        stop("Please open this in a new Rstudio project at ",
-             paths[["projectPath"]])
-      }
+    out <- list(
+      modules = Require::extractPkgName(modules),
+      paths = paths[spPaths],
+      params = params)
+
+    if (!inProject) {
+      if (interactive() && isTRUE(restart)) # getOption("SpaDES.project.restart", TRUE))
+        if (requireNamespace("rstudioapi")) {
+          messageVerbose("... restarting Rstudio inside the project",
+                         verbose = verbose)
+          rstudioapi::openProject(path = paths[["projectPath"]])
+        } else {
+          stop("Please open this in a new Rstudio project at ",
+               paths[["projectPath"]])
+        }
+    }
+
+    browser()
+
   }
+
+  if (length(dotsSUB))
+    out <- append(out,
+                  mget(names(dotsSUB), envir = envir, inherits = FALSE))
+
 
   return(out)
 }
@@ -314,7 +357,10 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
                        updateRprofile = getOption("Require.updateRprofile", FALSE),
                        overwrite = FALSE, envir = environment(),
                        verbose = getOption("Require.verbose", 1L), dots, ...) {
-  dotsToHere(dots, ...)
+
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
+
   messageVerbose(yellow("setting up paths ..."), verbose = verbose)
 
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths$projectPath))`
@@ -379,13 +425,13 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
   diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
-    if (file.exists(file.path(paths$packagePath, "SpaDES.project", "DESCRIPTION"))) {
-    pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
-    pvPathsPackagePath <- packageVersion(dai, lib.loc = paths$packagePath)
-    if (pvLibLoc > pvPathsPackagePath)
-      out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
-    else
-      out <- NULL
+    if (file.exists(file.path(paths$packagePath, dai, "DESCRIPTION"))) {
+      pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
+      pvPathsPackagePath <- packageVersion(dai, lib.loc = paths$packagePath)
+      if (pvLibLoc > pvPathsPackagePath)
+        out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
+      else
+        out <- NULL
     } else {
       out <- NULL
     }
@@ -452,7 +498,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
                              envir = environment(), verbose = getOption("Require.verbose", 1L), dots, ...) {
 
-  dotsToHere(dots, ...)
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
+
   if (!missing(sideEffects)) {
     messageVerbose(yellow("setting up sideEffects..."), verbose = verbose)
 
@@ -484,7 +532,8 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
 setupOptions <- function(name, options, paths, times, overwrite, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, ...) {
 
-  dotsToHere(dots, ...)
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
 
   newValuesComplete <- oldValuesComplete <- NULL
   if (!missing(options)) {
@@ -597,7 +646,8 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
 #'
 setupModules <- function(paths, modules, useGit, overwrite, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, ...) {
-  dotsToHere(dots, ...)
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
 
   if (missing(modules)) {
     modules <- character()
@@ -650,7 +700,8 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
 setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo,
                           standAlone, envir = environment(), verbose, dots, ...) {
 
-  dotsToHere(dots, ...)
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
 
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
@@ -704,7 +755,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 setupParams <- function(name, params, paths, modules, times, overwrite, envir = environment(),
                         verbose = getOption("Require.verbose", 1L), dots, ...) {
 
-  dotsToHere(dots, ...)
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
 
   if (missing(params)) {
     params <- list()
@@ -728,7 +780,8 @@ setupParams <- function(name, params, paths, modules, times, overwrite, envir = 
 
         messageVerbose("Only returning params that are relevant for modules supplied.\n",
                        "Omitting parameters supplied for: ",
-                       paste(overSupplied, collapse = ", "), verbose = verbose)
+                       paste(overSupplied, collapse = ", "), " (set verbose == 2 to see details)",
+                       verbose = verbose)
       }
 
       # This will shrink down to only the modulesSimple -- all others are gone
@@ -885,7 +938,8 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' `.gitignore` file.
 setupGitIgnore <- function(paths, envir = environment(), verbose, dots, ...) {
 
-  dotsToHere(dots, ...)
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsToHere(dots, dotsSUB, defaultDots)
 
   gitIgnoreFile <- ".gitignore"
   if (file.exists(gitIgnoreFile)) {
@@ -1107,10 +1161,16 @@ messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnSto
 }
 
 
-dotsToHere <- function(dots, ..., envir = parent.frame()) {
+dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   if (missing(dots))
-    dots <- list(...)
+    dots <- dotsSUB
   else
-    dots <- append(dots, list(...))
+    dots <- append(dots, dotsSUB)
+  dots <- Map(d = dots, nam = names(dots), function(d, nam) {
+    d1 <- try(eval(d, envir = envir), silent = TRUE)
+    if (is(d1, "try-error"))
+      d1 <- defaultDots[[nam]]
+    d1
+  })
   list2env(dots, envir = envir)
 }
