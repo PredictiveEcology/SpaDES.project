@@ -1,6 +1,9 @@
-params <- list(
+a <- 1
+mode <- "development"
+
+paramsDefault <- list(
   .globals = list(
-    fireTimestep = 1L,
+    fireTimestep = a,
     initialB = NA,
     reps = 1L:10L,
     sppEquivCol = "LandR",
@@ -152,3 +155,129 @@ list(
 
 if (machine("W-VIC"))
   list(CBM_defaults = list(.useCache = mode))
+
+
+list(
+  .globals = list(
+    fireTimestep = 1L,
+    initialB = if (.version == 2) NA_real_ else 10,
+    sppEquivCol = "LandWeb",
+    successionTimestep = 10,
+    summaryInterval = 100,
+    summaryPeriod = c(700, 1000),
+    vegLeadingProportion = 0.8,
+    .plotInitialTime = 0,
+    .plots = c("object", "png", "raw", "screen"),
+    .sslVerify = 0L, ## TODO: temporary to deal with NFI server SSL issues
+    .studyAreaName = "random",
+    .useParallel = 2 ## doesn't benefit from more DT threads
+  ),
+  Biomass_borealDataPrep = list(
+    biomassModel = quote(lme4::lmer(B ~ logAge * speciesCode + cover * speciesCode +
+                                      (logAge + cover | ecoregionGroup))),
+    ecoregionLayerField = "ECOREGION", # "ECODISTRIC"
+    forestedLCCClasses = c(1:15, 20, 32, 34:36), ## should match preamble's treeClassesLCC
+    LCCClassesToReplaceNN = 34:36,
+    # next two are used when assigning pixelGroup membership; what resolution for
+    #   age and biomass
+    pixelGroupAgeClass = 2 * 10,  ## twice the successionTimestep; can be coarse because initial conditions are irrelevant
+    pixelGroupBiomassClass = 1000, ## 1000 / mapResFact^2; can be coarse because initial conditions are irrelevant
+    subsetDataAgeModel = 100,
+    subsetDataBiomassModel = 100,
+    speciesTableAreas = c("BSW", "BP", "MC"), ## TODO: should we remove BP? MC?
+    speciesUpdateFunction = list(
+      quote(LandR::speciesTableUpdate(sim$species, sim$speciesTable, sim$sppEquiv, P(sim)$sppEquivCol)),
+      quote(LandR::updateSpeciesTable(sim$species, sim$speciesParams))
+    ),
+    useCloudCacheForStats = FALSE, ## TODO: re-enable once errors in species levels resolved
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects", "init")
+  ),
+  Biomass_core = list(
+    growthInitialTime = 0, ## start(sim)
+    initialBiomassSource = "cohortData",
+    seedingAlgorithm = "wardDispersal",
+    .maxMemory = if (format(pemisc::availableMemory(), units = "GiB") > 130) 5 else 2, ## GB
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects", "init")
+  ),
+  Biomass_regeneration = list(
+    fireInitialTime = 1, ## start(sim, "year") + 1
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects", "init")
+  ),
+  Biomass_speciesData = list(
+    types = c("KNN", "CASFRI", "Pickell", "ForestInventory"),
+    .useCache = c(".inputObjects", "init")
+  ),
+  HSI_Caribou_MB = list(
+    ageClasses = c("Young", "Immature", "Mature", "Old"), ## LandWebUtils:::.ageClasses
+    ageClassCutOffs = c(0, 40, 80, 120),                  ## LandWebUtils:::.ageClassCutOffs
+    ageClassMaxAge = 400L, ## was `maxAge` previously
+    reps = 1L:15L, ## TODO: used elsewhere to setup runs (expt table)?
+    simOutputPath = paths[["outputPath"]],
+    summaryInterval = 100,        ## also in .globals
+    summaryPeriod = c(700, 1000), ## also in .globals
+    upload = FALSE,
+    uploadTo = "", ## TODO: use google-ids.csv to define these per WBI?
+    version = .version,
+    .makeTiles = FALSE, ## no tiles until parallel tile creation resolved (ropensci/tiler#18)
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects", "postprocess"), ## don't cache 'init'
+    .useParallel = options[["map.maxNumCores"]]
+  ),
+  LandMine = list(
+    biggestPossibleFireSizeHa = 5e5,
+    burnInitialTime = 1L, ## start(sim, "year") + 1; same as fireInitialTime
+    maxReburns = 20L,
+    maxRetriesPerID = 4L,
+    minPropBurn = 0.90,
+    ROSother = 30L,
+    useSeed = NULL, ## NULL to avoid setting a seed
+    .plotInitialTime = 1, ## sim(start) + 1
+    .plotInterval = 1,
+    .unitTest = TRUE,
+    .useCache = c(".inputObjects", "init")
+  ),
+  LandWeb_output = list(
+    summaryInterval = 100, ## also set in .globals
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects", "init")
+  ),
+  LandWeb_preamble = list(
+    bufferDist = 20000,        ## 20 km buffer
+    bufferDistLarge = 50000,   ## 50 km buffer
+    dispersalType = "default",
+    friMultiple = 1L,
+    pixelSize = 250,
+    minFRI = 25L,
+    ROStype = "default",
+    treeClassesLCC = c(1:15, 20, 32, 34:36), ## should match B_bDP's forestedLCCClasses
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects") ## faster without caching for "init"
+  ),
+  LandWeb_summary = list(
+    ageClasses = c("Young", "Immature", "Mature", "Old"), ## LandWebUtils:::.ageClasses
+    ageClassCutOffs = c(0, 40, 80, 120),                  ## LandWebUtils:::.ageClassCutOffs
+    ageClassMaxAge = 400L, ## was `maxAge` previously
+    reps = 1L:15L, ## TODO: used elsewhere to setup runs (expt table)?
+    simOutputPath = paths[["outputPath"]],
+    summaryInterval = 100,        ## also in .globals
+    summaryPeriod = c(700, 1000), ## also in .globals
+    timeSeriesTimes = 601:650,
+    upload = FALSE,
+    uploadTo = "", ## TODO: use google-ids.csv to define these per WBI?
+    version = .version,
+    .makeTiles = FALSE, ## no tiles until parallel tile creation resolved (ropensci/tiler#18)
+    .plotInitialTime = 0, ## sim(start)
+    .useCache = c(".inputObjects", "animation", "postprocess"), ## don't cache 'init'
+    .useParallel = options[["map.maxNumCores"]]
+  )
+
+)
+list(
+  timeSinceFire = list(
+    startTime = paramsDefault$.globals$fireTimestep,
+    .useCache = c(".inputObjects") ## faster without caching for "init"
+  )
+)

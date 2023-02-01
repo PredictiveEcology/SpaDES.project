@@ -1,10 +1,10 @@
 maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
 
-if (mode == "development") {
+if (.mode == "development") {
   list(test = 2)
 }
 
-if (mode == "batch") {
+if (.mode == "batch") {
   list(test = 1)
 }
 
@@ -21,6 +21,7 @@ opts <- list(
   "map.dataPath" = normPath(paths$inputPath), # not used yet
   "map.overwrite" = TRUE,
   "map.tilePath" = paths$tilePath,
+  "map.maxNumCores" = 2,
   # "map.useParallel" = mapParallel,
   "rasterMaxMemory" = maxMemory,
   # "rasterTmpDir" = scratchDir,
