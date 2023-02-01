@@ -20,6 +20,7 @@ setupProject(
   options,
   params,
   sideEffects,
+  config,
   require = NULL,
   restart = getOption("SpaDES.project.restart", FALSE),
   useGit = FALSE,
@@ -29,7 +30,7 @@ setupProject(
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
-  envir = environment(),
+  defaultDots,
   dots,
   ...
 )
@@ -45,6 +46,7 @@ setupPaths(
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
+  defaultDots,
   ...
 )
 
@@ -57,6 +59,7 @@ setupSideEffects(
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
+  defaultDots,
   ...
 )
 
@@ -69,6 +72,7 @@ setupOptions(
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
+  defaultDots,
   ...
 )
 
@@ -80,6 +84,7 @@ setupModules(
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
+  defaultDots,
   ...
 )
 
@@ -93,6 +98,7 @@ setupPackages(
   envir = environment(),
   verbose,
   dots,
+  defaultDots,
   ...
 )
 
@@ -102,14 +108,16 @@ setupParams(
   paths,
   modules,
   times,
+  options,
   overwrite,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
+  defaultDots,
   ...
 )
 
-setupGitIgnore(paths, envir = environment(), verbose, dots, ...)
+setupGitIgnore(paths, envir = environment(), verbose, dots, defaultDots, ...)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -396,8 +404,29 @@ out <- setupProject(name = "SpaDES.project",
 
 # setting arbitrary arguments
 out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  sideEffects = system.file("sideEffects.R", package = "SpaDES.project",
-  mode = "development")
+  sideEffects = system.file("sideEffects.R", package = "SpaDES.project"),
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = mode, studyAreaName = studyAreaName,
+  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+)
+
+out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  config = "LandWeb",
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = mode, studyAreaName = studyAreaName,
+  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+)
+
+# Pass args from GlobalEnv
+studyAreaName <- "AB"
+out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+                    modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+                    defaultDots = list(mode = "development",
+                                       studyAreaName = "MB"),
+                    mode = "development", studyAreaName = studyAreaName,
 )
 
 # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`

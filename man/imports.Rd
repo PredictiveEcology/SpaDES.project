@@ -4,6 +4,7 @@
 \name{messageDF}
 \alias{messageDF}
 \alias{yellow}
+\alias{blue}
 \alias{messageVerbose}
 \alias{downloadRepo}
 \alias{splitGitRepo}
@@ -18,6 +19,8 @@ An object of class \code{character} of length 9.
 messageDF(df, round, verbose = getOption("Require.verbose"), verboseLevel = 1)
 
 yellow(...)
+
+blue(...)
 
 messageVerbose(..., verbose = getOption("Require.verbose"), verboseLevel = 1)
 
