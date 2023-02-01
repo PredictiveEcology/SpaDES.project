@@ -243,6 +243,7 @@ setupProject <- function(name, paths, modules, packages,
                                      envir = envir, verbose = verbose)
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
+  options <- opts$newOptions # put into this environment so parsing can access
 
   modulePackages <- setupModules(paths, modules, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
@@ -266,7 +267,7 @@ setupProject <- function(name, paths, modules, packages,
       list(config), mget(names(dotsSUB), envir = envir, inherits = FALSE)))
 
   } else {
-    params <- setupParams(name, paramsSUB, paths, modules, times,
+    params <- setupParams(name, paramsSUB, paths, modules, times, options = opts$newOptions,
                           overwrite = overwrite, envir = envir, verbose = verbose)
 
     setupGitIgnore(paths, envir = envir, verbose)
@@ -288,13 +289,11 @@ setupProject <- function(name, paths, modules, packages,
         }
     }
 
-    browser()
+    if (length(dotsSUB))
+      out <- append(out,
+                    mget(names(dotsSUB), envir = envir, inherits = FALSE))
 
   }
-
-  if (length(dotsSUB))
-    out <- append(out,
-                  mget(names(dotsSUB), envir = envir, inherits = FALSE))
 
 
   return(out)
@@ -356,7 +355,7 @@ setupProject <- function(name, paths, modules, packages,
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = paths$packagePath,
                        updateRprofile = getOption("Require.updateRprofile", FALSE),
                        overwrite = FALSE, envir = environment(),
-                       verbose = getOption("Require.verbose", 1L), dots, ...) {
+                       verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
@@ -474,7 +473,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   do.call(setPaths, paths[spPaths])
 
-  messageVerbose(yellow("\b done setting up paths"), verbose = verbose)
+  messageVerbose(yellow("  done setting up paths"), verbose = verbose)
 
   paths[order(names(paths))]
 }
@@ -496,7 +495,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 #'
 #' @importFrom data.table data.table
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
-                             envir = environment(), verbose = getOption("Require.verbose", 1L), dots, ...) {
+                             envir = environment(), verbose = getOption("Require.verbose", 1L),
+                             dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
@@ -510,7 +510,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
     sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
                                   overwrite = overwrite, envir = envir, verbose = verbose)
   }
-  messageVerbose(yellow("\b done setting up sideEffects"), verbose = verbose)
+  messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
 
 }
 
@@ -530,7 +530,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
 #'
 #' @importFrom data.table data.table
 setupOptions <- function(name, options, paths, times, overwrite, envir = environment(),
-                         verbose = getOption("Require.verbose", 1L), dots, ...) {
+                         verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
@@ -590,16 +590,17 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
       env <- new.env(parent = tail(envs, 1)[[1]])
       if (isUnevaluatedList(p) || isFALSE(namedList)) {
         # robust to code failures
-        out <- try(eval(p, envir = env), silent = TRUE)
-        if (is(out, "try-error")) {
-          oo <- capture.output(p, type = "output")
-          messageVerbose(optFiles, ":\n", paste(oo, collapse = "\n"),
-                         "\ncould not be evaluated; skipping", verbose = verbose, verboseLevel = 2)
-        } else {
-          if (length(ls(env)) == 0)
-            env$opt <- out
-          envs <<- append(envs, list(env))
-        }
+        # Try whole list first; if fails, then do individual list elements
+        # out <- try(eval(p, envir = env), silent = TRUE)
+        # if (is(out, "try-error")) {
+        out <- evalListElems(p, envir = env, verbose = verbose) # recursive; as.list keeps names
+        # }
+        if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
+                                  # putting the object `mode` into the env; but if there is no assignment
+                                  # then we need to put the object into the environment
+          env$opt <- out
+        envs <<- append(envs, list(env))
+
       }
       env
     })
@@ -631,7 +632,78 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
 
 }
 
+evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) {
 
+  # need to deal with `if`. If we break it apart, then we fail to evaluate the if part
+  # Also, every "normal" object e.g., mode <- "development"
+  l2 <- try(eval(l, envir), silent = TRUE)
+  if (is(l2, "try-error")) {
+    mess <- gsub("Error in eval\\(l, envir\\) : ", "", as.character(l2))
+    mess <- gsub("\\n", "", as.character(mess))
+    messageVerbose(mess, verbose = verbose)
+    isList <- FALSE
+    isAssignedList <- FALSE
+    if (length(l) == 3) {# can be list(...) or obj <- list(...)
+      if (length(l[[3]]) > 1) {
+        if (identical(l[[3]][[1]], quote(list))) {
+          isList <- TRUE
+          # if (identical(l[[2]][[1]], quote("<-")))
+          if (!is(l, "if"))
+            isAssignedList <- TRUE
+          origL <- l
+        }
+      }
+    } else {
+      if (length(l) > 1)
+        if (identical(l[[1]], quote(list))) isList <- TRUE
+    }
+    if (isList) {
+      lList <- as.list(l)
+      calls <- mapply(m = lList, function(m) inherits(m, "call")) # actual calls `times$start`
+      names <- mapply(m = lList, function(m) inherits(m, "name")) # just objects `mode`
+      namesNoList <- names[-1]
+      if (any(namesNoList) && !isAssignedList) { # the -1 removes "list"
+        whNames <- which(names)[-1]
+        whNotNames <- which(!names)
+        elems <- lList[whNames] # remove "list"
+        out <- Map(l3 = elems, function(l3) {
+          out <- evalListElems(l3, envir = envir, verbose = verbose)
+        })
+        lList[whNames] <- out
+      }
+
+      if (any(calls)) {
+        whCalls <- which(calls)
+        whNotCalls <- which(!calls)
+        goInList <- length(whCalls) == 1
+
+        if (isTRUE(goInList))
+          elems <- lList[[whCalls]]
+        else
+          elems <- lList[whCalls]
+        out <- mapply(l3 = elems, function(l3) {
+          out <- evalListElems(l3, envir = envir, verbose = verbose)
+        })
+
+        if (isTRUE(goInList)) {
+          lList <- out
+        } else {
+          lList[whCalls] <- out
+        }
+
+        l <- lList[-1] # remove "list"
+
+      }
+    }
+    if (isAssignedList) {
+      assign(as.character(parse(text = origL[[2]])), l, envir = envir)
+    }
+
+  } else {
+    l <- l2
+  }
+  l
+}
 #' @export
 #' @rdname setupProject
 #' @details
@@ -645,7 +717,7 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
 #' into the `paths$modulePath`
 #'
 setupModules <- function(paths, modules, useGit, overwrite, envir = environment(),
-                         verbose = getOption("Require.verbose", 1L), dots, ...) {
+                         verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -698,7 +770,7 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
 #' `paths$packagePath`.
 #'
 setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo,
-                          standAlone, envir = environment(), verbose, dots, ...) {
+                          standAlone, envir = environment(), verbose, dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
@@ -709,9 +781,9 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   if (missing(packages)) {
     packages <- NULL
   }
-  messageVerbose(yellow("setting up packages..."), verbose = verbose)
 
   if (length(packages) || length(unlist(modulePackages))) { # length(require) ||
+    messageVerbose(yellow("setting up packages..."), verbose = verbose)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
     while (continue) {
@@ -739,7 +811,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   }
 
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
-  messageVerbose(yellow("\b done setting up packages"), verbose = verbose)
+  messageVerbose(yellow("  done setting up packages"), verbose = verbose)
 
   invisible(NULL)
 }
@@ -752,8 +824,9 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 #'
 #'
 #' @importFrom data.table data.table
-setupParams <- function(name, params, paths, modules, times, overwrite, envir = environment(),
-                        verbose = getOption("Require.verbose", 1L), dots, ...) {
+setupParams <- function(name, params, paths, modules, times, options, overwrite, envir = environment(),
+                        verbose = getOption("Require.verbose", 1L), dots, defaultDots,
+                        ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
@@ -775,21 +848,25 @@ setupParams <- function(name, params, paths, modules, times, overwrite, envir = 
 
       paramsForModules <- intersect(modulesSimple, names(params))
       overSupplied <- setdiff(names(params), c(".globals", paramsForModules))
-      if (length(overSupplied)) {
-        params <- params[paramsForModules]
-
-        messageVerbose("Only returning params that are relevant for modules supplied.\n",
-                       "Omitting parameters supplied for: ",
-                       paste(overSupplied, collapse = ", "), " (set verbose == 2 to see details)",
-                       verbose = verbose)
-      }
 
       # This will shrink down to only the modulesSimple -- all others are gone
       hasDotGlobals <- isTRUE(".globals" %in% names(params))
       globs <- if (hasDotGlobals) params[[".globals"]] else NULL
-      mods <- setdiff(names(params), ".globals")
 
-      if (requireNamespace("SpaDES.core", quietly = TRUE)) {
+      if (length(overSupplied)) {
+        params <- params[paramsForModules]
+
+        messageVerbose(blue("Only returning params that are relevant for modules supplied.\n",
+                       "Omitting parameters supplied for: ",
+                       paste(overSupplied, collapse = ", "), "\n --- (set verbose == 2 to see details) --- "),
+                       verbose = verbose)
+      }
+
+
+      mods <- setdiff(names(params), ".globals")
+      if (requireNamespace("SpaDES.core", quietly = TRUE) && FALSE) {
+        messageVerbose(blue("Using SpaDES.core to compare metadata with supplied parameters: "),
+                       verbose = verbose)
         params <- Map(mod = mods, function(mod) {
           knownPars <- SpaDES.core::moduleMetadata(module = mod, path = paths$modulePath,
                                                    defineModuleListItems = "parameters")$parameters$paramName
@@ -801,15 +878,15 @@ setupParams <- function(name, params, paths, modules, times, overwrite, envir = 
             overInclusion <- knownParsInMod %in% FALSE
             if (any(overInclusion)) {
               params[[mod]] <- params[[mod]][paramsInclGlobalsSupplied[!overInclusion]]
-              messageVerbose("These parameters set (",
+              messageVerbose(blue("These parameters set (",
                              paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
                              "), but they are not in ", mod,
                              " metadata; this should be either added to the metadata, ",
-                             "or not set in the params argument")
+                             "or not set in the params argument"), verbose = verbose)
             }
 
           } else {
-            messageVerbose("No parameters set for ", mod, verbose = verbose, verboseLevel = 2)
+            messageVerbose(blue("No parameters set for ", mod), verbose = verbose, verboseLevel = 2)
           }
           params[[mod]]
         })
@@ -820,10 +897,11 @@ setupParams <- function(name, params, paths, modules, times, overwrite, envir = 
       }
       if (hasDotGlobals)
         params[[".globals"]] <- globs
-      messageVerbose("The following params were created: ", verbose = verbose, verboseLevel = 2)
-      messageVerbose(params, verbose = verbose, verboseLevel = 2)
+      messageVerbose(blue("The following params were created: "), verbose = verbose, verboseLevel = 2)
+      oo <- capture.output(params)
+      messageVerbose(blue(paste(oo, collapse = "\n")), verboseLevel = 2, verbose = verbose)
     }
-    messageVerbose(yellow("\b done setting up params"), verbose = verbose)
+    messageVerbose(yellow("  done setting up params"), verbose = verbose)
   }
   return(params)
 }
@@ -936,7 +1014,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' @return
 #' `setupGitIgnore` is run for its side effects, i.e., adding elements to the
 #' `.gitignore` file.
-setupGitIgnore <- function(paths, envir = environment(), verbose, dots, ...) {
+setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsToHere(dots, dotsSUB, defaultDots)
@@ -1166,10 +1244,16 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
     dots <- dotsSUB
   else
     dots <- append(dots, dotsSUB)
-  dots <- Map(d = dots, nam = names(dots), function(d, nam) {
+  haveDefaults <- !missing(defaultDots)
+  dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
+              function(d, nam) {
     d1 <- try(eval(d, envir = envir), silent = TRUE)
-    if (is(d1, "try-error"))
-      d1 <- defaultDots[[nam]]
+    if (is(d1, "try-error")) {
+      if (isTRUE(haveDefaults))
+        d1 <- defaultDots[[nam]]
+      else
+        d1 <- d
+    }
     d1
   })
   list2env(dots, envir = envir)

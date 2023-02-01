@@ -30,11 +30,6 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
     modules <- dir(modulePath)
   names(modules) <- modules
 
-  # if (any(metadataItem %in% c("inputObjects", "outputObjects", "parameters"))) {
-  #   if (!requireNamespace("SpaDES.core", quietly = TRUE)) {
-  #     stop("To evaluate that metadataItem, please install package 'SpaDES.core'.")
-  #   }
-  # }
   if (missing(needUnlist)) {
     needUnlistInner <- switch(metadataItem, reqdPkgs = TRUE, version = FALSE, authors = FALSE, FALSE)
     needUnlistOuter <- switch(metadataItem, reqdPkgs = FALSE, version = TRUE, authors = FALSE, FALSE)
