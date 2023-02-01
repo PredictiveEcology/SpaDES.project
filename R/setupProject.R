@@ -50,7 +50,7 @@
 #'   in turn pass to `.libPaths(libPaths)`
 #' @param inProject A logical. If `TRUE`, then the current directory is
 #'  inside the `paths[["projectPath"]]`.
-#' @param restart If the `projectPath` is not the current path, and the session is in
+#' @param Restart If the `projectPath` is not the current path, and the session is in
 #'   Rstudio, and interactive, it will restart with a new Rstudio session with a
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
@@ -201,7 +201,7 @@
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
                          require = NULL,
-                         restart = getOption("SpaDES.project.restart", FALSE),
+                         Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = paths$packagePath,
                          updateRprofile = getOption("Require.updateRprofile", FALSE),
@@ -213,7 +213,7 @@ setupProject <- function(name, paths, modules, packages,
   envir = environment()
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -264,7 +264,8 @@ setupProject <- function(name, paths, modules, packages,
       Require::Install("PredictiveEcology/SpaDES.config@development")
     }
     out <- do.call(SpaDES.config::useConfig, append(
-      list(config), mget(names(dotsSUB), envir = envir, inherits = FALSE)))
+      list(projectName = config, projectPath = paths$projectPath, paths = paths),
+      mget(names(dotsSUB), envir = envir, inherits = FALSE)))
 
   } else {
     params <- setupParams(name, paramsSUB, paths, modules, times, options = opts$newOptions,
@@ -278,7 +279,7 @@ setupProject <- function(name, paths, modules, packages,
       params = params)
 
     if (!inProject) {
-      if (interactive() && isTRUE(restart)) # getOption("SpaDES.project.restart", TRUE))
+      if (interactive() && isTRUE(Restart)) # getOption("SpaDES.project.Restart", TRUE))
         if (requireNamespace("rstudioapi")) {
           messageVerbose("... restarting Rstudio inside the project",
                          verbose = verbose)
@@ -325,7 +326,7 @@ setupProject <- function(name, paths, modules, packages,
 #'                                                             and using `Rstudio`, then the current
 #'                                                             project will close and a new project will
 #'                                                             open in the same Rstudio session, unless
-#'                                                             `restart = FALSE`\cr
+#'                                                             `Restart = FALSE`\cr
 #' `packagePath`\tab `file.path(tools::R_user_dir("data"), name, "packages",
 #'                               version$platform, substr(getRversion(), 1, 3))`
 #'                                                    \tab appends this path to `.libPaths(packagePath)`,
@@ -358,7 +359,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   messageVerbose(yellow("setting up paths ..."), verbose = verbose)
 
@@ -499,7 +500,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
                              dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (!missing(sideEffects)) {
     messageVerbose(yellow("setting up sideEffects..."), verbose = verbose)
@@ -509,8 +510,8 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
 
     sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
                                   overwrite = overwrite, envir = envir, verbose = verbose)
+    messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
-  messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
 
 }
 
@@ -533,7 +534,7 @@ setupOptions <- function(name, options, paths, times, overwrite, envir = environ
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   newValuesComplete <- oldValuesComplete <- NULL
   if (!missing(options)) {
@@ -719,7 +720,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 setupModules <- function(paths, modules, useGit, overwrite, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (missing(modules)) {
     modules <- character()
@@ -773,7 +774,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
                           standAlone, envir = environment(), verbose, dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
@@ -808,10 +809,10 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
         continue <- 0L
       }
     }
+    messageVerbose(yellow("  done setting up packages"), verbose = verbose)
   }
 
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
-  messageVerbose(yellow("  done setting up packages"), verbose = verbose)
 
   invisible(NULL)
 }
@@ -829,7 +830,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite,
                         ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (missing(params)) {
     params <- list()
@@ -900,8 +901,8 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite,
       messageVerbose(blue("The following params were created: "), verbose = verbose, verboseLevel = 2)
       oo <- capture.output(params)
       messageVerbose(blue(paste(oo, collapse = "\n")), verboseLevel = 2, verbose = verbose)
+      messageVerbose(yellow("  done setting up params"), verbose = verbose)
     }
-    messageVerbose(yellow("  done setting up params"), verbose = verbose)
   }
   return(params)
 }
@@ -1017,7 +1018,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   gitIgnoreFile <- ".gitignore"
   if (file.exists(gitIgnoreFile)) {
@@ -1257,4 +1258,5 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
     d1
   })
   list2env(dots, envir = envir)
+  dots
 }

@@ -66,7 +66,7 @@ if (machine("A127")) {
 
 # library(googledrive)
 
-httr::set_config(httr::config(http_version = 0))
+httr::set_config(httr::config(http_version = 0)) # not run b/c not named list
 
 # token <- if (dir.exists(computeCanadaScratch)) {
 #   file.path(activeDir, "landweb-82e0f9f29fbc.json")

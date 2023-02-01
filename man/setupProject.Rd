@@ -22,7 +22,7 @@ setupProject(
   sideEffects,
   config,
   require = NULL,
-  restart = getOption("SpaDES.project.restart", FALSE),
+  Restart = getOption("SpaDES.project.Restart", FALSE),
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
@@ -160,7 +160,7 @@ that are run for their side effects only.}
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.}
 
-\item{restart}{If the \code{projectPath} is not the current path, and the session is in
+\item{Restart}{If the \code{projectPath} is not the current path, and the session is in
 Rstudio, and interactive, it will restart with a new Rstudio session with a
 new project, with a root path set to \code{projectPath}. Default is \code{FALSE}.}
 
@@ -334,7 +334,7 @@ as \code{user(...)}, \code{machine(...)}
 and using \code{Rstudio}, then the current
 project will close and a new project will
 open in the same Rstudio session, unless
-\code{restart = FALSE}\cr
+\code{Restart = FALSE}\cr
 \code{packagePath}\tab \code{file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))}
 \tab appends this path to \code{.libPaths(packagePath)},
 unless \code{standAlone = TRUE}, in which case,

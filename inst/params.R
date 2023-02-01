@@ -113,8 +113,8 @@ paramsDefault <- list(
     iterDEoptim = 150L,
     iterStep = 150L,
     iterThresh = 396L,
-    libPathDEoptim = file.path(tools::R_user_dir(basename(paths$projectPath), "data"), "packages",
-                               version$platform, getRversion()[, 1:2]),
+    libPathDEoptim = paths$packagePath, #file.path(tools::R_user_dir(basename(paths$projectPath), "data"), "packages",
+                               #version$platform, getRversion()[, 1:2]),
     mode = c("fit", "visualize"), ## combo of "debug", "fit", "visualize"
     mutuallyExclusive = list("youngAge" = c("class", "nf_")),
     objFunCoresInternal = 1L,
