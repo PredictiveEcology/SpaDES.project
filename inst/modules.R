@@ -12,16 +12,16 @@ modules <- c(
   # "Biomass_summary", ## post-processing
   "canClimateData",
   "fireSense",
-  "fireSense_dataPrepFit",
+  "fireSense_dataPrepFit@HEAD",
   "fireSense_dataPrepPredict",
-  "fireSense_EscapeFit",
-  "fireSense_EscapePredict",
+  "fireSense_EscapeFit@HEAD",
+  "fireSense_EscapePredict@HEAD",
   "fireSense_IgnitionFit",
   "fireSense_IgnitionPredict",
   "fireSense_SpreadFit",
   "fireSense_SpreadPredict",
   # "fireSense_summary", ## post-processing
-  "gmcsDataPrep"
+  "ianmseddy/gmcsDataPrep"
 )
 
 
