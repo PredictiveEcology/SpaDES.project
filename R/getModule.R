@@ -118,8 +118,13 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #' }
 getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {
-  file <- basename(gitRepoFile)
-  gitRepo <- dirname(gitRepoFile)
+  gitRepo <- splitGitRepo(gitRepoFile)
+  gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
+  file <- gsub(gitRepo, "", gitRepoFile)
+  if (nchar(dirname(file)))
+    checkPath(dirname(file), create = TRUE)
+  file <- gsub("^\\/", "", file)
+
   out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
                            verbose = getOption("Require.verbose"))
   if (!isTRUE(out))
@@ -137,7 +142,8 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
   tryDownload <- TRUE
   if (file.exists(file))
     if (overwrite %in% FALSE) {
-      messageVerbose(file, " already exists and overwrite = FALSE")
+      messageVerbose(file, "
+                     already exists and overwrite = FALSE")
       tryDownload <- FALSE
     }
 
@@ -157,8 +163,10 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     out <- suppressWarnings(
       try(downloadFileMasterMainAuth(url, destfile = tf, need = "master"), silent = TRUE)
     )
-    if (file.exists(tf))
-      file.copy(tf, basename(file), overwrite = TRUE)
+    if (file.exists(tf)) {
+      file.copy(tf, file, overwrite = TRUE)
+    }
+
   }
 
 }
