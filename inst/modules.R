@@ -25,7 +25,8 @@ modules <- c(
 )
 
 
-hasAcct <- mapply(m = modules, function(m) tryCatch(Require:::splitGitRepo(m), error = function(e) ""))
+hasAcct <- mapply(m = modules, function(m) tryCatch(Require:::splitGitRepo(m, default = "")$acct,
+                                                    error = function(e) ""))
 hasAcct <- nzchar(hasAcct)
 
 if (any(!hasAcct))
@@ -35,3 +36,5 @@ if (any(!hasAcct))
 hasBranch <- grepl("\\@", modules)
 if (any(!hasBranch))
   modules[!hasBranch] <- paste0(modules[!hasBranch], "@", defaultBr)
+
+modules
