@@ -247,6 +247,7 @@ setupProject <- function(name, paths, modules, packages,
 
   modulePackages <- setupModules(paths, modules, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
+  modules <- names(modulePackages)
 
   if (missing(packages))
     packages <- NULL
@@ -570,23 +571,32 @@ setupOptions <- function(name, options, paths, times, overwrite, envir = environ
 }
 
 
-isUnevaluatedList <- function(p) any({
-  if (grepl("^if$|^<-$", p[[1]])[1]) {
-    if (grepl("^\\{$", p[[3]][[1]])[1]) {
-      grepl("^list$", p[[3]][[2]][[1]])
+isUnevaluatedList <- function(p) any( {
+
+  # if (is(try(grepl("^if$|^<-$", p[[1]])[1]), "try-error")) browser()
+
+  if (!(length(p) == 1 && is.name(p))) { # this is "just" an object name
+    if (grepl("^if$|^<-$", p[[1]])[1]) {
+      if (grepl("^\\{$", p[[3]][[1]])[1]) {
+        grepl("^list$", p[[3]][[2]][[1]])
+      } else {
+        grepl("^list$", p[[3]][[1]])[1] || is.atomic(p[[3]])[1]
+      }
     } else {
-      grepl("^list$", p[[3]][[1]])[1] || is.atomic(p[[3]])[1]
+      grepl("^list$", p[[1]])[1]
     }
   } else {
-    grepl("^list$", p[[1]])[1]
+    FALSE
   }
-  })
+}
+)
 
 parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame(),
                                    verbose = getOption("Require.verbose")) {
   envs <- list(envir) # means
   llOuter <- lapply(files, function(optFiles) {
     pp <- parse(optFiles)
+
     envs2 <- lapply(pp, function(p) {
       env <- new.env(parent = tail(envs, 1)[[1]])
       if (isUnevaluatedList(p) || isFALSE(namedList)) {
@@ -625,23 +635,35 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
         })
         os <- Reduce(modifyList, ll)
       }
+    } else {
+      os <- as.list(tail(envs2, 1)[[1]])
     }
     os
   })
 
-  os <- Reduce(modifyList, llOuter)
-
+  if (isTRUE(namedList))
+    os <- Reduce(modifyList, llOuter)
+  else
+    os <- tail(llOuter, 1)[[1]][[1]]
+  os
 }
 
 evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) {
 
   # need to deal with `if`. If we break it apart, then we fail to evaluate the if part
   # Also, every "normal" object e.g., mode <- "development"
-  l2 <- try(eval(l, envir), silent = TRUE)
+  warns <- list()
+  withCallingHandlers(l2 <- try(eval(l, envir), silent = TRUE),
+                             warning = function(w) {
+                               warns <<- w
+                             })
   if (is(l2, "try-error")) {
     mess <- gsub("Error in eval\\(l, envir\\) : ", "", as.character(l2))
     mess <- gsub("\\n", "", as.character(mess))
     messageVerbose(mess, verbose = verbose)
+    if (length(warns))
+      messageVerbose("  (warning: ", warns$m, ")", verbose = verbose)
+
     isList <- FALSE
     isAssignedList <- FALSE
     if (length(l) == 3) {# can be list(...) or obj <- list(...)
@@ -715,7 +737,9 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #'
 #' @return
 #' `setupModules` is run for its side effects, i.e., downloads modules and puts them
-#' into the `paths$modulePath`
+#' into the `paths$modulePath`. It will return a named list, where the names are the
+#' full module names and the list elemen.ts are the R packages that the module
+#' depends on (`reqsPkgs`)
 #'
 setupModules <- function(paths, modules, useGit, overwrite, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
@@ -723,18 +747,16 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (missing(modules)) {
-    modules <- character()
+    moduleOrig <- character()
+    modulePackages <- list()
   } else {
 
-    browser()
     messageVerbose(yellow("setting up modules"), verbose = verbose)
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envir, envir2 = parent.frame())
-    modules <- parseFileLists(modules, paths[["projectPath"]], overwrite = overwrite,
+    modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = overwrite,
                              envir = envir, verbose = verbose)
-
-
 
     anyfailed <- character()
     modulesOrig <- modules
@@ -760,9 +782,10 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
 
     modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
     modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
-    modules <- modulePackages[modulesSimple]
+    packages <- modulePackages[modulesSimple]
   }
-  return(modules)
+  names(packages) <- modulesOrig
+  return(packages)
 
 }
 

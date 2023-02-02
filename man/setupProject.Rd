@@ -216,7 +216,9 @@ See table for details.
 \code{setupOptions} is run for its side effects, namely, changes to the \code{options()}.
 
 \code{setupModules} is run for its side effects, i.e., downloads modules and puts them
-into the \code{paths$modulePath}
+into the \code{paths$modulePath}. It will return a named list, where the names are the
+full module names and the list elemen.ts are the R packages that the module
+depends on (\code{reqsPkgs})
 
 \code{setupPackages} is run for its side effects, i.e., installing packages to
 \code{paths$packagePath}.
@@ -404,7 +406,7 @@ out <- setupProject(name = "SpaDES.project",
 
 # setting arbitrary arguments
 out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  sideEffects = system.file("sideEffects.R", package = "SpaDES.project"),
+  sideEffects = "PredictiveEcology/SpaDES.project/transitions/inst/params.R",
   defaultDots = list(mode = "development",
                      studyAreaName = "MB"),
   mode = mode, studyAreaName = studyAreaName,
