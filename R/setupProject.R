@@ -170,7 +170,7 @@
 #'
 #' # setting arbitrary arguments
 #' out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'   sideEffects = system.file("sideEffects.R", package = "SpaDES.project"),
+#'   sideEffects = "PredictiveEcology/SpaDES.project/transitions/inst/params.R",
 #'   defaultDots = list(mode = "development",
 #'                      studyAreaName = "MB"),
 #'   mode = mode, studyAreaName = studyAreaName,
@@ -725,6 +725,16 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
   if (missing(modules)) {
     modules <- character()
   } else {
+
+    browser()
+    messageVerbose(yellow("setting up modules"), verbose = verbose)
+
+    modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envir, envir2 = parent.frame())
+    modules <- parseFileLists(modules, paths[["projectPath"]], overwrite = overwrite,
+                             envir = envir, verbose = verbose)
+
+
 
     anyfailed <- character()
     modulesOrig <- modules
