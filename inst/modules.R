@@ -24,6 +24,9 @@ modules <- c(
   "ianmseddy/gmcsDataPrep"
 )
 
+if (mode == "postProcess") {
+  modules <- c("Biomass_summary", "fireSense_summary")
+}
 
 hasAcct <- mapply(m = modules, function(m) tryCatch(Require:::splitGitRepo(m, default = "")$acct,
                                                     error = function(e) ""))
