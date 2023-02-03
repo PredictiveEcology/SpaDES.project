@@ -221,6 +221,9 @@ setupProject <- function(name, paths, modules, packages,
   sideEffectsSUB <- substitute(sideEffects)
   libPaths <- substitute(libPaths)
 
+  if (missing(times))
+    times <- list(start = 0, end = 1)
+
   pathsSUB <- checkProjectPath(pathsSUB, envir = envir, envir2 = parent.frame())
 
   if (missing(name)) {
@@ -247,7 +250,8 @@ setupProject <- function(name, paths, modules, packages,
 
   modulePackages <- setupModules(paths, modules, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
-  modules <- names(modulePackages)
+  modules <- Require::extractPkgName(names(modulePackages))
+  names(modules) <- names(modulePackages)
 
   if (missing(packages))
     packages <- NULL
@@ -275,9 +279,11 @@ setupProject <- function(name, paths, modules, packages,
     setupGitIgnore(paths, envir = envir, verbose)
 
     out <- list(
-      modules = Require::extractPkgName(modules),
+      modules = modules,
       paths = paths[spPaths],
-      params = params)
+      params = params,
+      times = times,
+      ...)
 
     if (!inProject) {
       if (interactive() && isTRUE(Restart)) # getOption("SpaDES.project.Restart", TRUE))
@@ -747,8 +753,8 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (missing(modules)) {
-    moduleOrig <- character()
-    modulePackages <- list()
+    modulesOrig <- character()
+    packages <- list()
   } else {
 
     messageVerbose(yellow("setting up modules"), verbose = verbose)
@@ -825,7 +831,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       # requireToTry <- unique(c(mp, require))
       packagesToTry <- unique(c(packages, mp))
       # packagesToTry <- unique(c(packages, mp, requireToTry))
-      out <- try(Require::Install(packagesToTry, # require = Require::extractPkgName(requireToTry),
+      # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
+      out <- try(Require::Require(packagesToTry, require = FALSE, # require = Require::extractPkgName(requireToTry),
                                   standAlone = standAlone,
                                   libPaths = libPaths,
                                   verbose = verbose))

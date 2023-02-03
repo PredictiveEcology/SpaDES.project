@@ -38,7 +38,7 @@ paramsDefault <- list(
   Biomass_core = list(
     # growthAndMortalityDrivers = ifelse(isTRUE(self$args[["useLandR.CS"]]), "LandR.CS", "LandR"),
     growthInitialTime = times$start, ## start(sim)
-    vegLeadingProportion = 0, ## apparently `sppColorVect` has no mixed colour
+    # vegLeadingProportion = 0, ## apparently `sppColorVect` has no mixed colour
     .maxMemory = if (format(pemisc::availableMemory(), units = "GiB") > 130) 5 else 2, ## GB
     .plotInitialTime = times$start, ## sim(start)
     .useCache = c(".inputObjects", "init")
