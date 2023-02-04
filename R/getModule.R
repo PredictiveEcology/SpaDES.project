@@ -121,9 +121,9 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   gitRepo <- splitGitRepo(gitRepoFile)
   gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
   file <- gsub(gitRepo, "", gitRepoFile)
+  file <- gsub("^\\/", "", file)
   if (nchar(dirname(file)))
     checkPath(dirname(file), create = TRUE)
-  file <- gsub("^\\/", "", file)
 
   out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
                            verbose = getOption("Require.verbose"))

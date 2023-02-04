@@ -2,6 +2,7 @@ defaultBr <- "development"
 defaultAcct <- "PredictiveEcology"
 
 modules <- c(
+  "FOR-CAST/Ontario_preamble@HEAD",
   ## NOTE: user needs to provide their own preamble module per project, and add it to the config
   "Biomass_borealDataPrep",
   "Biomass_core",
