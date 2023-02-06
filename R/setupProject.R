@@ -19,8 +19,12 @@
 #'   `packagePath` and all others that are in `SpaDES.core::setPaths()`
 #'   (i.e., `inputPath`, `outputPath`, `scratchPath`, `cachePath`, `rasterTmpDir`).
 #' @param modules a character string of modules to pass to `getModule`. These
-#'   should be in the form `GitHubAccount/Repo@branch` e.g.,
-#'   `"PredictiveEcology/Biomass_core@development"`. If the project is a git repository,
+#'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
+#'   in the `paths$modulePath`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
+#'   `"PredictiveEcology/Biomass_core@development"`); or a character vector that identifies
+#'   one or more (not optional file extension) `.R` file(s) (local or GitHub)
+#'   to parse that will produce a character vector assigned to
+#'   the name "modules". If the entire project is a git repository,
 #'   then it will not try to re-get these modules; instead it will rely on the user
 #'   managing their git status outside of this function.
 #' @param times Optional. This will be returned if supplied; if supplied, the values
@@ -235,7 +239,7 @@ setupProject <- function(name, paths, modules, packages,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
   if (!is.null(require)) {
-    Require::Require(require, require = require,
+    Require::Require(require, require = TRUE,
                      setLinuxBinaryRepo = setLinuxBinaryRepo,
                      standAlone = standAlone,
                      libPaths = paths$packagePath, verbose = verbose)
@@ -268,9 +272,13 @@ setupProject <- function(name, paths, modules, packages,
     if (!requireNamespace("SpaDES.config")) {
       Require::Install("PredictiveEcology/SpaDES.config@development")
     }
+    localVars <- if (length(names(dotsSUB)))
+      mget(names(dotsSUB), envir = envir, inherits = FALSE) else list()
+    browser()
     out <- do.call(SpaDES.config::useConfig, append(
-      list(projectName = config, projectPath = paths$projectPath, paths = paths),
-      mget(names(dotsSUB), envir = envir, inherits = FALSE)))
+      list(projectName = config,
+           projectPath = paths$projectPath, paths = paths),
+      localVars))
 
   } else {
     params <- setupParams(name, paramsSUB, paths, modules, times, options = opts$newOptions,
@@ -761,8 +769,12 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envir, envir2 = parent.frame())
-    modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = overwrite,
-                             envir = envir, verbose = verbose)
+    isRepo <- nzchar(tools::file_ext(modules))
+    if (any(isRepo)) {
+      messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
+      modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = overwrite,
+                                envir = envir, verbose = verbose)
+    }
 
     anyfailed <- character()
     modulesOrig <- modules
