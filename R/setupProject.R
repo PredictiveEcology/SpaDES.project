@@ -774,15 +774,30 @@ setupModules <- function(paths, modules, useGit, overwrite, envir = environment(
     }
 
     if (isTRUE(useGit) || length(anyfailed)) {
-      modulesWOat <- gsub("@.+$", "", modules)
-      lapply(modulesWOat, function(m) {
-        modPath <- file.path(paths$modulePath, extractPkgName(m))
-        if (!dir.exists(modPath)) {
-          cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", m)
+      gitSplit <- splitGitRepo(modules)
+      gitSplit <- Require::invertList(gitSplit)
+
+      mapply(split = gitSplit, function(split) {
+        modPath <- file.path(split$acct, split$repo)
+        localPath <- file.path(paths$modulePath, split$repo)
+        if (!dir.exists(localPath)) {
+          cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", modPath)
           system(cmd)
         } else {
           messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
         }
+        if (!grepl("master|main|HEAD", split$br)) {
+          cmd <- paste0("cd ", file.path(paths$modulePath, split$repo), " && git rev-parse --abbrev-ref HEAD ")
+          curBr <- system(cmd, intern = TRUE)
+          if (!identical(split$br, curBr)) {
+            cmd <- paste0("cd ", file.path(paths$modulePath, split$repo), " && git status ")
+            system(cmd)
+          } else {
+            messageVerbose("\b ... on ", curBr, " branch")
+          }
+        }
+
+
       })
     }
 
