@@ -1,9 +1,26 @@
+# This is an example 'options' file that can be called from `setupOptions` and `setupProject`.
+# Any named list will be appended to any subsequent named list, sequentially: if there
+# are >1 named list with the same element, the final one will be used.
+# There are several types of approaches that can be used, but because this file is used
+# for "options" only, nothing will be returned to the user or functions; this should
+# only be used to create named lists.
+
+# If R packages are needed, it is likely wise to prefix the function with the package name;
+# any package that is needed can be added to the `require` argument in `setupProject`.
+
+# This file will have access to the arguments passed into `setupParams` and `setupProject`,
+# such as `paths`, `times`, or any other named argument passed to the `...`.
+
+# Example -- local object that can be defined and used below
 maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
 
+# Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+#   or `setupProject`
 if (.mode == "development") {
   list(test = 2)
 }
 
+# Can use
 if (.mode == "batch") {
   list(test = 1)
 }
@@ -12,7 +29,8 @@ if (nodes == "batch") {
   list(test = 3)
 }
 
-# rasterOptions(default = TRUE)
+
+# Example -- large named list of options
 opts <- list(
   "fftempdir" = paths$scratchPath,
   "future.globals.maxSize" = 1000*1024^2,
@@ -46,6 +64,9 @@ opts <- list(
   "map.overwrite" = FALSE
 )
 
+# Example -- conditional using `if`. This example is "user" specific.
+#   These statements must be simple as the parsing
+#   cannot understand if this `if` is too complicated
 if (user("emcintir"))
   list(
     "reproducible.showSimilar" = FALSE
@@ -58,42 +79,17 @@ if (user("emcintir")) {
   )
 }
 
+# Example -- this will be ignored because it is not part of a named list --> pass this
+#   to `sideEffects` in `setupProject`
 googledrive::drive_auth(email = "eliotmcintire@gmail.com", cache = "~/.secret")
 
+# Example -- machine specific
 if (machine("A127")) {
   list(Ncpus = 2)
 }
 
-# library(googledrive)
 
+# Example -- this will be ignored because it is not part of a named list --> pass this
+#   to `sideEffects` in `setupProject`
 httr::set_config(httr::config(http_version = 0)) # not run b/c not named list
 
-# token <- if (dir.exists(computeCanadaScratch)) {
-#   file.path(activeDir, "landweb-82e0f9f29fbc.json")
-# } else if (Sys.info()['nodename'] == "landweb") {
-#   file.path(activeDir, "landweb-e3147f3110bf.json")
-# } else {
-#   NA_character_
-# } %>%
-#   normPath(.)
-
-if (FALSE) {
-  if (is.na(token) || !file.exists(token))
-    message(crayon::red("no Google service token found"))
-
-  if (pemisc::user("achubaty")) {
-    if (utils::packageVersion("googledrive") < "1.0.0") {
-      #drive_auth(service_token = token)
-      drive_auth(email = "alex.chubaty@gmail.com")
-    } else {
-      #drive_auth(path = token)
-      drive_auth(email = "alex.chubaty@gmail.com")
-    }
-  } else if (pemisc::user("emcintir")) {
-    drive_auth(email = "eliotmcintire@gmail.com")
-  } else {
-    drive_auth(use_oob = quickPlot::isRstudioServer())
-  }
-
-  message(crayon::silver("Authenticating as: "), crayon::green(drive_user()$emailAddress))
-}

@@ -1,3 +1,14 @@
+# This is an example 'modules' file that can be called from `setupProject`.
+# The objective of this file is to create a character vector
+# of module names, which can optionally include a GitHub repository source.
+# THIS FILE MUST RETURN THE CHARACTER VECTOR
+
+# This file will have access to the arguments passed into `setupProject`,
+# such as `paths`, `times`, or any other named argument passed to the `...`.
+
+# If R packages are needed, it is likely wise to prefix the function with the package name;
+# any package that is needed can be added to the `require` argument in `setupProject`.
+
 defaultBr <- "development"
 defaultAcct <- "PredictiveEcology"
 
@@ -41,4 +52,4 @@ hasBranch <- grepl("\\@", modules)
 if (any(!hasBranch))
   modules[!hasBranch] <- paste0(modules[!hasBranch], "@", defaultBr)
 
-modules
+return(modules)

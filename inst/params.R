@@ -1,3 +1,18 @@
+# This is an example 'params' file that can be called from `setupParams` and `setupProject`.
+# See `?SpaDES.core::simInit`
+# to see examples of `params` to be passed. These are 2 level, named lists. The outer
+# name is the module and the inner name is the parameter name.
+# Any named list will be appended to any subsequent named list, sequentially: if there
+# are >1 named list with the same element, the final one will be used.
+# Every named list will become part of the final returned named list, regardless
+# of local name provided.
+
+# If R packages are needed, it is likely wise to prefix the function with the package name;
+# any package that is needed can be added to the `require` argument in `setupProject`.
+
+# This file will have access to the arguments passed into `setupParams` and `setupProject`,
+# such as `paths`, `times`, or any other named argument passed to the `...`.
+# Example -- local variables that can be used after in this file; they will not persist
 a <- 1
 mode <- "development"
 
@@ -153,10 +168,13 @@ list(
   )
 )
 
+# Example -- using an `if` to give a machine-specific value
 if (machine("W-VIC"))
   list(CBM_defaults = list(.useCache = mode))
 
 
+# Example -- a subsequent "large" named list of named lists. These elements will
+#  override the previous values supplied above
 list(
   .globals = list(
     fireTimestep = 1L,
