@@ -32,9 +32,37 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   modulesOrig <- modules
   modNam <- extractPkgName(modules)
   whExist <- dir.exists(file.path(modulePath, modNam))
+
   modsToDL <- modules
 
-  if (overwrite %in% FALSE) if (any(whExist)) modsToDL <- modules[whExist %in% FALSE]
+  if (overwrite %in% FALSE) {
+    if (any(whExist)) {
+      modToDLnoVersion <- trimVersionNumber(modsToDL[whExist])
+      hasVersionSpec <- modToDLnoVersion != modsToDL[whExist]
+      if (any(hasVersionSpec)) {
+        versionSpec <- extractVersionNumber(modsToDL[whExist][hasVersionSpec])
+        inequ <- extractInequality(modsToDL[whExist][hasVersionSpec])
+        pkg <- extractPkgGitHub(modsToDL[whExist][hasVersionSpec])
+        version <- mapply(module = pkg, function(module) {
+          ver <- moduleMetadata(module = module, path = modulePath, defineModuleListItems = "version")
+          as.character(ver$version)
+        })
+        sufficient <- compareVersion2(as.character(version),
+                                      versionSpec = versionSpec, inequality = inequ)
+        if (any(sufficient))
+          messageVerbose("Local version sufficient for: ",
+                         paste(modsToDL[whExist %in% TRUE][sufficient %in% TRUE],
+                               collapse = ", "),
+                         "\n... not downloading", verbose = verbose)
+        modsToDL <- modToDLnoVersion[whExist %in% TRUE][sufficient %in% FALSE]
+
+      }
+    }
+
+    # append modules that exist and fail test with modules don't exist
+    modsToDL <- unique(c(modsToDL, modules[whExist %in% FALSE]))
+
+  }
   if (length(modsToDL)) {
     tmpdir <- file.path(tempdir(), .rndstr(1))
     Require::checkPath(tmpdir, create = TRUE)
@@ -47,6 +75,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         modNameShort <- Require::extractPkgName(modToDL)
         Require::checkPath(dd, create = TRUE)
         messageVerbose(modToDL, " ...", verbose = verbose)
+
         mess <- capture.output(type = "message",
                        out <- withCallingHandlers(
                          downloadRepo(modToDL, subFolder = NA,
