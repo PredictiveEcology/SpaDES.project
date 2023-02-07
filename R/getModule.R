@@ -22,7 +22,7 @@ utils::globalVariables(c(
 #' @seealso [getGithubFile]
 #' @inheritParams Require::Require
 #' @importFrom utils capture.output
-#' @importFrom Require checkPath normPath
+#' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub extractInequality compareVersion2
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
@@ -37,7 +37,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
   if (overwrite %in% FALSE) {
     if (any(whExist)) {
-      modToDLnoVersion <- trimVersionNumber(modsToDL[whExist])
+      modToDLnoVersion <- Require::trimVersionNumber(modsToDL[whExist])
       hasVersionSpec <- modToDLnoVersion != modsToDL[whExist]
       if (any(hasVersionSpec)) {
         versionSpec <- extractVersionNumber(modsToDL[whExist][hasVersionSpec])

@@ -130,8 +130,12 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 (i.e., \code{inputPath}, \code{outputPath}, \code{scratchPath}, \code{cachePath}, \code{rasterTmpDir}).}
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
-should be in the form \code{GitHubAccount/Repo@branch} e.g.,
-\code{"PredictiveEcology/Biomass_core@development"}. If the project is a git repository,
+should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
+in the \code{paths$modulePath}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
+\code{"PredictiveEcology/Biomass_core@development"}); or a character vector that identifies
+one or more (not optional file extension) \code{.R} file(s) (local or GitHub)
+to parse that will produce a character vector assigned to
+the name "modules". If the entire project is a git repository,
 then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.}
 
