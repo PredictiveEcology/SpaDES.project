@@ -22,7 +22,7 @@ utils::globalVariables(c(
 #' @seealso [getGithubFile]
 #' @inheritParams Require::Require
 #' @importFrom utils capture.output
-#' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub extractInequality compareVersion2
+#' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub extractInequality
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
@@ -39,6 +39,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     if (any(whExist)) {
       modToDLnoVersion <- Require::trimVersionNumber(modsToDL[whExist])
       hasVersionSpec <- modToDLnoVersion != modsToDL[whExist]
+      messForDL <- rep("already local", length(modsToDL))
+      names(messForDL) <- modsToDL
       if (any(hasVersionSpec)) {
         versionSpec <- extractVersionNumber(modsToDL[whExist][hasVersionSpec])
         inequ <- extractInequality(modsToDL[whExist][hasVersionSpec])
@@ -56,6 +58,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
                          "\n... not downloading", verbose = verbose)
         modsToDL <- modToDLnoVersion[whExist %in% TRUE][sufficient %in% FALSE]
 
+      } else {
+        modsToDL <- character()
       }
     }
 
@@ -98,28 +102,31 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
           messageVerbose("\b Done!", verbose = verbose)
 
         } else {
-          messageVerbose(modToDL, " could not be downloaded; does it exist? and are permissions correct?",
+          messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
                          verbose = verbose)
         }
 
       })
     allworked <- Require::extractPkgName(modsToDL) %in% dir(modulePath)
+    messForDL[modsToDL[allworked]] <- "downloaded"
     anyfailed <- modsToDL[!allworked]
+    messForDL[anyfailed] <- "failed"
     modules <- anyfailed
   }
 
   successes <- setdiff(modulesOrig, anyfailed)
-  if (length(successes)) {
-    df <- data.frame(modules = modulesOrig)
-    df[match(successes, df$modules), "downloaded"] <- TRUE
-    df[match(successes, df$modules), "modulePath"] <- normPath(modulePath)
+  # if (length(successes)) {
+  df <- data.frame(modules = modulesOrig)
+  rows <- match(names(messForDL), df$modules)
+  df[rows, "downloaded"] <- unname(messForDL)
+  df[rows, "modulePath"] <- normPath(modulePath)
 
-    messageDF(df)
-    if (length(anyfailed)) {
-      messageVerbose("Will try using `git clone` ... ",
-                     verbose = verbose)
-    }
+  messageDF(df, verbose = verbose)
+  if (length(anyfailed)) {
+    messageVerbose("Will try using `git clone` ... ",
+                   verbose = verbose)
   }
+  # }
 
   return(list(success = successes, failed = anyfailed))
 }

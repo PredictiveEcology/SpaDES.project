@@ -15,6 +15,9 @@ blue <- utils::getFromNamespace("blue", "Require")
 messageVerbose <- utils::getFromNamespace("messageVerbose", "Require")
 
 #' @rdname imports
+compareVersion2 <- utils::getFromNamespace("compareVersion2", "Require")
+
+#' @rdname imports
 downloadRepo <- utils::getFromNamespace("downloadRepo", "Require")
 
 #' @rdname imports

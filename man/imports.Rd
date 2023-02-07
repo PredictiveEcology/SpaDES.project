@@ -6,6 +6,7 @@
 \alias{yellow}
 \alias{blue}
 \alias{messageVerbose}
+\alias{compareVersion2}
 \alias{downloadRepo}
 \alias{splitGitRepo}
 \alias{downloadFileMasterMainAuth}
@@ -23,6 +24,8 @@ yellow(...)
 blue(...)
 
 messageVerbose(..., verbose = getOption("Require.verbose"), verboseLevel = 1)
+
+compareVersion2(version, versionSpec, inequality)
 
 downloadRepo(
   gitRepo,
