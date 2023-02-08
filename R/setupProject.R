@@ -755,7 +755,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' full module names and the list elemen.ts are the R packages that the module
 #' depends on (`reqsPkgs`)
 #'
-setupModules <- function(paths, modules, useGit, overwrite, envir = environment(),
+setupModules <- function(paths, modules, useGit = FALSE, overwrite, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)

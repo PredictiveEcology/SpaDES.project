@@ -34,13 +34,13 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   whExist <- dir.exists(file.path(modulePath, modNam))
 
   modsToDL <- modules
+  messForDL <- rep("already local", length(modsToDL))
+  names(messForDL) <- modsToDL
 
   if (overwrite %in% FALSE) {
     if (any(whExist)) {
       modToDLnoVersion <- Require::trimVersionNumber(modsToDL[whExist])
       hasVersionSpec <- modToDLnoVersion != modsToDL[whExist]
-      messForDL <- rep("already local", length(modsToDL))
-      names(messForDL) <- modsToDL
       if (any(hasVersionSpec)) {
         versionSpec <- extractVersionNumber(modsToDL[whExist][hasVersionSpec])
         inequ <- extractInequality(modsToDL[whExist][hasVersionSpec])
