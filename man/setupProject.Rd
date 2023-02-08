@@ -79,7 +79,7 @@ setupOptions(
 setupModules(
   paths,
   modules,
-  useGit,
+  useGit = FALSE,
   overwrite,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
