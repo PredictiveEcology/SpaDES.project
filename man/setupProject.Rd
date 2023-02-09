@@ -26,7 +26,7 @@ setupProject(
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
-  libPaths = paths$packagePath,
+  libPaths = paths[["packagePath"]],
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
@@ -40,7 +40,7 @@ setupPaths(
   paths,
   inProject,
   standAlone = TRUE,
-  libPaths = paths$packagePath,
+  libPaths = paths[["packagePath"]],
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
   envir = environment(),
@@ -55,7 +55,7 @@ setupSideEffects(
   sideEffects,
   paths,
   times,
-  overwrite,
+  overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -68,7 +68,7 @@ setupOptions(
   options,
   paths,
   times,
-  overwrite,
+  overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -80,7 +80,7 @@ setupModules(
   paths,
   modules,
   useGit = FALSE,
-  overwrite,
+  overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -93,7 +93,7 @@ setupPackages(
   modulePackages,
   require,
   libPaths,
-  setLinuxBinaryRepo,
+  setLinuxBinaryRepo = TRUE,
   standAlone,
   envir = environment(),
   verbose,
@@ -109,7 +109,7 @@ setupParams(
   modules,
   times,
   options,
-  overwrite,
+  overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -131,7 +131,7 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
 should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
-in the \code{paths$modulePath}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
+in the \code{paths[["modulePath"]]}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
 \code{"PredictiveEcology/Biomass_core@development"}); or a character vector that identifies
 one or more (not optional file extension) \code{.R} file(s) (local or GitHub)
 to parse that will produce a character vector assigned to
@@ -220,12 +220,12 @@ See table for details.
 \code{setupOptions} is run for its side effects, namely, changes to the \code{options()}.
 
 \code{setupModules} is run for its side effects, i.e., downloads modules and puts them
-into the \code{paths$modulePath}. It will return a named list, where the names are the
+into the \code{paths[["modulePath"]]}. It will return a named list, where the names are the
 full module names and the list elemen.ts are the R packages that the module
 depends on (\code{reqsPkgs})
 
 \code{setupPackages} is run for its side effects, i.e., installing packages to
-\code{paths$packagePath}.
+\code{paths[["packagePath"]]}.
 
 \code{setupParams} is run for its side effects, namely, changes to the \code{options()}.
 
