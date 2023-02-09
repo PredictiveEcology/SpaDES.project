@@ -20,7 +20,7 @@
 #'   (i.e., `inputPath`, `outputPath`, `scratchPath`, `cachePath`, `rasterTmpDir`).
 #' @param modules a character string of modules to pass to `getModule`. These
 #'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
-#'   in the `paths$modulePath`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
+#'   in the `paths[["modulePath"]]`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
 #'   `"PredictiveEcology/Biomass_core@development"`); or a character vector that identifies
 #'   one or more (not optional file extension) `.R` file(s) (local or GitHub)
 #'   to parse that will produce a character vector assigned to
@@ -207,7 +207,7 @@ setupProject <- function(name, paths, modules, packages,
                          require = NULL,
                          Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
-                         standAlone = TRUE, libPaths = paths$packagePath,
+                         standAlone = TRUE, libPaths = paths[["packagePath"]],
                          updateRprofile = getOption("Require.updateRprofile", FALSE),
                          overwrite = FALSE, # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
@@ -242,7 +242,7 @@ setupProject <- function(name, paths, modules, packages,
     Require::Require(require, require = TRUE,
                      setLinuxBinaryRepo = setLinuxBinaryRepo,
                      standAlone = standAlone,
-                     libPaths = paths$packagePath, verbose = verbose)
+                     libPaths = paths[["packagePath"]], verbose = verbose)
   }
 
 
@@ -250,7 +250,7 @@ setupProject <- function(name, paths, modules, packages,
                                      envir = envir, verbose = verbose)
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
-  options <- opts$newOptions # put into this environment so parsing can access
+  options <- opts[["newOptions"]] # put into this environment so parsing can access
 
   modulePackages <- setupModules(paths, modules, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
@@ -265,7 +265,7 @@ setupProject <- function(name, paths, modules, packages,
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
-                libPaths = paths$packagePath, envir = envir, verbose = verbose)
+                libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
 
   if (!missing(config)) {
     messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
@@ -277,11 +277,11 @@ setupProject <- function(name, paths, modules, packages,
     browser()
     out <- do.call(SpaDES.config::useConfig, append(
       list(projectName = config,
-           projectPath = paths$projectPath, paths = paths),
+           projectPath = paths[["projectPath"]], paths = paths),
       localVars))
 
   } else {
-    params <- setupParams(name, paramsSUB, paths, modules, times, options = opts$newOptions,
+    params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                           overwrite = overwrite, envir = envir, verbose = verbose)
 
     setupGitIgnore(paths, envir = envir, verbose)
@@ -368,7 +368,7 @@ setupProject <- function(name, paths, modules, packages,
 #' @export
 #' @rdname setupProject
 #' @importFrom Require normPath checkPath
-setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = paths$packagePath,
+setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = paths[["packagePath"]],
                        updateRprofile = getOption("Require.updateRprofile", FALSE),
                        overwrite = FALSE, envir = environment(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
@@ -378,7 +378,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   messageVerbose(yellow("setting up paths ..."), verbose = verbose)
 
-  pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths$projectPath))`
+  pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths[["projectPath"]]))`
   pathsSUB <- checkProjectPath(pathsSUB, envir, parent.frame())
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
@@ -386,25 +386,25 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
                           envir = envir, verbose = verbose)
 
   if (missing(name))
-    name <- basename(paths$projectPath)
+    name <- basename(paths[["projectPath"]])
   if (missing(inProject))
     inProject <- isInProject(name)
   if (is.null(paths[["projectPath"]]))
     stop("Please specify paths[[\"projectPath\"]] as an absolute path")
 
   if (is.null(libPaths) || is.call(libPaths)) {
-    if (is.null(paths$packagePath)) {
+    if (is.null(paths[["packagePath"]])) {
       pkgPth <- tools::R_user_dir("data")
-      paths$packagePath <- file.path(pkgPth, name, "packages", version$platform, substr(getRversion(), 1, 3))
+      paths[["packagePath"]] <- file.path(pkgPth, name, "packages", version$platform, substr(getRversion(), 1, 3))
       if (is.call(libPaths)) {
         libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
       }
     }
   } else {
-    paths$packagePath <- libPaths
+    paths[["packagePath"]] <- libPaths
   }
 
-  if (is.null(paths$modulePath)) paths$modulePath <- file.path(paths[["projectPath"]], "m")
+  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "m")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
   paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
@@ -438,11 +438,11 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
   deps <- c("SpaDES.project", "data.table", "Require", "rprojroot")
   deps <- c(deps, "rstudioapi")
 
-  depsAlreadyInstalled <- dir(paths$packagePath, pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
+  depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
   diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
-    if (file.exists(file.path(paths$packagePath, dai, "DESCRIPTION"))) {
+    if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
       pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
-      pvPathsPackagePath <- packageVersion(dai, lib.loc = paths$packagePath)
+      pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
       if (pvLibLoc > pvPathsPackagePath)
         out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
       else
@@ -466,24 +466,25 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
     messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath",
                    verbose = verbose)
 
-    if (!identical(normPath(.libPaths()[1]), paths$packagePath))
+    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]))
       for (pkg in deps) {
         pkgDir <- file.path(.libPaths(), pkg)
         de <- dir.exists(pkgDir)
         pkgDir <- pkgDir[de][1]
         files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
-        newFiles <- file.path(paths$packagePath, pkg, files1)
+        newFiles <- file.path(paths[["packagePath"]], pkg, files1)
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
-        exist <- file.exists(oldFiles)
-        if (any(!exist))
-          file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
+        # exist <- file.exists(oldFiles)
+        # if (any(!exist))
+        #  file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
+        file.copy(oldFiles, newFiles, overwrite = TRUE)
       }
   }
 
-  changedLibPaths <- !identical(normPath(.libPaths()[1]), paths$packagePath)
+  changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
 
-  Require::setLibPaths(paths$packagePath, standAlone = standAlone,
+  Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                        updateRprofile = updateRprofile,
                        exact = FALSE, verbose = getOption("Require.verbose"))
 
@@ -510,7 +511,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 #'
 #'
 #' @importFrom data.table data.table
-setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
+setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
                              envir = environment(), verbose = getOption("Require.verbose", 1L),
                              dots, defaultDots, ...) {
 
@@ -545,7 +546,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite,
 #'
 #'
 #' @importFrom data.table data.table
-setupOptions <- function(name, options, paths, times, overwrite, envir = environment(),
+setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -751,11 +752,11 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #'
 #' @return
 #' `setupModules` is run for its side effects, i.e., downloads modules and puts them
-#' into the `paths$modulePath`. It will return a named list, where the names are the
+#' into the `paths[["modulePath"]]`. It will return a named list, where the names are the
 #' full module names and the list elemen.ts are the R packages that the module
 #' depends on (`reqsPkgs`)
 #'
-setupModules <- function(paths, modules, useGit = FALSE, overwrite, envir = environment(),
+setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -764,6 +765,11 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite, envir = envi
     modulesOrig <- character()
     packages <- list()
   } else {
+    if (missing(paths)) {
+      pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
+      pathsSUB <- checkProjectPath(pathsSUB, envir = envir, envir2 = parent.frame())
+      paths <- setupPaths(paths = pathsSUB)#, inProject = TRUE, standAlone = TRUE, libPaths,
+    }
 
     messageVerbose(yellow("setting up modules"), verbose = verbose)
 
@@ -780,7 +786,7 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite, envir = envi
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     if (!useGit) {
-      out <- getModule(modules, paths$modulePath, overwrite)
+      out <- getModule(modules, paths[["modulePath"]], overwrite)
       anyfailed <- out$failed
       modules <- anyfailed
     }
@@ -791,29 +797,29 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite, envir = envi
 
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
-        localPath <- file.path(paths$modulePath, split$repo)
+        localPath <- file.path(paths[["modulePath"]], split$repo)
         if (!dir.exists(localPath)) {
-          cmd <- paste0("cd ", paths$modulePath, " && git clone https://github.com/", modPath)
+          cmd <- paste0("cd ", paths[["modulePath"]], " && git clone https://github.com/", modPath)
           system(cmd)
         } else {
           messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
         }
+        reportBranch <- TRUE
         if (!grepl("master|main|HEAD", split$br)) {
-          cmd <- paste0("cd ", file.path(paths$modulePath, split$repo), " && git rev-parse --abbrev-ref HEAD ")
+          cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
           curBr <- system(cmd, intern = TRUE)
           if (!identical(split$br, curBr)) {
-            cmd <- paste0("cd ", file.path(paths$modulePath, split$repo), " && git status ")
+            cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git checkout ", split$br)
             system(cmd)
-          } else {
-            messageVerbose("\b ... on ", curBr, " branch")
+            reportBranch <- FALSE
           }
         }
-
-
+        if (reportBranch)
+          messageVerbose("\b ... on ", split$br, " branch")
       })
     }
 
-    modulePackages <- packagesInModules(modulePath = paths$modulePath, modules = modulesOrigPkgName)
+    modulePackages <- packagesInModules(modulePath = paths[["modulePath"]], modules = modulesOrigPkgName)
     modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
     packages <- modulePackages[modulesSimple]
   }
@@ -834,9 +840,9 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite, envir = envi
 #'
 #' @return
 #' `setupPackages` is run for its side effects, i.e., installing packages to
-#' `paths$packagePath`.
+#' `paths[["packagePath"]]`.
 #'
-setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo,
+setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo = TRUE,
                           standAlone, envir = environment(), verbose, dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -892,7 +898,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 #'
 #'
 #' @importFrom data.table data.table
-setupParams <- function(name, params, paths, modules, times, options, overwrite, envir = environment(),
+setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE, envir = environment(),
                         verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                         ...) {
 
@@ -936,7 +942,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite,
         messageVerbose(blue("Using SpaDES.core to compare metadata with supplied parameters: "),
                        verbose = verbose)
         params <- Map(mod = mods, function(mod) {
-          knownPars <- SpaDES.core::moduleMetadata(module = mod, path = paths$modulePath,
+          knownPars <- SpaDES.core::moduleMetadata(module = mod, path = paths[["modulePath"]],
                                                    defineModuleListItems = "parameters")$parameters$paramName
           if (!is.null(params[[mod]])) {
             supplied <- names(params[[mod]])
@@ -975,7 +981,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite,
 }
 
 
-parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite, envir,
+parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE, envir,
                            verbose = getOption("Require.verbose", 1L), dots, ...) {
 
   if (is.character(obj)) {
@@ -1090,13 +1096,13 @@ setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultD
   gitIgnoreFile <- ".gitignore"
   if (file.exists(gitIgnoreFile)) {
     gif <- readLines(gitIgnoreFile, warn = FALSE)
-    lineWithPkgPath <- grep(paste0("^", basename(paths$packagePath),"$"), gif)
+    lineWithPkgPath <- grep(paste0("^", basename(paths[["packagePath"]]),"$"), gif)
     insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths$packagePath), "*")
+    gif[insertLine] <- file.path(basename(paths[["packagePath"]]), "*")
 
-    lineWithModPath <- grep(paste0("^", basename(paths$modulePath),"$"), gif)
+    lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
     insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths$modulePath), "*")
+    gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
 
     writeLines(con = gitIgnoreFile, unique(gif))
     messageVerbose(verboseLevel = 1, verbose = verbose,
