@@ -219,6 +219,7 @@ setupProject <- function(name, paths, modules, packages,
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
+  modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
@@ -252,7 +253,7 @@ setupProject <- function(name, paths, modules, packages,
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
   options <- opts[["newOptions"]] # put into this environment so parsing can access
 
-  modulePackages <- setupModules(paths, modules, useGit = useGit,
+  modulePackages <- setupModules(paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
@@ -288,7 +289,7 @@ setupProject <- function(name, paths, modules, packages,
 
     out <- list(
       modules = modules,
-      paths = paths[spPaths],
+      paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
       params = params,
       times = times,
       ...)
@@ -1053,7 +1054,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
   while (inherits(val, "call") || inherits(val, "name")) {
     if (inherits(val, "name"))
-      val2 <- get0(val, envir = envir)
+      val2 <- try(get0(val, envir = envir), silent = TRUE)
     else
       val2 <- try(eval(val, envir = envir), silent = TRUE)
     if ((identical(val2, val) && !missing(envir2)) || is.null(val2) || is(val2, "try-error")) {
