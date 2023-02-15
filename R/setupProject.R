@@ -589,8 +589,6 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
 
 isUnevaluatedList <- function(p) any( {
 
-  # if (is(try(grepl("^if$|^<-$", p[[1]])[1]), "try-error")) browser()
-
   if (!(length(p) == 1 && is.name(p))) { # this is "just" an object name
     if (grepl("^if$|^<-$", p[[1]])[1]) {
       if (grepl("^\\{$", p[[3]][[1]])[1]) {
@@ -1054,7 +1052,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
   while (inherits(val, "call") || inherits(val, "name")) {
     if (inherits(val, "name"))
-      val2 <- try(get0(val, envir = envir), silent = TRUE)
+      val2 <- get0(val, envir = envir)
     else
       val2 <- try(eval(val, envir = envir), silent = TRUE)
     if ((identical(val2, val) && !missing(envir2)) || is.null(val2) || is(val2, "try-error")) {
