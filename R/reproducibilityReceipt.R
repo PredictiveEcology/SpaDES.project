@@ -124,9 +124,9 @@ submoduleInfo <- function(prjDir = NULL) {
   cwd <- setwd(prjDir)
   on.exit(setwd(cwd), add = TRUE)
   submodules <- system(paste(Sys.which("git"), "submodule status"), intern = TRUE)
-  submodules <- rbindlist(lapply(strsplit(gsub("^ ", "", submodules), " "), function(m) {
-    d <- as.data.table(t(m))
-    colnames(d) <- c("commit", "directory", "ref")
+  submodules <- rbindlist(lapply(strsplit(gsub("^(-| )", "", submodules), " "), function(m) {
+    d <- as.data.table(t(m))[, 1:2] ## keep only commit and directory columns
+    colnames(d) <- c("commit", "directory")
     d
   }))
 

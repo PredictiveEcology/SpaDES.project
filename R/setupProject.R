@@ -219,6 +219,7 @@ setupProject <- function(name, paths, modules, packages,
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
+  modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
@@ -252,7 +253,7 @@ setupProject <- function(name, paths, modules, packages,
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
   options <- opts[["newOptions"]] # put into this environment so parsing can access
 
-  modulePackages <- setupModules(paths, modules, useGit = useGit,
+  modulePackages <- setupModules(paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
@@ -288,7 +289,7 @@ setupProject <- function(name, paths, modules, packages,
 
     out <- list(
       modules = modules,
-      paths = paths[spPaths],
+      paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
       params = params,
       times = times,
       ...)
@@ -587,8 +588,6 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
 
 
 isUnevaluatedList <- function(p) any( {
-
-  # if (is(try(grepl("^if$|^<-$", p[[1]])[1]), "try-error")) browser()
 
   if (!(length(p) == 1 && is.name(p))) { # this is "just" an object name
     if (grepl("^if$|^<-$", p[[1]])[1]) {
