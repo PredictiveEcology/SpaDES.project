@@ -795,21 +795,28 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envi
       gitSplit <- splitGitRepo(modules)
       gitSplit <- Require::invertList(gitSplit)
 
+      origDir <- getwd()
+      on.exit(setwd(origDir))
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
         if (!dir.exists(localPath)) {
-          cmd <- paste0("cd ", paths[["modulePath"]], " && git clone https://github.com/", modPath)
+          prev <- setwd(file.path(paths[["modulePath"]]))
+          cmd <- paste0("git clone https://github.com/", modPath)
           system(cmd)
         } else {
           messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
         }
         reportBranch <- TRUE
         if (!grepl("master|main|HEAD", split$br)) {
-          cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
+          prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+          curBr <- system("git rev-parse --abbrev-ref HEAD ", intern = TRUE)
+          # next line -- cd doesn't work on my windows; no idea why
+          # cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
           curBr <- system(cmd, intern = TRUE)
           if (!identical(split$br, curBr)) {
-            cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git checkout ", split$br)
+            prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+            cmd <- paste0("git checkout ", split$br)
             system(cmd)
             reportBranch <- FALSE
           }
