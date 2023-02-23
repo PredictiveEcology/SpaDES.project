@@ -810,7 +810,7 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envi
         reportBranch <- TRUE
         if (!grepl("master|main|HEAD", split$br)) {
           prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          curBr <- system("git rev-parse --abbrev-ref HEAD ", intern = TRUE)
+          cmd <- "git rev-parse --abbrev-ref HEAD"
           # next line -- cd doesn't work on my windows; no idea why
           # cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
           curBr <- system(cmd, intern = TRUE)
