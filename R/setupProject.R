@@ -130,7 +130,7 @@
 #' @examples
 #' \dontrun{
 #'
-#' setupProject() # simplest case; just creates folders, sets options in current folder
+#' setupProject() # simplest case; just creates folders
 #'
 #' # set relative paths & modules
 #' setupProject(name = "SpaDES.project",
@@ -351,9 +351,9 @@ setupProject <- function(name, paths, modules, packages,
 #' ------       \tab -----------                 \tab  -----         \cr
 #'              \tab *Module Level Paths*                 \tab \cr
 #' `cachePath`  \tab `file.path(projectPath, "cache")` \tab `options(reproducible.cachePath = cachePath)`\cr
-#' `inputPath`  \tab `file.path(projectPath, "input")` \tab `options(spades.inputPath = inputPath)`\cr
-#' `modulePath` \tab `file.path(projectPath, "m")` \tab `options(spades.inputPath = outputPath)` \cr
-#' `outputPath` \tab `file.path(projectPath, "output")` \tab `options(spades.inputPath = modulePath)` \cr
+#' `inputPath`  \tab `file.path(projectPath, "inputs")` \tab `options(spades.inputPath = inputPath)`\cr
+#' `modulePath` \tab `file.path(projectPath, "modules")` \tab `options(spades.inputPath = outputPath)` \cr
+#' `outputPath` \tab `file.path(projectPath, "outputs")` \tab `options(spades.inputPath = modulePath)` \cr
 #' ------       \tab -----------                 \tab  -----         \cr
 #'              \tab *Temporary Paths*                 \tab  \cr
 #' `scratchPath`\tab `file.path(tempdir(), name)` \tab \cr
@@ -404,7 +404,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
     paths[["packagePath"]] <- libPaths
   }
 
-  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "m")
+  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "modules")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
   paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
@@ -429,8 +429,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   paths <- Require::modifyList2(
     list(cachePath = file.path(paths[["projectPath"]], "cache"),
-         inputPath = file.path(paths[["projectPath"]], "input"),
-         outputPath = file.path(paths[["projectPath"]], "output")
+         inputPath = file.path(paths[["projectPath"]], "inputs"),
+         outputPath = file.path(paths[["projectPath"]], "outputs")
     ),
     paths)
 

@@ -348,9 +348,9 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 ------       \tab -----------                 \tab  -----         \cr
 \tab \emph{Module Level Paths}                 \tab \cr
 \code{cachePath}  \tab \code{file.path(projectPath, "cache")} \tab \code{options(reproducible.cachePath = cachePath)}\cr
-\code{inputPath}  \tab \code{file.path(projectPath, "input")} \tab \code{options(spades.inputPath = inputPath)}\cr
-\code{modulePath} \tab \code{file.path(projectPath, "m")} \tab \code{options(spades.inputPath = outputPath)} \cr
-\code{outputPath} \tab \code{file.path(projectPath, "output")} \tab \code{options(spades.inputPath = modulePath)} \cr
+\code{inputPath}  \tab \code{file.path(projectPath, "inputs")} \tab \code{options(spades.inputPath = inputPath)}\cr
+\code{modulePath} \tab \code{file.path(projectPath, "modules")} \tab \code{options(spades.inputPath = outputPath)} \cr
+\code{outputPath} \tab \code{file.path(projectPath, "outputs")} \tab \code{options(spades.inputPath = modulePath)} \cr
 ------       \tab -----------                 \tab  -----         \cr
 \tab \emph{Temporary Paths}                 \tab  \cr
 \code{scratchPath}\tab \code{file.path(tempdir(), name)} \tab \cr
@@ -366,7 +366,7 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 \examples{
 \dontrun{
 
-setupProject() # simplest case; just creates folders, sets options in current folder
+setupProject() # simplest case; just creates folders
 
 # set relative paths & modules
 setupProject(name = "SpaDES.project",
