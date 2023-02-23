@@ -774,7 +774,8 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envi
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envir, envir2 = parent.frame())
-    isRepo <- nzchar(tools::file_ext(modules))
+    exts <- tools::file_ext(modules)
+    isRepo <- nzchar(exts) & exts %in% ".R"
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
       modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = overwrite,
