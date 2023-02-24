@@ -437,7 +437,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   # deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
   deps <- c("SpaDES.project", "data.table", "Require", "rprojroot")
-  deps <- c(deps, "rstudioapi")
+  # deps <- c(deps, "rstudioapi")
 
   depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
   diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
