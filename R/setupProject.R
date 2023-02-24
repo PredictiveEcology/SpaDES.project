@@ -442,17 +442,37 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
   depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
   diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
     if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
+      pvLoaded <- packageVersion(dai)
       pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
       pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
-      if (pvLibLoc > pvPathsPackagePath)
+      loadedFrom <- if (identical(pvPathsPackagePath, pvLoaded)) {
+        "packagePath"
+      } else {
+        "libPaths"
+      }
+
+      if (pvLibLoc < pvPathsPackagePath) {# test whether lib loc is lt; so, need to unload; then move from to packagePath; reload
+        out <- dai
+      } else if (pvLibLoc > pvPathsPackagePath) { #test whether lib loc is gt; so, need to move to packagePath
         out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
-      else
+      } else {
         out <- NULL
+      }
     } else {
       out <- NULL
     }
     out
   })
+  # First check for loaded old version; needs user intervention
+  needStop <- vapply(diffVersion, function(x) is.character(x), FUN.VALUE = logical(1))
+  if (any(needStop)) {
+    pkgsToUpdate <- names(needStop)[needStop]
+    pkgs <- paste(pkgsToUpdate, collapse = "', '")
+
+    stop("\nThe version of ", pkgs, " need updating in the personal library.\n",
+         "Please restart R and update ", pkgs, ", e.g., using: ",
+         "\ninstall.packages(c('", pkgs, "'), lib = '", .libPaths()[1],"')")
+  }
   diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
   deps <- setdiff(deps, depsAlreadyInstalled)
   if (length(diffVersionNames)) {
