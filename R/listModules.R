@@ -65,7 +65,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'        out
 #' })
 #'
-#' DT <- moduleDepenencies(mods, modulePath = "testMods")
+#' DT <- moduleDependencies(mods, modulePath = "testMods")
 #' graph <- moduleDependenciesToGraph(DT)
 #' vn <- PlotModuleGraph(graph)
 #'
@@ -124,7 +124,7 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
 #'
 #' @rdname listModules
 #' @export
-moduleDepenencies <- function(modules, modulePath) {
+moduleDependencies <- function(modules, modulePath) {
 
   modsFlat <- unlist(modules)
   names(modsFlat) <- modsFlat
