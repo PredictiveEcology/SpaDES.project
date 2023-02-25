@@ -2,7 +2,7 @@
 % Please edit documentation in R/listModules.R
 \name{listModules}
 \alias{listModules}
-\alias{moduleDepenencies}
+\alias{moduleDependencies}
 \alias{moduleDependenciesToGraph}
 \alias{PlotModuleGraph}
 \title{Tools for examining modules on known repositories}
@@ -15,7 +15,7 @@ listModules(
   verbose = getOption("Require.verbose", 1L)
 )
 
-moduleDepenencies(modules, modulePath)
+moduleDependencies(modules, modulePath)
 
 moduleDependenciesToGraph(md)
 
@@ -66,7 +66,7 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
        out
 })
 
-DT <- moduleDepenencies(mods, modulePath = "testMods")
+DT <- moduleDependencies(mods, modulePath = "testMods")
 graph <- moduleDependenciesToGraph(DT)
 vn <- PlotModuleGraph(graph)
 
