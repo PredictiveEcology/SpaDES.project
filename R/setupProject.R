@@ -1133,25 +1133,29 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' `setupGitIgnore` is run for its side effects, i.e., adding elements to the
 #' `.gitignore` file.
 setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultDots, ...) {
-
-  dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
-
   gitIgnoreFile <- ".gitignore"
-  if (file.exists(gitIgnoreFile)) {
-    gif <- readLines(gitIgnoreFile, warn = FALSE)
-    lineWithPkgPath <- grep(paste0("^", basename(paths[["packagePath"]]),"$"), gif)
-    insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths[["packagePath"]]), "*")
 
-    lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
-    insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
+  if (isTRUE(getOption("SpaDES.project.updateGitIgnore"))) {
+    dotsSUB <- as.list(substitute(list(...)))[-1]
+    dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
-    writeLines(con = gitIgnoreFile, unique(gif))
-    messageVerbose(verboseLevel = 1, verbose = verbose,
-                             ".gitignore file updated with packagePath and modulePath; ",
-                             "this may need to be confirmed manually")
+    if (file.exists(gitIgnoreFile)) {
+      gif <- readLines(gitIgnoreFile, warn = FALSE)
+      lineWithPkgPath <- grep(paste0("^", basename(paths[["packagePath"]]),"$"), gif)
+      insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
+      gif[insertLine] <- file.path(basename(paths[["packagePath"]]), "*")
+
+      lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
+      insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
+      gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
+
+      writeLines(con = gitIgnoreFile, unique(gif))
+      messageVerbose(verboseLevel = 1, verbose = verbose,
+                               ".gitignore file updated with packagePath and modulePath; ",
+                               "this may need to be confirmed manually")
+    }
+  } else {
+    message("Option 'SpaDES.project.updateGitIgnore' is FALSE. No changes were made to ", gitIgnoreFile, ".")
   }
 }
 
