@@ -155,7 +155,8 @@ the \code{.GlobalEnv}), so they will not create globally accessible objects. See
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.}
 
-\item{sideEffects}{Optional. This can be an expression or one or more filenames.
+\item{sideEffects}{Optional. This can be an expression or one or more filenames or
+a code chunk surrounded by \code{{...}}.
 This/these will be parsed and evaluated, but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
 that are run for their side effects only.}
@@ -168,8 +169,9 @@ of \code{setupProject} so that a user can use these during \code{setupProject}.}
 Rstudio, and interactive, it will restart with a new Rstudio session with a
 new project, with a root path set to \code{projectPath}. Default is \code{FALSE}.}
 
-\item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone}. Otherwise it will
-get modules with \code{getModules}.}
+\item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
+to get and change branch for each module, according to its specification in
+\code{modules}. Otherwise it will get modules with \code{getModules}.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}

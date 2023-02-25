@@ -42,12 +42,14 @@
 #'   the `.GlobalEnv`), so they will not create globally accessible objects. See details.
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
-#' @param sideEffects Optional. This can be an expression or one or more filenames.
+#' @param sideEffects Optional. This can be an expression or one or more filenames or
+#'   a code chunk surrounded by `{...}`.
 #'   This/these will be parsed and evaluated, but nothing returned. This is intended
 #'   to be used for functions, such as cloud authentication or configurations,
 #'   that are run for their side effects only.
-#' @param useGit A logical. If `TRUE`, it will use `git clone`. Otherwise it will
-#' get modules with `getModules`.
+#' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
+#'   to get and change branch for each module, according to its specification in
+#'   `modules`. Otherwise it will get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, it `TRUE`. Default is `TRUE`.
 #' @param libPaths A character vector. Passed to `Require::libPaths`, which will
@@ -545,8 +547,14 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envir, envir2 = parent.frame())
 
+    if (!is.character(sideEffects)) { # this is because I wrote this second;
+      tf <- tempfile()
+      writeLines(format(sideEffects[-1]), con = tf)
+      sideEffects <- tf
+    }
+
     sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
-                                  overwrite = overwrite, envir = envir, verbose = verbose)
+                                    overwrite = overwrite, envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
 
@@ -1011,6 +1019,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE, envir,
                            verbose = getOption("Require.verbose", 1L), dots, ...) {
 
+  if (exists("aaa")) browser()
   if (is.character(obj)) {
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt)
@@ -1081,9 +1090,17 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   while (inherits(val, "call") || inherits(val, "name")) {
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
-    else
+    else {
       val2 <- try(eval(val, envir = envir), silent = TRUE)
-    if ((identical(val2, val) && !missing(envir2)) || is.null(val2) || is(val2, "try-error")) {
+    }
+
+    # if (tryCatch(identical(val2[[1]], quote(`{`)), silent = TRUE, error = function(e) FALSE)) {
+    #   browser()
+    #   val2 <- as.list(val2)[-1]
+    #   names(val2) <- as.character(seq(length(val2)))
+    # }
+    if ((identical(val2, val) && !missing(envir2)) || is.null(val2) ||
+        is(val2, "try-error")) {
       val <- eval(val, envir = envir2)
       val2 <- val
     } else {
