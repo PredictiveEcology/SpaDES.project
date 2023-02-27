@@ -51,7 +51,7 @@
 #'   to get and change branch for each module, according to its specification in
 #'   `modules`. Otherwise it will get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
-#'   packages installed in a project-level library, it `TRUE`. Default is `TRUE`.
+#'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths A character vector. Passed to `Require::libPaths`, which will
 #'   in turn pass to `.libPaths(libPaths)`
 #' @param inProject A logical. If `TRUE`, then the current directory is
