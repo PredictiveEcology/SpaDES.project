@@ -1138,20 +1138,37 @@ setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultD
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   gitIgnoreFile <- ".gitignore"
-  if (file.exists(gitIgnoreFile)) {
+  if (file.exists(gitIgnoreFile)) { # this is a git repository
     gif <- readLines(gitIgnoreFile, warn = FALSE)
-    lineWithPkgPath <- grep(paste0("^", basename(paths[["packagePath"]]),"$"), gif)
-    insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths[["packagePath"]]), "*")
+    gifOrig <- gif
 
-    lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
-    insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
-    gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
+    # if the R package folder is inside
+    prjP <- normPath(paths[["projectPath"]])
+    pkgP <- normPath(paths[["packagePath"]])
+    isPackagePathInside <- grepl(prjP, pkgP)
+    if (isTRUE(isPackagePathInside)) {
+      pkgP <- gsub(prjP, "", pkgP)
+      if (startsWith(pkgP, "/"))
+        pkgP <- gsub("^/", "", pkgP)
+      lineWithPkgPath <- grep(paste0("^", pkgP,"$"), gif)
+      insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
+      gif[insertLine] <- file.path(pkgP, "*")
+    }
 
-    writeLines(con = gitIgnoreFile, unique(gif))
-    messageVerbose(verboseLevel = 1, verbose = verbose,
-                             ".gitignore file updated with packagePath and modulePath; ",
-                             "this may need to be confirmed manually")
+    if (!file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
+      lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
+      insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
+      gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
+
+    }
+
+    if (length(setdiff(gif, gifOrig))) {
+      writeLines(con = gitIgnoreFile, unique(gif))
+      messageVerbose(verboseLevel = 1, verbose = verbose,
+                     ".gitignore file updated with packagePath and modulePath; ",
+                     "this may need to be confirmed manually")
+    }
+
   }
 }
 
@@ -1310,7 +1327,7 @@ spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
 # # Setup the paths, modules, git links if any
 # projPath <- "~/GitHub"
 # modulePath <- "m"
-# packagePath <- "R"
+# packagePath <- "Rpackages"
 # setupProject(name = "PredictiveEcology/WBI_forecasts@ChubatyPubNum12",
 #              projectPath = projPath,
 #              modulePath = modulePath,
