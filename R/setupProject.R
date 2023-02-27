@@ -1138,8 +1138,12 @@ setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultD
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   gitIgnoreFile <- ".gitignore"
-  if (file.exists(gitIgnoreFile)) { # this is a git repository
-    gif <- readLines(gitIgnoreFile, warn = FALSE)
+  gitFile <- ".git"
+  if (dir.exists(gitFile)) { # this is a git repository
+    if (file.exists(gitIgnoreFile))
+      gif <- readLines(gitIgnoreFile, warn = FALSE)
+    else
+      gif <- character()
     gifOrig <- gif
 
     # if the R package folder is inside
