@@ -155,7 +155,8 @@ the \code{.GlobalEnv}), so they will not create globally accessible objects. See
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.}
 
-\item{sideEffects}{Optional. This can be an expression or one or more filenames.
+\item{sideEffects}{Optional. This can be an expression or one or more filenames or
+a code chunk surrounded by \code{{...}}.
 This/these will be parsed and evaluated, but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
 that are run for their side effects only.}
@@ -168,8 +169,9 @@ of \code{setupProject} so that a user can use these during \code{setupProject}.}
 Rstudio, and interactive, it will restart with a new Rstudio session with a
 new project, with a root path set to \code{projectPath}. Default is \code{FALSE}.}
 
-\item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone}. Otherwise it will
-get modules with \code{getModules}.}
+\item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
+to get and change branch for each module, according to its specification in
+\code{modules}. Otherwise it will get modules with \code{getModules}.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}
@@ -348,9 +350,9 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 ------       \tab -----------                 \tab  -----         \cr
 \tab \emph{Module Level Paths}                 \tab \cr
 \code{cachePath}  \tab \code{file.path(projectPath, "cache")} \tab \code{options(reproducible.cachePath = cachePath)}\cr
-\code{inputPath}  \tab \code{file.path(projectPath, "input")} \tab \code{options(spades.inputPath = inputPath)}\cr
-\code{modulePath} \tab \code{file.path(projectPath, "m")} \tab \code{options(spades.inputPath = outputPath)} \cr
-\code{outputPath} \tab \code{file.path(projectPath, "output")} \tab \code{options(spades.inputPath = modulePath)} \cr
+\code{inputPath}  \tab \code{file.path(projectPath, "inputs")} \tab \code{options(spades.inputPath = inputPath)}\cr
+\code{modulePath} \tab \code{file.path(projectPath, "modules")} \tab \code{options(spades.inputPath = outputPath)} \cr
+\code{outputPath} \tab \code{file.path(projectPath, "outputs")} \tab \code{options(spades.inputPath = modulePath)} \cr
 ------       \tab -----------                 \tab  -----         \cr
 \tab \emph{Temporary Paths}                 \tab  \cr
 \code{scratchPath}\tab \code{file.path(tempdir(), name)} \tab \cr
@@ -366,7 +368,7 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 \examples{
 \dontrun{
 
-setupProject() # simplest case; just creates folders, sets options in current folder
+setupProject() # simplest case; just creates folders
 
 # set relative paths & modules
 setupProject(name = "SpaDES.project",
