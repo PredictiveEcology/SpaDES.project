@@ -177,7 +177,7 @@ to get and change branch for each module, according to its specification in
 on Linux (ignored if Windows)}
 
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
-packages installed in a project-level library, it \code{TRUE}. Default is \code{TRUE}.}
+packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
 
 \item{libPaths}{A character vector. Passed to \code{Require::libPaths}, which will
 in turn pass to \code{.libPaths(libPaths)}}
