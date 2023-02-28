@@ -1403,7 +1403,7 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
 RequireWithHandling <- function(allPkgs, ...) {
   # alreadyLoadedMess <- c()
   withCallingHandlers(
-    Require(allPkgs, ...) # basically don't change anything
+    Require::Require(allPkgs, ...) # basically don't change anything
     , message = function(m) {
       if (any(grepl("Error: package or namespace", m$message))) {
         pkg <- gsub("^.+namespace ‘(.+)’ .+ is already loaded.+$", "\\1", m$message)
