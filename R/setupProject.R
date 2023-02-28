@@ -242,7 +242,6 @@ setupProject <- function(name, paths, modules, packages,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
   if (!is.null(require)) {
-    browser()
     RequireWithHandling(require, require = TRUE,
                      setLinuxBinaryRepo = setLinuxBinaryRepo,
                      standAlone = standAlone,
