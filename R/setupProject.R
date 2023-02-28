@@ -240,7 +240,8 @@ setupProject <- function(name, paths, modules, packages,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
   if (!is.null(require)) {
-    Require::Require(require, require = TRUE,
+    browser()
+    RequireWithHandling(require, require = TRUE,
                      setLinuxBinaryRepo = setLinuxBinaryRepo,
                      standAlone = standAlone,
                      libPaths = paths[["packagePath"]], verbose = verbose)
@@ -1331,4 +1332,45 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   })
   list2env(dots, envir = envir)
   dots
+}
+
+
+RequireWithHandling <- function(allPkgs, standAlone = FALSE, upgrade = FALSE) {
+  # alreadyLoadedMess <- c()
+  withCallingHandlers(
+    Require(allPkgs, standAlone = standAlone, upgrade = upgrade) # basically don't change anything
+    , message = function(m) {
+      if (any(grepl("Error: package or namespace", m$message))) {
+        pkg <- gsub("^.+namespace ‘(.+)’ .+ is already loaded.+$", "\\1", m$message)
+        message(m)
+        stop(stopMessForRequireFail(pkg))
+      }
+    }
+    , warning = function(w) {
+      warnMess <- "^.+ersion .+ of ‘(.+)’ masked by .+$"
+      if (any(grepl(warnMess, w$message))) {
+        pkg <- gsub(warnMess, "\\1", w$message)
+        warning(w)
+        stop(stopMessForRequireFail(pkg))
+      }
+    }
+  )
+}
+
+stopMessForRequireFail <- function(pkg) {
+  paste0("\nThe above error(s) likely mean(s) you must restart R and run again.",
+         "\nIf this/these occur(s) again, your session likely ",
+         "pre-loads old packages from e.g., your personal library. ",
+         "The best thing to do is try to\n",
+         yellow("restart R without loading any packages."),
+         "\n\nIf that is not easy to do, you can try to update it in that location with (for a CRAN package) e.g., :\n",
+         yellow("restart R "),
+         blue(paste0("\ninstall.packages(c('", pkg, "'))")),
+         yellow("\nrestart R"),
+         "\n\nIf that does not work (including non-CRAN packages), perhaps removing the old one...",
+         yellow("\nrestart R "),
+         blue(paste0("\nremove.packages(c('", pkg, "'))")),
+         yellow("\nrestart R"),
+         "\nThis should trigger a re-installation, or allow ",
+         "for a manual install.packages ...")
 }
