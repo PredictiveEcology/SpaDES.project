@@ -393,7 +393,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   if (is.null(libPaths) || is.call(libPaths)) {
     if (is.null(paths[["packagePath"]])) {
-      pkgPth <- tools::R_user_dir("data")
+      pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
       paths[["packagePath"]] <- file.path(pkgPth, name, "packages", version$platform, substr(getRversion(), 1, 3))
       if (is.call(libPaths)) {
         libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
