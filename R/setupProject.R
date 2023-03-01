@@ -308,10 +308,6 @@ setupProject <- function(name, paths, modules, packages,
         }
     }
 
-    if (length(dotsSUB))
-      out <- append(out,
-                    mget(names(dotsSUB), envir = envir, inherits = FALSE))
-
   }
 
 
@@ -900,10 +896,12 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       packagesToTry <- unique(c(packages, mp))
       # packagesToTry <- unique(c(packages, mp, requireToTry))
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
-      out <- try(Require::Require(packagesToTry, require = FALSE, # require = Require::extractPkgName(requireToTry),
+      out <- try(
+        Require::Require(packagesToTry, require = FALSE, # require = Require::extractPkgName(requireToTry),
                                   standAlone = standAlone,
                                   libPaths = libPaths,
-                                  verbose = verbose))
+                                  verbose = verbose)
+        )
       if (is(out, "try-error")) {
         deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
         miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
