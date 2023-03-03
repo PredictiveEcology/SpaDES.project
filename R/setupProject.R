@@ -505,7 +505,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
   Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                        updateRprofile = updateRprofile,
-                       exact = FALSE, verbose = getOption("Require.verbose"))
+                       exact = FALSE, verbose = verbose)
 
   do.call(setPaths, paths[spPaths])
 
