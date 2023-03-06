@@ -332,20 +332,6 @@ setupProject <- function(name, paths, modules, packages,
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
-  if (!is.null(require)) {
-    RequireWithHandling(require, require = TRUE,
-                     setLinuxBinaryRepo = setLinuxBinaryRepo,
-                     standAlone = standAlone,
-                     libPaths = paths[["packagePath"]], verbose = verbose)
-  }
-
-
-  sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
-                                     envir = envir, verbose = verbose)
-
-  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
-  options <- opts[["newOptions"]] # put into this environment so parsing can access
-
   modulePackages <- setupModules(paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
@@ -354,12 +340,22 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(packages))
     packages <- NULL
 
-  # require <- c(unname(unlist(modulePackages)), require)
-
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
+
+  sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
+                                     envir = envir, verbose = verbose)
+
+  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
+  options <- opts[["newOptions"]] # put into this environment so parsing can access
+
+  # Run 2nd time after sideEffects & setupOptions -- may not be necessary
+  # setupPackages(packages, modulePackages, require = require,
+  #               setLinuxBinaryRepo = setLinuxBinaryRepo,
+  #               standAlone = standAlone,
+  #               libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
 
   if (!missing(config)) {
     messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
@@ -982,18 +978,19 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     packages <- NULL
   }
 
-  if (length(packages) || length(unlist(modulePackages))) { # length(require) ||
+  if (length(packages) || length(unlist(modulePackages)) || length(require) ) {
     messageVerbose(yellow("setting up packages..."), verbose = verbose)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
     while (continue) {
       mp <- unname(unlist(modulePackages))
       # requireToTry <- unique(c(mp, require))
-      packagesToTry <- unique(c(packages, mp))
+      packagesToTry <- unique(c(packages, mp, require))
+      requirePkgNames <- Require::extractPkgName(require)
       # packagesToTry <- unique(c(packages, mp, requireToTry))
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
       out <- try(
-        Require::Require(packagesToTry, require = FALSE, # require = Require::extractPkgName(requireToTry),
+        Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
                                   standAlone = standAlone,
                                   libPaths = libPaths,
                                   verbose = verbose)
@@ -1150,21 +1147,6 @@ checkProjectPath <- function(paths, envir, envir2) {
     paths <- paths[nzchar(names(paths))]
   }
 
-  #  name <- basename(normPath(paths[["projectPath"]]))
-  # }
-
-  # if (missing(inProject))
-  #   inProject <- isInProject(name)
-
-  # projPth <- if  (inProject) file.path(".") else file.path(".", name)
-  # projPth <- normPath(projPth)
-  # if (missing(paths) || inProject) {
-  #   paths <- list(projectPath = projPth)
-  # }
-
-
-
-
   if (!is.null(paths[["projectPath"]])) {
     paths[["projectPath"]] <- evalSUB(paths[["projectPath"]], valObjName = "paths", envir, envir2)
    #  name <- basename(normPath(paths[["projectPath"]]))
@@ -1188,11 +1170,6 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       val2 <- try(eval(val, envir = envir), silent = TRUE)
     }
 
-    # if (tryCatch(identical(val2[[1]], quote(`{`)), silent = TRUE, error = function(e) FALSE)) {
-    #   browser()
-    #   val2 <- as.list(val2)[-1]
-    #   names(val2) <- as.character(seq(length(val2)))
-    # }
     if ((identical(val2, val) && !missing(envir2)) || is.null(val2) ||
         is(val2, "try-error")) {
       val <- eval(val, envir = envir2)
@@ -1494,7 +1471,16 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
 }
 
 
-RequireWithHandling <- function(allPkgs, ...) {
+setupRequire <- function(allPkgs, packages, ...) {
+
+  # Without installing
+  requireNeeds <- unique(unname(unlist(Require::pkgDep(allPkgs, recursive = TRUE))))
+  packagesNeeds <- unique(unname(unlist(Require::pkgDep(packages, recursive = TRUE))))
+  requirePkgs <- unique(extractPkgName(requireNeeds))
+  packagesPkgs <- extractPkgName(packagesNeeds)
+  packagesPkgsMatched <- packagesNeeds[match(requirePkgs, packagesPkgs)]
+  require <- sort(unique(c(requireNeeds, packagesPkgsMatched)))
+
   # alreadyLoadedMess <- c()
   withCallingHandlers(
     Require::Require(allPkgs, ...) # basically don't change anything
