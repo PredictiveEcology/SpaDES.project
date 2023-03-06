@@ -1115,10 +1115,25 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE, envir,
                            verbose = getOption("Require.verbose", 1L), dots, ...) {
 
-  if (exists("aaa")) browser()
+  if (is(obj, "list")) {
+    nams <- names(obj)
+    named <- nzchar(nams)
+    notNamed <- which(!named)
+    if (length(notNamed)) {
+      if (any(named))
+        namedElements <- obj[which(named)]
+      obj <- Map(objInner = obj[notNamed],
+                           function(objInner)
+                             parseFileLists(objInner, projectPath, namedList, overwrite, envir, verbose, dots, ...))
+      obj <- Reduce(f = append, obj)
+      if (any(named))
+        obj <- append(namedElements, obj)
+    }
+  }
+
   if (is.character(obj)) {
     obj <- mapply(opt = obj, function(opt) {
-      isGH <- isGitHub(opt)
+      isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
         opt <- getGithubFile(opt, destDir = projectPath, overwrite = overwrite)
       }
@@ -1126,7 +1141,7 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     }, SIMPLIFY = TRUE)
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      obj[areAbs %in% FALSE] <- file.path(projectPath, obj)
+      obj[areAbs %in% FALSE] <- file.path(projectPath, obj[areAbs %in% FALSE])
     }
 
     obj <- parseListsSequentially(files = obj, namedList = namedList, envir = envir,
