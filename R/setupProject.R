@@ -300,7 +300,7 @@ setupProject <- function(name, paths, modules, packages,
                          require = NULL,
                          Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
-                         standAlone = TRUE, libPaths = paths[["packagePath"]],
+                         standAlone = TRUE, libPaths = NULL,
                          updateRprofile = getOption("Require.updateRprofile", FALSE),
                          overwrite = FALSE, # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
@@ -483,17 +483,22 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   if (is.null(paths[["projectPath"]]))
     stop("Please specify paths[[\"projectPath\"]] as an absolute path")
 
-  if (is.null(libPaths) || is.call(libPaths)) {
+  if (!is.null(libPaths)) {
+    warning("libPaths argument is deprecated. Pass to `paths = list(packagePath = ...)`",
+            "; it is being ignored", verbose = verbose)
+    libPaths <- NULL
+  }
+  #if (is.null(libPaths) || is.call(libPaths)) {
     if (is.null(paths[["packagePath"]])) {
       pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
       paths[["packagePath"]] <- file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3))
-      if (is.call(libPaths)) {
-        libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
-      }
+      # if (is.call(libPaths)) {
+      #   libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
+      # }
     }
-  } else {
-    paths[["packagePath"]] <- libPaths
-  }
+  #} else {
+  #  paths[["packagePath"]] <- libPaths
+  #}
 
   if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "modules")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
