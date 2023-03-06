@@ -376,12 +376,11 @@ setupProject <- function(name, paths, modules, packages,
 
     setupGitIgnore(paths, envir = envir, verbose)
 
-    out <- list(
+    out <- append(list(
       modules = modules,
       paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
       params = params,
-      times = times,
-      ...)
+      times = times), dotsSUB)
 
     if (!inProject) {
       if (interactive() && isTRUE(Restart)) # getOption("SpaDES.project.Restart", TRUE))
