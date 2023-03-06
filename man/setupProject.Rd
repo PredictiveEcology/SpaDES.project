@@ -2,13 +2,6 @@
 % Please edit documentation in R/setupProject.R
 \name{setupProject}
 \alias{setupProject}
-\alias{setupPaths}
-\alias{setupSideEffects}
-\alias{setupOptions}
-\alias{setupModules}
-\alias{setupPackages}
-\alias{setupParams}
-\alias{setupGitIgnore}
 \title{Sets up a new or existing SpaDES project}
 \usage{
 setupProject(
@@ -26,7 +19,7 @@ setupProject(
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
-  libPaths = paths[["packagePath"]],
+  libPaths = NULL,
   updateRprofile = getOption("Require.updateRprofile", FALSE),
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
@@ -34,90 +27,6 @@ setupProject(
   dots,
   ...
 )
-
-setupPaths(
-  name,
-  paths,
-  inProject,
-  standAlone = TRUE,
-  libPaths = paths[["packagePath"]],
-  updateRprofile = getOption("Require.updateRprofile", FALSE),
-  overwrite = FALSE,
-  envir = environment(),
-  verbose = getOption("Require.verbose", 1L),
-  dots,
-  defaultDots,
-  ...
-)
-
-setupSideEffects(
-  name,
-  sideEffects,
-  paths,
-  times,
-  overwrite = FALSE,
-  envir = environment(),
-  verbose = getOption("Require.verbose", 1L),
-  dots,
-  defaultDots,
-  ...
-)
-
-setupOptions(
-  name,
-  options,
-  paths,
-  times,
-  overwrite = FALSE,
-  envir = environment(),
-  verbose = getOption("Require.verbose", 1L),
-  dots,
-  defaultDots,
-  ...
-)
-
-setupModules(
-  paths,
-  modules,
-  useGit = FALSE,
-  overwrite = FALSE,
-  envir = environment(),
-  verbose = getOption("Require.verbose", 1L),
-  dots,
-  defaultDots,
-  ...
-)
-
-setupPackages(
-  packages,
-  modulePackages,
-  require,
-  libPaths,
-  setLinuxBinaryRepo = TRUE,
-  standAlone,
-  envir = environment(),
-  verbose,
-  dots,
-  defaultDots,
-  ...
-)
-
-setupParams(
-  name,
-  params,
-  paths,
-  modules,
-  times,
-  options,
-  overwrite = FALSE,
-  envir = environment(),
-  verbose = getOption("Require.verbose", 1L),
-  dots,
-  defaultDots,
-  ...
-)
-
-setupGitIgnore(paths, envir = environment(), verbose, dots, defaultDots, ...)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -127,7 +36,8 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
 \code{packagePath} and all others that are in \code{SpaDES.core::setPaths()}
-(i.e., \code{inputPath}, \code{outputPath}, \code{scratchPath}, \code{cachePath}, \code{rasterTmpDir}).}
+(i.e., \code{inputPath}, \code{outputPath}, \code{scratchPath}, \code{cachePath}, \code{rasterTmpDir}).
+See \link{setup}.}
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
 should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
@@ -137,11 +47,13 @@ one or more (not optional file extension) \code{.R} file(s) (local or GitHub)
 to parse that will produce a character vector assigned to
 the name "modules". If the entire project is a git repository,
 then it will not try to re-get these modules; instead it will rely on the user
-managing their git status outside of this function.}
+managing their git status outside of this function.
+See \link{setup}.}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
-not attached to the search path. See \code{require}.}
+not attached to the search path. See also the \code{require} argument.
+See \link{setup}.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
@@ -150,20 +62,24 @@ See help for \code{SpaDES.core::simInit}.}
 \item{options}{Optional. Either a named list to be passed to \code{options}
 or a character vector indicating one or more file(s) to source,
 in the order provided. These will be sourced into a temporary environment (not
-the \code{.GlobalEnv}), so they will not create globally accessible objects. See details.}
+the \code{.GlobalEnv}), so they will not create globally accessible objects. See details.
+See \link{setup}.}
 
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
-returned, i.e., there are no side effects.}
+returned, i.e., there are no side effects.
+See \link{setup}.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.
 This/these will be parsed and evaluated, but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
-that are run for their side effects only.}
+that are run for their side effects only.
+See \link{setup}.}
 
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
-of \code{setupProject} so that a user can use these during \code{setupProject}.}
+of \code{setupProject} so that a user can use these during \code{setupProject}.
+See \link{setup}}
 
 \item{Restart}{If the \code{projectPath} is not the current path, and the session is in
 Rstudio, and interactive, it will restart with a new Rstudio session with a
@@ -179,8 +95,7 @@ on Linux (ignored if Windows)}
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
 packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
 
-\item{libPaths}{A character vector. Passed to \code{Require::libPaths}, which will
-in turn pass to \code{.libPaths(libPaths)}}
+\item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
 \item{updateRprofile}{Logical or Character string. If \code{TRUE}, then this
 function will put several lines of code in the current directory's
@@ -205,81 +120,52 @@ processes of the installs.}
 
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
 inside the \code{paths[["projectPath"]]}.}
-
-\item{modulePackages}{A named list, where names are the module names, and the elements
-of the list are packages in a form that \code{Require::Require} accepts.}
 }
 \value{
-\code{setupProject} will return a length-3 named list (\code{modules}, \code{paths}, \code{params}) that can be passed
-directly to \code{SpaDES.core::simInit} using a \code{do.call}. See example.
-
-\code{setupPaths} returns a list of paths that are created. It is also called for its
-side effect which is to call \code{setPaths}, with each of these paths as an argument.
-See table for details.
-
-\code{setupSideEffects} is run for its side effects, with nothing returned to user.
-
-\code{setupOptions} is run for its side effects, namely, changes to the \code{options()}.
-
-\code{setupModules} is run for its side effects, i.e., downloads modules and puts them
-into the \code{paths[["modulePath"]]}. It will return a named list, where the names are the
-full module names and the list elemen.ts are the R packages that the module
-depends on (\code{reqsPkgs})
-
-\code{setupPackages} is run for its side effects, i.e., installing packages to
-\code{paths[["packagePath"]]}.
-
-\code{setupParams} is run for its side effects, namely, changes to the \code{options()}.
-
-\code{setupGitIgnore} is run for its side effects, i.e., adding elements to the
-\code{.gitignore} file.
+\code{setupProject} will return a named list with elements equal to the elements
+passed by the user, but with a minimum of \code{modules}, \code{paths}, \code{params}. This
+list  can be passed directly to \code{SpaDES.core::simInit} or \code{SpaDES.core::simInitAndSpades}
+using a \code{do.call}. See example.
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
-\code{setupPaths}, \code{setupOptions},
+\code{setupPaths}, \code{setupRequire}, \code{setupOptions},
 \code{setupModules}, \code{setupPackages}, \code{setupTimes}, \code{setupParams},
 \code{setupGitIgnore}. Because of this
 order, settings in \code{options} can change \code{paths}, \code{times} can be used in \code{params},
 for example.
-This sequence will create folder structures, download or confirms
+This sequence will create folder structures, install & load packages indicated in the
+\code{require} argument, set options, download or confirms
 existence of modules, install missing
 packages from both the modules \code{reqdPkgs} fields and the user passed
-\code{packages}. See Details.
+\code{packages}, assign parameters, and if desired, change the .Rprofile file for this
+this project so that every time this project is opened, it has a specific
+\code{.libPaths()}. There are a number of convenience elements described in the
+section below. See Details.
 }
-\details{
-\code{setPaths} will fill in any paths that are not explicitly supplied by the
-user as a named list. These paths that can be set are:
-\code{projectPath}, \code{packagePath}, \code{cachePath}, \code{inputPath},
-\code{modulePath}, \code{outputPath}, \code{rasterPath}, \code{scratchPath}, \code{terraPath}.
-These are grouped thematically into three groups of paths:
-\code{projectPath} and \code{packagePath} affect the project, regardless
-of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code{outputPath} and
-\code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
-\code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
+\section{Objective}{
 
-\code{setupSideEffects} can handle sequentially specified values, meaning a user can
-first create a list of default options, then a list of user-desired options that
-may or may not replace individual values. This can create hierarchies, \emph{based on
-order}.
 
-\code{setupOptions} can handle sequentially specified values, meaning a user can
-first create a list of default options, then a list of user-desired options that
-may or may not replace individual values. This can create hierarchies, \emph{based on
-order}.
+The overarching objectives for these functions are:
 
-\code{setupModules} will download all modules do not yet exist locally. The current
-test for "exists locally" is simply whether the directory exists. If a user
-wants to update the module, \code{overwrite = TRUE} must be set, or else the user can
-remove the folder manually.
-
-\code{setupPackages} will read the modules' metadata \code{reqdPkgs} element. It will combine
-these with any packages passed manually by the user to \code{packages}, and pass all
-these packages to \code{Require::Install(...)}.
-
-\code{setupGitIgnore} will add.
+\enumerate{
+\item To prepare what is needed for \code{simInit}.
+\item To help a user eliminate virtually all assignments to the \code{.GlobalEnv},
+as these create and encourage spaghetti code that becomes unreproducible
+as the project increases in complexity.
+\item Be very simple for beginners, but powerful enough to expand to almost
+any needs of arbitrarily complex projects, using the same structure
+\item Deal with the complexities of R package installation and loading when
+working with modules that may have been created by many users
+\item Allow every SpaDES project to have very similar structure, allowing
+easy transition from one project to another, regardless of complexity.
 }
-\section{Sequential evaluation}{
+}
 
+\section{Convenience elements}{
+
+
+\subsection{Sequential evaluation}{
 Throughout these functions, efforts have been made to implement sequential evaluation,
 within files and within lists. This means that a user can \emph{use} the values from an
 upstream element in the list. For example, the following is valid:
@@ -295,9 +181,33 @@ block that add new or override existing elements, followed by \code{machine} spe
 values, such as paths.
 }
 
-\section{Files for \code{paths}, \code{options}, \code{params}}{
+\subsection{Values and/or files}{
+The arguments, \code{paths}, \code{options}, and \code{params}, can all
+understand lists of named values, character vectors, or a mixture by using a list where
+named elements are values and unnamed elements are character strings/vectors. Any unnamed
+character string/vector will be treated as a file path. If that file path has an \code{@} symbol,
+it will be assumed to be a file that exists on \verb{https://github.com}. So a user can
+pass values, or pointers to remote and/or local paths that themselves have values.
 
-If \code{paths}, \code{options} and/or \code{params} are a character string or vector, the string(s)
+The following will set an option as declared, plus read the local file (with relative
+path), plus download and read the cloud-hosted file.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupProject(
+   options = list(reproducible.useTerra = TRUE,
+                  "inst/options.R",
+                  "PredictiveEcology/SpaDES.project@transition/inst/options.R")
+                 )
+   )
+}\if{html}{\out{</div>}}
+
+This approach allows for an organic growth of complexity, e.g., a user begins with
+only named lists of values, but then as the number of values increases, it may be
+helpful for clarity to put some in an external file.
+}
+
+\subsection{Specifying \code{paths}, \code{options}, \code{params}}{
+If \code{paths}, \code{options}, and/or \code{params}are a character string
+or character vector (or part of an unnamed list element) the string(s)
 will be interpretted as files to parse. These files should contain R code that
 specifies \emph{named lists}, where the names are one or more \code{paths}, \code{options},
 or are module names, each with a named list of parameters for that named module.
@@ -329,39 +239,27 @@ will not work, therefore, for other side-effect elements, like authenticating
 with a cloud service.
 
 Several helper functions exist within \code{SpaDES.project} that may be useful, such
-as \code{user(...)}, \code{machine(...)}
+as \code{user(...)}, \code{machine(...)}#'
 }
 
-\section{Paths}{
+\subsection{Can hard code arguments that may be missing}{
+To allow for batch submission, a user can specify code \code{argument = value} even if \code{value}
+is missing. This type of specification will not work in normal parsing of arguments,
+but it is designed to work here. In the next example, \code{.mode = .mode} can be specified,
+but if R cannot find \code{.mode} for the right hand side, it will just skip with no error.
+Thus a user can source a script with the following line from batch script where \code{.mode}
+is specified. When running this line without that batch script specification, then this
+will assign no value to \code{.mode}. We include \code{.nodes} which shows an example of
+passing a value that does exist. The non-existent \code{.mode} will be returned in the \code{out},
+but as an unevaluated, captured list element.
 
-\tabular{lll}{
-\strong{Path}     \tab \strong{Default if not supplied by user} \tab Effects \cr
-\tab \emph{Project Level Paths}   \tab \cr
-\code{projectPath}\tab if \code{getwd()} is \code{name}, then just \code{getwd}; if not
-\code{file.path(getwd(), name)}  \tab If current project is not this project
-and using \code{Rstudio}, then the current
-project will close and a new project will
-open in the same Rstudio session, unless
-\code{Restart = FALSE}\cr
-\code{packagePath}\tab \code{file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))}
-\tab appends this path to \code{.libPaths(packagePath)},
-unless \code{standAlone = TRUE}, in which case,
-it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
-------       \tab -----------                 \tab  -----         \cr
-\tab \emph{Module Level Paths}                 \tab \cr
-\code{cachePath}  \tab \code{file.path(projectPath, "cache")} \tab \code{options(reproducible.cachePath = cachePath)}\cr
-\code{inputPath}  \tab \code{file.path(projectPath, "inputs")} \tab \code{options(spades.inputPath = inputPath)}\cr
-\code{modulePath} \tab \code{file.path(projectPath, "modules")} \tab \code{options(spades.inputPath = outputPath)} \cr
-\code{outputPath} \tab \code{file.path(projectPath, "outputs")} \tab \code{options(spades.inputPath = modulePath)} \cr
-------       \tab -----------                 \tab  -----         \cr
-\tab \emph{Temporary Paths}                 \tab  \cr
-\code{scratchPath}\tab \code{file.path(tempdir(), name)} \tab \cr
-\code{rasterPath} \tab \code{file.path(scratchPath, "raster")} \tab sets (\code{rasterOptions(tmpdir = rasterPath)}) \cr
-\code{terraPath}  \tab \code{file.path(scratchPath, "terra")} \tab   sets (\code{terraOptions(tempdir = terraPath)})       \cr
-------       \tab -----------                 \tab  -----         \cr
-\tab \emph{Other Paths}                 \tab  \cr
-\code{logPath}    \tab \code{file.path(outputPath(sim), "log")} \tab sets \code{options("spades.logPath")} accessible by \code{logPath(sim)}\cr
-\code{tilePath}   \tab Not implemented yet \tab Not implemented yet \cr
+\if{html}{\out{<div class="sourceCode">}}\preformatted{.nodes <- 2
+out <- setupProject(.mode = .mode,
+                    .nodes = .nodes,
+                    options = "inst/options.R"
+                    )
+}\if{html}{\out{</div>}}
+
 }
 }
 
@@ -403,7 +301,7 @@ out <- setupProject(name = "SpaDES.project",
 
 # using an options file that is remote
 out <- setupProject(name = "SpaDES.project",
-             options = c("PredictiveEcology/LandWeb@development/04-options.R"),
+             options = c("PredictiveEcology/SpaDES.project@transitions/inst/options.R"),
              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
                           scratchPath = tempdir()),
@@ -437,10 +335,21 @@ out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
                     mode = "development", studyAreaName = studyAreaName,
 )
 
+out <- setupProject(name = "SpaDES.project",
+             options = list(reproducible.useTerra = TRUE,
+                            "PredictiveEcology/SpaDES.project@transitions/inst/options.R",
+                              "inst/authentication.R"),
+             params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+                          scratchPath = tempdir()),
+             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
 # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #   do.call(simInit, out)
 }
 }
 \seealso{
-\link{user}, \link{machine}, \link{node}
+\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupRequire]{setupRequire()}}, \code{\link[=setupPackages]{setupPackages()}},
+\code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
+\code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
 }

@@ -1,15 +1,19 @@
 #' Sets up a new or existing SpaDES project
 #'
 #' `setupProject` calls a sequence of functions in this order:
-#' `setupPaths`, `setupOptions`,
-#' `setupModules`, `setupPackages`, `setupTimes`, `setupParams`,
+#' `setupPaths`,
+#' `setupModules`, `setupPackages`, `setupOptions`, `setupSideEffects`, `setupParams`,
 #' `setupGitIgnore`. Because of this
 #' order, settings in `options` can change `paths`, `times` can be used in `params`,
 #' for example.
-#' This sequence will create folder structures, download or confirms
+#' This sequence will create folder structures, install & load packages indicated in the
+#' `require` argument, set options, download or confirms
 #' existence of modules, install missing
 #' packages from both the modules `reqdPkgs` fields and the user passed
-#' `packages`. See Details.
+#' `packages`, assign parameters, and if desired, change the .Rprofile file for this
+#'  this project so that every time this project is opened, it has a specific
+#'  `.libPaths()`. There are a number of convenience elements described in the
+#'  section below. See Details.
 #'
 #' @param name Optional. If supplied, the name of the project. If not supplied, an
 #' attempt will be made to extract the name from the `paths[["projectPath"]]`.
@@ -18,6 +22,7 @@
 #' @param paths a list with named elements, specifically, `modulePath`, `projectPath`,
 #'   `packagePath` and all others that are in `SpaDES.core::setPaths()`
 #'   (i.e., `inputPath`, `outputPath`, `scratchPath`, `cachePath`, `rasterTmpDir`).
+#'   See [setup].
 #' @param modules a character string of modules to pass to `getModule`. These
 #'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
 #'   in the `paths[["modulePath"]]`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
@@ -27,33 +32,38 @@
 #'   the name "modules". If the entire project is a git repository,
 #'   then it will not try to re-get these modules; instead it will rely on the user
 #'   managing their git status outside of this function.
+#'   See [setup].
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
 #'   See help for `SpaDES.core::simInit`.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
-#'   not attached to the search path. See `require`.
+#'   not attached to the search path. See also the `require` argument.
+#'   See [setup].
 #' @param require Optional. A character vector of packages to install *and* attach
 #'   (with `Require::Require`). These will be installed and attached at the start
 #'   of `setupProject` so that a user can use these during `setupProject`.
+#'   See [setup]
 #' @param options Optional. Either a named list to be passed to `options`
 #'   or a character vector indicating one or more file(s) to source,
 #'   in the order provided. These will be sourced into a temporary environment (not
 #'   the `.GlobalEnv`), so they will not create globally accessible objects. See details.
+#'   See [setup].
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
+#'   See [setup].
 #' @param sideEffects Optional. This can be an expression or one or more filenames or
 #'   a code chunk surrounded by `{...}`.
 #'   This/these will be parsed and evaluated, but nothing returned. This is intended
 #'   to be used for functions, such as cloud authentication or configurations,
 #'   that are run for their side effects only.
+#'   See [setup].
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
 #'   `modules`. Otherwise it will get modules with `getModules`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
-#' @param libPaths A character vector. Passed to `Require::libPaths`, which will
-#'   in turn pass to `.libPaths(libPaths)`
+#' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
 #' @param inProject A logical. If `TRUE`, then the current directory is
 #'  inside the `paths[["projectPath"]]`.
 #' @param Restart If the `projectPath` is not the current path, and the session is in
@@ -67,7 +77,27 @@
 #'
 #' @export
 #'
-#' @section Sequential evaluation:
+#' @section Objective:
+#'
+#' The overarching objectives for these functions are:
+#'
+#'   \enumerate{
+#'     \item To prepare what is needed for `simInit`.
+#'     \item To help a user eliminate virtually all assignments to the `.GlobalEnv`,
+#'           as these create and encourage spaghetti code that becomes unreproducible
+#'           as the project increases in complexity.
+#'     \item Be very simple for beginners, but powerful enough to expand to almost
+#'           any needs of arbitrarily complex projects, using the same structure
+#'     \item Deal with the complexities of R package installation and loading when
+#'           working with modules that may have been created by many users
+#'     \item Allow every SpaDES project to have very similar structure, allowing
+#'           easy transition from one project to another, regardless of complexity.
+#'   }
+#'
+#'
+#' @section Convenience elements:
+#'
+#' \subsection{Sequential evaluation}{
 #' Throughout these functions, efforts have been made to implement sequential evaluation,
 #' within files and within lists. This means that a user can *use* the values from an
 #' upstream element in the list. For example, the following is valid:
@@ -81,11 +111,34 @@
 #' then several lists of user-desired options behind an `if (user("emcintir"))`
 #' block that add new or override existing elements, followed by `machine` specific
 #' values, such as paths.
+#' }
 #'
+#' \subsection{Values and/or files}{
+#' The arguments, `paths`, `options`, and `params`, can all
+#' understand lists of named values, character vectors, or a mixture by using a list where
+#' named elements are values and unnamed elements are character strings/vectors. Any unnamed
+#' character string/vector will be treated as a file path. If that file path has an `@` symbol,
+#' it will be assumed to be a file that exists on `https://github.com`. So a user can
+#' pass values, or pointers to remote and/or local paths that themselves have values.
 #'
+#' The following will set an option as declared, plus read the local file (with relative
+#' path), plus download and read the cloud-hosted file.
+#' ```
+#' setupProject(
+#'    options = list(reproducible.useTerra = TRUE,
+#'                   "inst/options.R",
+#'                   "PredictiveEcology/SpaDES.project@transition/inst/options.R")
+#'                  )
+#'    )
+#' ```
+#' This approach allows for an organic growth of complexity, e.g., a user begins with
+#' only named lists of values, but then as the number of values increases, it may be
+#' helpful for clarity to put some in an external file.
+#' }
 #'
-#' @section Files for `paths`, `options`, `params`:
-#' If `paths`, `options` and/or `params` are a character string or vector, the string(s)
+#' \subsection{Specifying `paths`, `options`, `params`}{
+#' If `paths`, `options`, and/or `params`are a character string
+#' or character vector (or part of an unnamed list element) the string(s)
 #' will be interpretted as files to parse. These files should contain R code that
 #' specifies *named lists*, where the names are one or more `paths`, `options`,
 #' or are module names, each with a named list of parameters for that named module.
@@ -117,12 +170,41 @@
 #'   with a cloud service.
 #'
 #' Several helper functions exist within `SpaDES.project` that may be useful, such
-#' as `user(...)`, `machine(...)`
+#' as `user(...)`, `machine(...)`#'
+#' }
 #'
-#' @seealso [user], [machine], [node]
+#' \subsection{Can hard code arguments that may be missing}{
+#' To allow for batch submission, a user can specify code `argument = value` even if `value`
+#' is missing. This type of specification will not work in normal parsing of arguments,
+#' but it is designed to work here. In the next example, `.mode = .mode` can be specified,
+#' but if R cannot find `.mode` for the right hand side, it will just skip with no error.
+#' Thus a user can source a script with the following line from batch script where `.mode`
+#' is specified. When running this line without that batch script specification, then this
+#' will assign no value to `.mode`. We include `.nodes` which shows an example of
+#' passing a value that does exist. The non-existent `.mode` will be returned in the `out`,
+#' but as an unevaluated, captured list element.
+#'
+#' ```
+#' .nodes <- 2
+#' out <- setupProject(.mode = .mode,
+#'                     .nodes = .nodes,
+#'                     options = "inst/options.R"
+#'                     )
+#' ```
+#' }
+#'
+#'
+
+#'
+#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
+#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
+#' [user()], [machine()], [node()]
+#'
 #' @return
-#' `setupProject` will return a length-3 named list (`modules`, `paths`, `params`) that can be passed
-#' directly to `SpaDES.core::simInit` using a `do.call`. See example.
+#' `setupProject` will return a named list with elements equal to the elements
+#' passed by the user, but with a minimum of `modules`, `paths`, `params`, and `times`. This
+#' list  can be passed directly to `SpaDES.core::simInit` or `SpaDES.core::simInitAndSpades`
+#' using a `do.call`. See example.
 #'
 #' @importFrom Require extractPkgName
 #' @inheritParams Require::Require
@@ -167,7 +249,7 @@
 #'
 #' # using an options file that is remote
 #' out <- setupProject(name = "SpaDES.project",
-#'              options = c("PredictiveEcology/LandWeb@development/04-options.R"),
+#'              options = c("PredictiveEcology/SpaDES.project@transitions/inst/options.R"),
 #'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
 #'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
 #'                           scratchPath = tempdir()),
@@ -201,6 +283,15 @@
 #'                     mode = "development", studyAreaName = studyAreaName,
 #' )
 #'
+#' out <- setupProject(name = "SpaDES.project",
+#'              options = list(reproducible.useTerra = TRUE,
+#'                             "PredictiveEcology/SpaDES.project@transitions/inst/options.R",
+#'                               "inst/authentication.R"),
+#'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+#'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+#'                           scratchPath = tempdir()),
+#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+#' )
 #' # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #' #   do.call(simInit, out)
 #' }
@@ -314,6 +405,10 @@ setupProject <- function(name, paths, modules, packages,
   return(out)
 }
 
+#' Individual `setup*` functions that are contained within `setupProject`
+#'
+#' These functions will allow more user control, though in most circumstances,
+#' it should be unnecessary to call them directly.
 #'
 #' @details
 #' `setPaths` will fill in any paths that are not explicitly supplied by the
@@ -365,9 +460,10 @@ setupProject <- function(name, paths, modules, packages,
 #' }
 #'
 #' @export
-#' @rdname setupProject
+#' @inheritParams setupProject
+#' @rdname setup
 #' @importFrom Require normPath checkPath
-setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = paths[["packagePath"]],
+setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
                        updateRprofile = getOption("Require.updateRprofile", FALSE),
                        overwrite = FALSE, envir = environment(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
@@ -517,7 +613,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = pat
 
 
 #' @export
-#' @rdname setupProject
+#' @rdname setup
 #'
 #' @details
 #' `setupSideEffects` can handle sequentially specified values, meaning a user can
@@ -558,7 +654,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 
 
 #' @export
-#' @rdname setupProject
+#' @rdname setup
 #'
 #' @details
 #' `setupOptions` can handle sequentially specified values, meaning a user can
@@ -766,7 +862,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   l
 }
 #' @export
-#' @rdname setupProject
+#' @rdname setup
 #' @details
 #' `setupModules` will download all modules do not yet exist locally. The current
 #' test for "exists locally" is simply whether the directory exists. If a user
@@ -861,7 +957,7 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envi
 
 
 #' @export
-#' @rdname setupProject
+#' @rdname setup
 #' @details
 #' `setupPackages` will read the modules' metadata `reqdPkgs` element. It will combine
 #' these with any packages passed manually by the user to `packages`, and pass all
@@ -924,7 +1020,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 }
 
 #' @export
-#' @rdname setupProject
+#' @rdname setup
 #'
 #' @return
 #' `setupParams` is run for its side effects, namely, changes to the `options()`.
@@ -1123,7 +1219,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 
 
 #' @export
-#' @rdname setupProject
+#' @rdname setup
 #' @details
 #' `setupGitIgnore` will add.
 #'
