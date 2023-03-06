@@ -1097,7 +1097,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
         })
       } else {
         messageVerbose("Skipping checking of parameters supplied against module parameters because ",
-                       "SpaDES.core is not installed. Please install if this check is desired.",
+                       "it is a slow step that will be performed during `SpaDES.core::simInit`.",
                        verbose = verbose)
       }
       if (hasDotGlobals)
