@@ -7,3 +7,4 @@ packages
 .Rprofile
 Rpackages/*
 modr/*
+modules/*
