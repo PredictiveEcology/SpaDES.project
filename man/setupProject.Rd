@@ -123,14 +123,14 @@ inside the \code{paths[["projectPath"]]}.}
 }
 \value{
 \code{setupProject} will return a named list with elements equal to the elements
-passed by the user, but with a minimum of \code{modules}, \code{paths}, \code{params}. This
+passed by the user, but with a minimum of \code{modules}, \code{paths}, \code{params}, and \code{times}. This
 list  can be passed directly to \code{SpaDES.core::simInit} or \code{SpaDES.core::simInitAndSpades}
 using a \code{do.call}. See example.
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
-\code{setupPaths}, \code{setupRequire}, \code{setupOptions},
-\code{setupModules}, \code{setupPackages}, \code{setupTimes}, \code{setupParams},
+\code{setupPaths},
+\code{setupModules}, \code{setupPackages}, \code{setupOptions}, \code{setupSideEffects}, \code{setupParams},
 \code{setupGitIgnore}. Because of this
 order, settings in \code{options} can change \code{paths}, \code{times} can be used in \code{params},
 for example.
@@ -349,7 +349,7 @@ out <- setupProject(name = "SpaDES.project",
 }
 }
 \seealso{
-\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupRequire]{setupRequire()}}, \code{\link[=setupPackages]{setupPackages()}},
+\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
 \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
 \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
 }

@@ -4,6 +4,7 @@
 \name{messageDF}
 \alias{messageDF}
 \alias{yellow}
+\alias{whereInStack}
 \alias{blue}
 \alias{messageVerbose}
 \alias{compareVersion2}
@@ -20,6 +21,8 @@ An object of class \code{character} of length 9.
 messageDF(df, round, verbose = getOption("Require.verbose"), verboseLevel = 1)
 
 yellow(...)
+
+whereInStack(obj)
 
 blue(...)
 

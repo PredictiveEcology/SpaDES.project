@@ -488,13 +488,13 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     libPaths <- NULL
   }
   #if (is.null(libPaths) || is.call(libPaths)) {
-    if (is.null(paths[["packagePath"]])) {
-      pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
-      paths[["packagePath"]] <- file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3))
-      # if (is.call(libPaths)) {
-      #   libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
-      # }
-    }
+  if (is.null(paths[["packagePath"]])) {
+    pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
+    paths[["packagePath"]] <- file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3))
+    # if (is.call(libPaths)) {
+    #   libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
+    # }
+  }
   #} else {
   #  paths[["packagePath"]] <- libPaths
   #}
@@ -646,7 +646,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     }
 
     sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
-                                    overwrite = overwrite, envir = envir, verbose = verbose)
+                                  overwrite = overwrite, envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
 
@@ -741,8 +741,8 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
         out <- evalListElems(p, envir = env, verbose = verbose) # recursive; as.list keeps names
         # }
         if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
-                                  # putting the object `mode` into the env; but if there is no assignment
-                                  # then we need to put the object into the environment
+          # putting the object `mode` into the env; but if there is no assignment
+          # then we need to put the object into the environment
           env$opt <- out
         envs <<- append(envs, list(env))
 
@@ -788,9 +788,9 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   # Also, every "normal" object e.g., mode <- "development"
   warns <- list()
   withCallingHandlers(l2 <- try(eval(l, envir), silent = TRUE),
-                             warning = function(w) {
-                               warns <<- w
-                             })
+                      warning = function(w) {
+                        warns <<- w
+                      })
   if (is(l2, "try-error")) {
     mess <- gsub("Error in eval\\(l, envir\\) : ", "", as.character(l2))
     mess <- gsub("\\n", "", as.character(mess))
@@ -995,10 +995,10 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
       out <- try(
         Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                                  standAlone = standAlone,
-                                  libPaths = libPaths,
-                                  verbose = verbose)
-        )
+                         standAlone = standAlone,
+                         libPaths = libPaths,
+                         verbose = verbose)
+      )
       if (is(out, "try-error")) {
         deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
         miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
@@ -1061,8 +1061,8 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
         params <- params[paramsForModules]
 
         messageVerbose(blue("Only returning params that are relevant for modules supplied.\n",
-                       "Omitting parameters supplied for: ",
-                       paste(overSupplied, collapse = ", "), "\n --- (set verbose == 2 to see details) --- "),
+                            "Omitting parameters supplied for: ",
+                            paste(overSupplied, collapse = ", "), "\n --- (set verbose == 2 to see details) --- "),
                        verbose = verbose)
       }
 
@@ -1083,10 +1083,10 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
             if (any(overInclusion)) {
               params[[mod]] <- params[[mod]][paramsInclGlobalsSupplied[!overInclusion]]
               messageVerbose(blue("These parameters set (",
-                             paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
-                             "), but they are not in ", mod,
-                             " metadata; this should be either added to the metadata, ",
-                             "or not set in the params argument"), verbose = verbose)
+                                  paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
+                                  "), but they are not in ", mod,
+                                  " metadata; this should be either added to the metadata, ",
+                                  "or not set in the params argument"), verbose = verbose)
             }
 
           } else {
@@ -1122,8 +1122,8 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
       if (any(named))
         namedElements <- obj[which(named)]
       obj <- Map(objInner = obj[notNamed],
-                           function(objInner)
-                             parseFileLists(objInner, projectPath, namedList, overwrite, envir, verbose, dots, ...))
+                 function(objInner)
+                   parseFileLists(objInner, projectPath, namedList, overwrite, envir, verbose, dots, ...))
       obj <- Reduce(f = append, obj)
       if (any(named))
         obj <- append(namedElements, obj)
@@ -1168,7 +1168,7 @@ checkProjectPath <- function(paths, envir, envir2) {
 
   if (!is.null(paths[["projectPath"]])) {
     paths[["projectPath"]] <- evalSUB(paths[["projectPath"]], valObjName = "paths", envir, envir2)
-   #  name <- basename(normPath(paths[["projectPath"]]))
+    #  name <- basename(normPath(paths[["projectPath"]]))
   } else {
     stop("Must provide either a name or a paths[[\"projectPath\"]]")
   }
@@ -1191,8 +1191,13 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 
     if ((identical(val2, val) && !missing(envir2)) || is.null(val2) ||
         is(val2, "try-error")) {
-      val <- eval(val, envir = envir2)
-      val2 <- val
+      val3 <- try(eval(val, envir = envir2), silent = TRUE)
+      if (is(val3, "try-error")) {
+        # last ditch effort -- brute force
+        val3 <- get(format(val), whereInStack(format(val)))
+      }
+      val <- val3
+      val2 <- val3
     } else {
       val <- val2
     }
@@ -1380,9 +1385,9 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
 .paths <- function(verbose = getOption("Require.verbose", 1L)) {
   if (!is.null(.getOption("spades.cachePath"))) {
     messageVerbose("option('spades.cachePath') is being deprecated. Please use ",
-            "option('reproducible.cachePath').\n",
-            "Setting option('reproducible.cachePath' = getOption('spades.cachePath'))",
-            verbose = verbose)
+                   "option('reproducible.cachePath').\n",
+                   "Setting option('reproducible.cachePath' = getOption('spades.cachePath'))",
+                   verbose = verbose)
   }
 
   list(
@@ -1476,15 +1481,15 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   haveDefaults <- !missing(defaultDots)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-    d1 <- try(eval(d, envir = envir), silent = TRUE)
-    if (is(d1, "try-error")) {
-      if (isTRUE(haveDefaults))
-        d1 <- defaultDots[[nam]]
-      else
-        d1 <- d
-    }
-    d1
-  })
+                d1 <- try(eval(d, envir = envir), silent = TRUE)
+                if (is(d1, "try-error")) {
+                  if (isTRUE(haveDefaults))
+                    d1 <- defaultDots[[nam]]
+                  else
+                    d1 <- d
+                }
+                d1
+              })
   list2env(dots, envir = envir)
   dots
 }

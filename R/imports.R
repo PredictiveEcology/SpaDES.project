@@ -9,6 +9,9 @@ messageDF <- utils::getFromNamespace("messageDF", "Require")
 yellow <- utils::getFromNamespace("yellow", "Require")
 
 #' @rdname imports
+whereInStack <- utils::getFromNamespace("whereInStack", "Require")
+
+#' @rdname imports
 blue <- utils::getFromNamespace("blue", "Require")
 
 #' @rdname imports
