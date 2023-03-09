@@ -8,6 +8,7 @@
 \alias{setupPackages}
 \alias{setupParams}
 \alias{setupGitIgnore}
+\alias{setupStudyArea}
 \title{Individual \verb{setup*} functions that are contained within \code{setupProject}}
 \usage{
 setupPaths(
@@ -185,6 +186,13 @@ on Linux (ignored if Windows)}
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.
 See \link{setup}.}
+\item{studyArea}{Optional. If a list, it will be passed to
+\code{geodata::gadm}. To specify a country other than the default \code{"CAN"},
+the list must have a named element, \code{"country"}. All other named elements
+will be passed to \code{gadm}. 2 additional named elements can be passed for
+convenience, \code{subregion = "..."}, which will be grepped with the column
+\code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
+reproject the \code{studyArea}. See examples.}
 }
 \value{
 \code{setupPaths} returns a list of paths that are created. It is also called for its
@@ -205,8 +213,8 @@ depends on (\code{reqsPkgs})
 
 \code{setupParams} is run for its side effects, namely, changes to the \code{options()}.
 
-\code{setupGitIgnore} is run for its side effects, i.e., adding elements to the
-\code{.gitignore} file.
+\code{setupStudyArea} will return an \code{sf} class object coming from \code{geodata::gadm},
+with subregion specification as described in the \code{studyArea} argument.fsu
 }
 \description{
 These functions will allow more user control, though in most circumstances,
@@ -243,6 +251,8 @@ these with any packages passed manually by the user to \code{packages}, and pass
 these packages to \code{Require::Install(...)}.
 
 \code{setupGitIgnore} will add.
+
+\code{setupStudyArea} only uses \code{inputPath} and \code{cachePath} within its \code{paths} argument.
 }
 \section{Paths}{
 

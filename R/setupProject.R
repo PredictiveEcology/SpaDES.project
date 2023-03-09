@@ -376,7 +376,7 @@ setupProject <- function(name, paths, modules, packages,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
 
   if (!is.null(studyArea)) {
-    dotsSUB$studyArea <- .doStudyArea(studyArea, paths)
+    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
   }
 
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
@@ -1585,8 +1585,27 @@ stopMessForRequireFail <- function(pkg) {
          "for a manual install.packages ...")
 }
 
-.doStudyArea <- function(studyArea, paths) {
+#' @rdname setup
+#' @export
+#' @inheritParams setupProject
+#'
+#' @details
+#' `setupStudyArea` only uses `inputPath` and `cachePath` within its `paths` argument.
+#'
+#' @return
+#' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
+#' with subregion specification as described in the `studyArea` argument.fsu
+setupStudyArea <- function(studyArea, paths) {
+
   if (is(studyArea, "list")) {
+    needRep <- !requireNamespace("reproducible", quietly = TRUE)
+    needGeo <- !requireNamespace("geodata", quietly = TRUE)
+    if (needRep || needGeo) {
+      needs <- c("reproducible"[needRep], "geodata"[needGeo])
+      message("Installing ", paste0(needs, collapse = " and "))
+      Require::Install(needs)
+    }
+
     studyAreaOrig <- studyArea
     if (is.null(studyArea[["country"]]))
       studyArea[["country"]] <- "CAN"
