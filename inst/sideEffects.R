@@ -18,7 +18,7 @@ httr::set_config(httr::config(http_version = 0))
 if (user("achubaty")) {
   googledrive::drive_auth(email = "alex.chubaty@gmail.com")
 } else if (user("emcintir")) {
-  googledrive::drive_auth(email = "eliotmcintire@gmail.com", secret = "~/.secret")
+  googledrive::drive_auth(email = "eliotmcintire@gmail.com", cache = "~/.secret")
 } else {
   googledrive::drive_auth(use_oob = quickPlot::isRstudioServer())
 }
