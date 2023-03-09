@@ -1665,7 +1665,6 @@ setupStudyArea <- function(studyArea, paths) {
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
     studyArea <- {
       do.call(geodata::gadm, as.list(geodatCall[-1])) |>
-      #eval(geodatCall) |>
         (function(studyArea)
           studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ])() |>
         reproducible::projectTo(projectTo = if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL)
