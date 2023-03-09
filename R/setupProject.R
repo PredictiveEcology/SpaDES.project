@@ -71,6 +71,13 @@
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows)
+#' @param studyArea Optional. If a list, it will be passed to
+#'        `geodata::gadm`. To specify a country other than the default `"CAN"`,
+#'        the list must have a named element, `"country"`. All other named elements
+#'        will be passed to `gadm`. 2 additional named elements can be passed for
+#'        convenience, `subregion = "..."`, which will be grepped with the column
+#'        `NAME_1`, and `epsg = "..."`, so a user can pass an `epsg.io` code to
+#'        reproject the `studyArea`. See examples.
 #' @param overwrite Logical. Passed to `getModule`, and `setupParams`, `setupOptions`
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param ... Any other named objects a user might want.
@@ -292,12 +299,20 @@
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
+#'
+#' # example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
+#' out <- setupProject(studyArea = list("Al|Brit"))
+#'
+#' # example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
+#' #    with level 2 administrative boundaries
+#' out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005"))
+#'
 #' # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #' #   do.call(simInit, out)
 #' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
-                         require = NULL,
+                         require = NULL, studyArea = NULL,
                          Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = FALSE, setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = NULL,
@@ -311,6 +326,17 @@ setupProject <- function(name, paths, modules, packages,
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUBreworked <- list()
+  for (i in seq(dotsSUB)) {
+    val <- try(eval(dotsSUB[[i]], envir = envir))
+    if (is(val, "try-error"))
+      val <- dotsSUB[[i]]
+    newNam <- names(dotsSUB)[i]
+    dotsSUBreworked[[newNam]] <- val
+    assign(newNam, val)
+  }
+  if (exists("dotsSUBreworked"))
+    dotsSUB <- dotsSUBreworked
 
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -340,10 +366,18 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(packages))
     packages <- NULL
 
+  if (!is.null(studyArea))
+    if (is(studyArea, "list"))
+      packages <- unique(c(packages, c("geodata", "reproducible")))
+
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
+
+  if (!is.null(studyArea)) {
+    dotsSUB$studyArea <- .doStudyArea(studyArea, paths)
+  }
 
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
                                      envir = envir, verbose = verbose)
@@ -728,6 +762,7 @@ isUnevaluatedList <- function(p) any( {
 parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame(),
                                    verbose = getOption("Require.verbose")) {
   envs <- list(envir) # means
+
   llOuter <- lapply(files, function(optFiles) {
     pp <- parse(optFiles)
 
@@ -1194,7 +1229,13 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       val3 <- try(eval(val, envir = envir2), silent = TRUE)
       if (is(val3, "try-error")) {
         # last ditch effort -- brute force
-        val3 <- get(format(val), whereInStack(format(val)))
+        sfs <- sys.frames()
+        for (frm in rev(sfs)) {
+          # env <- new.env(parent = frm)
+          val3 <- try(eval(val, envir = frm), silent = TRUE)
+          if (!is(val3, "try-error"))
+            break
+        }
       }
       val <- val3
       val2 <- val3
@@ -1543,3 +1584,33 @@ stopMessForRequireFail <- function(pkg) {
          "\nThis should trigger a re-installation, or allow ",
          "for a manual install.packages ...")
 }
+
+.doStudyArea <- function(studyArea, paths) {
+  if (is(studyArea, "list")) {
+    studyAreaOrig <- studyArea
+    if (is.null(studyArea[["country"]]))
+      studyArea[["country"]] <- "CAN"
+    unnamed <- !nzchar(names(studyArea))
+    if (any(unnamed))
+      names(studyArea)[unnamed] <- "subregion"
+
+    subregion <- studyArea[["subregion"]]
+
+    studyArea <- append(studyArea, list(path = paths$inputPath))
+
+    geodatCall <- as.call(append(list(geodata::gadm), studyArea))
+    geodatCall <- match.call(geodata::gadm, geodatCall)
+    geodatCall <- as.call(append(list(geodata::gadm), as.list(geodatCall)[names(geodatCall) %in% formalArgs(geodata::gadm)]))
+
+    studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
+    browser()
+    studyArea <- {
+      eval(geodatCall) |>
+        (function(studyArea)
+          studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ])() |>
+        reproducible::projectTo(projectTo = if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL)
+    } |> reproducible::Cache(.cacheExtra = studyAreaNoPath, cacheRepo = paths$cachePath,
+               omitArgs = "expr", .functionName = "gadm")
+  }
+}
+

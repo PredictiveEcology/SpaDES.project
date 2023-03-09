@@ -15,6 +15,7 @@ setupProject(
   sideEffects,
   config,
   require = NULL,
+  studyArea = NULL,
   Restart = getOption("SpaDES.project.Restart", FALSE),
   useGit = FALSE,
   setLinuxBinaryRepo = TRUE,
@@ -80,6 +81,14 @@ See \link{setup}.}
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.
 See \link{setup}}
+
+\item{studyArea}{Optional. If a list, it will be passed to
+\code{geodata::gadm}. To specify a country other than the default \code{"CAN"},
+the list must have a named element, \code{"country"}. All other named elements
+will be passed to \code{gadm}. 2 additional named elements can be passed for
+convenience, \code{subregion = "..."}, which will be grepped with the column
+\code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
+reproject the \code{studyArea}. See examples.}
 
 \item{Restart}{If the \code{projectPath} is not the current path, and the session is in
 Rstudio, and interactive, it will restart with a new Rstudio session with a
@@ -344,6 +353,14 @@ out <- setupProject(name = "SpaDES.project",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
+
+# example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
+out <- setupProject(studyArea = list("Al|Brit"))
+
+# example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
+#    with level 2 administrative boundaries
+out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005"))
+
 # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #   do.call(simInit, out)
 }
