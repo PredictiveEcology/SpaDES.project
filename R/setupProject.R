@@ -1603,9 +1603,9 @@ stopMessForRequireFail <- function(pkg) {
     geodatCall <- as.call(append(list(geodata::gadm), as.list(geodatCall)[names(geodatCall) %in% formalArgs(geodata::gadm)]))
 
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
-    browser()
     studyArea <- {
-      eval(geodatCall) |>
+      do.call(geodata::gadm, as.list(geodatCall[-1])) |>
+      #eval(geodatCall) |>
         (function(studyArea)
           studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ])() |>
         reproducible::projectTo(projectTo = if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL)
