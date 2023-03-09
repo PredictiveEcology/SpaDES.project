@@ -221,44 +221,36 @@
 #' @rdname setupProject
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
+#'
+#' ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
+#' #  THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+#'
+#' library(SpaDES.project)
+#' setwd(tempdir())
 #'
 #' setupProject() # simplest case; just creates folders
 #'
 #' # set relative paths & modules
 #' setupProject(name = "SpaDES.project",
-#'              paths = list(modulePath = "m", projectPath = "SpaDES.project",
+#'              paths = list(projectPath = "SpaDES.project",
+#'                           modulePath = "m",
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
-#' # load packages using `require`
-#' out <- SpaDES.project::setupProject(
-#'   paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
-#'   standAlone = TRUE,
-#'   require =
-#'     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-#'       "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
-#'   modules = c("CeresBarros/Biomass_speciesData@master",
-#'               "CeresBarros/Biomass_borealDataPrep@development",
-#'               "CeresBarros/Biomass_core@master",
-#'               "CeresBarros/Biomass_validationKNN@master",
-#'               "CeresBarros/Biomass_speciesParameters@development")
-#'
-#'   )
-#'
 #' # With options and params set
-#' out <- setupProject(name = "SpaDES.project",
+#' out <- SpaDES.project::setupProject(name = "SpaDES.project",
 #'              options = list(reproducible.useTerra = TRUE),
 #'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+#'              paths = list(modulePath = "m", projectPath = "SpaDES.project",
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
 #' # using an options file that is remote
 #' out <- setupProject(name = "SpaDES.project",
-#'              options = c("PredictiveEcology/SpaDES.project@transitions/inst/options.R"),
+#'              options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
 #'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
 #'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
 #'                           scratchPath = tempdir()),
@@ -267,14 +259,14 @@
 #'
 #' # setting arbitrary arguments
 #' out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'   sideEffects = "PredictiveEcology/SpaDES.project/transitions/inst/params.R",
+#'   sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
 #'   defaultDots = list(mode = "development",
 #'                      studyAreaName = "MB"),
 #'   mode = mode, studyAreaName = studyAreaName,
 #'   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
 #' )
 #'
-#' out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+#' out <- setupProject(paths = list(projectPath = "LandWeb"),
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
 #'   config = "LandWeb",
 #'   defaultDots = list(mode = "development",
@@ -285,7 +277,7 @@
 #'
 #' # Pass args from GlobalEnv
 #' studyAreaName <- "AB"
-#' out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+#' out <- setupProject(paths = list(projectPath = "LandWeb"),
 #'                     modules = "PredictiveEcology/Biomass_borealDataPrep@development",
 #'                     defaultDots = list(mode = "development",
 #'                                        studyAreaName = "MB"),
@@ -294,10 +286,10 @@
 #'
 #' out <- setupProject(name = "SpaDES.project",
 #'              options = list(reproducible.useTerra = TRUE,
-#'                             "PredictiveEcology/SpaDES.project@transitions/inst/options.R",
+#'                             "PredictiveEcology/SpaDES.project@transition/inst/options.R",
 #'                               "inst/authentication.R"),
 #'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+#'              paths = list(modulePath = "m", projectPath = "SpaDES.project",
 #'                           scratchPath = tempdir()),
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
@@ -311,6 +303,23 @@
 #'
 #' # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #' #   do.call(simInit, out)
+#'
+#' # load packages using `require` argument
+#' out <- SpaDES.project::setupProject(
+#'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
+#'   standAlone = TRUE,
+#'   require =
+#'     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+#'       "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
+#'   modules = c("PredictiveEcology/Biomass_speciesData@master",
+#'               "PredictiveEcology/Biomass_borealDataPrep@development",
+#'               "PredictiveEcology/Biomass_core@master",
+#'               "PredictiveEcology/Biomass_validationKNN@master",
+#'               "PredictiveEcology/Biomass_speciesParameters@development")
+#'
+#'   )
+#'
+#'
 #' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
@@ -410,7 +419,7 @@ setupProject <- function(name, paths, modules, packages,
     params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                           overwrite = overwrite, envir = envir, verbose = verbose)
 
-    setupGitIgnore(paths, gitignore = getOption(SpaDES.project.gitignore, TRUE), verbose)
+    setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
     out <- append(list(
       modules = modules,
@@ -614,8 +623,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
 
   if (length(deps)) {
-    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath",
-                   verbose = verbose)
+    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath (",
+                   paths$packagePath, ")", verbose = verbose)
 
     if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]))
       for (pkg in deps) {
@@ -775,7 +784,19 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
         # Try whole list first; if fails, then do individual list elements
         # out <- try(eval(p, envir = env), silent = TRUE)
         # if (is(out, "try-error")) {
-        out <- evalListElems(p, envir = env, verbose = verbose) # recursive; as.list keeps names
+        withCallingHandlers(for (i in 1:2) {
+          out <- evalListElems(p, envir = env, verbose = verbose)
+        }, message = function(m) {
+          missingPkgs <- grepl("there is no package called", m)
+          if (any(missingPkgs)) {
+            pkgs <- gsub("^.+called \u2018(.+)\u2019.*$", "\\1", m$message)
+            messageVerbose(pkgs, " is missing; attempting to install it. ",
+                           "\nIf this fails, please add it manually to the `packages` argument")
+            Require::Install(pkgs)
+            invokeRestart("muffleMessage")
+          }
+        })
+        # out <- evalListElems(p, envir = env, verbose = verbose) # recursive; as.list keeps names
         # }
         if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
           # putting the object `mode` into the env; but if there is no assignment
@@ -1173,6 +1194,9 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
         opt <- getGithubFile(opt, destDir = projectPath, overwrite = overwrite)
+      } else {
+        if (!file.exists(opt))
+          messageVerbose(opt, " has no @ specified, so assuming a local file, but local file does not exist", verbose = verbose)
       }
       opt
     }, SIMPLIFY = TRUE)
@@ -1293,11 +1317,14 @@ setupGitIgnore <- function(paths, gitignore = getOption(SpadES.project.gitignore
       gif <- character()
     gifOrig <- gif
 
-    # if the R package folder is inside
     prjP <- normPath(paths[["projectPath"]])
     pkgP <- normPath(paths[["packagePath"]])
+    updatedPP <- updatedMP <- FALSE
+
+    # if the R package folder is inside
     isPackagePathInside <- grepl(prjP, pkgP)
     if (isTRUE(isPackagePathInside)) {
+      updatedPP <- TRUE
       pkgP <- gsub(prjP, "", pkgP)
       if (startsWith(pkgP, "/"))
         pkgP <- gsub("^/", "", pkgP)
@@ -1307,6 +1334,7 @@ setupGitIgnore <- function(paths, gitignore = getOption(SpadES.project.gitignore
     }
 
     if (isTRUE(gitignore) && !file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
+      updatedMP <- TRUE
       lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
       insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
       gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
@@ -1315,8 +1343,9 @@ setupGitIgnore <- function(paths, gitignore = getOption(SpadES.project.gitignore
 
     if (length(setdiff(gif, gifOrig))) {
       writeLines(con = gitIgnoreFile, unique(gif))
+      mess <- paste(c("packagePath"[updatedPP], "modulePath"[updatedMP]), collapse = " and ")
       messageVerbose(verboseLevel = 1, verbose = verbose,
-                     ".gitignore file updated with packagePath and modulePath; ",
+                     ".gitignore file updated with ", mess,"; ",
                      "this may need to be confirmed manually")
     }
 

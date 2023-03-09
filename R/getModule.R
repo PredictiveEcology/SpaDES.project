@@ -162,11 +162,11 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
     checkPath(dirname(file), create = TRUE)
 
   out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
-                           verbose = getOption("Require.verbose"))
+                           verbose = verbose)
   if (!isTRUE(out))
-    out <- "Did not download"
+    messageVerbose("  ... Did not download ", file, verbose = verbose)
   else {
-    messageVerbose("downloaded ", file)
+    messageVerbose("downloaded ", file, verbose = verbose)
   }
   out <- normPath(file)
   return(out)
@@ -178,8 +178,7 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
   tryDownload <- TRUE
   if (file.exists(file))
     if (overwrite %in% FALSE) {
-      messageVerbose(file, "
-                     already exists and overwrite = FALSE")
+      messageVerbose(file, " already exists and overwrite = FALSE", verbose = verbose)
       tryDownload <- FALSE
     }
 
@@ -197,8 +196,13 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     url <- file.path("https://raw.githubusercontent.com/", ar, br, file)
     tf <- tempfile()
     out <- suppressWarnings(
-      try(downloadFileMasterMainAuth(url, destfile = tf, need = "master"), silent = TRUE)
+      try(
+        downloadFileMasterMainAuth(url, destfile = tf, need = "master"), silent = FALSE)
     )
+    if (is(out[[1]], "try-error")) {
+      warn <- gsub("(https://)(.+)(raw)", "\\1\\3", out[[1]][1])
+      warning(warn, "\nIs the url misspelled or unavailable?")
+    }
     if (file.exists(tf)) {
       file.copy(tf, file, overwrite = TRUE)
     }
