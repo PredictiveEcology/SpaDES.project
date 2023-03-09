@@ -782,22 +782,23 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
       if (isUnevaluatedList(p) || isFALSE(namedList)) {
         # robust to code failures
         # Try whole list first; if fails, then do individual list elements
-        # out <- try(eval(p, envir = env), silent = TRUE)
-        # if (is(out, "try-error")) {
         withCallingHandlers(for (i in 1:2) {
+          safe <- TRUE
           out <- evalListElems(p, envir = env, verbose = verbose)
+          if (safe)
+            break
         }, message = function(m) {
+
           missingPkgs <- grepl("there is no package called", m)
           if (any(missingPkgs)) {
             pkgs <- gsub("^.+called \u2018(.+)\u2019.*$", "\\1", m$message)
             messageVerbose(pkgs, " is missing; attempting to install it. ",
                            "\nIf this fails, please add it manually to the `packages` argument")
             Require::Install(pkgs)
+            safe <<- FALSE
             invokeRestart("muffleMessage")
           }
         })
-        # out <- evalListElems(p, envir = env, verbose = verbose) # recursive; as.list keeps names
-        # }
         if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
           # putting the object `mode` into the env; but if there is no assignment
           # then we need to put the object into the environment
