@@ -275,44 +275,36 @@ out <- setupProject(.mode = .mode,
 }
 
 \examples{
-\dontrun{
+\donttest{
+
+## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
+#  THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+
+library(SpaDES.project)
+setwd(tempdir())
 
 setupProject() # simplest case; just creates folders
 
 # set relative paths & modules
 setupProject(name = "SpaDES.project",
-             paths = list(modulePath = "m", projectPath = "SpaDES.project",
+             paths = list(projectPath = "SpaDES.project",
+                          modulePath = "m",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
-# load packages using `require`
-out <- SpaDES.project::setupProject(
-  paths = list(projectPath = "~/CeresPaper"), # will deduce name of project from projectPath
-  standAlone = TRUE,
-  require =
-    c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-      "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
-  modules = c("CeresBarros/Biomass_speciesData@master",
-              "CeresBarros/Biomass_borealDataPrep@development",
-              "CeresBarros/Biomass_core@master",
-              "CeresBarros/Biomass_validationKNN@master",
-              "CeresBarros/Biomass_speciesParameters@development")
-
-  )
-
 # With options and params set
-out <- setupProject(name = "SpaDES.project",
+out <- SpaDES.project::setupProject(name = "SpaDES.project",
              options = list(reproducible.useTerra = TRUE),
              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+             paths = list(modulePath = "m", projectPath = "SpaDES.project",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
 # using an options file that is remote
 out <- setupProject(name = "SpaDES.project",
-             options = c("PredictiveEcology/SpaDES.project@transitions/inst/options.R"),
+             options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
              paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
                           scratchPath = tempdir()),
@@ -321,14 +313,14 @@ out <- setupProject(name = "SpaDES.project",
 
 # setting arbitrary arguments
 out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  sideEffects = "PredictiveEcology/SpaDES.project/transitions/inst/params.R",
+  sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
   defaultDots = list(mode = "development",
                      studyAreaName = "MB"),
   mode = mode, studyAreaName = studyAreaName,
   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
 )
 
-out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+out <- setupProject(paths = list(projectPath = "LandWeb"),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
   config = "LandWeb",
   defaultDots = list(mode = "development",
@@ -339,7 +331,7 @@ out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
 
 # Pass args from GlobalEnv
 studyAreaName <- "AB"
-out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
+out <- setupProject(paths = list(projectPath = "LandWeb"),
                     modules = "PredictiveEcology/Biomass_borealDataPrep@development",
                     defaultDots = list(mode = "development",
                                        studyAreaName = "MB"),
@@ -348,10 +340,10 @@ out <- setupProject(paths = list(projectPath = "~/GitHub/LandWeb"),
 
 out <- setupProject(name = "SpaDES.project",
              options = list(reproducible.useTerra = TRUE,
-                            "PredictiveEcology/SpaDES.project@transitions/inst/options.R",
+                            "PredictiveEcology/SpaDES.project@transition/inst/options.R",
                               "inst/authentication.R"),
              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+             paths = list(modulePath = "m", projectPath = "SpaDES.project",
                           scratchPath = tempdir()),
              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
@@ -365,6 +357,23 @@ out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005"))
 
 # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
 #   do.call(simInit, out)
+
+# load packages using `require` argument
+out <- SpaDES.project::setupProject(
+  paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
+  standAlone = TRUE,
+  require =
+    c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+      "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
+  modules = c("PredictiveEcology/Biomass_speciesData@master",
+              "PredictiveEcology/Biomass_borealDataPrep@development",
+              "PredictiveEcology/Biomass_core@master",
+              "PredictiveEcology/Biomass_validationKNN@master",
+              "PredictiveEcology/Biomass_speciesParameters@development")
+
+  )
+
+
 }
 }
 \seealso{
