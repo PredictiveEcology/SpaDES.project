@@ -22,6 +22,8 @@
 #' @param paths a list with named elements, specifically, `modulePath`, `projectPath`,
 #'   `packagePath` and all others that are in `SpaDES.core::setPaths()`
 #'   (i.e., `inputPath`, `outputPath`, `scratchPath`, `cachePath`, `rasterTmpDir`).
+#'   Each of these has a sensible default, which will be overridden but any user
+#'   supplied values.
 #'   See [setup].
 #' @param modules a character string of modules to pass to `getModule`. These
 #'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
@@ -208,8 +210,8 @@
 #' [user()], [machine()], [node()]
 #'
 #' @return
-#' `setupProject` will return a named list with elements equal to the elements
-#' passed by the user, but with a minimum of `modules`, `paths`, `params`, and `times`. This
+#' `setupProject` will return a named list with elements `modules`, `paths`, `params`, and `times`.
+#' It will also append all elements passed by the user in the `...`. This
 #' list  can be passed directly to `SpaDES.core::simInit` or `SpaDES.core::simInitAndSpades`
 #' using a `do.call`. See example.
 #'
@@ -408,7 +410,7 @@ setupProject <- function(name, paths, modules, packages,
     params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                           overwrite = overwrite, envir = envir, verbose = verbose)
 
-    setupGitIgnore(paths, envir = envir, verbose)
+    setupGitIgnore(paths, gitignore = getOption(SpaDES.project.gitignore, TRUE), verbose)
 
     out <- append(list(
       modules = modules,
@@ -1059,7 +1061,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 #' @rdname setup
 #'
 #' @return
-#' `setupParams` is run for its side effects, namely, changes to the `options()`.
+#' `setupParams` prepares a named list of named lists, suitable to be passed to
+#' the `params` argument of `simInit`.
 #'
 #'
 #' @importFrom data.table data.table
@@ -1262,19 +1265,27 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 
 #' @export
 #' @rdname setup
+#' @param gitignore Logical. Only has an effect if the `paths$projectPath`
+#'   is a git repositories without submodules. This case is ambiguous what a user
+#'   wants. If `TRUE`, the default, then `paths$modulePath` will be added to
+#'   the `.gitignore` file. Can be controled with `options(SpadES.project.gitignore = ...)`.
 #' @details
 #' `setupGitIgnore` will add.
 #'
 #' @return
-#' `setupGitIgnore` is run for its side effects, i.e., adding elements to the
-#' `.gitignore` file.
-setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultDots, ...) {
-
-  dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+#' `setupGitIgnore` is run for its side effects, i.e., adding either `paths$packagePath`
+#' and/or `paths$modulePath` to the
+#' `.gitignore` file. It will check whether `packagePath` is located inside the
+#' `paths$projectPath` and will add this folder to the `.gitignore` if `TRUE`.
+#' If the project is a git repository with git submodules, then it will add nothing else.
+#' If the project is a git repository without git submodules, then the `paths$modulePath`
+#' will be added to the `.gitignore` file. It is assumed that these modules are
+#' used in a `read only` manner.
+setupGitIgnore <- function(paths, gitignore = getOption(SpadES.project.gitignore, TRUE),
+                           verbose) {
 
   gitIgnoreFile <- ".gitignore"
-  gitFile <- ".git"
+  gitFile <- file.path(paths$projectPath, ".git")
   if (dir.exists(gitFile)) { # this is a git repository
     if (file.exists(gitIgnoreFile))
       gif <- readLines(gitIgnoreFile, warn = FALSE)
@@ -1295,7 +1306,7 @@ setupGitIgnore <- function(paths, envir = environment(), verbose, dots, defaultD
       gif[insertLine] <- file.path(pkgP, "*")
     }
 
-    if (!file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
+    if (isTRUE(gitignore) && !file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
       lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
       insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
       gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")

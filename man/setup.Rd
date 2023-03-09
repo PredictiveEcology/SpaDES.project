@@ -93,7 +93,13 @@ setupParams(
   ...
 )
 
-setupGitIgnore(paths, envir = environment(), verbose, dots, defaultDots, ...)
+setupGitIgnore(
+  paths,
+  gitignore = getOption(SpadES.project.gitignore, TRUE),
+  verbose
+)
+
+setupStudyArea(studyArea, paths)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -104,6 +110,8 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
 \code{packagePath} and all others that are in \code{SpaDES.core::setPaths()}
 (i.e., \code{inputPath}, \code{outputPath}, \code{scratchPath}, \code{cachePath}, \code{rasterTmpDir}).
+Each of these has a sensible default, which will be overridden but any user
+supplied values.
 See \link{setup}.}
 
 \item{inProject}{A logical. If \code{TRUE}, then the current directory is
@@ -186,6 +194,12 @@ on Linux (ignored if Windows)}
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.
 See \link{setup}.}
+
+\item{gitignore}{Logical. Only has an effect if the \code{paths$projectPath}
+is a git repositories without submodules. This case is ambiguous what a user
+wants. If \code{TRUE}, the default, then \code{paths$modulePath} will be added to
+the \code{.gitignore} file. Can be controled with \code{options(SpadES.project.gitignore = ...)}.}
+
 \item{studyArea}{Optional. If a list, it will be passed to
 \code{geodata::gadm}. To specify a country other than the default \code{"CAN"},
 the list must have a named element, \code{"country"}. All other named elements
@@ -211,7 +225,17 @@ depends on (\code{reqsPkgs})
 \code{setupPackages} is run for its side effects, i.e., installing packages to
 \code{paths[["packagePath"]]}.
 
-\code{setupParams} is run for its side effects, namely, changes to the \code{options()}.
+\code{setupParams} prepares a named list of named lists, suitable to be passed to
+the \code{params} argument of \code{simInit}.
+
+\code{setupGitIgnore} is run for its side effects, i.e., adding either \code{paths$packagePath}
+and/or \code{paths$modulePath} to the
+\code{.gitignore} file. It will check whether \code{packagePath} is located inside the
+\code{paths$projectPath} and will add this folder to the \code{.gitignore} if \code{TRUE}.
+If the project is a git repository with git submodules, then it will add nothing else.
+If the project is a git repository without git submodules, then the \code{paths$modulePath}
+will be added to the \code{.gitignore} file. It is assumed that these modules are
+used in a \verb{read only} manner.
 
 \code{setupStudyArea} will return an \code{sf} class object coming from \code{geodata::gadm},
 with subregion specification as described in the \code{studyArea} argument.fsu

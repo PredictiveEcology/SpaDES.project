@@ -38,6 +38,8 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
 \code{packagePath} and all others that are in \code{SpaDES.core::setPaths()}
 (i.e., \code{inputPath}, \code{outputPath}, \code{scratchPath}, \code{cachePath}, \code{rasterTmpDir}).
+Each of these has a sensible default, which will be overridden but any user
+supplied values.
 See \link{setup}.}
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
@@ -131,8 +133,8 @@ processes of the installs.}
 inside the \code{paths[["projectPath"]]}.}
 }
 \value{
-\code{setupProject} will return a named list with elements equal to the elements
-passed by the user, but with a minimum of \code{modules}, \code{paths}, \code{params}, and \code{times}. This
+\code{setupProject} will return a named list with elements \code{modules}, \code{paths}, \code{params}, and \code{times}.
+It will also append all elements passed by the user in the \code{...}. This
 list  can be passed directly to \code{SpaDES.core::simInit} or \code{SpaDES.core::simInitAndSpades}
 using a \code{do.call}. See example.
 }
