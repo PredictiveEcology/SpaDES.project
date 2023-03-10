@@ -20,7 +20,7 @@ Depends:
 Imports:
     data.table,
     methods,
-    Require (>= 0.2.6),
+    Require (>= 0.2.6.9018),
     rprojroot,
     utils
 Suggests:
@@ -42,7 +42,7 @@ Suggests:
     testthat (>= 1.0.2),
     visNetwork
 Remotes: 
-    PredictiveEcology/Require@development,
+    PredictiveEcology/Require@RSPM,
     PredictiveEcology/SpaDES.config@development,
     PredictiveEcology/SpaDES.core@development,
     PredictiveEcology/reproducible@development
