@@ -131,7 +131,8 @@ test_that("test file-backed raster caching", {
   skip_on_cran()
   tmpdir1 <- Require::checkPath(file.path(tempdir(), .rndstr(1)), create = TRUE)
   setwd(tmpdir1)
-  setupProject(package = "terra",
-               updateRprofile = TRUE)
+  expect_warning(regexp = "but the projectPath is the tempdir",
+                 setupProject(package = "terra",
+                              updateRprofile = TRUE))
 
 })

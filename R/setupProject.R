@@ -1713,7 +1713,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
   if (isTRUE(updateRprofile)) {
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
-      warning("updateRprofile is TRUE, but the projectPath in the tempdir(), which means ",
+      warning("updateRprofile is TRUE, but the projectPath is the tempdir(), which means ",
               "the .Rprofile won't be read upon restart. ",
               "Change the paths$projectPath to a non-temporary path")
     } else {
