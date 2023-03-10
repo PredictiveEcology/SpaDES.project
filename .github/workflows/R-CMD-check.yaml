@@ -3,10 +3,12 @@ on:
     branches:
       - master
       - development
+      - transition
   pull_request:
     branches:
       - master
       - development
+      - transition
 
 name: R-CMD-check
 

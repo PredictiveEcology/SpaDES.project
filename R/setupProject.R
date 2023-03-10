@@ -454,13 +454,14 @@ setupProject <- function(name, paths, modules, packages,
 
     setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
+    setupRestart(updateRprofile, paths, name, inProject, Restart, verbose) # This may restart
+
     out <- append(list(
       modules = modules,
       paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
       params = params,
       times = times), dotsSUB)
 
-    setupRestart(updateRprofile, paths, name, inProject, Restart, verbose)
   }
 
   return(out)
