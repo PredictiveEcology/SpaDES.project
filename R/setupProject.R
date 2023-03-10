@@ -1,10 +1,9 @@
 utils::globalVariables(c(
-  ".", "artifact", "createdDate", "deeperThan3", "differs", "fun", "hash",
-  "i.hash", "iden", "N", "tag", "tagKey", "tagValue"
+  ".", "objectClass", "objectName",
+  "i.module", "i.objectClass"
 ))
 #%>% .
-#from i.module i.objectClass moduleMetadata msg
-#objectClass objectName packageVersion tai
+#from moduleMetadata msg
 
 
 #' Sets up a new or existing SpaDES project
