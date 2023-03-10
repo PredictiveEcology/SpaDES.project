@@ -94,7 +94,8 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     names(url) <- account
 
     tf <- tempfile()
-    download.file(url, destfile = tf)
+    downloadFileMasterMainAuth(url, destfile = tf, need = "master")
+    # download.file(url, destfile = tf)
     suppressWarnings(repos <- readLines(tf))
     repos <- unlist(strsplit(repos, ","))
 
