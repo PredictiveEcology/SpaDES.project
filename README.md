@@ -8,7 +8,7 @@
 
 # SpaDES.project
 
-Quickly setup 'SpaDES' project directories and get modules.
+Quickly setup 'SpaDES' project directories, get modules, and deal with a number of issues related to reproducibility and reusabililty. This package was designed with a PERFICT approach in mind (See McIntire et al. 2022).
 
 See package vignettes to get started.
 

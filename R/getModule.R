@@ -84,7 +84,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         mess <- capture.output(type = "message",
                        out <- withCallingHandlers(
                          downloadRepo(modToDL, subFolder = NA,
-                               destinationPath = dd, overwrite = overwrite,
+                               destDir = dd, overwrite = overwrite,
                                verbose = verbose + 1),
                             warning = function(w) {
                               warns <- grep("No such file or directory|extracting from zip file", w$message,
@@ -153,16 +153,16 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #' \donttest{
 #'   getGithubFile("PredictiveEcology/LandWeb@development/04-options.R")
 #' }
-getGithubFile <- function(gitRepoFile, overwrite = FALSE, destinationPath = ".",
+getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {
   gitRepo <- splitGitRepo(gitRepoFile)
   gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
   file <- gsub(gitRepo, "", gitRepoFile)
-  file <- gsub("^\\/", "", file)
+  file <- gsub("^\\/", "", file) # file is now relative path
   if (nchar(dirname(file)))
     checkPath(dirname(file), create = TRUE)
 
-  out <- downloadFile(gitRepo, file, overwrite = overwrite, destinationPath = ".",
+  out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
                            verbose = verbose)
   if (!isTRUE(out))
     messageVerbose("  ... Did not download ", file, verbose = verbose)
@@ -174,18 +174,17 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destinationPath = ".",
 }
 
 
-downloadFile <- function(gitRepo, file, overwrite = FALSE, destinationPath = ".",
+downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
                          verbose = getOption("Require.verbose")) {
   tryDownload <- TRUE
-  if (file.exists(file))
+  if (file.exists(file)) # file is expected to be relative path
     if (overwrite %in% FALSE) {
       messageVerbose(file, " already exists and overwrite = FALSE", verbose = verbose)
       tryDownload <- FALSE
     }
 
   if (isTRUE(tryDownload)) {
-    browser()
-    dir.create(destinationPath, recursive = TRUE, showWarnings = FALSE)
+    destDir <- checkPath(destDir, create = TRUE)
     gr <- splitGitRepo(gitRepo)
     ar <- file.path(gr$acct, gr$repo)
     masterMain <- c("main", "master")
@@ -206,6 +205,7 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destinationPath = "."
       warning(warn, "\nIs the url misspelled or unavailable?")
     }
     if (file.exists(tf)) {
+      file <- file.path(destDir, file)
       file.copy(tf, file, overwrite = TRUE)
     }
 

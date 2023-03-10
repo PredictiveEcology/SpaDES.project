@@ -7,7 +7,7 @@
 getGithubFile(
   gitRepoFile,
   overwrite = FALSE,
-  destinationPath = ".",
+  destDir = ".",
   verbose = getOption("Require.verbose")
 )
 }

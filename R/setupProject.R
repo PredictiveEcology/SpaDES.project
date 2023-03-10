@@ -1216,7 +1216,7 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
-        opt <- getGithubFile(opt, destinationPath = projectPath,
+        opt <- getGithubFile(opt, destDir = projectPath,
                              overwrite = overwrite)
       } else {
         if (!file.exists(opt))
