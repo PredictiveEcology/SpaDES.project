@@ -71,6 +71,12 @@
 #' @param Restart If the `projectPath` is not the current path, and the session is in
 #'   Rstudio, and interactive, it will restart with a new Rstudio session with a
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
+#' @param updateRprofile Logical. Should the `paths$packagePath` be set in the `.Rprofile`
+#'   file for this project. Note: if `paths$packagePath` is within the `tempdir()`,
+#'   then there will be a warning, indicating this won't persist. If the user is
+#'   using `Rstudio` and the `paths$projectPath` is not the root of the current
+#'   Rstudio project, then a warning will be given, indicating the .Rprofile may not
+#'   be read upon restart.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows)
 #' @param studyArea Optional. If a list, it will be passed to
@@ -284,14 +290,16 @@
 #'                     mode = "development", studyAreaName = studyAreaName,
 #' )
 #'
-#' out <- setupProject(name = "SpaDES.project",
-#'              options = list(reproducible.useTerra = TRUE,
-#'                             "PredictiveEcology/SpaDES.project@transition/inst/options.R",
-#'                               "inst/authentication.R"),
-#'              params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'              paths = list(modulePath = "m", projectPath = "SpaDES.project",
-#'                           scratchPath = tempdir()),
-#'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+#' # mixture of named list element, github file and local file for e.g., options
+#' out <-
+#'   setupProject(name = "SpaDES.project",
+#'     options = list(reproducible.useTerra = TRUE,
+#'                    "PredictiveEcology/SpaDES.project@transition/inst/options.R",
+#'                    system.file("authentication.R", package = "SpaDES.project")), # local file
+#'     params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+#'     paths = list(modulePath = "m", projectPath = "SpaDES.project",
+#'                  scratchPath = tempdir()),
+#'     modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
 #' # example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
@@ -318,6 +326,12 @@
 #'               "PredictiveEcology/Biomass_speciesParameters@development")
 #'
 #'   )
+#'
+#'
+#' ## Make project-level change to .libPaths() that is persistent
+#' setwd(tempdir())
+#' setupProject(package = "terra",
+#'              updateRprofile = TRUE)
 #'
 #'
 #' }
@@ -409,7 +423,7 @@ setupProject <- function(name, paths, modules, packages,
     }
     localVars <- if (length(names(dotsSUB)))
       mget(names(dotsSUB), envir = envir, inherits = FALSE) else list()
-    browser()
+    stop("config is not yet setup to run with SpaDES.project")
     out <- do.call(SpaDES.config::useConfig, append(
       list(projectName = config,
            projectPath = paths[["projectPath"]], paths = paths),
@@ -427,20 +441,8 @@ setupProject <- function(name, paths, modules, packages,
       params = params,
       times = times), dotsSUB)
 
-    if (!inProject) {
-      if (interactive() && isTRUE(Restart)) # getOption("SpaDES.project.Restart", TRUE))
-        if (requireNamespace("rstudioapi")) {
-          messageVerbose("... restarting Rstudio inside the project",
-                         verbose = verbose)
-          rstudioapi::openProject(path = paths[["projectPath"]])
-        } else {
-          stop("Please open this in a new Rstudio project at ",
-               paths[["projectPath"]])
-        }
-    }
-
+    setupRestart(updateRprofile, paths, name, inProject, Restart, verbose)
   }
-
 
   return(out)
 }
@@ -574,9 +576,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     ),
     paths)
 
-  # deps <- Require::extractPkgName(Require::pkgDep("PredictiveEcology/SpaDES.project@transition")[[1]])
   deps <- c("SpaDES.project", "data.table", "Require", "rprojroot")
-  # deps <- c(deps, "rstudioapi")
 
   depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
   diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
@@ -635,9 +635,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
         newFiles <- file.path(paths[["packagePath"]], pkg, files1)
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
-        # exist <- file.exists(oldFiles)
-        # if (any(!exist))
-        #  file.copy(oldFiles[!exist], newFiles[!exist], overwrite = TRUE)
         file.copy(oldFiles, newFiles, overwrite = TRUE)
       }
   }
@@ -1128,7 +1125,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
 
       mods <- setdiff(names(params), ".globals")
-      if (requireNamespace("SpaDES.core", quietly = TRUE) && FALSE) {
+      if (FALSE) {
         messageVerbose(blue("Using SpaDES.core to compare metadata with supplied parameters: "),
                        verbose = verbose)
         params <- Map(mod = mods, function(mod) {
@@ -1242,6 +1239,16 @@ checkProjectPath <- function(paths, envir, envir2) {
 isInProject <- function(name) {
   identical(basename(getwd()), extractPkgName(name))
 }
+
+isInRstudioProj <- function(name) {
+  tryCatch(identical(name, basename(findProjectPath())),
+           silent = TRUE, error = function(x) FALSE)
+}
+
+inTempProject <- function(paths) {
+  grepl(normPath(tempdir()), normPath(paths[["projectPath"]]))
+}
+
 
 evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
@@ -1673,3 +1680,37 @@ setupStudyArea <- function(studyArea, paths) {
   }
 }
 
+
+setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbose) {
+  if (isTRUE(updateRprofile)) {
+    inTmpProject <- inTempProject(paths)
+    if (isTRUE(inTmpProject)) {
+      warning("updateRprofile is TRUE, but the projectPath in the tempdir(), which means ",
+              "the .Rprofile won't be read upon restart. ",
+              "Change the paths$projectPath to a non-temporary path")
+    } else {
+      if (isRstudio()) {
+        inCorrectRstudioProj <- isInRstudioProj(name)
+        if (!inProject || !inCorrectRstudioProj) { # either wrong Rstudio or not in project
+          if (isFALSE(Restart)) {
+            warning("updateRprofile is TRUE, but the projectPath is not an Rstudio project; ",
+                    "thus the .Rprofile won't be read upon restart; ignoring updateRprofile = TRUE. ",
+                    "Set `Restart = TRUE` to updateRprofile *and* restart R in that folder so ",
+                    ".Rprofile will be read")
+          }
+        }
+      }
+    }
+  }
+
+  if (!inProject) {
+    if (interactive() && isTRUE(Restart)) # getOption("SpaDES.project.Restart", TRUE))
+      if (requireNamespace("rstudioapi")) {
+        messageVerbose("... restarting Rstudio inside the project",
+                       verbose = verbose)
+        rstudioapi::openProject(path = paths[["projectPath"]])
+      } else {
+        stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
+      }
+  }
+}
