@@ -25,7 +25,7 @@ needed, e.g., \code{"^machine1"} will match \code{"machine15"} and \code{"machin
 the supplied \code{username}.
 
 \code{machine} returns a logical indicating whether the current machine name
-Sys.info()[\link{"nodename"}] is matched by \code{machinename}.
+\code{Sys.info()[["nodename"]]} is matched by \code{machinename}.
 }
 \description{
 A set of lightweight helpers that are often not strictly necessary, but they

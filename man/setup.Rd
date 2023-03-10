@@ -95,7 +95,7 @@ setupParams(
 
 setupGitIgnore(
   paths,
-  gitignore = getOption(SpadES.project.gitignore, TRUE),
+  gitignore = getOption("SpadES.project.gitignore", TRUE),
   verbose
 )
 
@@ -122,15 +122,19 @@ packages installed in a project-level library, if \code{TRUE}. Default is \code{
 
 \item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
-\item{updateRprofile}{Logical or Character string. If \code{TRUE}, then this
-function will put several lines of code in the current directory's
-\code{.Rprofile} file setting up the package libraries for this and future
-sessions. If a character string, then this should be the path to an
-\code{.Rprofile} file. To reset back to normal, run \code{setLibPaths()} without a
-\code{libPath}. Default: \code{getOption("Require.updateRprofile", FALSE)}, meaning
-\code{FALSE}, but it can be set with an option or within a single call.}
+\item{updateRprofile}{Logical. Should the \code{paths$packagePath} be set in the \code{.Rprofile}
+file for this project. Note: if \code{paths$packagePath} is within the \code{tempdir()},
+then there will be a warning, indicating this won't persist. If the user is
+using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
+Rstudio project, then a warning will be given, indicating the .Rprofile may not
+be read upon restart.}
 
 \item{overwrite}{Logical. Passed to \code{getModule}, and \code{setupParams}, \code{setupOptions}}
+
+\item{envir}{An environment within which to look for objects. If called alone,
+the function should use its own internal environment. If called from another
+function, e.g., \code{setupProject}, then the \code{envir} should be the internal
+transient environment of that function.}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
@@ -140,6 +144,14 @@ attribute: \code{attr(.., "Require")} which has lots of information about the
 processes of the installs.}
 
 \item{dots}{Any other named objects passed as a list a user might want for other elements.}
+
+\item{defaultDots}{A named list of any arbitrary R objects.
+These can be supplied to give default values to objects that
+are otherwise passed in with the \code{...}, i.e., not specifically named for these
+\verb{setup*} functions. If named objects are supplied as top-level arguments, then
+the \code{defaultDots} will be overridden. This can be particularly useful if the
+arguments passed to \code{...} do not always exist, but rely on external e.g., batch
+processing to optionally fill them. See examples.}
 
 \item{...}{Any other named objects a user might want.}
 

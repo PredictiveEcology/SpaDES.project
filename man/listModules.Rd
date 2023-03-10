@@ -42,6 +42,14 @@ processes of the installs.}
 
 \item{modules}{A named list of character strings of full module names, as returned
 by \code{listModules}.}
+
+\item{modulePath}{A character string indicating the path where the modules
+are located.}
+
+\item{md}{A data.table with columns \code{from} and \code{to}, showing relationships of
+objects in modules. Likely from \code{moduleDependencies}.}
+
+\item{graph}{An igraph object to plot. Likely returned by \code{moduleDependenciesToGraph}.}
 }
 \value{
 \code{listModules} returns a named list of all SpaDES modules in the given repositories with
@@ -52,21 +60,24 @@ When exploring existing modules, these tools help identify and navigate modules
 and their interdependencies.
 }
 \examples{
+
+\donttest{
 library(reproducible)
-mods <- Cache(listModules, c("Biomass", "WBI", "LandR", "fireSense", "CBM", "LandMine", "LandWeb",
-                             "NRV", #"scfm",
+mods <- Cache(listModules, c("Biomass", "WBI", "LandR", "fireSense", "CBM",
+                             "LandMine", "LandWeb", "NRV", #"scfm",
                              "priority",
                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF"),
-              accounts = c("PredictiveEcology", "ianmseddy", "achubaty", "FOR-CAST", "eliotmcintire",
-                           "tati-micheletti"),
-              cacheRepo = "LandR_Module_Cache")
+              accounts = c("PredictiveEcology", "ianmseddy", "achubaty",
+                           "FOR-CAST", "eliotmcintire", "tati-micheletti"))
 
+modPath <- file.path(tempdir(), "testMods")
 out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-       out <- getModule(paste0(nam, "/", mod), modulePath = "testMods")
+       out <- getModule(paste0(nam, "/", mod),
+       modulePath = modPath)
        out
 })
 
-DT <- moduleDependencies(mods, modulePath = "testMods")
+DT <- moduleDependencies(mods, modulePath = modPath)
 graph <- moduleDependenciesToGraph(DT)
 vn <- PlotModuleGraph(graph)
 
@@ -75,4 +86,5 @@ Account <- "PredictiveEcology"
 mods <- listModules("fireSense", Account)
 out <- setupProject(modules = file.path(Account, mods[[Account]]),
                     paths = list(projectPath = "~/fireSense"))
+}
 }

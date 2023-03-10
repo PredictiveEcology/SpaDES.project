@@ -30,17 +30,21 @@ Suggests:
     geodata,
     igraph,
     knitr,
+    reproducible,
     rmarkdown,
     rstudioapi,
     sessioninfo,
     sf,
     slackr,
+    SpaDES.config,
     SpaDES.core,
     terra,
     testthat (>= 1.0.2),
     visNetwork
 Remotes: 
-    PredictiveEcology/Require@development
+    PredictiveEcology/Require@development,
+    PredictiveEcology/SpaDES.config@development,
+    PredictiveEcology/reproducible@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3

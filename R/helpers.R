@@ -83,7 +83,7 @@ user <- function (username = NULL) {
 #' @rdname helpers
 #' @return
 #' `machine` returns a logical indicating whether the current machine name
-#' Sys.info()[["nodename"]] is matched by `machinename`.
+#' `Sys.info()[["nodename"]]` is matched by `machinename`.
 machine <- function(machinename = NULL) {
   if (is.null(machinename)) {
     Sys.info()[["nodename"]]

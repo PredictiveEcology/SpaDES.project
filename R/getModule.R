@@ -22,7 +22,8 @@ utils::globalVariables(c(
 #' @seealso [getGithubFile]
 #' @inheritParams Require::Require
 #' @importFrom utils capture.output
-#' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub extractInequality
+#' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub
+#' @importFrom Require extractInequality extractVersionNumber
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
@@ -83,7 +84,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         mess <- capture.output(type = "message",
                        out <- withCallingHandlers(
                          downloadRepo(modToDL, subFolder = NA,
-                               destDir = dd, overwrite = overwrite,
+                               destinationPath = dd, overwrite = overwrite,
                                verbose = verbose + 1),
                             warning = function(w) {
                               warns <- grep("No such file or directory|extracting from zip file", w$message,
@@ -152,7 +153,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #' \donttest{
 #'   getGithubFile("PredictiveEcology/LandWeb@development/04-options.R")
 #' }
-getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
+getGithubFile <- function(gitRepoFile, overwrite = FALSE, destinationPath = ".",
                           verbose = getOption("Require.verbose")) {
   gitRepo <- splitGitRepo(gitRepoFile)
   gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
@@ -161,7 +162,7 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   if (nchar(dirname(file)))
     checkPath(dirname(file), create = TRUE)
 
-  out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
+  out <- downloadFile(gitRepo, file, overwrite = overwrite, destinationPath = ".",
                            verbose = verbose)
   if (!isTRUE(out))
     messageVerbose("  ... Did not download ", file, verbose = verbose)
@@ -173,7 +174,7 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
 }
 
 
-downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
+downloadFile <- function(gitRepo, file, overwrite = FALSE, destinationPath = ".",
                          verbose = getOption("Require.verbose")) {
   tryDownload <- TRUE
   if (file.exists(file))
@@ -183,7 +184,8 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     }
 
   if (isTRUE(tryDownload)) {
-    dir.create(destDir, recursive = TRUE, showWarnings = FALSE)
+    browser()
+    dir.create(destinationPath, recursive = TRUE, showWarnings = FALSE)
     gr <- splitGitRepo(gitRepo)
     ar <- file.path(gr$acct, gr$repo)
     masterMain <- c("main", "master")

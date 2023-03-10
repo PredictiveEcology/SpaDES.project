@@ -1,3 +1,12 @@
+utils::globalVariables(c(
+  ".", "artifact", "createdDate", "deeperThan3", "differs", "fun", "hash",
+  "i.hash", "iden", "N", "tag", "tagKey", "tagValue"
+))
+#%>% .
+#from i.module i.objectClass moduleMetadata msg
+#objectClass objectName packageVersion tai
+
+
 #' Sets up a new or existing SpaDES project
 #'
 #' `setupProject` calls a sequence of functions in this order:
@@ -66,8 +75,6 @@
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
-#' @param inProject A logical. If `TRUE`, then the current directory is
-#'  inside the `paths[["projectPath"]]`.
 #' @param Restart If the `projectPath` is not the current path, and the session is in
 #'   Rstudio, and interactive, it will restart with a new Rstudio session with a
 #'   new project, with a root path set to `projectPath`. Default is `FALSE`.
@@ -88,6 +95,13 @@
 #'        reproject the `studyArea`. See examples.
 #' @param overwrite Logical. Passed to `getModule`, and `setupParams`, `setupOptions`
 #' @param dots Any other named objects passed as a list a user might want for other elements.
+#' @param defaultDots A named list of any arbitrary R objects.
+#'   These can be supplied to give default values to objects that
+#'   are otherwise passed in with the `...`, i.e., not specifically named for these
+#'   `setup*` functions. If named objects are supplied as top-level arguments, then
+#'   the `defaultDots` will be overridden. This can be particularly useful if the
+#'   arguments passed to `...` do not always exist, but rely on external e.g., batch
+#'   processing to optionally fill them. See examples.
 #' @param ... Any other named objects a user might want.
 #'
 #' @export
@@ -263,12 +277,16 @@
 #'              modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
-#' # setting arbitrary arguments
+#' # setting arbitrary arguments, using defaultDots
 #' out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
 #'   sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
+#'
+#'   # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
 #'   defaultDots = list(mode = "development",
 #'                      studyAreaName = "MB"),
-#'   mode = mode, studyAreaName = studyAreaName,
+#'   mode = mode, # may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above
+#'   studyAreaName = studyAreaName, # same as previous argument.
+#'
 #'   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
 #' )
 #'
@@ -503,8 +521,15 @@ setupProject <- function(name, paths, modules, packages,
 #'
 #' @export
 #' @inheritParams setupProject
+#' @param inProject A logical. If `TRUE`, then the current directory is
+#'  inside the `paths[["projectPath"]]`.
 #' @rdname setup
+#' @param envir An environment within which to look for objects. If called alone,
+#' the function should use its own internal environment. If called from another
+#' function, e.g., `setupProject`, then the `envir` should be the internal
+#' transient environment of that function.
 #' @importFrom Require normPath checkPath
+#' @importFrom utils packageVersion
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
                        updateRprofile = getOption("Require.updateRprofile", FALSE),
                        overwrite = FALSE, envir = environment(),
@@ -767,6 +792,7 @@ isUnevaluatedList <- function(p) any( {
 }
 )
 
+#' @importFrom utils modifyList tail
 parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame(),
                                    verbose = getOption("Require.verbose")) {
   envs <- list(envir) # means
@@ -1191,7 +1217,8 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
-        opt <- getGithubFile(opt, destDir = projectPath, overwrite = overwrite)
+        opt <- getGithubFile(opt, destinationPath = projectPath,
+                             overwrite = overwrite)
       } else {
         if (!file.exists(opt))
           messageVerbose(opt, " has no @ specified, so assuming a local file, but local file does not exist", verbose = verbose)
@@ -1313,7 +1340,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' If the project is a git repository without git submodules, then the `paths$modulePath`
 #' will be added to the `.gitignore` file. It is assumed that these modules are
 #' used in a `read only` manner.
-setupGitIgnore <- function(paths, gitignore = getOption(SpadES.project.gitignore, TRUE),
+setupGitIgnore <- function(paths, gitignore = getOption("SpadES.project.gitignore", TRUE),
                            verbose) {
 
   gitIgnoreFile <- ".gitignore"
@@ -1599,13 +1626,13 @@ setupRequire <- function(allPkgs, packages, ...) {
     Require::Require(allPkgs, ...) # basically don't change anything
     , message = function(m) {
       if (any(grepl("Error: package or namespace", m$message))) {
-        pkg <- gsub("^.+namespace ‘(.+)’ .+ is already loaded.+$", "\\1", m$message)
+        pkg <- gsub("^.+namespace \u2018(.+)\u2019 .+ is already loaded.+$", "\\1", m$message)
         message(m)
         stop(stopMessForRequireFail(pkg))
       }
     }
     , warning = function(w) {
-      warnMess <- "^.+ersion .+ of ‘(.+)’ masked by .+$"
+      warnMess <- "^.+ersion .+ of \u2018(.+)\u2019 masked by .+$"
       if (any(grepl(warnMess, w$message))) {
         pkg <- gsub(warnMess, "\\1", w$message)
         warning(w)

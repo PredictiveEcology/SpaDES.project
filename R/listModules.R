@@ -49,23 +49,27 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @inheritParams Require::Require
 #'
 #' @rdname listModules
+#' @importFrom utils download.file
 #' @export
 #' @examples
+#'
+#' \donttest{
 #' library(reproducible)
-#' mods <- Cache(listModules, c("Biomass", "WBI", "LandR", "fireSense", "CBM", "LandMine", "LandWeb",
-#'                              "NRV", #"scfm",
+#' mods <- Cache(listModules, c("Biomass", "WBI", "LandR", "fireSense", "CBM",
+#'                              "LandMine", "LandWeb", "NRV", #"scfm",
 #'                              "priority",
 #'                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF"),
-#'               accounts = c("PredictiveEcology", "ianmseddy", "achubaty", "FOR-CAST", "eliotmcintire",
-#'                            "tati-micheletti"),
-#'               cacheRepo = "LandR_Module_Cache")
+#'               accounts = c("PredictiveEcology", "ianmseddy", "achubaty",
+#'                            "FOR-CAST", "eliotmcintire", "tati-micheletti"))
 #'
+#' modPath <- file.path(tempdir(), "testMods")
 #' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-#'        out <- getModule(paste0(nam, "/", mod), modulePath = "testMods")
+#'        out <- getModule(paste0(nam, "/", mod),
+#'        modulePath = modPath)
 #'        out
 #' })
 #'
-#' DT <- moduleDependencies(mods, modulePath = "testMods")
+#' DT <- moduleDependencies(mods, modulePath = modPath)
 #' graph <- moduleDependenciesToGraph(DT)
 #' vn <- PlotModuleGraph(graph)
 #'
@@ -74,6 +78,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' mods <- listModules("fireSense", Account)
 #' out <- setupProject(modules = file.path(Account, mods[[Account]]),
 #'                     paths = list(projectPath = "~/fireSense"))
+#' }
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
@@ -123,6 +128,9 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
 
 #'
 #' @rdname listModules
+#' @param modulePath A character string indicating the path where the modules
+#'  are located.
+#' @importFrom data.table :=
 #' @export
 moduleDependencies <- function(modules, modulePath) {
 
@@ -183,6 +191,8 @@ moduleDependencies <- function(modules, modulePath) {
 
 #' @export
 #' @rdname listModules
+#' @param md A data.table with columns `from` and `to`, showing relationships of
+#'   objects in modules. Likely from `moduleDependencies`.
 moduleDependenciesToGraph <- function(md) {
   mods <- unique(c(md$from, md$to))
   m <- unlist(mods)
@@ -194,10 +204,10 @@ moduleDependenciesToGraph <- function(md) {
 
 #' @export
 #' @rdname listModules
+#' @param graph An igraph object to plot. Likely returned by `moduleDependenciesToGraph`.
 PlotModuleGraph <- function(graph) {
   if (!requireNamespace("igraph") && !requireNamespace("dplyr") && !requireNamespace("visNetwork"))
     stop("need igraph, dplyr and visNetwork")
-  browser()
   graph <- igraph::simplify(graph)
 
   names <- igraph::V(graph)$name
@@ -211,6 +221,7 @@ PlotModuleGraph <- function(graph) {
   edges <- igraph::get.data.frame(graph, what="edges")[1:2]
 
 
+  browser()
   visNetwork::visNetwork(nodes, edges, width = "100%") %>%
     visNetwork::visIgraphLayout(layout = "layout_with_fr", type = "full") %>%
     visNetwork::visGroups(groupname = "Biomass", color = "orange",
