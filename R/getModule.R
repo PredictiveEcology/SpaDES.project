@@ -23,59 +23,53 @@ utils::globalVariables(c(
 #' @inheritParams Require::Require
 #' @importFrom utils capture.output
 #' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub
+#' @importFrom data.table set
 #' @importFrom Require extractInequality extractVersionNumber
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
+
   modulePath <- normPath(modulePath)
   modulePath <- checkPath(modulePath, create = TRUE)
-  anyfailed <- character()
   modulesOrig <- modules
   modNam <- extractPkgName(modules)
-  whExist <- dir.exists(file.path(modulePath, modNam))
+  localExists <- dir.exists(file.path(modulePath, modNam))
 
-  modsToDL <- modules
-  messForDL <- rep("already local", length(modsToDL))
-  names(messForDL) <- modsToDL
+  stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
+                        versionSpec = extractVersionNumber(modules),
+                        modulesNoVersion = Require::trimVersionNumber(modules),
+                        sufficient = NA, version = NA_character_,
+                        localExists = localExists,
+                        status = c(NA, "already local")[localExists + 1])
+
+  stateDT[localExists & is.na(versionSpec), sufficient := TRUE]
+
+  # modsToDL <- modules
+  # messForDL <- rep("already local", length(modsToDL))
+  # names(messForDL) <- modsToDL
 
   if (overwrite %in% FALSE) {
-    if (any(whExist)) {
-      modToDLnoVersion <- Require::trimVersionNumber(modsToDL[whExist])
-      hasVersionSpec <- modToDLnoVersion != modsToDL[whExist]
-      if (any(hasVersionSpec)) {
-        versionSpec <- extractVersionNumber(modsToDL[whExist][hasVersionSpec])
-        inequ <- extractInequality(modsToDL[whExist][hasVersionSpec])
-        pkg <- extractPkgGitHub(modsToDL[whExist][hasVersionSpec])
-        version <- mapply(module = pkg, function(module) {
-          ver <- moduleMetadata(module = module, path = modulePath, defineModuleListItems = "version")
-          as.character(ver$version)
-        })
-        sufficient <- compareVersion2(as.character(version),
-                                      versionSpec = versionSpec, inequality = inequ)
-        if (any(sufficient))
-          messageVerbose("Local version sufficient for: ",
-                         paste(modsToDL[whExist %in% TRUE][sufficient %in% TRUE],
-                               collapse = ", "),
-                         "\n... not downloading", verbose = verbose)
-        modsToDL <- modToDLnoVersion[whExist %in% TRUE][sufficient %in% FALSE]
-
-      } else {
-        modsToDL <- character()
-      }
+    if (any(stateDT$localExists %in% TRUE)) {
+      messageVerbose("Local copies: ", verbose = verbose)
+      stateDT <- checkModuleVersion(stateDT, modulePath, verbose = getOption("Require.verbose"))
+      # stateDT[localExists & !is.na(versionSpec), sufficient :=
+      #            checkModuleVersion(moduleFullName, versionSpec, modulePath, verbose = getOption("Require.verbose"))]
     }
 
     # append modules that exist and fail test with modules don't exist
-    modsToDL <- unique(c(modsToDL, modules[whExist %in% FALSE]))
+    # modsToDL <- unique(c(modsToDLDF$modules[!modsToDLDF$sufficient %in% TRUE],
+    #                      modules[localExists %in% FALSE]))
 
   }
-  if (length(modsToDL)) {
+  stateDT[localExists %in% FALSE | sufficient %in% FALSE, needDownload := TRUE]
+  if (any(stateDT$needDownload %in% TRUE)) {
     tmpdir <- file.path(tempdir(), .rndstr(1))
     Require::checkPath(tmpdir, create = TRUE)
     od <- setwd(tmpdir)
     on.exit(setwd(od))
 
     out <-
-      Map(modToDL = modsToDL, function(modToDL) {
+      Map(modToDL = stateDT$moduleFullName[stateDT$needDownload %in% TRUE], function(modToDL) {
         dd <- .rndstr(1)
         modNameShort <- Require::extractPkgName(modToDL)
         Require::checkPath(dd, create = TRUE)
@@ -108,28 +102,27 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         }
 
       })
-    allworked <- Require::extractPkgName(modsToDL) %in% dir(modulePath)
-    messForDL[modsToDL[allworked]] <- "downloaded"
-    anyfailed <- modsToDL[!allworked]
-    messForDL[anyfailed] <- "failed"
-    modules <- anyfailed
+
+    stateDT[needDownload %in% TRUE, downloaded :=
+              Require::extractPkgName(moduleFullName) %in% dir(modulePath)]
+
+    if (any(stateDT$downloaded %in% TRUE)) {
+      messageVerbose("Downloaded copies: ", verbose = verbose)
+      downloadedDT <- split(stateDT, by = "downloaded")
+      downloadedDT[["TRUE"]] <- checkModuleVersion(downloadedDT[["TRUE"]], modulePath, verbose = getOption("Require.verbose"))
+      stateDT <- rbindlist(downloadedDT)
+    }
+    stateDT[sufficient %in% TRUE & downloaded %in% TRUE, status := "downloaded"]
+    stateDT[sufficient %in% FALSE & downloaded %in% TRUE, status := "downloaded but incorrect version"]
+    stateDT[sufficient %in% FALSE & !downloaded %in% TRUE, status := "failed"]
   }
 
-  successes <- setdiff(modulesOrig, anyfailed)
-  # if (length(successes)) {
-  df <- data.frame(modules = modulesOrig)
-  rows <- match(names(messForDL), df$modules)
-  df[rows, "downloaded"] <- unname(messForDL)
-  df[rows, "modulePath"] <- normPath(modulePath)
-
+  successes <- stateDT$moduleFullName[stateDT$sufficient %in% TRUE]
+  failed <- stateDT$moduleFullName[!stateDT$sufficient %in% TRUE]
+  df <- stateDT[, list(moduleFullName, status)][, modulePath := modulePath]
   messageDF(df, verbose = verbose)
-  if (length(anyfailed)) {
-    messageVerbose("Will try using `git clone` ... ",
-                   verbose = verbose)
-  }
-  # }
 
-  return(list(success = successes, failed = anyfailed))
+  return(list(success = successes, failed = failed))
 }
 
 
@@ -147,6 +140,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #' @param gitRepoFile Character string that follows the convention
 #'   *GitAccount/GitRepo@Branch/File*, if @Branch is omitted, then it will be
 #'   assumed to be `master` or `main`.
+#' @param destDir A directory to put the file that is to be downloaded.
 #' @inheritParams getModule
 #' @seealso [getModule]
 #' @examples
@@ -211,4 +205,37 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
 
   }
 
+}
+
+checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require.verbose")) {
+  stateDT$moduleFullName
+  set(stateDT, NULL, "hasVersionSpec", !is.na(stateDT$versionSpec))
+  stateDT[!sufficient %in% TRUE, sufficient := !hasVersionSpec]
+
+  if (any(stateDT$hasVersionSpec)) {
+    stateDT[hasVersionSpec %in% TRUE,
+            `:=`(inequ = extractInequality(moduleFullName),
+                 pkg = extractPkgGitHub(moduleFullName))]
+    stateDT[hasVersionSpec %in% TRUE,
+            `:=`(version = as.character(metadataInModules(modules = pkg, metadataItem = "version", modulePath = modulePath)))]
+    stateDT[hasVersionSpec %in% TRUE,
+            sufficient := compareVersion2(as.character(version),
+                            versionSpec = versionSpec[hasVersionSpec], inequality = inequ)]
+    # versionSpec <- extractVersionNumber(moduleFullName[hasVersionSpec])
+    #inequ <- extractInequality(moduleFullName[hasVersionSpec])
+    #pkg <- extractPkgGitHub(moduleFullName[hasVersionSpec])
+    #version <- metadataInModules(modules = pkg, metadataItem = "version", modulePath = modulePath)
+    #sufficient[hasVersionSpec] <- compareVersion2(as.character(version),
+    #                              versionSpec = versionSpec[hasVersionSpec], inequality = inequ)
+    if (any(stateDT$sufficient %in% TRUE))
+      messageVerbose("  Version OK for: ",
+                     paste(stateDT$moduleFullName[stateDT$sufficient %in% TRUE],
+                           collapse = ", "), verbose = verbose)
+    if (any(!(stateDT$sufficient %in% TRUE)))
+      messageVerbose("  Version not OK for: ",
+                     paste(stateDT$moduleFullName[stateDT$sufficient %in% FALSE],
+                           collapse = ", "), verbose = verbose)
+
+  }
+  stateDT[]
 }
