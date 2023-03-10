@@ -21,6 +21,8 @@ If \code{TRUE}, then the download will delete any
 existing folder with the same name as the \code{repository}
 provided in \code{gitRepo}}
 
+\item{destDir}{A directory to put the file that is to be downloaded.}
+
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
 then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in

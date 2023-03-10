@@ -79,6 +79,9 @@ to be used for functions, such as cloud authentication or configurations,
 that are run for their side effects only.
 See \link{setup}.}
 
+\item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
+not working.}
+
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.

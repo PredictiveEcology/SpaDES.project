@@ -46,6 +46,8 @@ utils::globalVariables(c(
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
 #'   See help for `SpaDES.core::simInit`.
+#' @param config Still experimental linkage to the `SpaDES.config` package. Currently
+#'   not working.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
 #'   not attached to the search path. See also the `require` argument.
@@ -1150,37 +1152,37 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
 
       mods <- setdiff(names(params), ".globals")
-      if (FALSE) {
-        messageVerbose(blue("Using SpaDES.core to compare metadata with supplied parameters: "),
-                       verbose = verbose)
-        params <- Map(mod = mods, function(mod) {
-          knownPars <- SpaDES.core::moduleMetadata(module = mod, path = paths[["modulePath"]],
-                                                   defineModuleListItems = "parameters")$parameters$paramName
-          if (!is.null(params[[mod]])) {
-            supplied <- names(params[[mod]])
-            anyGlobals <- intersect(supplied, names(params[[".globals"]]))
-            paramsInclGlobalsSupplied <- unique(c(supplied, anyGlobals))
-            knownParsInMod <- paramsInclGlobalsSupplied %in% knownPars
-            overInclusion <- knownParsInMod %in% FALSE
-            if (any(overInclusion)) {
-              params[[mod]] <- params[[mod]][paramsInclGlobalsSupplied[!overInclusion]]
-              messageVerbose(blue("These parameters set (",
-                                  paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
-                                  "), but they are not in ", mod,
-                                  " metadata; this should be either added to the metadata, ",
-                                  "or not set in the params argument"), verbose = verbose)
-            }
-
-          } else {
-            messageVerbose(blue("No parameters set for ", mod), verbose = verbose, verboseLevel = 2)
-          }
-          params[[mod]]
-        })
-      } else {
-        messageVerbose("Skipping checking of parameters supplied against module parameters because ",
-                       "it is a slow step that will be performed during `SpaDES.core::simInit`.",
-                       verbose = verbose)
-      }
+      # if (FALSE) {
+      #   messageVerbose(blue("Using SpaDES.core to compare metadata with supplied parameters: "),
+      #                  verbose = verbose)
+      #   params <- Map(mod = mods, function(mod) {
+      #     knownPars <- SpaDES.core::moduleMetadata(module = mod, path = paths[["modulePath"]],
+      #                                              defineModuleListItems = "parameters")$parameters$paramName
+      #     if (!is.null(params[[mod]])) {
+      #       supplied <- names(params[[mod]])
+      #       anyGlobals <- intersect(supplied, names(params[[".globals"]]))
+      #       paramsInclGlobalsSupplied <- unique(c(supplied, anyGlobals))
+      #       knownParsInMod <- paramsInclGlobalsSupplied %in% knownPars
+      #       overInclusion <- knownParsInMod %in% FALSE
+      #       if (any(overInclusion)) {
+      #         params[[mod]] <- params[[mod]][paramsInclGlobalsSupplied[!overInclusion]]
+      #         messageVerbose(blue("These parameters set (",
+      #                             paste(paramsInclGlobalsSupplied[knownParsInMod %in% FALSE], collapse = ", "),
+      #                             "), but they are not in ", mod,
+      #                             " metadata; this should be either added to the metadata, ",
+      #                             "or not set in the params argument"), verbose = verbose)
+      #       }
+      #
+      #     } else {
+      #       messageVerbose(blue("No parameters set for ", mod), verbose = verbose, verboseLevel = 2)
+      #     }
+      #     params[[mod]]
+      #   })
+      # } else {
+      #   messageVerbose("Skipping checking of parameters supplied against module parameters because ",
+      #                  "it is a slow step that will be performed during `SpaDES.core::simInit`.",
+      #                  verbose = verbose)
+      # }
       if (hasDotGlobals)
         params[[".globals"]] <- globs
       messageVerbose(blue("The following params were created: "), verbose = verbose, verboseLevel = 2)
