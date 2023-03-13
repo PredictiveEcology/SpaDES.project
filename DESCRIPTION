@@ -42,7 +42,7 @@ Suggests:
     testthat (>= 1.0.2),
     visNetwork
 Remotes: 
-    PredictiveEcology/Require@RSPM,
+    PredictiveEcology/Require@development,
     PredictiveEcology/SpaDES.config@development,
     PredictiveEcology/SpaDES.core@development,
     PredictiveEcology/reproducible@development
