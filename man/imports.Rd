@@ -10,7 +10,6 @@
 \alias{compareVersion2}
 \alias{downloadRepo}
 \alias{splitGitRepo}
-\alias{downloadFileMasterMainAuth}
 \alias{isGitHub}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
@@ -39,14 +38,6 @@ downloadRepo(
 )
 
 splitGitRepo(gitRepo, default = "PredictiveEcology", masterOrMain = NULL)
-
-downloadFileMasterMainAuth(
-  url,
-  destfile,
-  need = "HEAD",
-  verbose = getOption("Require.verbose"),
-  verboseLevel = 2
-)
 
 isGitHub(pkg, filenames)
 

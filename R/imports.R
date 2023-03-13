@@ -27,9 +27,6 @@ downloadRepo <- utils::getFromNamespace("downloadRepo", "Require")
 splitGitRepo <- utils::getFromNamespace("splitGitRepo", "Require")
 
 #' @rdname imports
-downloadFileMasterMainAuth <- utils::getFromNamespace("downloadFileMasterMainAuth", "Require")
-
-#' @rdname imports
 isGitHub <- utils::getFromNamespace("isGitHub", "Require")
 
 

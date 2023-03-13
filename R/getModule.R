@@ -168,6 +168,7 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
 }
 
 
+#' @importFrom Require .downloadFileMasterMainAuth
 downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
                          verbose = getOption("Require.verbose")) {
   tryDownload <- TRUE
@@ -192,7 +193,7 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     tf <- tempfile()
     out <- suppressWarnings(
       try(
-        downloadFileMasterMainAuth(url, destfile = tf, need = "master"), silent = FALSE)
+        .downloadFileMasterMainAuth(url, destfile = tf, need = "master"), silent = FALSE)
     )
     if (is(out[[1]], "try-error")) {
       warn <- gsub("(https://)(.+)(raw)", "\\1\\3", out[[1]][1])

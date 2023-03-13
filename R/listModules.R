@@ -52,6 +52,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'   remove any cached data that is part of the requested `accounts` and `keywords`.
 #' @param modules A named list of character strings of full module names, as returned
 #'   by `listModules`.
+#' @importFrom Require .downloadFileMasterMainAuth
 #' @inheritParams Require::Require
 #'
 #' @rdname listModules
@@ -94,7 +95,7 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     names(url) <- account
 
     tf <- tempfile()
-    downloadFileMasterMainAuth(url, destfile = tf, need = "master")
+    .downloadFileMasterMainAuth(url, destfile = tf, need = "master")
     # download.file(url, destfile = tf)
     suppressWarnings(repos <- readLines(tf))
     repos <- unlist(strsplit(repos, ","))
