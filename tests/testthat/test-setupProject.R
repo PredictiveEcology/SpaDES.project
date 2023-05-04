@@ -1,4 +1,4 @@
-test_that("test file-backed raster caching", {
+test_that("test setupProject", {
   skip_on_cran()
   tmpdir1 <- Require::checkPath(file.path(tempdir(), .rndstr(1)), create = TRUE)
   setwd(tmpdir1)
