@@ -442,11 +442,12 @@ setupProject <- function(name, paths, modules, packages,
     }
     localVars <- if (length(names(dotsSUB)))
       mget(names(dotsSUB), envir = envir, inherits = FALSE) else list()
-    stop("config is not yet setup to run with SpaDES.project")
-    out <- do.call(SpaDES.config::useConfig, append(
-      list(projectName = config,
-           projectPath = paths[["projectPath"]], paths = paths),
-      localVars))
+    messageWarnStop("config is not yet setup to run with SpaDES.project")
+    if (FALSE)
+      out <- do.call(SpaDES.config::useConfig, append(
+        list(projectName = config,
+             projectPath = paths[["projectPath"]], paths = paths),
+        localVars))
 
   } else {
     params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
@@ -456,15 +457,16 @@ setupProject <- function(name, paths, modules, packages,
 
     setupRestart(updateRprofile, paths, name, inProject, Restart, verbose) # This may restart
 
-    out <- append(list(
-      modules = modules,
-      paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
-      params = params,
-      times = times), dotsSUB)
-    if (!is.null(options))
-      attr(out, "projectOptions") <- options
-
   }
+
+  # TODO This next chunk should be brought into the "else" block when `SpaDES.config is worked on`
+  out <- append(list(
+    modules = modules,
+    paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
+    params = params,
+    times = times), dotsSUB)
+  if (!is.null(options))
+    attr(out, "projectOptions") <- options
 
   return(out)
 }
