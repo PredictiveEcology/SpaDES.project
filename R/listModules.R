@@ -62,13 +62,18 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'
 #' \donttest{
 #' library(reproducible)
-#' mods <- Cache(listModules, c("Biomass", "WBI", "LandR", "fireSense", "CBM",
+#'
+#' grepListShort <- "dataPrep"
+#' accountsListShort <- c("PredictiveEcology")
+#' mods <- listModules(grepListShort,
+#'               accounts = accountsListShort)
+#' # Can do same, but with long list
+#' accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
+#'                            "FOR-CAST", "eliotmcintire", "tati-micheletti")
+#' grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
 #'                              "LandMine", "LandWeb", "NRV", #"scfm",
 #'                              "priority",
-#'                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF"),
-#'               accounts = c("PredictiveEcology", "ianmseddy", "achubaty",
-#'                            "FOR-CAST", "eliotmcintire", "tati-micheletti"))
-#'
+#'                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 #' modPath <- file.path(tempdir(), "testMods")
 #' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
 #'        out <- getModule(paste0(nam, "/", mod),
@@ -76,9 +81,11 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'        out
 #' })
 #'
-#' DT <- moduleDependencies(mods, modulePath = modPath)
-#' graph <- moduleDependenciesToGraph(DT)
-#' vn <- PlotModuleGraph(graph)
+#' if (requireNamespace("visNetwork")) {
+#'   DT <- moduleDependencies(mods, modulePath = modPath)
+#'   graph <- moduleDependenciesToGraph(DT)
+#'   vn <- PlotModuleGraph(graph)
+#' }
 #'
 #' # get all the fireSense modules from the Predictive Ecology GitHub repository
 #' Account <- "PredictiveEcology"
@@ -228,21 +235,19 @@ PlotModuleGraph <- function(graph) {
   nodes <- nodes[order(nodes$id, decreasing = F),]
   edges <- igraph::get.data.frame(graph, what="edges")[1:2]
 
-
-  browser()
-  visNetwork::visNetwork(nodes, edges, width = "100%") %>%
-    visNetwork::visIgraphLayout(layout = "layout_with_fr", type = "full") %>%
+  visNetwork::visNetwork(nodes, edges, width = "100%") |>
+    visNetwork::visIgraphLayout(layout = "layout_with_fr", type = "full") |>
     visNetwork::visGroups(groupname = "Biomass", color = "orange",
-              shadow = list(enabled = TRUE)) %>%
+              shadow = list(enabled = TRUE)) |>
     # red triangle for group "B"
-    visNetwork::visGroups(groupname = "FireSense", color = "red") %>%
-    visNetwork::visGroups(groupname = "CBM", color = "green") %>%
-    visNetwork::visGroups(groupname = "RoF", color = "lightgreen") %>%
-    # visPhysics(repulsion = list(nodeDistance = 100)) %>%
+    visNetwork::visGroups(groupname = "FireSense", color = "red") |>
+    visNetwork::visGroups(groupname = "CBM", color = "green") |>
+    visNetwork::visGroups(groupname = "RoF", color = "lightgreen") |>
+    # visPhysics(repulsion = list(nodeDistance = 100)) |>
     visNetwork::visOptions(highlightNearest = TRUE,
                nodesIdSelection = TRUE,
                height="800px", width = "130%",
                #highlightNearest = list(enabled = T, degree = 1, hover = F),
-               collapse = TRUE) %>%
+               collapse = TRUE) |>
     visNetwork::visInteraction(navigationButtons = TRUE)
 }

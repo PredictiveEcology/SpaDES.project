@@ -63,13 +63,18 @@ and their interdependencies.
 
 \donttest{
 library(reproducible)
-mods <- Cache(listModules, c("Biomass", "WBI", "LandR", "fireSense", "CBM",
+
+grepListShort <- "dataPrep"
+accountsListShort <- c("PredictiveEcology")
+mods <- listModules(grepListShort,
+              accounts = accountsListShort)
+# Can do same, but with long list
+accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
+                           "FOR-CAST", "eliotmcintire", "tati-micheletti")
+grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
                              "LandMine", "LandWeb", "NRV", #"scfm",
                              "priority",
-                             "dataPrep", "DataPrep", "RoF", "Ontario", "ROF"),
-              accounts = c("PredictiveEcology", "ianmseddy", "achubaty",
-                           "FOR-CAST", "eliotmcintire", "tati-micheletti"))
-
+                             "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 modPath <- file.path(tempdir(), "testMods")
 out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
        out <- getModule(paste0(nam, "/", mod),
@@ -77,9 +82,11 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
        out
 })
 
-DT <- moduleDependencies(mods, modulePath = modPath)
-graph <- moduleDependenciesToGraph(DT)
-vn <- PlotModuleGraph(graph)
+if (requireNamespace("visNetwork")) {
+  DT <- moduleDependencies(mods, modulePath = modPath)
+  graph <- moduleDependenciesToGraph(DT)
+  vn <- PlotModuleGraph(graph)
+}
 
 # get all the fireSense modules from the Predictive Ecology GitHub repository
 Account <- "PredictiveEcology"

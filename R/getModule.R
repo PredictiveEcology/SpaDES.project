@@ -1,6 +1,8 @@
 utils::globalVariables(c(
   c("Account", "GitSubFolder", "Repo", "destFile", "filepath",
-    "hasSubFolder", "repoLocation")
+    "hasSubFolder", "repoLocation",
+    "downloaded", "hasVersionSpec", "inequ", "moduleFullName",
+    "needDownload", "pkg", "status", "sufficient", "versionSpec")
 ))
 
 #' Simple function to download a SpaDES module as GitHub repository

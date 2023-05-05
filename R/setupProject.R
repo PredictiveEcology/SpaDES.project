@@ -1,9 +1,6 @@
 utils::globalVariables(c(
   ".", "objectClass", "objectName",
-  "i.module", "i.objectClass"
-))
-#%>% .
-#from moduleMetadata msg
+  "i.module", "i.objectClass"))
 
 
 #' Sets up a new or existing SpaDES project
@@ -1574,6 +1571,7 @@ spPaths <- c("cachePath", "inputPath", "modulePath", "outputPath", "rasterPath",
 messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnStop", "message"),
                             verbose = getOption("Require.verbose", 1L)) {
   type %in% c("message", "warning", "stop")
+  msg <- paste0(...)
 
   typeFun <- utils::getFromNamespace(type, "base")
   typeFunArgs <- list(

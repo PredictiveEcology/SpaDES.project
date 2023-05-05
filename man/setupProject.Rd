@@ -290,10 +290,10 @@ out <- setupProject(.mode = .mode,
 library(SpaDES.project)
 setwd(tempdir())
 
-setupProject() # simplest case; just creates folders
+out <- setupProject() # simplest case; just creates folders
 
-# set relative paths & modules
-setupProject(name = "SpaDES.project",
+# set relative paths & modules, install packages in isolated folder
+out <- setupProject(name = "SpaDES.project",
              paths = list(projectPath = "SpaDES.project",
                           modulePath = "m",
                           scratchPath = tempdir()),
