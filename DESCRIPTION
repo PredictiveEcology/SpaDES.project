@@ -29,6 +29,7 @@ Suggests:
     dplyr,
     geodata,
     googledrive,
+    httr,
     igraph,
     knitr,
     reproducible,
