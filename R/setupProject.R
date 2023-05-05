@@ -425,7 +425,6 @@ setupProject <- function(name, paths, modules, packages,
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
   options <- opts[["newOptions"]] # put into this environment so parsing can access
-  browser()
 
   # Run 2nd time after sideEffects & setupOptions -- may not be necessary
   # setupPackages(packages, modulePackages, require = require,
@@ -1093,11 +1092,13 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       if (is(out, "try-error")) {
         deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
         miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
-        modulePackages[[names(miss)]] <- setdiff(modulePackages[[names(miss)]], miss)
-        warning("Module ", names(miss), " has reqdPkgs ", paste0(miss, collapse = ", "),
-                ", but branch don't exist; \nplease update module. ",
-                "Omitting that package from this Require call which may mean ",
-                Require::extractPkgName(unname(miss)), " doesn't get installed")
+        if (length(miss)) {
+          modulePackages[[names(miss)]] <- setdiff(modulePackages[[names(miss)]], miss)
+          warning("Module ", names(miss), " has reqdPkgs ", paste0(miss, collapse = ", "),
+                  ", but branch don't exist; \nplease update module. ",
+                  "Omitting that package from this Require call which may mean ",
+                  Require::extractPkgName(unname(miss)), " doesn't get installed")
+        }
         continue <- continue - 1L
       } else {
         continue <- 0L

@@ -134,7 +134,8 @@ test_that("test setupProject", {
 test_that("projectPath is in a tempdir", {
   skip_on_cran()
   tmpdir1 <- Require::checkPath(file.path(tempdir(), .rndstr(1)), create = TRUE)
-  setwd(tmpdir1)
+  od <- setwd(tmpdir1)
+  on.exit(setwd(od))
   expect_warning(regexp = "but the projectPath is the tempdir",
                  setupProject(package = "terra",
                               updateRprofile = TRUE))
