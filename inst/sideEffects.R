@@ -10,8 +10,6 @@
 
 # If R packages are needed, it is likely wise to prefix the function with the package name;
 # any package that is needed can be added to the `require` argument in `setupProject`.
-print(nodes)
-quickPlot::dev.useRSGD(useRSGD = quickPlot::isRstudioServer())
 
 httr::set_config(httr::config(http_version = 0))
 
