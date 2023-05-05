@@ -159,7 +159,7 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   if (nchar(dirname(file)))
     checkPath(dirname(file), create = TRUE)
 
-  out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = ".",
+  out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = destDir,
                            verbose = verbose)
   if (!isTRUE(out))
     messageVerbose("  ... Did not download ", file, verbose = verbose)
