@@ -7,8 +7,8 @@ test_that("test setupProject", {
 
   # set relative paths & modules
   mess <- capture_messages(
-    out <- setupProject(name = "SpaDES.project",
-                 paths = list(projectPath = "SpaDES.project",
+    out <- setupProject(name = "test",
+                 paths = list(projectPath = "test",
                               modulePath = "m",
                               scratchPath = tempdir()),
                  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
@@ -23,10 +23,10 @@ test_that("test setupProject", {
 
   # With options and params set
   mess <- capture_messages(
-    out <- SpaDES.project::setupProject(name = "SpaDES.project",
+    out <- SpaDES.project::setupProject(name = "test",
                                         options = list(reproducible.useTerra = TRUE),
                                         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-                                        paths = list(modulePath = "m", projectPath = "SpaDES.project",
+                                        paths = list(modulePath = "m", projectPath = "test",
                                                      scratchPath = tempdir()),
                                         modules = "PredictiveEcology/Biomass_borealDataPrep@development"
     )
@@ -38,10 +38,10 @@ test_that("test setupProject", {
 
   # using an options file that is remote
   mess <- capture_messages(
-    out <- setupProject(name = "SpaDES.project",
+    out <- setupProject(name = "test",
                         options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
                         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-                        paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
+                        paths = list(modulePath = "m", projectPath = file.path(tempdir(), "test"),
                                      scratchPath = tempdir()),
                         modules = "PredictiveEcology/Biomass_borealDataPrep@development"
     )
@@ -82,12 +82,12 @@ test_that("test setupProject", {
   # mixture of named list element, github file and local file for e.g., options
   mess <- capture_messages(
     out <-
-      setupProject(name = "SpaDES.project",
+      setupProject(name = "test",
                    options = list(reproducible.useTerra = TRUE,
                                   "PredictiveEcology/SpaDES.project@transition/inst/options.R",
                                   system.file("authentication.R", package = "SpaDES.project")), # local file
                    params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-                   paths = list(modulePath = "m", projectPath = "SpaDES.project",
+                   paths = list(modulePath = "m", projectPath = "test",
                                 scratchPath = tempdir()),
                    modules = "PredictiveEcology/Biomass_borealDataPrep@development"
       )
