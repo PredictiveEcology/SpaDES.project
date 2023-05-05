@@ -227,7 +227,9 @@ See table for details.
 
 \code{setupSideEffects} is run for its side effects, with nothing returned to user.
 
-\code{setupOptions} is run for its side effects, namely, changes to the \code{options()}.
+\code{setupOptions} is run for its side effects, namely, changes to the \code{options()}. The
+list of modified options will be added as an attribute (\code{attr(out, "projectOptions")}),
+e.g., so they can be "unset" by user later.
 
 \code{setupModules} is run for its side effects, i.e., downloads modules and puts them
 into the \code{paths[["modulePath"]]}. It will return a named list, where the names are the

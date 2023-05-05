@@ -425,6 +425,7 @@ setupProject <- function(name, paths, modules, packages,
 
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
   options <- opts[["newOptions"]] # put into this environment so parsing can access
+  browser()
 
   # Run 2nd time after sideEffects & setupOptions -- may not be necessary
   # setupPackages(packages, modulePackages, require = require,
@@ -458,6 +459,8 @@ setupProject <- function(name, paths, modules, packages,
       paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
       params = params,
       times = times), dotsSUB)
+    if (!is.null(options))
+      attr(out, "projectOptions") <- options
 
   }
 
@@ -573,7 +576,12 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "modules")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
-  paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
+  if (inProject) {
+    paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(x))
+    paths[["projectPath"]] <- dirname(paths[["projectPath"]])
+  } else {
+    paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
+  }
   paths <- lapply(paths, normPath)
   paths <- lapply(paths, checkPath, create = TRUE)
   if (!inProject) {
@@ -729,7 +737,9 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' order*.
 #'
 #' @return
-#' `setupOptions` is run for its side effects, namely, changes to the `options()`.
+#' `setupOptions` is run for its side effects, namely, changes to the `options()`. The
+#'   list of modified options will be added as an attribute (`attr(out, "projectOptions")`),
+#'   e.g., so they can be "unset" by user later.
 #'
 #'
 #' @importFrom data.table data.table
@@ -1238,7 +1248,6 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
 }
 
 checkProjectPath <- function(paths, envir, envir2) {
-
 
   if (missing(paths)) {
     paths <- list()
