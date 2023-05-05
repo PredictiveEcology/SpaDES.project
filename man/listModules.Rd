@@ -15,7 +15,10 @@ listModules(
   verbose = getOption("Require.verbose", 1L)
 )
 
-moduleDependencies(modules, modulePath)
+moduleDependencies(
+  modules,
+  modulePath = getOption("reproducible.modulePath", ".")
+)
 
 moduleDependenciesToGraph(md)
 
@@ -62,19 +65,19 @@ and their interdependencies.
 \examples{
 
 \donttest{
-library(reproducible)
-
 grepListShort <- "dataPrep"
 accountsListShort <- c("PredictiveEcology")
 mods <- listModules(grepListShort,
               accounts = accountsListShort)
-# Can do same, but with long list
+
+# Can do same, but with long list -- not done here
 accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
                            "FOR-CAST", "eliotmcintire", "tati-micheletti")
 grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
                              "LandMine", "LandWeb", "NRV", #"scfm",
                              "priority",
                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+
 modPath <- file.path(tempdir(), "testMods")
 out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
        out <- getModule(paste0(nam, "/", mod),

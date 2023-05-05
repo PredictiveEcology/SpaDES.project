@@ -61,19 +61,19 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @examples
 #'
 #' \donttest{
-#' library(reproducible)
-#'
 #' grepListShort <- "dataPrep"
 #' accountsListShort <- c("PredictiveEcology")
 #' mods <- listModules(grepListShort,
 #'               accounts = accountsListShort)
-#' # Can do same, but with long list
+#'
+#' # Can do same, but with long list -- not done here
 #' accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
 #'                            "FOR-CAST", "eliotmcintire", "tati-micheletti")
 #' grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
 #'                              "LandMine", "LandWeb", "NRV", #"scfm",
 #'                              "priority",
 #'                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+#'
 #' modPath <- file.path(tempdir(), "testMods")
 #' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
 #'        out <- getModule(paste0(nam, "/", mod),
@@ -147,11 +147,11 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
 #'  are located.
 #' @importFrom data.table :=
 #' @export
-moduleDependencies <- function(modules, modulePath) {
+moduleDependencies <- function(modules, modulePath = getOption("reproducible.modulePath", ".")) {
 
   modsFlat <- unlist(modules)
   names(modsFlat) <- modsFlat
-  if (!requireNamespace("SpaDES.core")) stop("Need SpaDES.core")
+  if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
     io <- SpaDES.core::inputObjects(module = mod, path = modulePath)
     oo <- SpaDES.core::outputObjects(module = mod, path = modulePath)

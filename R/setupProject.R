@@ -1707,13 +1707,13 @@ setupStudyArea <- function(studyArea, paths) {
     geodatCall <- as.call(append(list(geodata::gadm), as.list(geodatCall)[names(geodatCall) %in% formalArgs(geodata::gadm)]))
 
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
-    studyArea <- {
-      do.call(geodata::gadm, as.list(geodatCall[-1])) |>
-        (function(studyArea)
-          studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ])() |>
-        reproducible::projectTo(projectTo = if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL)
-    } |> reproducible::Cache(.cacheExtra = studyAreaNoPath, cacheRepo = paths$cachePath,
-               omitArgs = "expr", .functionName = "gadm")
+    epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
+    studyArea <- do.call(geodata::gadm, as.list(geodatCall[-1]))
+    if (!is.null(epsg))
+      if (requireNamespace("reproducible") && requireNamespace("terra")) {
+        studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ] |>
+          reproducible::projectTo(projectTo = epsg)
+      }
   }
 }
 
