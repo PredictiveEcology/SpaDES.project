@@ -42,7 +42,8 @@ Suggests:
     SpaDES.core,
     terra,
     testthat (>= 1.0.2),
-    visNetwork
+    visNetwork,
+    waldo
 Remotes: 
     PredictiveEcology/Require@development,
     PredictiveEcology/SpaDES.config@development,
