@@ -147,7 +147,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #' @seealso [getModule]
 #' @examples
 #' \donttest{
-#'   getGithubFile("PredictiveEcology/LandWeb@development/04-options.R")
+#'   getGithubFile("PredictiveEcology/LandWeb@development/04-options.R",
+#'                 destDir = tempdir2())
 #' }
 getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {

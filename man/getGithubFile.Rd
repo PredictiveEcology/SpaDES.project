@@ -36,7 +36,8 @@ This can be used within e.g., the \code{options} or \code{params} arguments for
 }
 \examples{
 \donttest{
-  getGithubFile("PredictiveEcology/LandWeb@development/04-options.R")
+  getGithubFile("PredictiveEcology/LandWeb@development/04-options.R",
+                destDir = tempdir2())
 }
 }
 \seealso{
