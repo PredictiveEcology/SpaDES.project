@@ -289,7 +289,7 @@ out <- setupProject(.mode = .mode,
 
 library(SpaDES.project)
 if (is.null(getOption("repos")))
-  options(repos = "cran.r-project.org")
+  options(repos = c(CRAN = "cran.r-project.org"))
 oldDir <- setwd(Require::tempdir2())
 
 out <- setupProject() # simplest case; just creates folders
