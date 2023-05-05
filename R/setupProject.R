@@ -449,17 +449,16 @@ setupProject <- function(name, paths, modules, packages,
              projectPath = paths[["projectPath"]], paths = paths),
         localVars))
 
-  } else {
-    params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
-                          overwrite = overwrite, envir = envir, verbose = verbose)
-
-    setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
-
-    setupRestart(updateRprofile, paths, name, inProject, Restart, verbose) # This may restart
-
   }
 
-  # TODO This next chunk should be brought into the "else" block when `SpaDES.config is worked on`
+  # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
+  params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
+                        overwrite = overwrite, envir = envir, verbose = verbose)
+
+  setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
+
+  setupRestart(updateRprofile, paths, name, inProject, Restart, verbose) # This may restart
+
   out <- append(list(
     modules = modules,
     paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
