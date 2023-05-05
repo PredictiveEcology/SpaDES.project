@@ -81,7 +81,8 @@ if (user("emcintir")) {
 
 # Example -- this will be ignored because it is not part of a named list --> pass this
 #   to `sideEffects` in `setupProject`
-googledrive::drive_auth(email = "eliotmcintire@gmail.com", cache = "~/.secret")
+if (requireNamespace("googledrive"))
+  googledrive::drive_auth(email = "eliotmcintire@gmail.com", cache = "~/.secret")
 
 # Example -- machine specific
 if (machine("A127")) {

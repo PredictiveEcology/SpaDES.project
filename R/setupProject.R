@@ -409,7 +409,7 @@ setupProject <- function(name, paths, modules, packages,
 
   if (!is.null(studyArea))
     if (is(studyArea, "list"))
-      packages <- unique(c(packages, c("geodata", "reproducible")))
+      packages <- unique(c(packages, c("geodata")))
 
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
@@ -1675,13 +1675,16 @@ stopMessForRequireFail <- function(pkg) {
 #' @inheritParams setupProject
 #'
 #' @details
-#' `setupStudyArea` only uses `inputPath` and `cachePath` within its `paths` argument.
+#' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
+#' be passed to `path` argument of `gadm`.
 #'
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
 #' with subregion specification as described in the `studyArea` argument.fsu
 setupStudyArea <- function(studyArea, paths) {
 
+  if (missing(paths))
+    paths <- list(inputPaths = ".")
   if (is(studyArea, "list")) {
     needRep <- !requireNamespace("reproducible", quietly = TRUE)
     needGeo <- !requireNamespace("geodata", quietly = TRUE)
@@ -1709,12 +1712,15 @@ setupStudyArea <- function(studyArea, paths) {
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
     epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
     studyArea <- do.call(geodata::gadm, as.list(geodatCall[-1]))
+    studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ]
     if (!is.null(epsg))
-      if (requireNamespace("reproducible") && requireNamespace("terra")) {
-        studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ] |>
-          reproducible::projectTo(projectTo = epsg)
+      if (requireNamespace("terra")) {
+         studyArea |> terra::project(paste0("epsg:", epsg))
+      } else {
+        warning("Could not reproject; need ")
       }
   }
+  studyArea
 }
 
 

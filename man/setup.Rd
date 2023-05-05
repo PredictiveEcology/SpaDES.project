@@ -290,7 +290,8 @@ these packages to \code{Require::Install(...)}.
 
 \code{setupGitIgnore} will add.
 
-\code{setupStudyArea} only uses \code{inputPath} and \code{cachePath} within its \code{paths} argument.
+\code{setupStudyArea} only uses \code{inputPath} within its \code{paths} argument, which will
+be passed to \code{path} argument of \code{gadm}.
 }
 \section{Paths}{
 

@@ -28,6 +28,7 @@ Suggests:
     details,
     dplyr,
     geodata,
+    googledrive,
     igraph,
     knitr,
     reproducible,

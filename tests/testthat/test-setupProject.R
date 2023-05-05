@@ -92,7 +92,6 @@ test_that("test setupProject", {
                    modules = "PredictiveEcology/Biomass_borealDataPrep@development"
       )
   )
-  expect_true(!isNamespaceLoaded("reproducible") )
 
 
   # If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
@@ -119,7 +118,6 @@ test_that("test setupProject", {
   mess <- capture_messages(
     out <- setupProject(studyArea = list("Al|Brit"))
   )
-  expect_true(isNamespaceLoaded("reproducible") )
 
   # example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
   #    with level 2 administrative boundaries
