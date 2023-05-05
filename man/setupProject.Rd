@@ -288,7 +288,7 @@ out <- setupProject(.mode = .mode,
 #  THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
 
 library(SpaDES.project)
-setwd(tempdir())
+oldDir <- setwd(Require::tempdir2())
 
 out <- setupProject() # simplest case; just creates folders
 
@@ -392,6 +392,7 @@ setwd(tempdir())
 setupProject(package = "terra",
              updateRprofile = TRUE)
 
+setwd(oldDir)
 
 }
 }
