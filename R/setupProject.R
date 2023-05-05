@@ -245,7 +245,7 @@ utils::globalVariables(c(
 #' #  THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
 #'
 #' library(SpaDES.project)
-#' setwd(tempdir())
+#' oldDir <- setwd(Require::tempdir2())
 #'
 #' out <- setupProject() # simplest case; just creates folders
 #'
@@ -349,6 +349,7 @@ utils::globalVariables(c(
 #' setupProject(package = "terra",
 #'              updateRprofile = TRUE)
 #'
+#' setwd(oldDir)
 #'
 #' }
 setupProject <- function(name, paths, modules, packages,

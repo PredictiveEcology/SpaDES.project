@@ -15,7 +15,7 @@ quickPlot::dev.useRSGD(useRSGD = quickPlot::isRstudioServer())
 
 httr::set_config(httr::config(http_version = 0))
 
-if (requireNamespace("googledrive"))
+if (requireNamespace("googledrive", quietly = TRUE)) {
   if (!googledrive::drive_has_token())
     if (user("achubaty")) {
       googledrive::drive_auth(email = "alex.chubaty@gmail.com")
@@ -25,4 +25,6 @@ if (requireNamespace("googledrive"))
       googledrive::drive_auth(use_oob = quickPlot::isRstudioServer())
     }
 
-message(crayon::silver("Authenticating as: "), crayon::green(googledrive::drive_user()$emailAddress))
+  message(crayon::silver("Authenticating as: "), crayon::green(googledrive::drive_user()$emailAddress))
+
+}
