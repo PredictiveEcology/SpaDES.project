@@ -19,10 +19,12 @@ if (requireNamespace("googledrive", quietly = TRUE)) {
       googledrive::drive_auth(email = "alex.chubaty@gmail.com")
     } else if (user("emcintir")) {
       googledrive::drive_auth(email = "eliotmcintire@gmail.com", cache = "~/.secret")
-    } else {
-      googledrive::drive_auth(use_oob = quickPlot::isRstudioServer())
     }
 
-  message(crayon::silver("Authenticating as: "), crayon::green(googledrive::drive_user()$emailAddress))
+  if (requireNamespace("crayon"))
+    message(crayon::silver("Authenticating as: "), crayon::green(googledrive::drive_user()$emailAddress))
+  else
+    message("Authenticating as: ", googledrive::drive_user()$emailAddress)
+
 
 }

@@ -72,10 +72,10 @@ if (user("emcintir"))
     "reproducible.showSimilar" = FALSE
   )
 
-if (user("emcintir")) {
+if (user("emcintir") && requireNamespace("Require")) {
   list(
-  "reproducible.inputPaths" = Require::checkPath("~/data", create = TRUE),
-  "reproducible.devMode" = TRUE
+    "reproducible.inputPaths" = Require::checkPath("~/data", create = TRUE),
+    "reproducible.devMode" = TRUE
   )
 }
 
@@ -92,5 +92,6 @@ if (machine("A127")) {
 
 # Example -- this will be ignored because it is not part of a named list --> pass this
 #   to `sideEffects` in `setupProject`
-httr::set_config(httr::config(http_version = 0)) # not run b/c not named list
+if (requireNamespace("httr"))
+  httr::set_config(httr::config(http_version = 0)) # not run b/c not named list
 

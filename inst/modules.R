@@ -40,6 +40,7 @@ if (.mode == "postprocess") {
   modules <- c("Biomass_summary@HEAD", "fireSense_summary@HEAD")
 }
 
+browser()
 hasAcct <- mapply(m = modules, function(m) tryCatch(Require:::splitGitRepo(m, default = "")$acct,
                                                     error = function(e) ""))
 hasAcct <- nzchar(hasAcct)

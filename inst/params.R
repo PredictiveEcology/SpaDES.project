@@ -30,8 +30,6 @@ paramsDefault <- list(
     .useParallel = 2 ## doesn't benefit from more DT threads
   ),
   Biomass_borealDataPrep = list(
-    biomassModel = quote(lme4::lmer(B ~ logAge * speciesCode + cover * speciesCode +
-                                      (logAge + cover | ecoregionGroup))),
     ecoregionLayerField = "ECOREGION", # "ECODISTRIC"
     exportModels = "all",
     fixModelBiomass = TRUE,
@@ -191,8 +189,6 @@ list(
     .useParallel = 2 ## doesn't benefit from more DT threads
   ),
   Biomass_borealDataPrep = list(
-    biomassModel = quote(lme4::lmer(B ~ logAge * speciesCode + cover * speciesCode +
-                                      (logAge + cover | ecoregionGroup))),
     ecoregionLayerField = "ECOREGION", # "ECODISTRIC"
     forestedLCCClasses = c(1:15, 20, 32, 34:36), ## should match preamble's treeClassesLCC
     LCCClassesToReplaceNN = 34:36,
