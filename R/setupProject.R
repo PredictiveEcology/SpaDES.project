@@ -245,6 +245,8 @@ utils::globalVariables(c(
 #' #  THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
 #'
 #' library(SpaDES.project)
+#' if (is.null(getOption("repos")))
+#'   options(repos = "cran.r-project.org")
 #' oldDir <- setwd(Require::tempdir2())
 #'
 #' out <- setupProject() # simplest case; just creates folders
