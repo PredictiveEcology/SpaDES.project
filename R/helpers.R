@@ -20,9 +20,7 @@ findProjectName <- function() {
   basename(findProjectPath())
 }
 
-
-isAbsolutePath <- function (pathnames)
-{
+isAbsolutePath <- function(pathnames) {
   keep <- is.character(pathnames)
   if (isFALSE(keep))
     stop("pathnames must be character")
@@ -46,13 +44,12 @@ isAbsolutePath <- function (pathnames)
   (components[1L] == "")
 }
 
-.rndstr <- function (n = 1, len = 8) {
+.rndstr <- function(n = 1, len = 8) {
   unlist(lapply(character(n), function(x) {
     x <- paste0(sample(c(0:9, letters, LETTERS), size = len,
                        replace = TRUE), collapse = "")
   }))
 }
-
 
 #' Helpers to develop easier to understand code.
 #'
@@ -62,15 +59,13 @@ isAbsolutePath <- function (pathnames)
 #' @export
 #' @rdname helpers
 #' @param username A character string of a username.
-#' @return
-#' `user` returns a logical indicating whether the current user matches
-#' the supplied `username`.
-#'
-user <- function (username = NULL) {
+#' @return if `username` is non-NULL, returns a logical indicating whether
+#' the current user matches the supplied `username`.
+#' Otherwise returns a character string with the value of the current user.
+user <- function(username = NULL) {
   if (is.null(username)) {
     Sys.info()[["user"]]
-  }
-  else {
+  } else {
     identical(username, Sys.info()[["user"]])
   }
 }
@@ -92,7 +87,6 @@ machine <- function(machinename = NULL) {
     grepl(machinename, Sys.info()[["nodename"]])
   }
 }
-
 
 #' @export
 #' @rdname helpers

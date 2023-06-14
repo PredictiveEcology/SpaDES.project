@@ -21,8 +21,9 @@ needed, e.g., \code{"^machine1"} will match \code{"machine15"} and \code{"machin
 \code{"thisIs_machine1"}.}
 }
 \value{
-\code{user} returns a logical indicating whether the current user matches
-the supplied \code{username}.
+if \code{username} is non-NULL, returns a logical indicating whether
+the current user matches the supplied \code{username}.
+Otherwise returns a character string with the value of the current user.
 
 \code{machine} returns a logical indicating whether the current machine name
 \code{Sys.info()[["nodename"]]} is matched by \code{machinename}.
