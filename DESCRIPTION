@@ -37,7 +37,6 @@ Suggests:
     rstudioapi,
     sessioninfo,
     sf,
-    slackr,
     SpaDES.config,
     SpaDES.core,
     terra,
