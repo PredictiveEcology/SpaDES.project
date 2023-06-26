@@ -572,20 +572,13 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["packagePath"]] <- normalizePath(
       file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3)),
       mustWork = FALSE, winslash = "/")
-    # if (is.call(libPaths)) {
-    #   libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
-    # }
   }
-  #} else {
-  #  paths[["packagePath"]] <- libPaths
-  #}
 
   if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "modules")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
   if (inProject) {
     paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(x))
-    # paths[["projectPath"]] <- dirname(paths[["projectPath"]])
   } else {
     paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
   }
@@ -595,7 +588,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
 
   if (is.null(paths$scratchPath)) {
-    paths$scratchPath <- file.path(tempdir(), "SpaDES.project", name)
+    paths$scratchPath <- file.path(tempdir(), name)
   }
   if (!is.null(paths$scratchPath)) {
     paths <- Require::modifyList2(
