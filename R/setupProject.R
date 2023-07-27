@@ -343,9 +343,37 @@ utils::globalVariables(c(
 #'               "PredictiveEcology/Biomass_borealDataPrep@development",
 #'               "PredictiveEcology/Biomass_core@master",
 #'               "PredictiveEcology/Biomass_validationKNN@master",
-#'               "PredictiveEcology/Biomass_speciesParameters@development")
-#'
+#'               "PredictiveEcology/Biomass_speciesParameters@development"),
+#'   objects = list("studyAreaLarge" = terra::vect(
+#'                   terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
+#'                   crs = terra::crs("epsg:3978")
+#'                   ),
+#'                  "studyArea" = terra::vect(
+#'                   terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
+#'                    crs = terra::crs("epsg:3978")
+#'                  ))
 #'   )
+#'
+#' ## or alternatively:
+#' out <- SpaDES.project::setupProject(
+#'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
+#'   standAlone = TRUE,
+#'   require =
+#'     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+#'       "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
+#'   modules = c("PredictiveEcology/Biomass_speciesData@master",
+#'               "PredictiveEcology/Biomass_borealDataPrep@development",
+#'               "PredictiveEcology/Biomass_core@master",
+#'               "PredictiveEcology/Biomass_validationKNN@master",
+#'               "PredictiveEcology/Biomass_speciesParameters@development")
+#'   studyAreaLarge = terra::vect(
+#'                     terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
+#'                     crs = terra::crs("epsg:3978")),
+#'   studyArea = terra::vect(
+#'                terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
+#'                crs = terra::crs("epsg:3978"))
+#'   )
+#'
 #'
 #'
 #' ## Make project-level change to .libPaths() that is persistent
