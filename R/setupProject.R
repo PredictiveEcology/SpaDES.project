@@ -100,7 +100,9 @@ utils::globalVariables(c(
 #'   the `defaultDots` will be overridden. This can be particularly useful if the
 #'   arguments passed to `...` do not always exist, but rely on external e.g., batch
 #'   processing to optionally fill them. See examples.
-#' @param ... Any other named objects a user might want.
+#' @param ... further arguments passed to `SpaDES.core::simInit`, or `SpaDES.core::simInitAndSpades`,
+#'   (e.g. `studyAreaName` or `objects`) or additional objects to be passed to the simulation
+#'   (traditionally passed as a named list to the `objects` argument).
 #'
 #' @export
 #'
