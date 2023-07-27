@@ -432,6 +432,8 @@ setupProject <- function(name, paths, modules, packages,
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
+  setupSpaDES.ProjectDeps(paths, verbose = getOption("Require.verbose"))
+
   modulePackages <- setupModules(paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
@@ -597,32 +599,26 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   #if (is.null(libPaths) || is.call(libPaths)) {
   if (is.null(paths[["packagePath"]])) {
     pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
-    paths[["packagePath"]] <- file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3))
-    # if (is.call(libPaths)) {
-    #   libPaths <- evalSUB(libPaths, envir = envir, envir2 = envir)
-    # }
+    paths[["packagePath"]] <- normalizePath(
+      file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3)),
+      mustWork = FALSE, winslash = "/")
   }
-  #} else {
-  #  paths[["packagePath"]] <- libPaths
-  #}
 
   if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "modules")
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
   if (inProject) {
     paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(x))
-    paths[["projectPath"]] <- dirname(paths[["projectPath"]])
   } else {
     paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
   }
-  paths <- lapply(paths, normPath)
   paths <- lapply(paths, checkPath, create = TRUE)
   if (!inProject) {
     setwd(paths[["projectPath"]])
   }
 
   if (is.null(paths$scratchPath)) {
-    paths$scratchPath <- file.path(tempdir(), "SpaDES.project", name)
+    paths$scratchPath <- file.path(tempdir(), name)
   }
   if (!is.null(paths$scratchPath)) {
     paths <- Require::modifyList2(
@@ -641,68 +637,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     ),
     paths)
 
-  deps <- c("SpaDES.project", "data.table", "Require", "rprojroot")
-
-  depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
-  diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
-    if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
-      pvLoaded <- packageVersion(dai)
-      pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
-      pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
-      loadedFrom <- if (identical(pvPathsPackagePath, pvLoaded)) {
-        "packagePath"
-      } else {
-        "libPaths"
-      }
-
-      if (pvLibLoc < pvPathsPackagePath) {# test whether lib loc is lt; so, need to unload; then move from to packagePath; reload
-        out <- dai
-      } else if (pvLibLoc > pvPathsPackagePath) { #test whether lib loc is gt; so, need to move to packagePath
-        out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
-      } else {
-        out <- NULL
-      }
-    } else {
-      out <- NULL
-    }
-    out
-  })
-  # First check for loaded old version; needs user intervention
-  needStop <- vapply(diffVersion, function(x) is.character(x), FUN.VALUE = logical(1))
-  if (any(needStop)) {
-    pkgsToUpdate <- names(needStop)[needStop]
-    pkgs <- paste(pkgsToUpdate, collapse = "', '")
-
-    stop("\nThe version of ", pkgs, " need updating in the personal library.\n",
-         "Please restart R and update ", pkgs, ", e.g., using: ",
-         "\ninstall.packages(c('", pkgs, "'), lib = '", .libPaths()[1],"')")
-  }
-  diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
-  deps <- setdiff(deps, depsAlreadyInstalled)
-  if (length(diffVersionNames)) {
-    messageVerbose("Updating ", paste0(diffVersionNames, collapse = ", "), " in paths$packagePath ",
-                   "because it has been updated in .libPaths()[1]. To turn this updating off, set\n",
-                   "options(SpaDES.project.updateSelf = FALSE)")
-    if (!isFALSE(getOption("SpaDES.project.updateSelf")))
-      deps <- c(deps, diffVersionNames)
-  }
-
-  if (length(deps)) {
-    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath (",
-                   paths$packagePath, ")", verbose = verbose)
-
-    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]))
-      for (pkg in deps) {
-        pkgDir <- file.path(.libPaths(), pkg)
-        de <- dir.exists(pkgDir)
-        pkgDir <- pkgDir[de][1]
-        files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
-        newFiles <- file.path(paths[["packagePath"]], pkg, files1)
-        lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-        oldFiles <- file.path(pkgDir, files1)
-        file.copy(oldFiles, newFiles, overwrite = TRUE)
-      }
-  }
+  paths <- lapply(paths, normPath)
 
   changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
 
@@ -1788,6 +1723,72 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
         rstudioapi::openProject(path = paths[["projectPath"]])
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
+      }
+  }
+}
+
+setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.table", "Require", "rprojroot"),
+                                    verbose = getOption("Require.verbose")) {
+
+  depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
+  diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
+    if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
+      pvLoaded <- packageVersion(dai)
+      pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
+      pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
+      loadedFrom <- if (identical(pvPathsPackagePath, pvLoaded)) {
+        "packagePath"
+      } else {
+        "libPaths"
+      }
+
+      if (pvLibLoc < pvPathsPackagePath) {# test whether lib loc is lt; so, need to unload; then move from to packagePath; reload
+        out <- dai
+      } else if (pvLibLoc > pvPathsPackagePath) { #test whether lib loc is gt; so, need to move to packagePath
+        out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
+      } else {
+        out <- NULL
+      }
+    } else {
+      out <- NULL
+    }
+    out
+  })
+  # First check for loaded old version; needs user intervention
+  needStop <- vapply(diffVersion, function(x) is.character(x), FUN.VALUE = logical(1))
+  if (any(needStop)) {
+    pkgsToUpdate <- names(needStop)[needStop]
+    pkgs <- paste(pkgsToUpdate, collapse = "', '")
+
+    stop("\nThe version of ", pkgs, " need updating in the personal library.\n",
+         "Please restart R and update ", pkgs, ", e.g., using: ",
+         "\ninstall.packages(c('", pkgs, "'), lib = '", .libPaths()[1],"')")
+  }
+  diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
+  deps <- setdiff(deps, depsAlreadyInstalled)
+  if (length(diffVersionNames)) {
+    messageVerbose("Updating ", paste0(diffVersionNames, collapse = ", "), " in paths$packagePath ",
+                   "because it has been updated in .libPaths()[1]. To turn this updating off, set\n",
+                   "options(SpaDES.project.updateSelf = FALSE)")
+    if (!isFALSE(getOption("SpaDES.project.updateSelf")))
+      deps <- c(deps, diffVersionNames)
+  }
+
+  if (length(deps)) {
+    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath (",
+                   paths$packagePath, ")", verbose = verbose)
+
+    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]))
+      for (pkg in deps) {
+        pkgDir <- file.path(.libPaths(), pkg)
+        de <- dir.exists(pkgDir)
+        pkgDir <- pkgDir[de][1]
+        files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
+        newFiles <- file.path(paths[["packagePath"]], pkg, files1)
+        lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+        oldFiles <- file.path(pkgDir, files1)
+        browser()
+        file.copy(oldFiles, newFiles, overwrite = TRUE)
       }
   }
 }

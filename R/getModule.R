@@ -78,10 +78,10 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         messageVerbose(modToDL, " ...", verbose = verbose)
 
         mess <- capture.output(type = "message",
-                       out <- withCallingHandlers(
+                       out <- withCallingHandlers({
                          downloadRepo(modToDL, subFolder = NA,
                                destDir = dd, overwrite = overwrite,
-                               verbose = verbose + 1),
+                               verbose = verbose + 1)},
                             warning = function(w) {
                               warns <- grep("No such file or directory|extracting from zip file", w$message,
                                             value = TRUE, invert = TRUE)
