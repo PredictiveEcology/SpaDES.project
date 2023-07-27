@@ -153,7 +153,9 @@ the \code{defaultDots} will be overridden. This can be particularly useful if th
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
 processing to optionally fill them. See examples.}
 
-\item{...}{Any other named objects a user might want.}
+\item{...}{further arguments passed to \code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
+(e.g. \code{studyAreaName} or \code{objects}) or additional objects to be passed to the simulation
+(traditionally passed as a named list to the \code{objects} argument).}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.
