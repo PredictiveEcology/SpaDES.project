@@ -1,6 +1,6 @@
 utils::globalVariables(c(
-  ".", "objectClass", "objectName",
-  "i.module", "i.objectClass"))
+  ".", "i.module", "i.objectClass", "objectClass", "objectName"
+))
 
 
 #' Sets up a new or existing SpaDES project

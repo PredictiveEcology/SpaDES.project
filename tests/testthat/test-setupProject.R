@@ -7,11 +7,12 @@ test_that("test setupProject", {
 
   # set relative paths & modules
   mess <- capture_messages(
-    out <- setupProject(name = "test",
-                 paths = list(projectPath = "test",
-                              modulePath = "m",
-                              scratchPath = tempdir()),
-                 modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+    out <- setupProject(
+      name = "test",
+      paths = list(projectPath = "test",
+                   modulePath = "m",
+                   scratchPath = tempdir()),
+      modules = "PredictiveEcology/Biomass_borealDataPrep@development"
     )
   )
 
