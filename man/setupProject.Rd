@@ -141,9 +141,9 @@ processing to optionally fill them. See examples.}
 }
 \value{
 \code{setupProject} will return a named list with elements \code{modules}, \code{paths}, \code{params}, and \code{times}.
-It will also append all elements passed by the user in the \code{...}. This
-list  can be passed directly to \code{SpaDES.core::simInit} or \code{SpaDES.core::simInitAndSpades}
-using a \code{do.call}. See example.
+It will also append all elements passed by the user in the \code{...}.
+This list  can be passed directly to \code{SpaDES.core::simInit()} or
+\code{SpaDES.core::simInitAndSpades()} using a \code{do.call()}. See example.
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
@@ -257,7 +257,7 @@ will not work, therefore, for other side-effect elements, like authenticating
 with a cloud service.
 
 Several helper functions exist within \code{SpaDES.project} that may be useful, such
-as \code{user(...)}, \code{machine(...)}#'
+as \code{user(...)}, \code{machine(...)}
 }
 
 \subsection{Can hard code arguments that may be missing}{
@@ -282,120 +282,181 @@ out <- setupProject(.mode = .mode,
 }
 
 \examples{
-\donttest{
-
+\dontrun{
 ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
-#  THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
 
 library(SpaDES.project)
-if (is.null(getOption("repos")))
+if (is.null(getOption("repos"))) {
   options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
 oldDir <- setwd(Require::tempdir2())
+origLibPaths <- .libPaths()
 
-out <- setupProject() # simplest case; just creates folders
+ ## simplest case; just creates folders
+ out <- setupProject(
+  name = "example_SpaDES_project"
+)
+
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
 
 # set relative paths & modules, install packages in isolated folder
-out <- setupProject(name = "SpaDES.project",
-             paths = list(projectPath = "SpaDES.project",
-                          modulePath = "m",
-                          scratchPath = tempdir()),
-             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+out <- setupProject(
+  name = "example_SpaDES_project",
+  paths = list(projectPath = "SpaDES.project",
+               modulePath = "m",
+               scratchPath = tempdir()),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+out
+
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
+## With options and params set
+out <- setupProject(
+  name = "example_SpaDES_project",
+  options = list(reproducible.useTerra = TRUE),
+  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+  paths = list(modulePath = "m",
+               projectPath = "SpaDES.project",
+               scratchPath = tempdir()),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
-# With options and params set
-out <- SpaDES.project::setupProject(name = "SpaDES.project",
-             options = list(reproducible.useTerra = TRUE),
-             params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-             paths = list(modulePath = "m", projectPath = "SpaDES.project",
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
+## using an options file that is remote
+out <- setupProject(
+  name = "example_SpaDES_project",
+  options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
+  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+  paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
                           scratchPath = tempdir()),
-             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
-# using an options file that is remote
-out <- setupProject(name = "SpaDES.project",
-             options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
-             params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-             paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
-                          scratchPath = tempdir()),
-             modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-)
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
 
-# setting arbitrary arguments, using defaultDots
-out <- setupProject(modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+## setting arbitrary arguments, using defaultDots (1)
+out <- setupProject(
+  name = "example_SpaDES_project",
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
   sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
 
   # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
   defaultDots = list(mode = "development",
                      studyAreaName = "MB"),
   mode = mode, # may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above
-  studyAreaName = studyAreaName, # same as previous argument.
-
+  studyAreaName = studyAreaName#, # same as previous argument.
   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
 )
 
-out <- setupProject(paths = list(projectPath = "LandWeb"),
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
+## setting arbitrary arguments, using defaultDots (2)
+out <- setupProject(
+  name = "example_SpaDES_project",
+  paths = list(projectPath = "LandWeb"),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
   config = "LandWeb",
   defaultDots = list(mode = "development",
                      studyAreaName = "MB"),
-  mode = mode, studyAreaName = studyAreaName,
+  mode = mode, studyAreaName = studyAreaName#,
   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
 )
 
-# Pass args from GlobalEnv
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
+## Pass args from GlobalEnv
 studyAreaName <- "AB"
-out <- setupProject(paths = list(projectPath = "LandWeb"),
-                    modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-                    defaultDots = list(mode = "development",
-                                       studyAreaName = "MB"),
-                    mode = "development", studyAreaName = studyAreaName,
+out <- setupProject(
+  name = "example_SpaDES_project",
+  paths = list(projectPath = "LandWeb"),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = "development",
+  studyAreaName = studyAreaName
 )
 
-# mixture of named list element, github file and local file for e.g., options
-out <-
-  setupProject(name = "SpaDES.project",
-    options = list(reproducible.useTerra = TRUE,
-                   "PredictiveEcology/SpaDES.project@transition/inst/options.R",
-                   system.file("authentication.R", package = "SpaDES.project")), # local file
-    params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-    paths = list(modulePath = "m", projectPath = "SpaDES.project",
-                 scratchPath = tempdir()),
-    modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
+## mixture of named list element, github file and local file for e.g., options
+out <- setupProject(
+  name = "example_SpaDES_project",
+  options = list(
+    reproducible.useTerra = TRUE,
+    "PredictiveEcology/SpaDES.project@transition/inst/options.R",
+    system.file("authentication.R", package = "SpaDES.project") # local file
+  ),
+  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+  paths = list(modulePath = "m",
+               projectPath = "SpaDES.project",
+               scratchPath = tempdir()),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 
-# example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
-out <- setupProject(studyArea = list("Al|Brit"))
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
+## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
+out <- setupProject(
+  name = "example_SpaDES_project",
+  studyArea = list("Al|Brit")
+)
+
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
 
 # example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
 #    with level 2 administrative boundaries
-out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005"))
+out <- setupProject(
+  name = "example_SpaDES_project",
+  studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005")
+)
 
-# If using SpaDES.core, the return object can be passed to `simInit` via `do.call`
-#   do.call(simInit, out)
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
 
-# load packages using `require` argument
-out <- SpaDES.project::setupProject(
+## If using SpaDES.core, the return object can be passed to `simInit` via `do.call`:
+# do.call(simInit, out)
+
+## load packages using `require` argument
+out <- setupProject(
   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
   standAlone = TRUE,
-  require =
-    c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-      "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
+  require = c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+              "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
   modules = c("PredictiveEcology/Biomass_speciesData@master",
               "PredictiveEcology/Biomass_borealDataPrep@development",
               "PredictiveEcology/Biomass_core@master",
               "PredictiveEcology/Biomass_validationKNN@master",
               "PredictiveEcology/Biomass_speciesParameters@development")
-
   )
+)
 
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
 
 ## Make project-level change to .libPaths() that is persistent
 setwd(tempdir())
-setupProject(package = "terra",
-             updateRprofile = TRUE)
+out <- setupProject(
+  name = "example_SpaDES_project",
+  package = "terra",
+  updateRprofile = TRUE
+)
+
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
 
 setwd(oldDir)
-
 }
 }
 \seealso{

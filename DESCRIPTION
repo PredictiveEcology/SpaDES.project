@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2023-06-23
-Version: 0.0.8.9000
+Date: 2023-08-24
+Version: 0.0.8.9001
 Authors@R: c(
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7146-8135")),
@@ -19,8 +19,9 @@ Depends:
     R (>= 4.2)
 Imports:
     data.table,
+    fs,
     methods,
-    Require (>= 0.2.6.9020),
+    Require (>= 0.3.1),
     rprojroot,
     utils
 Suggests:
@@ -42,7 +43,8 @@ Suggests:
     terra,
     testthat (>= 3.0.0),
     visNetwork,
-    waldo
+    waldo,
+    withr
 Remotes: 
     PredictiveEcology/Require@development,
     PredictiveEcology/SpaDES.config@development,

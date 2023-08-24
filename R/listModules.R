@@ -61,50 +61,61 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @examples
 #'
 #' \donttest{
+#' origLibPaths <- .libPaths()
+#' origWorkDir <- getwd()
+#'
 #' grepListShort <- "dataPrep"
 #' accountsListShort <- c("PredictiveEcology")
-#' mods <- listModules(grepListShort,
-#'               accounts = accountsListShort)
+#' mods <- listModules(grepListShort, accounts = accountsListShort)
 #'
 #' # Can do same, but with long list -- not done here
 #' accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
-#'                            "FOR-CAST", "eliotmcintire", "tati-micheletti")
+#'                        "FOR-CAST", "eliotmcintire", "tati-micheletti")
 #' grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
-#'                              "LandMine", "LandWeb", "NRV", #"scfm",
-#'                              "priority",
-#'                              "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+#'                   "LandMine", "LandWeb", "NRV", #"scfm",
+#'                   "priority",
+#'                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 #'
 #' modPath <- file.path(tempdir(), "testMods")
 #' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-#'        out <- getModule(paste0(nam, "/", mod),
-#'        modulePath = modPath)
-#'        out
+#'   out <- getModule(paste0(nam, "/", mod),
+#'   modulePath = modPath)
+#'   out
 #' })
 #'
-#' if (requireNamespace("visNetwork")) {
+#' if (require("visNetwork") && require("igraph") && require("dplyr")) {
 #'   DT <- moduleDependencies(mods, modulePath = modPath)
 #'   graph <- moduleDependenciesToGraph(DT)
 #'   vn <- PlotModuleGraph(graph)
 #' }
 #'
-#' # get all the fireSense modules from the Predictive Ecology GitHub repository
+#' ## get all the fireSense modules from the Predictive Ecology GitHub repository
 #' Account <- "PredictiveEcology"
 #' mods <- listModules("fireSense", Account)
-#' out <- setupProject(modules = file.path(Account, mods[[Account]]),
-#'                     paths = list(projectPath = "~/fireSense"))
+#' out <- setupProject(
+#'   name = "example_fireSense",
+#'   modules = file.path(Account, mods[[Account]]),
+#'   paths = list(projectPath = file.path(tempdir(), "fireSense"))
+#' )
+#'
+#' #' ## cleanup / restore state
+#' .teardownProject(out$paths, origLibPaths)
+#' setwd(origWorkDir)
 #' }
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
   names(accounts) <- accounts
   outs <- lapply(accounts, function(account) {
-    url <- paste0("https://api.github.com/users/",account,"/repos?per_page=200")
+    url <- paste0("https://api.github.com/users/", account, "/repos?per_page=200")
     names(url) <- account
 
     tf <- tempfile()
     .downloadFileMasterMainAuth(url, destfile = tf, need = "master")
     # download.file(url, destfile = tf)
-    suppressWarnings(repos <- readLines(tf))
+    suppressWarnings({
+      repos <- readLines(tf)
+    })
     repos <- unlist(strsplit(repos, ","))
 
     out <- lapply(keywords, function(mg) {
@@ -212,28 +223,34 @@ moduleDependenciesToGraph <- function(md) {
   mods <- unique(c(md$from, md$to))
   m <- unlist(mods)
   v <- unique(c(md$to, md$from, m)) # so no need to remove them
-  if (requireNamespace("igraph"))
+  if (requireNamespace("igraph", quietly = TRUE)) {
     graph <- igraph::graph_from_data_frame(md, vertices = v, directed = TRUE)
-}
+  }
 
+  return(graph)
+}
 
 #' @export
 #' @rdname listModules
 #' @param graph An igraph object to plot. Likely returned by `moduleDependenciesToGraph`.
 PlotModuleGraph <- function(graph) {
-  if (!requireNamespace("igraph") && !requireNamespace("dplyr") && !requireNamespace("visNetwork"))
+  if (!requireNamespace("igraph", quietly = TRUE) ||
+      !requireNamespace("dplyr", quietly = TRUE) ||
+      !requireNamespace("visNetwork", quietly = TRUE)) {
     stop("need igraph, dplyr and visNetwork")
+  }
+
   graph <- igraph::simplify(graph)
 
   names <- igraph::V(graph)$name
   groups <- ifelse(grepl("Biomass", names), "Biomass",
-                   ifelse (grepl("fireSense", ignore.case = TRUE, names), "FireSense",
-                           ifelse (grepl("CBM", ignore.case = TRUE, names), "CBM",
-                                   ifelse (grepl("ROF", ignore.case = TRUE, names), "RoF", "Other"))))
+                   ifelse(grepl("fireSense", ignore.case = TRUE, names), "FireSense",
+                          ifelse(grepl("CBM", ignore.case = TRUE, names), "CBM",
+                                 ifelse(grepl("ROF", ignore.case = TRUE, names), "RoF", "Other"))))
 
   nodes <- data.frame(id = igraph::V(graph)$name, title = igraph::V(graph)$name, group = groups)
   nodes <- nodes[order(nodes$id, decreasing = F),]
-  edges <- igraph::get.data.frame(graph, what="edges")[1:2]
+  edges <- igraph::get.data.frame(graph, what = "edges")[1:2]
 
   visNetwork::visNetwork(nodes, edges, width = "100%") |>
     visNetwork::visIgraphLayout(layout = "layout_with_fr", type = "full") |>
@@ -246,7 +263,7 @@ PlotModuleGraph <- function(graph) {
     # visPhysics(repulsion = list(nodeDistance = 100)) |>
     visNetwork::visOptions(highlightNearest = TRUE,
                nodesIdSelection = TRUE,
-               height="800px", width = "130%",
+               height = "800px", width = "130%",
                #highlightNearest = list(enabled = T, degree = 1, hover = F),
                collapse = TRUE) |>
     visNetwork::visInteraction(navigationButtons = TRUE)

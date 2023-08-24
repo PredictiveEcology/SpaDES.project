@@ -93,3 +93,55 @@ machine <- function(machinename = NULL) {
 #' @details
 #' `node` is an alias for `machine`
 node <- machine
+
+#' Helpers for cleanup of global state in examples and tests
+#'
+#' 1. remove project library directory created using `setupProject()`;
+#' 2. remove project paths created using `setupProject`;
+#' 3. restore original library paths.
+#'
+#' @note not intended to be called by users
+#'
+#' @param prjPaths character vector of paths to be removed
+#'
+#' @param origLibPaths character string giving the original library path to be restored
+#'
+#' @return NULL. Invoked for its side effects.
+#'
+#' @export
+#' @importFrom fs path_has_parent path_rel path_split
+#' @importFrom Require normPath
+#' @importFrom tools R_user_dir
+#' @importFrom utils head
+#' @rdname test-helpers
+.teardownProject <- function(prjPaths, origLibPaths) {
+  curlibpath <- utils::head(.libPaths(), 1) |> Require::normPath()
+  donttouch <- c(
+    "~/R-dev",
+    Sys.getenv("R_LIBS_USER"),
+    Sys.getenv("R_LIBS_SITE") |> strsplit(":") |> unlist(),
+    Sys.getenv("R_LIBS")
+  )
+  donttouch <- donttouch[nzchar(donttouch)] |>
+    normPath() |>
+    unique()
+
+  if (!curlibpath %in% donttouch) {
+    userDirRoot <- normPath(R_user_dir(""))
+    if (path_has_parent(curlibpath, userDirRoot)) {
+      prjLibPathRoot <- path_rel(curlibpath, userDirRoot) |>
+        path_split() |>
+        unlist() |>
+        head(1)
+      try(unlink(file.path(userDirRoot, prjLibPathRoot), recursive = TRUE))
+    } else {
+      try(unlink(curlibpath, recursive = TRUE))
+    }
+  }
+
+  try(unlink(unlist(prjPaths), recursive = TRUE))
+
+  .libPaths(origLibPaths)
+
+  return(NULL)
+}

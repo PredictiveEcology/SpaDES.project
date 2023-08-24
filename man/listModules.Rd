@@ -65,36 +65,45 @@ and their interdependencies.
 \examples{
 
 \donttest{
+origLibPaths <- .libPaths()
+origWorkDir <- getwd()
+
 grepListShort <- "dataPrep"
 accountsListShort <- c("PredictiveEcology")
-mods <- listModules(grepListShort,
-              accounts = accountsListShort)
+mods <- listModules(grepListShort, accounts = accountsListShort)
 
 # Can do same, but with long list -- not done here
 accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
-                           "FOR-CAST", "eliotmcintire", "tati-micheletti")
+                       "FOR-CAST", "eliotmcintire", "tati-micheletti")
 grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
-                             "LandMine", "LandWeb", "NRV", #"scfm",
-                             "priority",
-                             "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+                  "LandMine", "LandWeb", "NRV", #"scfm",
+                  "priority",
+                  "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 
 modPath <- file.path(tempdir(), "testMods")
 out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-       out <- getModule(paste0(nam, "/", mod),
-       modulePath = modPath)
-       out
+  out <- getModule(paste0(nam, "/", mod),
+  modulePath = modPath)
+  out
 })
 
-if (requireNamespace("visNetwork")) {
+if (require("visNetwork") && require("igraph") && require("dplyr")) {
   DT <- moduleDependencies(mods, modulePath = modPath)
   graph <- moduleDependenciesToGraph(DT)
   vn <- PlotModuleGraph(graph)
 }
 
-# get all the fireSense modules from the Predictive Ecology GitHub repository
+## get all the fireSense modules from the Predictive Ecology GitHub repository
 Account <- "PredictiveEcology"
 mods <- listModules("fireSense", Account)
-out <- setupProject(modules = file.path(Account, mods[[Account]]),
-                    paths = list(projectPath = "~/fireSense"))
+out <- setupProject(
+  name = "example_fireSense",
+  modules = file.path(Account, mods[[Account]]),
+  paths = list(projectPath = file.path(tempdir(), "fireSense"))
+)
+
+#' ## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+setwd(origWorkDir)
 }
 }
