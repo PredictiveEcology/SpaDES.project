@@ -278,6 +278,7 @@ test_that("test setupProject - mixture of named list elements", {
 
   ### cleanup
   withr::defer(.teardownProject(out$paths, origLibPaths))
+  withr::deferred_run()
 })
 
 test_that("test setupProject - load packages using require argument", {

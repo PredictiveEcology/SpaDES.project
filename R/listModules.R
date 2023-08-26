@@ -98,7 +98,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'   paths = list(projectPath = file.path(tempdir(), "fireSense"))
 #' )
 #'
-#' #' ## cleanup / restore state
+#' ## cleanup
 #' .teardownProject(out$paths, origLibPaths)
 #' setwd(origWorkDir)
 #' }

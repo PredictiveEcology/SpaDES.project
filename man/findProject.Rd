@@ -15,5 +15,5 @@ findProjectName()
 }
 \description{
 Searches from current working directory for and Rstudio project file
-or git repository.
+or git repository, falling back on using the current working directory.
 }
