@@ -27,7 +27,8 @@ fields Imports and Remotes will be automatically populated based on \code{snapsh
 (or, if \code{snapshot = NULL}, the currently installed packages).
 }
 \examples{
-tmpdir <- file.path(tempdir(), "example_project")
+tmpdir <- file.path(tempdir(), "example_project") |>
+  Require::checkPath(create = TRUE)
 cwd <- setwd(tmpdir)
 
 description(fields = list(

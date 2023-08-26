@@ -21,7 +21,8 @@
 #' @importFrom utils read.csv
 #'
 #' @examples
-#' tmpdir <- file.path(tempdir(), "example_project")
+#' tmpdir <- file.path(tempdir(), "example_project") |>
+#'   Require::checkPath(create = TRUE)
 #' cwd <- setwd(tmpdir)
 #'
 #' description(fields = list(
