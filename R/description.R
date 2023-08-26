@@ -21,6 +21,9 @@
 #' @importFrom utils read.csv
 #'
 #' @examples
+#' tmpdir <- file.path(tempdir(), "example_project")
+#' cwd <- setwd(tmpdir)
+#'
 #' description(fields = list(
 #'   Title = "My Project: It Does Cool Stuff",
 #'   Description = paste(
@@ -35,6 +38,9 @@
 #'   License = "MIT",
 #'   Depends = paste0("R (== 4.2)", collapse = ",\n    ")
 #' ))
+#'
+#' setwd(cwd)
+#' unlink(tmpdir, recursive = TRUE)
 description <- function(fields = list(), snapshot = NULL) {
   stopifnot(requireNamespace("usethis", quietly = TRUE))
 

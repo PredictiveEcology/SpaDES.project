@@ -27,6 +27,9 @@ fields Imports and Remotes will be automatically populated based on \code{snapsh
 (or, if \code{snapshot = NULL}, the currently installed packages).
 }
 \examples{
+tmpdir <- file.path(tempdir(), "example_project")
+cwd <- setwd(tmpdir)
+
 description(fields = list(
   Title = "My Project: It Does Cool Stuff",
   Description = paste(
@@ -41,4 +44,7 @@ description(fields = list(
   License = "MIT",
   Depends = paste0("R (== 4.2)", collapse = ",\n    ")
 ))
+
+setwd(cwd)
+unlink(tmpdir, recursive = TRUE)
 }
