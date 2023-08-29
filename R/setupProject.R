@@ -408,18 +408,20 @@ utils::globalVariables(c(
 #'   ),
 #'   objects = list(
 #'     studyAreaLarge = terra::vect(
-#'       terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
-#'                  crs = terra::crs("epsg:3978")
+#'       terra::ext(-598722.985900015, -557858.350337621,
+#'                  776827.300151124, 837385.414396185),
+#'       crs = terra::crs("epsg:3978")
 #'     ),
-#'     studyArea" = terra::vect(
-#'       terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
-#'                  crs = terra::crs("epsg:3978")
+#'     studyArea = terra::vect(
+#'       terra::ext(-598722.985900015, -578177.124187722,
+#'                  779252.422377214, 809573.532597151),
+#'       crs = terra::crs("epsg:3978")
 #'     )
 #'   )
 #' )
 #'
 #' ## or alternatively:
-#' out <- SpaDES.project::setupProject(
+#' out <- setupProject(
 #'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
 #'   standAlone = TRUE,
 #'   require = c(
@@ -435,11 +437,11 @@ utils::globalVariables(c(
 #'   ),
 #'   studyAreaLarge = terra::vect(
 #'     terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
-#'                crs = terra::crs("epsg:3978")
+#'     crs = terra::crs("epsg:3978")
 #'   ),
 #'   studyArea = terra::vect(
 #'     terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
-#'                crs = terra::crs("epsg:3978")
+#'     crs = terra::crs("epsg:3978")
 #'   )
 #' )
 #'
