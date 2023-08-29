@@ -466,6 +466,9 @@ out <- setupProject(
   )
 )
 
+## cleanup / restore state
+.teardownProject(out$paths, origLibPaths)
+
 ## or alternatively:
 out <- setupProject(
   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
