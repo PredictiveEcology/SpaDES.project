@@ -285,6 +285,8 @@ out <- setupProject(.mode = .mode,
 
 \examples{
 \dontrun{
+if (isFALSE(Require:::isWindows())) {
+
 ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
 ## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
 
@@ -509,6 +511,8 @@ out <- setupProject(
 .teardownProject(out$paths, origLibPaths)
 
 setwd(oldDir)
+
+}
 }
 }
 \seealso{

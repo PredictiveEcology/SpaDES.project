@@ -7,6 +7,7 @@
 
 test_that("test setupProject - simplest", {
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -42,6 +43,7 @@ test_that("test setupProject - simplest", {
 
 test_that("test setupProject - relative paths and modules", {
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -83,6 +85,7 @@ test_that("test setupProject - relative paths and modules", {
 
 test_that("test setupProject - options and params", {
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -126,6 +129,7 @@ test_that("test setupProject - options and params", {
 
 test_that("test setupProject - remote options file", {
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -175,6 +179,7 @@ test_that("test setupProject - arbitrary arguments", {
   skip("Not completed tests yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -211,6 +216,7 @@ test_that("test setupProject - args from global envir", {
   skip("Not completed tests yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -247,6 +253,7 @@ test_that("test setupProject - mixture of named list elements", {
   skip("Not completed tests yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -285,6 +292,7 @@ test_that("test setupProject - load packages using require argument", {
   skip("Not completed tests yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -325,6 +333,7 @@ test_that("test setupProject - studyArea in lonlat", {
   skip("Not completed tests yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
   ## NOTE: tests/testthat/setup.R is run before each test and uses withr funs
 
@@ -342,7 +351,9 @@ test_that("test setupProject -studyArea using CRS", {
   skip("Not completed tests yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
+
   origLibPaths <- .libPaths()
   withr::defer(.libPaths(origLibPaths))
 
@@ -370,6 +381,7 @@ test_that("test setupProject -studyArea using CRS", {
 ## Make project-level change to .libPaths() that is persistent
 test_that("projectPath is in a tempdir", {
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -398,6 +410,7 @@ test_that("projectPath is in a tempdir", {
   skip("config not working yet")
 
   skip_on_cran()
+  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()

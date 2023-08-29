@@ -239,6 +239,8 @@ utils::globalVariables(c(
 #'
 #' @examples
 #' \dontrun{
+#' if (isFALSE(Require:::isWindows())) {
+#'
 #' ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
 #' ## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
 #'
@@ -463,6 +465,8 @@ utils::globalVariables(c(
 #' .teardownProject(out$paths, origLibPaths)
 #'
 #' setwd(oldDir)
+#'
+#' }
 #' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
