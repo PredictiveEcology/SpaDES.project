@@ -158,10 +158,10 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   file <- gsub(gitRepo, "", gitRepoFile)
   file <- gsub("^\\/", "", file) # file is now relative path
   if (nchar(dirname(file)))
-    checkPath(dirname(file), create = TRUE)
+    checkPath(file.path(destDir, dirname(file)), create = TRUE)
 
   out <- downloadFile(gitRepo, file, overwrite = overwrite, destDir = destDir,
-                           verbose = verbose)
+                      verbose = verbose)
   if (!isTRUE(out))
     messageVerbose("  ... Did not download ", file, verbose = verbose)
   else {
@@ -170,7 +170,6 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   out <- normPath(file)
   return(out)
 }
-
 
 #' @importFrom Require .downloadFileMasterMainAuth
 downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
