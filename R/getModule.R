@@ -42,7 +42,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
                         modulesNoVersion = Require::trimVersionNumber(modules),
                         sufficient = NA, version = NA_character_,
                         localExists = localExists,
-                        status = c(NA, "already local")[localExists + 1])
+                        status = c(NA, "already local")[localExists + 1],
+                        hasVersionSpec = !is.na(extractVersionNumber(modules)))
 
   stateDT[localExists & is.na(versionSpec), sufficient := TRUE]
 
