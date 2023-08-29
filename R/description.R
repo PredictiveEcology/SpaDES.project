@@ -43,29 +43,31 @@
 #' setwd(cwd)
 #' unlink(tmpdir, recursive = TRUE)
 description <- function(fields = list(), snapshot = NULL) {
-  stopifnot(requireNamespace("usethis", quietly = TRUE))
+  if (requireNamespace("usethis", quietly = TRUE)) {
+    if (is.null(snapshot)) {
+      snapshot <- tempfile("pkgsnapshot_", fileext = ".csv")
+      pkgSnapshot(snapshot) ## TODO: need 93-snapshot branch of Require
+      on.exit(unlink(snapshot), add = TRUE)
+    }
 
-  if (is.null(snapshot)) {
-    snapshot <- tempfile("pkgsnapshot_", fileext = ".csv")
-    pkgSnapshot(snapshot) ## TODO: need 93-snapshot branch of Require
-    on.exit(unlink(snapshot), add = TRUE)
+    pkgs <- read.csv(snapshot)
+    cranPkgs <- pkgs[is.na(pkgs$GithubUsername), ]
+    ghPkgs <- pkgs[!is.na(pkgs$GithubUsername), ]
+
+    ## voerride user-specified field values
+    fields <- modifyList3(fields, list(
+      Type = "project",
+      Package = NULL,
+      Imports = paste0(pkgs$Package, " (== ", pkgs$Version, ")", collapse = ",\n    "),
+      Remotes = paste0(ghPkgs$GithubUsername, "/", ghPkgs$GithubRepo, "@",
+                       ghPkgs$GithubSHA1, collapse = ",\n    ")
+    ))
+
+    usethis::proj_set(findProjectPath(), force = TRUE)
+    usethis::use_description(fields = fields, check_name = FALSE, roxygen = FALSE)
+  } else {
+    message("package 'usethis' is not installed.")
   }
-
-  pkgs <- read.csv(snapshot)
-  cranPkgs <- pkgs[is.na(pkgs$GithubUsername), ]
-  ghPkgs <- pkgs[!is.na(pkgs$GithubUsername), ]
-
-  ## voerride user-specified field values
-  fields <- modifyList3(fields, list(
-    Type = "project",
-    Package = NULL,
-    Imports = paste0(pkgs$Package, " (== ", pkgs$Version, ")", collapse = ",\n    "),
-    Remotes = paste0(ghPkgs$GithubUsername, "/", ghPkgs$GithubRepo, "@",
-                     ghPkgs$GithubSHA1, collapse = ",\n    ")
-  ))
-
-  usethis::proj_set(findProjectPath(), force = TRUE)
-  usethis::use_description(fields = fields, check_name = FALSE, roxygen = FALSE)
 
   return(invisible(NULL))
 }
