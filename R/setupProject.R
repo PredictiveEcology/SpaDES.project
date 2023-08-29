@@ -287,10 +287,17 @@ utils::globalVariables(c(
 #' ## using an options file that is remote
 #' out <- setupProject(
 #'   name = "example_SpaDES_project",
-#'   options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
-#'   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'   paths = list(modulePath = "m", projectPath = "~/GitHub/SpaDES.project",
-#'                           scratchPath = tempdir()),
+#'   options = c(
+#'     "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+#'   ),
+#'   params = list(
+#'     Biomass_borealDataPrep = list(.plots = "screen")
+#'   ),
+#'   paths = list(
+#'     modulePath = "m",
+#'     projectPath = "~/GitHub/SpaDES.project",
+#'     scratchPath = tempdir()
+#'   ),
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #'
@@ -388,13 +395,17 @@ utils::globalVariables(c(
 #' out <- setupProject(
 #'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
 #'   standAlone = TRUE,
-#'   require = c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-#'               "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
-#'   modules = c("PredictiveEcology/Biomass_speciesData@master",
-#'               "PredictiveEcology/Biomass_borealDataPrep@development",
-#'               "PredictiveEcology/Biomass_core@master",
-#'               "PredictiveEcology/Biomass_validationKNN@master",
-#'               "PredictiveEcology/Biomass_speciesParameters@development"),
+#'   require = c(
+#'     "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+#'     "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
+#'   ),
+#'   modules = c(
+#'     "PredictiveEcology/Biomass_speciesData@master",
+#'     "PredictiveEcology/Biomass_borealDataPrep@development",
+#'     "PredictiveEcology/Biomass_core@master",
+#'     "PredictiveEcology/Biomass_validationKNN@master",
+#'     "PredictiveEcology/Biomass_speciesParameters@development"
+#'   ),
 #'   objects = list(
 #'     studyAreaLarge = terra::vect(
 #'       terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
@@ -411,14 +422,17 @@ utils::globalVariables(c(
 #' out <- SpaDES.project::setupProject(
 #'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
 #'   standAlone = TRUE,
-#'   require =
-#'     c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-#'       "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
-#'   modules = c("PredictiveEcology/Biomass_speciesData@master",
-#'               "PredictiveEcology/Biomass_borealDataPrep@development",
-#'               "PredictiveEcology/Biomass_core@master",
-#'               "PredictiveEcology/Biomass_validationKNN@master",
-#'               "PredictiveEcology/Biomass_speciesParameters@development"),
+#'   require = c(
+#'     "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+#'     "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
+#'   ),
+#'   modules = c(
+#'     "PredictiveEcology/Biomass_speciesData@master",
+#'     "PredictiveEcology/Biomass_borealDataPrep@development",
+#'     "PredictiveEcology/Biomass_core@master",
+#'     "PredictiveEcology/Biomass_validationKNN@master",
+#'     "PredictiveEcology/Biomass_speciesParameters@development"
+#'   ),
 #'   studyAreaLarge = terra::vect(
 #'     terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
 #'                crs = terra::crs("epsg:3978")
