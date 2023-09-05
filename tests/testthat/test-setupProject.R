@@ -7,7 +7,7 @@
 
 test_that("test setupProject - simplest", {
   skip_on_cran()
-  skip_on_os("windows")
+#  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -26,7 +26,8 @@ test_that("test setupProject - simplest", {
   ## simplest case; just creates folders
   mess <- capture_messages({
     out <- setupProject(
-      name = "test_SpaDES_project"
+      name = paste0("test_SpaDES_project_", .rndstr(1)),
+      # name = "test_SpaDES_project"
     )
   })
 
@@ -43,7 +44,7 @@ test_that("test setupProject - simplest", {
 
 test_that("test setupProject - relative paths and modules", {
   skip_on_cran()
-  skip_on_os("windows")
+#  skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -60,18 +61,21 @@ test_that("test setupProject - relative paths and modules", {
   withr::local_dir(tmpdir)
 
   ## set relative paths & modules
-  mess <- capture_messages({
-    out <- setupProject(
-      name = "test_SpaDES_project",
-      paths = list(projectPath = "test_SpaDES_project",
-                   modulePath = "m",
-                   scratchPath = tempdir()),
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-    )
-  })
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        # name = "test_SpaDES_project",
+        name = paste0("test_SpaDES_project_", .rndstr(1)),
+        paths = list(projectPath = "test_SpaDES_project",
+                     modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+      )
+    })
+  )
 
   ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  utils::install.packages("waldo", lib = head(.libPaths(), 1))
+  # utils::install.packages("waldo", lib = head(.libPaths(), 1))
 
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
@@ -85,7 +89,7 @@ test_that("test setupProject - relative paths and modules", {
 
 test_that("test setupProject - options and params", {
   skip_on_cran()
-  skip_on_os("windows")
+  # skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -102,20 +106,23 @@ test_that("test setupProject - options and params", {
   withr::local_dir(tmpdir)
 
   ## With options and params set
-  mess <- capture_messages({
-    out <- setupProject(
-      name = "test_SpaDES_project",
-      options = list(reproducible.useTerra = TRUE),
-      params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-      paths = list(modulePath = "m",
-                   projectPath = "test",
-                   scratchPath = tempdir()),
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-    )
-  })
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = paste0("test_SpaDES_project_", .rndstr(1)),
+        # name = "test_SpaDES_project",
+        options = list(reproducible.useTerra = TRUE),
+        params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+        paths = list(modulePath = "m",
+                     projectPath = "test",
+                     scratchPath = tempdir()),
+        modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+      )
+    })
+  )
 
   ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  install.packages("waldo", lib = head(.libPaths(), 1))
+  # install.packages("waldo", lib = head(.libPaths(), 1))
 
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
@@ -129,7 +136,7 @@ test_that("test setupProject - options and params", {
 
 test_that("test setupProject - remote options file", {
   skip_on_cran()
-  skip_on_os("windows")
+  # skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -146,21 +153,24 @@ test_that("test setupProject - remote options file", {
   withr::local_dir(tmpdir)
 
   ## using an options file that is remote
-  mess <- capture_messages({
-    out <- setupProject(
-      name = "test_SpaDES_project",
-      options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
-      params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-      paths = list(modulePath = "m",
-                   projectPath = "test",
-                   scratchPath = tempdir()),
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-    )
-  })
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        # name = "test_SpaDES_project",
+        name = paste0("test_SpaDES_project_", .rndstr(1)),
+        options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
+        params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+        paths = list(modulePath = "m",
+                     projectPath = "test",
+                     scratchPath = tempdir()),
+        modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+      )
+    })
+  )
   withr::defer(try(options(attr(out, "projectOptions"))))
 
   ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  install.packages("waldo", lib = head(.libPaths(), 1))
+  # install.packages("waldo", lib = head(.libPaths(), 1))
 
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
@@ -179,7 +189,7 @@ test_that("test setupProject - arbitrary arguments", {
   skip("Not completed tests yet")
 
   skip_on_cran()
-  skip_on_os("windows")
+  # skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
@@ -272,7 +282,8 @@ test_that("test setupProject - mixture of named list elements", {
   ## mixture of named list element, github file and local file for e.g., options
   mess <- capture_messages({
     out <- setupProject(
-      name = "test_SpaDES_project",
+      name = paste0("test_SpaDES_project_", .rndstr(1)),
+      # name = "test_SpaDES_project",
       options = list(reproducible.useTerra = TRUE,
                      "PredictiveEcology/SpaDES.project@transition/inst/options.R",
                      system.file("authentication.R", package = "SpaDES.project")), # local file
@@ -381,7 +392,7 @@ test_that("test setupProject -studyArea using CRS", {
 ## Make project-level change to .libPaths() that is persistent
 test_that("projectPath is in a tempdir", {
   skip_on_cran()
-  skip_on_os("windows")
+  # skip_on_os("windows")
   skip_if_not_installed("withr")
 
   origLibPaths <- .libPaths()
