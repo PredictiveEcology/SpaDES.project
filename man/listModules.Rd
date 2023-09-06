@@ -68,17 +68,19 @@ origLibPaths <- .libPaths()
 }
 origWorkDir <- getwd()
 
-grepListShort <- "dataPrep"
-accountsListShort <- c("PredictiveEcology")
-mods <- listModules(grepListShort, accounts = accountsListShort)
+## get all the fireSense modules from the Predictive Ecology GitHub repository
+Account <- "PredictiveEcology"
+grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
+mods <- listModules(grepListShort, accounts = Account)
 
-# Can do same, but with long list -- not done here
+# Can do same, but with long list -- not done here -- can try
 accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
                        "FOR-CAST", "eliotmcintire", "tati-micheletti")
 grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
                   "LandMine", "LandWeb", "NRV", #"scfm",
                   "priority",
                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+# pass to listModules for much larger figure
 
 modPath <- file.path(tempdir(), "testMods")
 out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
@@ -87,18 +89,17 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
   out
 })
 
-if (require("visNetwork") && require("igraph") && require("dplyr")) {
+if (requireNamespace("igraph", quietly = TRUE) &&
+    requireNamespace("visNetwork", quietly = TRUE)) {
+
   DT <- moduleDependencies(mods, modulePath = modPath)
   graph <- moduleDependenciesToGraph(DT)
-  vn <- PlotModuleGraph(graph)
+  (vn <- PlotModuleGraph(graph))
 }
 
-## get all the fireSense modules from the Predictive Ecology GitHub repository
-Account <- "PredictiveEcology"
-mods <- listModules("fireSense", Account)
 out <- setupProject(
   modules = file.path(Account, mods[[Account]]),
-  paths = list(projectPath = file.path(tempdir(), "example_fireSense"))
+  paths = list(projectPath = file.path(tempdir(), "example_Biomass"))
 )
 
 \dontshow{
@@ -107,4 +108,7 @@ out <- setupProject(
 }
 setwd(origWorkDir)
 
+}
+\seealso{
+\link{metadataInModules() helps to see different metadata elements in a folder of modules}
 }
