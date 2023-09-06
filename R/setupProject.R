@@ -5,16 +5,22 @@ utils::globalVariables(c(
 #' Sets up a new or existing SpaDES project
 #'
 #' `setupProject` calls a sequence of functions in this order:
-#' `setupPaths`,
-#' `setupModules`, `setupPackages`, `setupOptions`, `setupSideEffects`, `setupParams`,
+#' `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`,
+#' `setupSideEffects`, `setupParams`,
 #' `setupGitIgnore`. Because of this
-#' order, settings in `options` can change `paths`, `times` can be used in `params`,
+#' sequence, users can take advantange of settings that happen before others. For
+#' example, users can set paths, then use those paths while setting up
+#' `params`, or they can set `options` that will can update/change `paths`,
+#' `times` can be used in `params`,
 #' for example.
-#' This sequence will create folder structures, install & load packages indicated in the
-#' `require` argument, set options, download or confirms
-#' existence of modules, install missing
+#' This sequence will create folder structures, install packages in either the `packages`
+#' or `require` arguments, load packages only from the `require` argument,
+#' set options, download or confirm the existence of modules, install missing
 #' packages from both the modules `reqdPkgs` fields and the user passed
-#' `packages`, assign parameters, and if desired, change the .Rprofile file for this
+#' `packages` or `require`. It will also return elements that can be passed
+#' directly to `simInit`  or `simInitAndSpades`, specifically, `modules`, `params`,
+#' `paths`, `times`, and any named elements passed to `...`. This function will also
+#' , if desired, change the .Rprofile file for this
 #'  this project so that every time this project is opened, it has a specific
 #'  `.libPaths()`. There are a number of convenience elements described in the
 #'  section below. See Details.
@@ -118,7 +124,7 @@ utils::globalVariables(c(
 #'           any needs of arbitrarily complex projects, using the same structure
 #'     \item Deal with the complexities of R package installation and loading when
 #'           working with modules that may have been created by many users
-#'     \item Allow every SpaDES project to have very similar structure, allowing
+#'     \item Create a common SpaDES project structure, allowing
 #'           easy transition from one project to another, regardless of complexity.
 #'   }
 #'
@@ -128,10 +134,13 @@ utils::globalVariables(c(
 #' \subsection{Sequential evaluation}{
 #' Throughout these functions, efforts have been made to implement sequential evaluation,
 #' within files and within lists. This means that a user can *use* the values from an
-#' upstream element in the list. For example, the following is valid:
+#' upstream element in the list. For example, the following where `projectPath` is
+#' part of the list that will be assigned to the `paths` argument and it is then
+#' used in the subsequent list element is valid:
 #'
 #' ```
-#' paths = list(projectPath = "here", modulePath = file.path(paths[["projectPath"]], "modules")
+#' setupPaths(paths = list(projectPath = "here",
+#'                         modulePath = file.path(paths[["projectPath"]], "modules")))
 #' ```
 #' Because of such sequential evaluation, `paths`, `options`, and `params` files
 #' can be sequential lists that have impose a hierarchy specified
@@ -228,6 +237,13 @@ utils::globalVariables(c(
 #'
 #' @return
 #' `setupProject` will return a named list with elements `modules`, `paths`, `params`, and `times`.
+#' The goal of this list is to contain list elements that can be passed directly
+#' to `simInit`
+#' NOTE: both `projectPath` and `packagePath` will be omitted in the `paths` list
+#' as they are used to
+#' set current directory (found with `getwd()`) and `.libPaths()[1]`, and `simInit`
+#' does not accept these. `setupPaths` will return these two paths as it is not
+#' expected to be passed directly to `simInit`.
 #' It will also append all elements passed by the user in the `...`.
 #' This list  can be passed directly to `SpaDES.core::simInit()` or
 #' `SpaDES.core::simInitAndSpades()` using a `do.call()`. See example.
