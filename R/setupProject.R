@@ -532,10 +532,12 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(times))
     times <- list(start = 0, end = 1)
 
-  pathsSUB <- checkProjectPath(pathsSUB, envir = envir, envir2 = parent.frame())
+  pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
 
   if (missing(name)) {
     name <- basename(normPath(pathsSUB[["projectPath"]]))
+  } else {
+    name <- checkNameProjectPathConflict(name, paths)
   }
   inProject <- isInProject(name)
 
@@ -604,6 +606,7 @@ setupProject <- function(name, paths, modules, packages,
   out <- append(list(
     modules = modules,
     paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
+                            # we also lose projectPath --> but this is getwd()
     params = params,
     times = times), dotsSUB)
   if (!is.null(options))
@@ -688,11 +691,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   messageVerbose(yellow("setting up paths ..."), verbose = verbose)
 
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths[["projectPath"]]))`
-  pathsSUB <- checkProjectPath(pathsSUB, envir, parent.frame())
+  pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
   paths <- parseFileLists(paths, paths[["projectPath"]], overwrite = overwrite,
                           envir = envir, verbose = verbose)
+
+  if (!missing(name))
+    name <- checkNameProjectPathConflict(name, paths)
 
   if (missing(name))
     name <- basename(paths[["projectPath"]])
@@ -714,12 +720,22 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       mustWork = FALSE, winslash = "/")
   }
 
-  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- file.path(paths[["projectPath"]], "modules")
+  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- "modules"
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
+  if (isTRUE(any(toMakeAbsolute))) {
+    firstPart <- paste0("^", paths[["projectPath"]], "(/|\\\\)")
+    alreadyHasProjectPath <- unlist(lapply(paths[toMakeAbsolute], grepl, # value = TRUE,
+                                           pattern = firstPart))
+    if (isTRUE(any(alreadyHasProjectPath)))
+      paths[toMakeAbsolute][alreadyHasProjectPath] <-
+      gsub(firstPart, replacement = "", paths[toMakeAbsolute][alreadyHasProjectPath])
+
+  }
   if (inProject) {
-    paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(x))
-  } else {
+    paths[["projectPath"]] <- "." # checkPaths will make an absolute
+  }
+  if (isTRUE(any(toMakeAbsolute))) {
     paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
   }
   paths <- lapply(paths, checkPath, create = TRUE)
@@ -1053,7 +1069,7 @@ setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envi
   } else {
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
-      pathsSUB <- checkProjectPath(pathsSUB, envir = envir, envir2 = parent.frame())
+      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
       paths <- setupPaths(paths = pathsSUB)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
@@ -1324,16 +1340,19 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
   return(obj)
 }
 
-checkProjectPath <- function(paths, envir, envir2) {
+checkProjectPath <- function(paths, name, envir, envir2) {
 
   if (missing(paths)) {
     paths <- list()
   }
-  if (is.name(paths)) {
+  if (is.name(paths) || is.call(paths)) {
     paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
   }
   if (is.null(paths[["projectPath"]])) {
-    prjPth <- list(projectPath = normPath("."))
+    prjPth <- if (missing(name))
+      list(projectPath = normPath("."))
+    else
+      list(projectPath = checkPath(name, create = TRUE))
     paths <- append(prjPth, as.list(paths))
     paths <- paths[nzchar(names(paths))]
   }
@@ -1898,4 +1917,16 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
         file.copy(oldFiles, newFiles, overwrite = TRUE)
       }
   }
+}
+
+checkNameProjectPathConflict <- function(name, paths) {
+  if (!missing(paths)) {
+    prjNmBase <- basename(paths[["projectPath"]])
+    if (!identical(basename(name), prjNmBase)) {
+      warning("both projectPath and name are supplied, but they are not the same; ",
+              "these must be the same basename; using projectPath: ", paths[["projectPath"]])
+      name <- prjNmBase
+    }
+  }
+  name
 }
