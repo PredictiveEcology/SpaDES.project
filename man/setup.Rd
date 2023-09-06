@@ -53,6 +53,7 @@ setupOptions(
 )
 
 setupModules(
+  name,
   paths,
   modules,
   useGit = FALSE,

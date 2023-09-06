@@ -63,9 +63,9 @@ When exploring existing modules, these tools help identify and navigate modules
 and their interdependencies.
 }
 \examples{
-
-\donttest{
+\dontshow{
 origLibPaths <- .libPaths()
+}
 origWorkDir <- getwd()
 
 grepListShort <- "dataPrep"
@@ -97,13 +97,14 @@ if (require("visNetwork") && require("igraph") && require("dplyr")) {
 Account <- "PredictiveEcology"
 mods <- listModules("fireSense", Account)
 out <- setupProject(
-  name = "example_fireSense",
   modules = file.path(Account, mods[[Account]]),
-  paths = list(projectPath = file.path(tempdir(), "fireSense"))
+  paths = list(projectPath = file.path(tempdir(), "example_fireSense"))
 )
 
+\dontshow{
 ## cleanup
 .teardownProject(out$paths, origLibPaths)
-setwd(origWorkDir)
 }
+setwd(origWorkDir)
+
 }
