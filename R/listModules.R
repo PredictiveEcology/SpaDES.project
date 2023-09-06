@@ -57,7 +57,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'
 #' @rdname listModules
 #' @seealso
-#' [metadataInModules() helps to see different metadata elements in a folder of modules]
+#' [metadataInModules()] helps to see different metadata elements in a folder of modules.
 #' @importFrom utils download.file
 #' @export
 #' @examples

@@ -110,5 +110,5 @@ setwd(origWorkDir)
 
 }
 \seealso{
-\link{metadataInModules() helps to see different metadata elements in a folder of modules}
+\code{\link[=metadataInModules]{metadataInModules()}} helps to see different metadata elements in a folder of modules.
 }
