@@ -1442,11 +1442,8 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpadES.project.gitignor
                      ".gitignore file updated with ", mess,"; ",
                      "this may need to be confirmed manually")
     }
-
   }
 }
-
-
 
 setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, scratchPath,
                      terraPath, silent = FALSE, verbose = getOption("Require.verbose", 1L)) {
