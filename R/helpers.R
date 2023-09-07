@@ -19,6 +19,7 @@ findProjectName <- function() {
   basename(findProjectPath())
 }
 
+## TODO: use `fs::is_absolute_path()` instead
 isAbsolutePath <- function(pathnames) {
   keep <- is.character(pathnames)
   if (isFALSE(keep))
@@ -81,8 +82,7 @@ user <- function(username = NULL) {
 machine <- function(machinename = NULL) {
   if (is.null(machinename)) {
     Sys.info()[["nodename"]]
-  }
-  else {
+  } else {
     grepl(machinename, Sys.info()[["nodename"]])
   }
 }
