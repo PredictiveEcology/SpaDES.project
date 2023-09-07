@@ -331,6 +331,7 @@ out <- setupProject(
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 out
+setwd(tmpdir)
 \dontshow{
 ## cleanup / restore state
 .teardownProject(out$paths, origLibPaths)
@@ -348,6 +349,7 @@ out <- setupProject(
 .teardownProject(out$paths, origLibPaths)
 }
 ## using an options file that is remote
+setwd(tmpdir)
 out <- setupProject(
   name = "example_4",
   options = c(
@@ -370,6 +372,7 @@ out <- setupProject(
 if (isFALSE(Require:::isWindows())) \{
 }
 ## setting arbitrary arguments, using defaultDots (1)
+setwd(tmpdir)
 out <- setupProject(
   name = "example_5",
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
