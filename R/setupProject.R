@@ -281,11 +281,11 @@ utils::globalVariables(c(
 #' setwd(tmpdir)
 #' out <- setupProject(
 #'   name = "example_2",
-#'   paths = list(modulePath = "m",
-#'                scratchPath = tempdir()),
+#'   paths = list(modulePath = "m"),
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #' out
+#' setwd(tmpdir)
 #' \dontshow{
 #' ## cleanup / restore state
 #' .teardownProject(out$paths, origLibPaths)
@@ -295,8 +295,7 @@ utils::globalVariables(c(
 #'   name = "example_3",
 #'   options = list(reproducible.useTerra = TRUE),
 #'   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'   paths = list(modulePath = "m",
-#'                scratchPath = tempdir()),
+#'   paths = list(modulePath = "m"),
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #' \dontshow{
@@ -304,6 +303,7 @@ utils::globalVariables(c(
 #' .teardownProject(out$paths, origLibPaths)
 #' }
 #' ## using an options file that is remote
+#' setwd(tmpdir)
 #' out <- setupProject(
 #'   name = "example_4",
 #'   options = c(
@@ -314,8 +314,7 @@ utils::globalVariables(c(
 #'   ),
 #'   paths = list(
 #'     modulePath = "m",
-#'     projectPath = file.path(tempdir(), "example_4"), # can use absolute path
-#'     scratchPath = tempdir()
+#'     projectPath = file.path(tempdir(), "example_4") # can use absolute path
 #'   ),
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
@@ -327,6 +326,7 @@ utils::globalVariables(c(
 #' if (isFALSE(Require:::isWindows())) \{
 #' }
 #' ## setting arbitrary arguments, using defaultDots (1)
+#' setwd(tmpdir)
 #' out <- setupProject(
 #'   name = "example_5",
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -384,8 +384,7 @@ utils::globalVariables(c(
 #'     system.file("authentication.R", package = "SpaDES.project") # local file
 #'   ),
 #'   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'   paths = list(modulePath = "m",
-#'                scratchPath = tempdir()),
+#'   paths = list(modulePath = "m"),
 #'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 #' )
 #' \dontshow{
@@ -539,6 +538,14 @@ setupProject <- function(name, paths, modules, packages,
   } else {
     name <- checkNameProjectPathConflict(name, paths)
   }
+  gtwd <- getwd()
+  weird <- 0
+  while (is.null(gtwd)) { # unknown why this returns NULL sometimes
+    gtwd <- getwd()
+    if (weird > 10)
+      browser()
+    weird <- weird + 1
+  }
   inProject <- isInProject(name)
 
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
@@ -546,7 +553,7 @@ setupProject <- function(name, paths, modules, packages,
 
   setupSpaDES.ProjectDeps(paths, verbose = getOption("Require.verbose"))
 
-  modulePackages <- setupModules(paths, modulesSUB, useGit = useGit,
+  modulePackages <- setupModules(name, paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
@@ -581,7 +588,7 @@ setupProject <- function(name, paths, modules, packages,
 
   if (!missing(config)) {
     messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
-    if (!requireNamespace("SpaDES.config")) {
+    if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
       Require::Install("PredictiveEcology/SpaDES.config@development")
     }
     localVars <- if (length(names(dotsSUB)))
@@ -700,8 +707,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   if (!missing(name))
     name <- checkNameProjectPathConflict(name, paths)
 
-  if (missing(name))
+  if (missing(name)) {
     name <- basename(paths[["projectPath"]])
+  }
   if (missing(inProject))
     inProject <- isInProject(name)
   if (is.null(paths[["projectPath"]]))
@@ -735,10 +743,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   if (inProject) {
     paths[["projectPath"]] <- "." # checkPaths will make an absolute
   }
+  # on linux, `normPath` doesn't expand if path doesn't exist -- so create first
+  paths[["projectPath"]] <- checkPath(paths[["projectPath"]], create = TRUE)
+  paths[["projectPath"]] <- normPath(paths[["projectPath"]]) # expands
+
   if (isTRUE(any(toMakeAbsolute))) {
     paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], function(x) file.path(paths[["projectPath"]], x))
   }
   paths <- lapply(paths, checkPath, create = TRUE)
+
   if (!inProject) {
     setwd(paths[["projectPath"]])
   }
@@ -1058,7 +1071,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' full module names and the list elemen.ts are the R packages that the module
 #' depends on (`reqsPkgs`)
 #'
-setupModules <- function(paths, modules, useGit = FALSE, overwrite = FALSE, envir = environment(),
+setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -1166,6 +1179,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   }
 
   if (length(packages) || length(unlist(modulePackages)) || length(require) ) {
+
     messageVerbose(yellow("setting up packages..."), verbose = verbose)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
@@ -1368,7 +1382,13 @@ checkProjectPath <- function(paths, name, envir, envir2) {
 }
 
 isInProject <- function(name) {
-  identical(basename(getwd()), extractPkgName(name))
+  if (!missing(name)) {
+    gtwd <- getwd()
+    out <- identical(basename(gtwd), extractPkgName(name))
+  } else {
+    out <- TRUE
+  }
+  out
 }
 
 isInRstudioProj <- function(name) {
@@ -1810,7 +1830,7 @@ setupStudyArea <- function(studyArea, paths) {
     studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ]
     if (!is.null(epsg))
       if (requireNamespace("terra")) {
-         studyArea |> terra::project(paste0("epsg:", epsg))
+         studyArea |> terra::project(epsg)
       } else {
         warning("Could not reproject; need ")
       }
@@ -1921,12 +1941,21 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
 
 checkNameProjectPathConflict <- function(name, paths) {
   if (!missing(paths)) {
-    prjNmBase <- basename(paths[["projectPath"]])
-    if (!identical(basename(name), prjNmBase)) {
+    prjNmBase <- basename2(paths[["projectPath"]])
+    if (!identical(basename(name), prjNmBase) && !is.null(prjNmBase)) {
       warning("both projectPath and name are supplied, but they are not the same; ",
               "these must be the same basename; using projectPath: ", paths[["projectPath"]])
       name <- prjNmBase
     }
   }
   name
+}
+
+basename2 <- function (x) {
+  if (is.null(x)) {
+    NULL
+  }
+  else {
+    basename(x)
+  }
 }

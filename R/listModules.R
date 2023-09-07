@@ -56,25 +56,29 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @inheritParams Require::Require
 #'
 #' @rdname listModules
+#' @seealso
+#' [metadataInModules()] helps to see different metadata elements in a folder of modules.
 #' @importFrom utils download.file
 #' @export
 #' @examples
-#'
-#' \donttest{
+#' \dontshow{
 #' origLibPaths <- .libPaths()
+#' }
 #' origWorkDir <- getwd()
 #'
-#' grepListShort <- "dataPrep"
-#' accountsListShort <- c("PredictiveEcology")
-#' mods <- listModules(grepListShort, accounts = accountsListShort)
+#' ## get all the fireSense modules from the Predictive Ecology GitHub repository
+#' Account <- "PredictiveEcology"
+#' grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
+#' mods <- listModules(grepListShort, accounts = Account)
 #'
-#' # Can do same, but with long list -- not done here
+#' # Can do same, but with long list -- not done here -- can try
 #' accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
 #'                        "FOR-CAST", "eliotmcintire", "tati-micheletti")
 #' grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
 #'                   "LandMine", "LandWeb", "NRV", #"scfm",
 #'                   "priority",
 #'                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+#' # pass to listModules for much larger figure
 #'
 #' modPath <- file.path(tempdir(), "testMods")
 #' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
@@ -83,25 +87,25 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'   out
 #' })
 #'
-#' if (require("visNetwork") && require("igraph") && require("dplyr")) {
+#' if (requireNamespace("igraph", quietly = TRUE) &&
+#'     requireNamespace("visNetwork", quietly = TRUE)) {
+#'
 #'   DT <- moduleDependencies(mods, modulePath = modPath)
 #'   graph <- moduleDependenciesToGraph(DT)
-#'   vn <- PlotModuleGraph(graph)
+#'   (vn <- PlotModuleGraph(graph))
 #' }
 #'
-#' ## get all the fireSense modules from the Predictive Ecology GitHub repository
-#' Account <- "PredictiveEcology"
-#' mods <- listModules("fireSense", Account)
 #' out <- setupProject(
-#'   name = "example_fireSense",
 #'   modules = file.path(Account, mods[[Account]]),
-#'   paths = list(projectPath = file.path(tempdir(), "fireSense"))
+#'   paths = list(projectPath = file.path(tempdir(), "example_Biomass"))
 #' )
 #'
+#' \dontshow{
 #' ## cleanup
 #' .teardownProject(out$paths, origLibPaths)
-#' setwd(origWorkDir)
 #' }
+#' setwd(origWorkDir)
+#'
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
@@ -235,9 +239,8 @@ moduleDependenciesToGraph <- function(md) {
 #' @param graph An igraph object to plot. Likely returned by `moduleDependenciesToGraph`.
 PlotModuleGraph <- function(graph) {
   if (!requireNamespace("igraph", quietly = TRUE) ||
-      !requireNamespace("dplyr", quietly = TRUE) ||
       !requireNamespace("visNetwork", quietly = TRUE)) {
-    stop("need igraph, dplyr and visNetwork")
+    stop("need igraph and visNetwork")
   }
 
   graph <- igraph::simplify(graph)

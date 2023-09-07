@@ -27,7 +27,6 @@ Imports:
 Suggests:
     covr,
     details,
-    dplyr,
     geodata,
     googledrive,
     httr,
@@ -47,10 +46,7 @@ Suggests:
     waldo,
     withr
 Remotes: 
-    PredictiveEcology/Require@development,
-    PredictiveEcology/SpaDES.config@development,
-    PredictiveEcology/SpaDES.core@development,
-    PredictiveEcology/reproducible@development
+    PredictiveEcology/SpaDES.config@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3

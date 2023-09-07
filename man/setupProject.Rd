@@ -327,11 +327,11 @@ out <- setupProject(
 setwd(tmpdir)
 out <- setupProject(
   name = "example_2",
-  paths = list(modulePath = "m",
-               scratchPath = tempdir()),
+  paths = list(modulePath = "m"),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 out
+setwd(tmpdir)
 \dontshow{
 ## cleanup / restore state
 .teardownProject(out$paths, origLibPaths)
@@ -341,8 +341,7 @@ out <- setupProject(
   name = "example_3",
   options = list(reproducible.useTerra = TRUE),
   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-  paths = list(modulePath = "m",
-               scratchPath = tempdir()),
+  paths = list(modulePath = "m"),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 \dontshow{
@@ -350,6 +349,7 @@ out <- setupProject(
 .teardownProject(out$paths, origLibPaths)
 }
 ## using an options file that is remote
+setwd(tmpdir)
 out <- setupProject(
   name = "example_4",
   options = c(
@@ -360,8 +360,7 @@ out <- setupProject(
   ),
   paths = list(
     modulePath = "m",
-    projectPath = file.path(tempdir(), "example_4"), # can use absolute path
-    scratchPath = tempdir()
+    projectPath = file.path(tempdir(), "example_4") # can use absolute path
   ),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
@@ -373,6 +372,7 @@ out <- setupProject(
 if (isFALSE(Require:::isWindows())) \{
 }
 ## setting arbitrary arguments, using defaultDots (1)
+setwd(tmpdir)
 out <- setupProject(
   name = "example_5",
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -430,8 +430,7 @@ out <- setupProject(
     system.file("authentication.R", package = "SpaDES.project") # local file
   ),
   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-  paths = list(modulePath = "m",
-               scratchPath = tempdir()),
+  paths = list(modulePath = "m"),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 \dontshow{
