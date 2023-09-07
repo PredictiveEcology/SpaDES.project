@@ -1399,7 +1399,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' If the project is a git repository without git submodules, then the `paths$modulePath`
 #' will be added to the `.gitignore` file. It is assumed that these modules are
 #' used in a `read only` manner.
-setupGitIgnore <- function(paths, gitignore = getOption("SpadES.project.gitignore", TRUE),
+setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE),
                            verbose) {
 
   gitIgnoreFile <- ".gitignore"
