@@ -95,7 +95,7 @@ setupParams(
 
 setupGitIgnore(
   paths,
-  gitignore = getOption("SpadES.project.gitignore", TRUE),
+  gitignore = getOption("SpaDES.project.gitignore", TRUE),
   verbose
 )
 
