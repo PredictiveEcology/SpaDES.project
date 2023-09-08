@@ -1102,7 +1102,14 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     if (!useGit) {
+      offlineMode <- getOption("Require.offlineMode")
+      if (isTRUE(offlineMode)) {
+        opt <- options(Require.offlineMode = FALSE)
+        on.exit(try(options(opt), silent = TRUE))
+      }
       out <- getModule(modules, paths[["modulePath"]], overwrite)
+      if (isTRUE(offlineMode))
+        options(opt)
       anyfailed <- out$failed
       modules <- anyfailed
     }
@@ -1934,7 +1941,7 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
         browser()
-        file.copy(oldFiles, newFiles, overwrite = TRUE)
+        Require:::linkOrCopy(oldFiles, newFiles)
       }
   }
 }
