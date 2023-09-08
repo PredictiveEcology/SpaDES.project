@@ -368,9 +368,6 @@ out <- setupProject(
 ## cleanup / restore state
 .teardownProject(out$paths, origLibPaths)
 }
-\dontshow{
-if (isFALSE(Require:::isWindows())) \{
-}
 ## setting arbitrary arguments, using defaultDots (1)
 setwd(tmpdir)
 out <- setupProject(
@@ -437,6 +434,9 @@ out <- setupProject(
 ## cleanup / restore state
 .teardownProject(out$paths, origLibPaths)
 }
+\dontshow{
+#  if (isFALSE(Require:::isWindows())) \{
+}
 ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
 setwd(tmpdir)
 out <- setupProject(
@@ -497,7 +497,7 @@ out <- setupProject(
 ## or alternatively:
 setwd(tmpdir)
 out <- setupProject(
-  paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
+  paths = list(projectPath = "MEE_Paper2"), # will deduce name of project from projectPath
   standAlone = TRUE,
   require = c(
     "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
@@ -537,7 +537,7 @@ out <- setupProject(
 setwd(originalDir)
 
 \dontshow{
-\}
+# 8\}
 }
 }
 \seealso{
