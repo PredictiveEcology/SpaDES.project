@@ -322,9 +322,6 @@ utils::globalVariables(c(
 #' ## cleanup / restore state
 #' .teardownProject(out$paths, origLibPaths)
 #' }
-#' \dontshow{
-#' if (isFALSE(Require:::isWindows())) \{
-#' }
 #' ## setting arbitrary arguments, using defaultDots (1)
 #' setwd(tmpdir)
 #' out <- setupProject(
@@ -391,6 +388,9 @@ utils::globalVariables(c(
 #' ## cleanup / restore state
 #' .teardownProject(out$paths, origLibPaths)
 #' }
+#' \dontshow{
+#' #  if (isFALSE(Require:::isWindows())) \{
+#' }
 #' ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
 #' setwd(tmpdir)
 #' out <- setupProject(
@@ -451,7 +451,7 @@ utils::globalVariables(c(
 #' ## or alternatively:
 #' setwd(tmpdir)
 #' out <- setupProject(
-#'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
+#'   paths = list(projectPath = "MEE_Paper2"), # will deduce name of project from projectPath
 #'   standAlone = TRUE,
 #'   require = c(
 #'     "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
@@ -491,7 +491,7 @@ utils::globalVariables(c(
 #' setwd(originalDir)
 #'
 #' \dontshow{
-#' \}
+#' # 8\}
 #' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
@@ -1102,7 +1102,14 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     if (!useGit) {
+      offlineMode <- getOption("Require.offlineMode")
+      if (isTRUE(offlineMode)) {
+        opt <- options(Require.offlineMode = FALSE)
+        on.exit(try(options(opt), silent = TRUE))
+      }
       out <- getModule(modules, paths[["modulePath"]], overwrite)
+      if (isTRUE(offlineMode))
+        options(opt)
       anyfailed <- out$failed
       modules <- anyfailed
     }
@@ -1464,7 +1471,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' If the project is a git repository without git submodules, then the `paths$modulePath`
 #' will be added to the `.gitignore` file. It is assumed that these modules are
 #' used in a `read only` manner.
-setupGitIgnore <- function(paths, gitignore = getOption("SpadES.project.gitignore", TRUE),
+setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE),
                            verbose) {
 
   gitIgnoreFile <- ".gitignore"
@@ -1507,11 +1514,8 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpadES.project.gitignor
                      ".gitignore file updated with ", mess,"; ",
                      "this may need to be confirmed manually")
     }
-
   }
 }
-
-
 
 setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, scratchPath,
                      terraPath, silent = FALSE, verbose = getOption("Require.verbose", 1L)) {
@@ -1934,7 +1938,7 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
         browser()
-        file.copy(oldFiles, newFiles, overwrite = TRUE)
+        Require:::linkOrCopy(oldFiles, newFiles)
       }
   }
 }
