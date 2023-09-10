@@ -1,0 +1,148 @@
+---
+title: "Installing SpaDES"
+author: "Alex M. Chubaty"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Installing SpaDES}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = TRUE,
+  eval = FALSE
+)
+```
+
+## Installing R
+
+### Installing prerequisites
+
+#### Windows
+
+1. Download and run the R installer (as administrator!) from <https://cran.r-project.org/bin/windows/base>.
+
+2. (Optional) To build and compile packages, download and install the latest Rtools (as administrator!) from <https://cran.r-project.org/bin/windows/Rtools/>.
+    Be sure to check the "add rtools to PATH" option during installation.
+
+3. Install GIS tools by downloading OSGeo4W from <http://download.osgeo.org/osgeo4w/osgeo4w-setup-x86_64.exe> and running the installer (select 'Express Install').
+
+#### macOS
+
+1. Download and run the R installer from <https://cran.r-project.org/bin/macosx>.
+
+2. Install Xcode commandline tools from the terminal:
+
+    ```
+    xcode-select --install
+    ```
+
+3. Install homebrew from the terminal (more info at <https://brew.sh/>):
+
+    ```
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    ```
+
+4. Install GDAL and other spatial packages:
+
+    ```
+    brew install pkg-config
+    brew install gdal
+    ```
+    
+    Then, install spatial R packages from source to pick up the new GDAL and PROJ libraries:
+  
+    ```{r install-spatial}
+    ## (re)install spatial packages from source
+    install.packages(c("rgeos", "sf", "sp"), type = "source")
+    
+    ## rgdal requires some additional configuration to build correctly:
+    ##   based on http://stackoverflow.com/a/26836125/1380598
+    install.packages("rgdal", type = "source",
+                     configure.args = c("--with-proj-include=/usr/local/include",
+                                        "--with-proj-lib=/usr/local/lib"))
+    library(rgdal) ## confirm the GDAL version being used
+    ```
+
+5. Install OpenMP support for `data.table`:
+
+    ```
+    brew install llvm
+    ```
+
+6. Install GLPK (needed for full `igraph` functionality):
+
+    ```
+    brew install glpk
+    ```
+
+    Then, reinstall `igraph` from source so it is compiled with GLPK:
+
+    ```{r install-igraph}
+    install.packages("igraph", type = "source")
+    ```
+
+#### Linux
+
+Install via `apt` or `yum` depending on your distribution.
+Instructions for Ubuntu 20.04 LTS are shown below.
+
+1. Install R and its development libraries:
+
+    ```
+    sudo apt install r-base r-base-dev
+    ```
+
+2. Install java and configure R to use it:
+
+    ```
+    sudo apt build-dep -y r-cran-rjava
+    sudo R CMD javareconf
+    ```
+
+3. Install dependencies for spatial and other packages:
+
+    ```
+    sudo apt build-dep -y r-cran-tkrplot
+
+    sudo apt-get install -y \
+      curl \
+      gdal-bin \
+      git \
+      libcairo2-dev \
+      libcurl4-openssl-dev \
+      libgdal-dev \
+      libgeos-dev \
+      libgit2-dev \
+      libglpk-dev \
+      libgmp-dev \
+      libjq-dev \
+      libmagick++-dev \
+      libproj-dev \
+      libprotobuf-dev \
+      libprotoc-dev \
+      libssh2-1-dev \
+      libssl-dev \
+      libudunits2-dev \
+      libv8-dev \
+      libxml2-dev \
+      libxt-dev \
+      pandoc \
+      pandoc-citeproc \
+      protobuf-compiler \
+      python3-gdal \
+      tcl-dev \
+      tk-dev
+    ```
+
+
+### Installing Rstudio
+
+**Recommended.**
+
+Download and run the installer for your operating system from <https://www.rstudio.com/products/rstudio/download/#download>.
