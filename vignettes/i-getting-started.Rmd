@@ -1,9 +1,9 @@
 ---
-title: "Installing SpaDES"
-author: "Alex M. Chubaty"
+title: "SpaDES project setup"
+author: "Eliot McIntire"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Installing SpaDES}
+  %\VignetteIndexEntry{SpaDES project setup}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options: 

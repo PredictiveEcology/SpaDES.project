@@ -1,5 +1,5 @@
 ---
-title: "Installing SpaDES"
+title: "Installing R"
 author: "Alex M. Chubaty"
 output: rmarkdown::html_vignette
 vignette: >
