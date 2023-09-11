@@ -260,18 +260,14 @@ utils::globalVariables(c(
 #' library(SpaDES.project)
 #'
 #' # Run all tests in a temporary directory, do not disrupt user's current project
-#' tmpdir <- file.path(tempdir())
 #' \dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
-#' originalDir <- setwd(tmpdir)
 #' \dontshow{
 #' if (is.null(getOption("repos"))) {
 #'   options(repos = c(CRAN = "https://cloud.r-project.org"))
 #' }
-#' origLibPaths <- .libPaths()
-#' }
 #'  ## simplest case; just creates folders
 #' out <- setupProject(
-#'   name = "example_1"
+#'   paths = list(projectPath = ".") #
 #' )
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
@@ -899,7 +895,10 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
       gitSplit <- Require::invertList(gitSplit)
 
       origDir <- getwd()
-      on.exit(setwd(origDir))
+      on.exit({
+        setwd(origDir)
+      }
+        )
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
@@ -912,6 +911,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
         }
         reportBranch <- TRUE
         if (!grepl("master|main|HEAD", split$br)) {
+          browser()
           prev <- setwd(file.path(paths[["modulePath"]], split$repo))
           cmd <- "git rev-parse --abbrev-ref HEAD"
           # next line -- cd doesn't work on my windows; no idea why
@@ -1718,13 +1718,14 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
         browser()
-        Require:::linkOrCopy(oldFiles, newFiles)
+        linkOrCopy(oldFiles, newFiles)
       }
   }
 }
 
 checkNameProjectPathConflict <- function(name, paths) {
   if (!missing(paths)) {
+    paths[["projectPath"]] <- normPath(paths[["projectPath"]])
     prjNmBase <- basename2(paths[["projectPath"]])
     if (!identical(basename(name), prjNmBase) && !is.null(prjNmBase)) {
       warning("both projectPath and name are supplied, but they are not the same; ",

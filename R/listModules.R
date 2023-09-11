@@ -61,50 +61,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @importFrom utils download.file
 #' @export
 #' @examples
-#' \dontshow{
-#' origLibPaths <- .libPaths()
-#' }
-#' origWorkDir <- getwd()
-#'
-#' ## get all the fireSense modules from the Predictive Ecology GitHub repository
-#' Account <- "PredictiveEcology"
-#' grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
-#' mods <- listModules(grepListShort, accounts = Account)
-#'
-#' # Can do same, but with long list -- not done here -- can try
-#' accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
-#'                        "FOR-CAST", "eliotmcintire", "tati-micheletti")
-#' grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
-#'                   "LandMine", "LandWeb", "NRV", #"scfm",
-#'                   "priority",
-#'                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
-#' # pass to listModules for much larger figure
-#'
-#' modPath <- file.path(tempdir(), "testMods")
-#' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-#'   out <- getModule(paste0(nam, "/", mod),
-#'   modulePath = modPath)
-#'   out
-#' })
-#'
-#' if (requireNamespace("igraph", quietly = TRUE) &&
-#'     requireNamespace("visNetwork", quietly = TRUE)) {
-#'
-#'   DT <- moduleDependencies(mods, modulePath = modPath)
-#'   graph <- moduleDependenciesToGraph(DT)
-#'   (vn <- PlotModuleGraph(graph))
-#' }
-#'
-#' out <- setupProject(
-#'   modules = file.path(Account, mods[[Account]]),
-#'   paths = list(projectPath = file.path(tempdir(), "example_Biomass"))
-#' )
-#'
-#' \dontshow{
-#' ## cleanup
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' setwd(origWorkDir)
+#' listModules(accounts = "PredictiveEcology", "none")
 #'
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,

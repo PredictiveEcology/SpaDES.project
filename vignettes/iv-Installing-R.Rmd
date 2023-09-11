@@ -3,7 +3,7 @@ title: "Installing R"
 author: "Alex M. Chubaty"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Installing SpaDES}
+  %\VignetteIndexEntry{Installing R}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options: 
