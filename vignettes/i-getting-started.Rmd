@@ -19,6 +19,13 @@ knitr::opts_chunk$set(
 )
 ```
 
+```{r setCRAN,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+if (is.null(getOption("repos"))) {
+ options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+```
+
 # Getting started
 
 `SpaDES` is a set of R packages that provide a modular framework for doing ecological analysis, simulation, forecasting and other ecological objectives. The key element of a `SpaDES` analysis is the *module*: a chunk of code that does something and has computer- and human-readable metadata associated with it. It is common within a `SpaDES` project that a user will use many modules, created by them or by others. This potential *growth* of a project complexity leads to a number of challenges including paths (e.g., for data inputs, outputs, figures, modules, packages), package dependencies, and simultaneous module development and synchornization. While a `SpaDES` project can be developed like any other that a user may have already been familiar with, this `SpaDES.project` package helps to create a clean, repeatable set up for any package. The defaults will keep a given project files and pacakges isolated from other projects on a computer. 
