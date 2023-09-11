@@ -403,8 +403,4 @@ if (requireNamespace("igraph", quietly = TRUE) &&
   (vn <- PlotModuleGraph(graph))
 }
 
-out <- setupProject(
-  modules = file.path(Account, mods[[Account]]),
-  paths = list(projectPath = file.path(tempdir(), "example_Biomass"))
-)
 ```

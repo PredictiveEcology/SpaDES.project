@@ -299,10 +299,27 @@ out <- setupProject(.mode = .mode,
 }
 }
 
+\examples{
+## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
+## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+library(SpaDES.project)
+
+# Run all tests in a temporary directory, do not disrupt user's current project
+\dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+\dontshow{
+if (is.null(getOption("repos"))) {
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+}
+ ## simplest case; just creates folders
+out <- setupProject(
+  paths = list(projectPath = ".") #
+)
+}
 \seealso{
 \code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
 \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
 \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
 
-\url{setupProject example vignette}
+\code{vignette("SpaDES project setup", package = "SpaDES.project")}
 }

@@ -252,7 +252,7 @@ utils::globalVariables(c(
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
 #' @rdname setupProject
-#' @seealso [setupProject example vignette]()
+#' @seealso \code{vignette("SpaDES project setup", package = "SpaDES.project")}
 #'
 #' @examples
 #' ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
@@ -264,6 +264,7 @@ utils::globalVariables(c(
 #' \dontshow{
 #' if (is.null(getOption("repos"))) {
 #'   options(repos = c(CRAN = "https://cloud.r-project.org"))
+#' }
 #' }
 #'  ## simplest case; just creates folders
 #' out <- setupProject(
