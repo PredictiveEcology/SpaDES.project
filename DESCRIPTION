@@ -32,6 +32,7 @@ Suggests:
     httr,
     igraph,
     knitr,
+    raster,
     reproducible,
     rmarkdown,
     rstudioapi,
