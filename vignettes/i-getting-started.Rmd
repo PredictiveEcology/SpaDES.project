@@ -101,8 +101,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ```{r exampoe2,eval=TRUE}
 out <- setupProject(
-  name = "example_2",
-  paths = list(modulePath = "m"),
+  paths = list(modulePath = "m", projectPath = "."),
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 ```
