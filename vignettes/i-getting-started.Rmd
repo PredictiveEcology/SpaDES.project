@@ -14,9 +14,17 @@ editor_options:
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  echo = TRUE,
-  eval = FALSE
+  echo = TRUE
 )
+
+SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis")
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
+useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
+
+knitr::opts_chunk$set(eval = hasSuggests && useSuggests)
+
+options(Require.clonePkgs = TRUE)
+
 ```
 
 ```{r setCRAN,eval=TRUE,echo=FALSE}
@@ -60,11 +68,11 @@ One of the important reasons for using `setupProject` is that there are many def
 
 The output from `setupProject` is a list with several named elements. These are intended to be passed directly to `simInit` to initiate a `simList` and potentially a `spades` call.
 
-#### arguments as values or urls
+#### Arguments as values or urls
 
 For most arguments, the values can either be named lists or character vectors of strings that end in `.R` that represent `urls` to cloud or local R scripts that will be sourced.  This allows a user to start with very simple argument values and progressively add arbitrary complexity as a project becomes larger. 
 
-#### arguments sourced sequentially
+#### Arguments sourced sequentially
 
 The argument values in each of the arguments are sourced sequentially, so a previous value can be used by a subsequent value. 
 
@@ -76,6 +84,9 @@ if (!require("SpaDES.project")) {
    require("SpaDES.project")}
 }
 ```
+
+
+#### Arguments not sourced to .GlobalEnv
 
 ```{r clean1,eval=TRUE,echo=FALSE}
 ## cleanup / restore state
@@ -390,10 +401,12 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
   modulePath = modPath)
   out
 })
+browser()
+
 
 if (requireNamespace("igraph", quietly = TRUE) && 
-    requireNamespace("SpaDES.core", quietly = TRUE) && 
-    requireNamespace("raster", quietly = TRUE)) {
+    requireNamespace("visNetwork", quietly = TRUE) &&
+    requireNamespace("SpaDES.core", quietly = TRUE)) {
 
   DT <- moduleDependencies(mods, modulePath = modPath)
   graph <- moduleDependenciesToGraph(DT)
@@ -419,8 +432,8 @@ out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
 })
 
 if (requireNamespace("igraph", quietly = TRUE) && 
-    requireNamespace("SpaDES.core", quietly = TRUE) && 
-    requireNamespace("raster", quietly = TRUE)) {
+    requireNamespace("visNetwork", quietly = TRUE) &&
+    requireNamespace("SpaDES.core", quietly = TRUE) ) {
 
   DT <- moduleDependencies(modsLong, modulePath = modPath)
   graph <- moduleDependenciesToGraph(DT)

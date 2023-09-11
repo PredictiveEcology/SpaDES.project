@@ -27,6 +27,7 @@ Imports:
 Suggests:
     covr,
     details,
+    ellipsis,
     geodata,
     googledrive,
     httr,
