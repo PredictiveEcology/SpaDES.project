@@ -182,6 +182,13 @@ out <- setupProject(
 )
 ```
 
+```{r setCRAN_again,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+if (is.null(getOption("repos"))) {
+ options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+```
+m
 ```{r clean5,eval=TRUE,echo=FALSE}
 ## cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
@@ -401,8 +408,6 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
   modulePath = modPath)
   out
 })
-browser()
-
 
 if (requireNamespace("igraph", quietly = TRUE) && 
     requireNamespace("visNetwork", quietly = TRUE) &&
@@ -417,10 +422,10 @@ if (requireNamespace("igraph", quietly = TRUE) &&
 ```{r listModulesAll,eval=TRUE}
 # Can do same, but with long list -- not done here -- can try
 accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
-                       "FOR-CAST", "eliotmcintire", "tati-micheletti")
+                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
 grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
                   "LandMine", "LandWeb", "NRV", #"scfm",
-                  "priority",
+                  "priority", "fire", 
                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 modsLong <- listModules(grepListLong, accounts = accountsListLong)
 # pass to listModules for much larger figure
