@@ -29,7 +29,7 @@ options(Require.clonePkgs = TRUE)
 
 ```{r setCRAN,eval=TRUE,echo=FALSE}
 ## cleanup / restore state
-if (is.null(getOption("repos"))) {
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
  options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
 ```
@@ -132,7 +132,7 @@ out <- setupProject(
   options = list(reproducible.useTerra = TRUE),
   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
   paths = list(modulePath = "m",
-                 projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
 ```
@@ -184,7 +184,7 @@ out <- setupProject(
 
 ```{r setCRAN_again,eval=TRUE,echo=FALSE}
 ## cleanup / restore state
-if (is.null(getOption("repos"))) {
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
  options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
 ```
