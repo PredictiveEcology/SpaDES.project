@@ -1730,8 +1730,8 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
         newFiles <- file.path(paths[["packagePath"]], pkg, files1)
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
-        browser()
-        linkOrCopy(oldFiles, newFiles)
+
+        file.copy(oldFiles, newFiles, overwrite = TRUE)
       }
   }
 }
