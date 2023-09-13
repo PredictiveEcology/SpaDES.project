@@ -1155,9 +1155,17 @@ checkProjectPath <- function(paths, name, envir, envir2) {
   }
   if (is.null(paths[["projectPath"]])) {
     prjPth <- if (missing(name))
-      list(projectPath = normPath("."))
-    else
-      list(projectPath = checkPath(name, create = TRUE))
+      normPath(".")
+    else {
+      if (isInProject(name)) {
+        normPath(".")
+      } else {
+        checkPath(name, create = TRUE)
+      }
+
+    }
+    prjPth <- list(projectPath = prjPth)
+
     paths <- append(prjPth, as.list(paths))
     paths <- paths[nzchar(names(paths))]
   }
@@ -1730,12 +1738,14 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
 
 checkNameProjectPathConflict <- function(name, paths) {
   if (!missing(paths)) {
-    paths[["projectPath"]] <- normPath(paths[["projectPath"]])
-    prjNmBase <- basename2(paths[["projectPath"]])
-    if (!identical(basename(name), prjNmBase) && !is.null(prjNmBase)) {
-      warning("both projectPath and name are supplied, but they are not the same; ",
-              "these must be the same basename; using projectPath: ", paths[["projectPath"]])
-      name <- prjNmBase
+    if (!is.null(paths[["projectPath"]])) {
+      paths[["projectPath"]] <- normPath(paths[["projectPath"]])
+      prjNmBase <- basename2(paths[["projectPath"]])
+      if (!identical(basename(name), prjNmBase) && !is.null(prjNmBase)) {
+        warning("both projectPath and name are supplied, but they are not the same; ",
+                "these must be the same basename; using projectPath: ", paths[["projectPath"]])
+        name <- prjNmBase
+      }
     }
   }
   name
