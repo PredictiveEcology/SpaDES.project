@@ -518,7 +518,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   }
   if (inProject) {
-    paths[["projectPath"]] <- "." # checkPaths will make an absolute
+    paths[["projectPath"]] <- normPath(".") # checkPaths will make an absolute
   }
   # on linux, `normPath` doesn't expand if path doesn't exist -- so create first
   paths[["projectPath"]] <- checkPath(paths[["projectPath"]], create = TRUE)
@@ -555,11 +555,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- lapply(paths, normPath)
 
-  changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
+  changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+                        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
+  # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
 
   Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                        updateRprofile = updateRprofile,
                        exact = FALSE, verbose = verbose)
+  paths[["packagePath"]] <- .libPaths()[1]
 
   do.call(setPaths, paths[spPaths])
 
@@ -1709,7 +1712,8 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
     messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath (",
                    paths$packagePath, ")", verbose = verbose)
 
-    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]))
+    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
       for (pkg in deps) {
         pkgDir <- file.path(.libPaths(), pkg)
         de <- dir.exists(pkgDir)
