@@ -315,7 +315,8 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-  times <- evalSUB(timesSUB, envir = envir, valObjName = "times")
+  if (!missing(timesSUB))
+    times <- evalSUB(val = timesSUB, envir = envir, valObjName = "times", envir2 = parent.frame())
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
