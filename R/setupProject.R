@@ -717,9 +717,10 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
   envs <- list(envir) # means
 
   llOuter <- lapply(files, function(optFiles) {
-    pp <- parse(optFiles)
+    if (isTRUE(file_ext(optFiles) %in% c("txt", "R"))) {
+      pp <- parse(optFiles)
 
-    envs2 <- lapply(pp, function(p) {
+      envs2 <- lapply(pp, function(p) {
       env <- new.env(parent = tail(envs, 1)[[1]])
       if (isUnevaluatedList(p) || isFALSE(namedList)) {
         # robust to code failures
@@ -769,10 +770,14 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
           as.list(env)[[1]]
         })
         os <- Reduce(modifyList, ll)
+        }
+      } else {
+        os <- as.list(tail(envs2, 1)[[1]])
       }
     } else {
-      os <- as.list(tail(envs2, 1)[[1]])
+      os <- NULL
     }
+
     os
   })
 
