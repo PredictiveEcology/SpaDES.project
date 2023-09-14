@@ -4,26 +4,26 @@ utils::globalVariables(c(
 
 #' Sets up a new or existing SpaDES project
 #'
-#' `setupProject` calls a sequence of functions in this order:
+#' @description `setupProject` calls a sequence of functions in this order:
 #' `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`,
 #' `setupSideEffects`, `setupParams`,
-#' `setupGitIgnore`. Because of this
-#' sequence, users can take advantange of settings that happen before others. For
-#' example, users can set paths, then use those paths while setting up
-#' `params`, or they can set `options` that will can update/change `paths`,
-#' `times` can be used in `params`,
-#' for example.
-#' This sequence will create folder structures, install packages in either the `packages`
-#' or `require` arguments, load packages only from the `require` argument,
-#' set options, download or confirm the existence of modules, install missing
-#' packages from both the modules `reqdPkgs` fields and the user passed
-#' `packages` or `require`. It will also return elements that can be passed
+#' `setupGitIgnore`.
+#'
+#' This sequence will create folder structures, install missing packages from those
+#' listed in either the `packages`, `require` arguments or in the modules `reqdPkgs` fields,
+#' load packages (only those in the `require` argument), set options, download or
+#' confirm the existence of modules. It will also return elements that can be passed
 #' directly to `simInit`  or `simInitAndSpades`, specifically, `modules`, `params`,
 #' `paths`, `times`, and any named elements passed to `...`. This function will also
-#' , if desired, change the .Rprofile file for this
-#'  this project so that every time this project is opened, it has a specific
-#'  `.libPaths()`. There are a number of convenience elements described in the
-#'  section below. See Details.
+#' , if desired, change the .Rprofile file for this project so that every time
+#' the project is opened, it has a specific `.libPaths()`.
+#'
+#' There are a number of convenience elements described in the section below. See Details.
+#' Because of this sequence, users can take advantage of settings (i.e., objects)
+#' that happen (are created) before others. For example, users can set `paths`
+#' then use the `paths` list to set `options` that will can update/change `paths`,
+#' or set `times` and use the `times` list for certain entries in `params`.
+#'
 #'
 #' @param name Optional. If supplied, the name of the project. If not supplied, an
 #' attempt will be made to extract the name from the `paths[["projectPath"]]`.
