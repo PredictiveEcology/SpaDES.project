@@ -356,10 +356,6 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(packages))
     packages <- NULL
 
-  if (!is.null(studyArea))
-    if (is(studyArea, "list"))
-      packages <- unique(c(packages, c("geodata")))
-
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
@@ -398,13 +394,20 @@ setupProject <- function(name, paths, modules, packages,
                         overwrite = overwrite, envir = envir, verbose = verbose)
 
 
+  studyAreaSUB <- substitute(studyArea)
+  if (!is.null(studyAreaSUB)) {
+    isSAlist <- try(is(studyArea, "list"), silent = TRUE)
+
+    if (is(isSAlist, "try-error")) {
+      extraPackages <- c("terra", "geodata")
+      Require::Install(extraPackages)
+    }
+    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
+  }
+
   if (length(dotsLater)) {
     dotsLater <- dotsToHereOuter(dots, dotsLater, defaultDots)
     dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
-  }
-
-  if (!is.null(studyArea)) {
-    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
   }
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
