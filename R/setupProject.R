@@ -265,15 +265,16 @@ utils::globalVariables(c(
 #' @return
 #' `setupProject` will return a named list with elements `modules`, `paths`, `params`, and `times`.
 #' The goal of this list is to contain list elements that can be passed directly
-#' to `simInit`
-#' NOTE: both `projectPath` and `packagePath` will be omitted in the `paths` list
-#' as they are used to
-#' set current directory (found with `getwd()`) and `.libPaths()[1]`, and `simInit`
-#' does not accept these. `setupPaths` will return these two paths as it is not
-#' expected to be passed directly to `simInit`.
+#' to `simInit`.
+#'
 #' It will also append all elements passed by the user in the `...`.
 #' This list  can be passed directly to `SpaDES.core::simInit()` or
 #' `SpaDES.core::simInitAndSpades()` using a `do.call()`. See example.
+#'
+#' NOTE: both `projectPath` and `packagePath` will be omitted in the `paths` list
+#' as they are used to set current directory (found with `getwd()`) and `.libPaths()[1]`,
+#' but are not accepted by `simInit`. `setupPaths` will still return these two paths as its
+#' outputs are not expected to be passed directly to `simInit` (unlike `setupProject` outputs).
 #'
 #' @importFrom Require extractPkgName
 #' @inheritParams Require::Require
