@@ -105,9 +105,18 @@ utils::globalVariables(c(
 #'   the `defaultDots` will be overridden. This can be particularly useful if the
 #'   arguments passed to `...` do not always exist, but rely on external e.g., batch
 #'   processing to optionally fill them. See examples.
-#' @param ... further arguments passed to `SpaDES.core::simInit`, or `SpaDES.core::simInitAndSpades`,
+#' @param ... further named arguments that acts like `objects`, but a different
+#'   way to specify them. These can be anything. The general use case
+#'   is to create the `objects` that are would be passed to
+#'   `SpaDES.core::simInit`, or `SpaDES.core::simInitAndSpades`,
 #'   (e.g. `studyAreaName` or `objects`) or additional objects to be passed to the simulation
-#'   (traditionally passed as a named list to the `objects` argument).
+#'   (in older versions of `SpaDES.core`, these were passed as a named list
+#'   to the `objects` argument). **Order matters**. These are sequentially evaluated,
+#'   and also any arguments that are specified before the named arguments
+#'   e.g., `name`, `paths`, will be evaluated prior to any of the named arguments,
+#'   i.e., "at the start" of the `setupProject`.
+#'   If placed after the first named argument, then they will be evaluated at the
+#'   end of the `setupProject`, so can access all the packages, objects, etc.
 #'
 #' @export
 #'
@@ -284,19 +293,16 @@ setupProject <- function(name, paths, modules, packages,
 
   envir = environment()
 
+  origArgOrder <- names(sys.calls()[[1]])
+  firstNamedArg <- min(which(origArgOrder %in% formalArgs(setupProject)))
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
-  dotsSUBreworked <- list()
-  for (i in seq(dotsSUB)) {
-    val <- try(eval(dotsSUB[[i]], envir = envir))
-    if (is(val, "try-error"))
-      val <- dotsSUB[[i]]
-    newNam <- names(dotsSUB)[i]
-    dotsSUBreworked[[newNam]] <- val
-    assign(newNam, val)
+  dotsLater <- dotsSUB
+  if (firstNamedArg > 2) { # there is always an empty one at first slot
+    firstSet <- (1:(firstNamedArg - 2))
+    dotsLater <- dotsSUB[-firstSet]
+    dotsSUB <- dotsSUB[firstSet]
+    dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
   }
-  if (exists("dotsSUBreworked"))
-    dotsSUB <- dotsSUBreworked
 
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -382,6 +388,12 @@ setupProject <- function(name, paths, modules, packages,
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                         overwrite = overwrite, envir = envir, verbose = verbose)
+
+
+  if (length(dotsLater)) {
+    dotsSUB <- dotsLater
+    dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
+  }
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
@@ -1771,4 +1783,20 @@ basename2 <- function (x) {
   else {
     basename(x)
   }
+}
+
+dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots, envir = envir)
+  dotsSUBreworked <- list()
+  for (i in seq(dotsSUB)) {
+    val <- try(eval(dotsSUB[[i]], envir = envir))
+    if (is(val, "try-error"))
+      val <- dotsSUB[[i]]
+    newNam <- names(dotsSUB)[i]
+    dotsSUBreworked[[newNam]] <- val
+    assign(newNam, val, envir = envir)
+  }
+  if (exists("dotsSUBreworked"))
+    dotsSUB <- dotsSUBreworked
+  dotsSUB
 }
