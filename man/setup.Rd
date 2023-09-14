@@ -154,9 +154,18 @@ the \code{defaultDots} will be overridden. This can be particularly useful if th
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
 processing to optionally fill them. See examples.}
 
-\item{...}{further arguments passed to \code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
+\item{...}{further named arguments that acts like \code{objects}, but a different
+way to specify them. These can be anything. The general use case
+is to create the \code{objects} that are would be passed to
+\code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
 (e.g. \code{studyAreaName} or \code{objects}) or additional objects to be passed to the simulation
-(traditionally passed as a named list to the \code{objects} argument).}
+(in older versions of \code{SpaDES.core}, these were passed as a named list
+to the \code{objects} argument). \strong{Order matters}. These are sequentially evaluated,
+and also any arguments that are specified before the named arguments
+e.g., \code{name}, \code{paths}, will be evaluated prior to any of the named arguments,
+i.e., "at the start" of the \code{setupProject}.
+If placed after the first named argument, then they will be evaluated at the
+end of the \code{setupProject}, so can access all the packages, objects, etc.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.

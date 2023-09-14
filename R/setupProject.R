@@ -294,7 +294,11 @@ setupProject <- function(name, paths, modules, packages,
   envir = environment()
 
   origArgOrder <- names(sys.calls()[[1]])
-  firstNamedArg <- min(which(origArgOrder %in% formalArgs(setupProject)))
+  if (is.null(origArgOrder)) {
+    firstNamedArg <- 0
+  } else {
+    firstNamedArg <- min(which(origArgOrder %in% formalArgs(setupProject)))
+  }
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
   if (firstNamedArg > 2) { # there is always an empty one at first slot
@@ -319,7 +323,7 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(name)) {
     name <- basename(normPath(pathsSUB[["projectPath"]]))
   } else {
-    name <- checkNameProjectPathConflict(name, paths)
+    name <- checkNameProjectPathConflict(name, pathsSUB)
   }
   gtwd <- getwd()
   weird <- 0
