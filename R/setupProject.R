@@ -530,7 +530,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   paths <- lapply(paths, checkPath, create = TRUE)
 
   if (!inProject) {
-    setwd(paths[["projectPath"]])
+    setwd(checkPath(paths[["projectPath"]], create = TRUE))
   }
 
   if (is.null(paths$scratchPath)) {
