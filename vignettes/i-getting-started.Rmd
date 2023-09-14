@@ -182,15 +182,11 @@ out <- setupProject(
 )
 ```
 
-```{r setCRAN_again,eval=TRUE,echo=FALSE}
+```{r clean5,eval=TRUE,echo=FALSE}
 ## cleanup / restore state
 if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
  options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
-```
-m
-```{r clean5,eval=TRUE,echo=FALSE}
-## cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_6"), create = TRUE ))
 ```
