@@ -299,7 +299,7 @@ setupProject <- function(name, paths, modules, packages,
 
   envir = environment()
 
-  origArgOrder <- names(sys.calls()[[1]])
+  origArgOrder <- names(tail(sys.calls(), 1)[[1]])
   if (is.null(origArgOrder)) {
     firstNamedArg <- 0
   } else {
