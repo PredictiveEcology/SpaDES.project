@@ -93,10 +93,11 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
       gitRepo <- strsplit(gitRepo, "\"")
       gitRepo <- grep(mg, unlist(gitRepo), value = TRUE)
       if (length(gitRepo)) {
-        gitPaths <- paste0("https://github.com/",gitRepo,"/blob/master/",
-                           basename(gitRepo),".R")
+        gitPaths <- paste0("https://github.com/", gitRepo, "/blob/master/",
+                           basename(gitRepo), ".R")
         isRepo <- unlist(
-          Map(validUrlMemoise, url = gitPaths, repo = basename(gitRepo), MoreArgs = list(account = account) ))
+          Map(validUrlMemoise, url = gitPaths, repo = basename(gitRepo),
+              MoreArgs = list(account = account) ))
         if (any(!isRepo)) {
           notRepo <- gitRepo[!isRepo]
           message("These are not SpaDES modules: ", paste(notRepo, collapse = ", "))
@@ -118,15 +119,11 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
   outs
 }
 
-
-#'
 #' @rdname listModules
-#' @param modulePath A character string indicating the path where the modules
-#'  are located.
-#' @importFrom data.table :=
+#' @param modulePath A character string indicating the path where the modules are located.
+#' @importFrom data.table := as.data.table
 #' @export
 moduleDependencies <- function(modules, modulePath = getOption("reproducible.modulePath", ".")) {
-
   modsFlat <- unlist(modules)
   names(modsFlat) <- modsFlat
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
