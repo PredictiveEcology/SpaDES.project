@@ -314,6 +314,8 @@ setupProject <- function(name, paths, modules, packages,
     dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
   }
 
+  timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+  times <- evalSUB(timesSUB, envir = envir, valObjName = "times")
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
