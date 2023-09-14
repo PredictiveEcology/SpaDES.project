@@ -165,6 +165,21 @@ utils::globalVariables(c(
 #' values, such as paths.
 #' }
 #'
+#' ```
+#' setupOptions(
+#'   maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
+#'
+#'   # Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+#'   #  or `setupProject`
+#'   if (.mode == "development") {
+#'      list(test = 2)
+#'   }
+#'   if (machine("A127")) {
+#'     list(test = 3)
+#'   }
+#' )
+#' ````
+#'
 #' \subsection{Values and/or files}{
 #' The arguments, `paths`, `options`, and `params`, can all
 #' understand lists of named values, character vectors, or a mixture by using a list where
