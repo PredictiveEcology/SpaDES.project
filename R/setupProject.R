@@ -190,37 +190,49 @@ utils::globalVariables(c(
 #' }
 #'
 #' \subsection{Specifying `paths`, `options`, `params`}{
-#' If `paths`, `options`, and/or `params`are a character string
+#' If `paths`, `options`, and/or `params` are a character string
 #' or character vector (or part of an unnamed list element) the string(s)
-#' will be interpretted as files to parse. These files should contain R code that
+#' will be interpreted as files to parse. These files should contain R code that
 #' specifies *named lists*, where the names are one or more `paths`, `options`,
 #' or are module names, each with a named list of parameters for that named module.
 #' This last named list for `params` follows the convention used for the `params` argument in
-#' `simInit(..., params = )`. The `options` file should
-#' not set `options` explicitly; only named lists. This enables options checking/validating
-#' to occur within `setupOptions` and `setupParams`.
+#' `simInit(..., params = )`.
 #'
 #' These files can use `paths`, `times`, plus any previous list in the sequence of
-#' `params` or `options` specified.
+#' `params` or `options` specified. Any functions that are used must be available,
+#'  e.g., prefixed `Require::normPath` if the package has not been loaded (as recommended).
 #'
-#' A simplest case would be a file with this:
-#' `opts <- list(reproducible.destinationPath = "~/destPath")`. All named lists will
-#' be parsed into their own environment, and then will be sequentially evaluated (i.e.,
-#' subsequent lists will have access to previous lists), with each named elements
-#' setting or replacing the previously named element of the same name, creating a
-#' single list. This final list will be assigned to `options()` inside `setupOptions`.
-#' Because these are each parsed separately, it is not necessary to assign any list to
-#' an object; and the objects, if named, can be any name, even the same name repeatedly.
-#' The sequential nature means that a user can
-#' have a named list of default settings first in the file, then those defaults can
-#' be overridden by e.g., user-specific or machine-specific values that are
-#' specified subsequently in the same file or in a separate file. Any functions
-#' that are used must be available, e.g., prefixed `Require::normPath`.
+#' If passing a file to `options`, it should **not set** `options()` explicitly;
+#' only create named lists. This enables options checking/validating
+#' to occur within `setupOptions` and `setupParams`. A simplest case would be a file with this:
+#' `opts <- list(reproducible.destinationPath = "~/destPath")`.
 #'
-#' NOTE: these will only parse items that are atomics (i.e., character, numeric, etc.),
-#'   named lists or either of these that are protected by 1 level of "if". This
-#'   will not work, therefore, for other side-effect elements, like authenticating
-#'   with a cloud service.
+#' All named lists will be parsed into their own environment, and then will be
+#' sequentially evaluated (i.e., subsequent lists will have access to previous lists),
+#' with each named elements setting or replacing the previously named element of the same name,
+#' creating a single list. This final list will be assigned to, e.g., `options()` inside `setupOptions`.
+#'
+#' Because each list is parsed separately, they to not need to be assigned objects;
+#' if they are, the object name can be any name, even if similar to another object's name
+#' used to built the same argument's (i.e. `paths`, `params`, `options`) final list.
+#' Hence, in an file to passed to `options`, instead of incrementing the list as:
+#' {
+#' a <- list(optA = 1)
+#' b <- append(a, list(optB = 2))
+#' c <- append(b, list(optC = 2.5))
+#' d <- append(c, list(optD = 3))
+#' }
+#' one can do:
+#' {
+#' a <- list(optA = 1)
+#' a <- list(optB = 2)
+#' c <- list(optC = 2.5)
+#' list(optD = 3)
+#' }
+#'
+#' NOTE: only atomics (i.e., character, numeric, etc.), named lists, or either of these
+#'   that are protected by 1 level of "if" are parsed. This will not work, therefore,
+#'   for other side-effect elements, like authenticating with a cloud service.
 #'
 #' Several helper functions exist within `SpaDES.project` that may be useful, such
 #' as `user(...)`, `machine(...)`
