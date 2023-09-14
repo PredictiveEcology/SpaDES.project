@@ -21,7 +21,8 @@ SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "ter
 hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
-knitr::opts_chunk$set(eval = hasSuggests && useSuggests)
+knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
+                        Sys.info()["user"] == "emcintir" && interactive())
 
 options(Require.clonePkgs = TRUE)
 
