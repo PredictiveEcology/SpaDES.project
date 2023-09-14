@@ -344,7 +344,7 @@ setupProject <- function(name, paths, modules, packages,
   }
   inProject <- isInProject(name)
 
-  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
+  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
   setupSpaDES.ProjectDeps(paths, verbose = getOption("Require.verbose"))
@@ -379,8 +379,6 @@ setupProject <- function(name, paths, modules, packages,
     if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
       Require::Install("PredictiveEcology/SpaDES.config@development")
     }
-    localVars <- if (length(names(dotsSUB)))
-      mget(names(dotsSUB), envir = envir, inherits = FALSE) else list()
     messageWarnStop("config is not yet setup to run with SpaDES.project")
     if (FALSE)
       out <- do.call(SpaDES.config::useConfig, append(
@@ -909,7 +907,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
-      paths <- setupPaths(paths = pathsSUB)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
     messageVerbose(yellow("setting up modules"), verbose = verbose)
@@ -1561,6 +1559,11 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   else
     dots <- append(dots, dotsSUB)
   haveDefaults <- !missing(defaultDots)
+  if (haveDefaults) {
+    newInEnv <- setdiff(names(defaultDots), ls(envir = envir))
+    list2env(defaultDots[newInEnv], envir = envir)
+    on.exit(rm(list = newInEnv, envir = envir))
+  }
   localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
