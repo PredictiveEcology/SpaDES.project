@@ -363,10 +363,6 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
 
-  if (!is.null(studyArea)) {
-    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
-  }
-
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
                                      envir = envir, verbose = verbose)
 
@@ -401,8 +397,12 @@ setupProject <- function(name, paths, modules, packages,
 
 
   if (length(dotsLater)) {
-    dotsSUB <- dotsLater
-    dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
+    dotsLater <- dotsToHereOuter(dots, dotsLater, defaultDots)
+    dotsSUB <- append(dotsSUB, dotsLater)
+  }
+
+  if (!is.null(studyArea)) {
+    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
   }
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
