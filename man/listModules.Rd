@@ -97,6 +97,7 @@ if (requireNamespace("igraph", quietly = TRUE) &&
   (vn <- PlotModuleGraph(graph))
 }
 
+# long step -- installs all package dependencies for `mods` modules
 out <- setupProject(
   modules = file.path(Account, mods[[Account]]),
   paths = list(projectPath = file.path(tempdir(), "example_Biomass"))

@@ -95,6 +95,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'   (vn <- PlotModuleGraph(graph))
 #' }
 #'
+#' # long step -- installs all package dependencies for `mods` modules
 #' out <- setupProject(
 #'   modules = file.path(Account, mods[[Account]]),
 #'   paths = list(projectPath = file.path(tempdir(), "example_Biomass"))
@@ -115,7 +116,13 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     names(url) <- account
 
     tf <- tempfile()
+    om <- getOption("Require.offlineMode")
+    if (isTRUE(om))
+      opts <- options("Require.offlineMode" = FALSE)
+    on.exit(if (isTRUE(om)) options(opts))
     .downloadFileMasterMainAuth(url, destfile = tf, need = "master")
+    if (isTRUE(om))
+      options(opts)
     # download.file(url, destfile = tf)
     suppressWarnings({
       repos <- readLines(tf)
