@@ -398,7 +398,7 @@ setupProject <- function(name, paths, modules, packages,
 
   if (length(dotsLater)) {
     dotsLater <- dotsToHereOuter(dots, dotsLater, defaultDots)
-    dotsSUB <- append(dotsSUB, dotsLater)
+    dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
   }
 
   if (!is.null(studyArea)) {
@@ -1555,15 +1555,17 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   else
     dots <- append(dots, dotsSUB)
   haveDefaults <- !missing(defaultDots)
+  localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-                d1 <- try(eval(d, envir = envir), silent = TRUE)
+                d1 <- try(eval(d, envir = localEnv), silent = TRUE)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
                     d1 <- defaultDots[[nam]]
                   else
                     d1 <- d
                 }
+                assign(nam, d1, envir = localEnv) # sequential
                 d1
               })
   list2env(dots, envir = envir)
