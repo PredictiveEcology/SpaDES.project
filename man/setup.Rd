@@ -169,10 +169,14 @@ end of the \code{setupProject}, so can access all the packages, objects, etc.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.
-This/these will be parsed and evaluated, but nothing returned. This is intended
+If a non-text files is specified (e.g., \emph{not .txt or .R} currently),
+these files will simply be downloaded, using their relative path as specified
+in the github notation. They will be downloaded or accessed locally at that
+relative path.
+If these file names represent scripts, this/these will be parsed and evaluated,
+but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
-that are run for their side effects only.
-See \link{setup}.}
+that are run for their side effects only.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
@@ -197,7 +201,9 @@ See \link{setup}.}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will get modules with \code{getModules}.}
+\code{modules}. Otherwise it will get modules with \code{getModules}. NOTE: \emph{CREATING} A
+GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
+IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but

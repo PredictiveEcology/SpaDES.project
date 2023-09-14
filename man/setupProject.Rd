@@ -74,10 +74,14 @@ See \link{setup}.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.
-This/these will be parsed and evaluated, but nothing returned. This is intended
+If a non-text files is specified (e.g., \emph{not .txt or .R} currently),
+these files will simply be downloaded, using their relative path as specified
+in the github notation. They will be downloaded or accessed locally at that
+relative path.
+If these file names represent scripts, this/these will be parsed and evaluated,
+but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
-that are run for their side effects only.
-See \link{setup}.}
+that are run for their side effects only.}
 
 \item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
 not working.}
@@ -101,7 +105,9 @@ new project, with a root path set to \code{projectPath}. Default is \code{FALSE}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will get modules with \code{getModules}.}
+\code{modules}. Otherwise it will get modules with \code{getModules}. NOTE: \emph{CREATING} A
+GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
+IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}

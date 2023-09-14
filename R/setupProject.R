@@ -68,13 +68,19 @@ utils::globalVariables(c(
 #'   See [setup].
 #' @param sideEffects Optional. This can be an expression or one or more filenames or
 #'   a code chunk surrounded by `{...}`.
-#'   This/these will be parsed and evaluated, but nothing returned. This is intended
+#'   If a non-text files is specified (e.g., *not .txt or .R* currently),
+#'   these files will simply be downloaded, using their relative path as specified
+#'   in the github notation. They will be downloaded or accessed locally at that
+#'   relative path.
+#'   If these file names represent scripts, this/these will be parsed and evaluated,
+#'   but nothing returned. This is intended
 #'   to be used for functions, such as cloud authentication or configurations,
 #'   that are run for their side effects only.
-#'   See [setup].
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
-#'   `modules`. Otherwise it will get modules with `getModules`.
+#'   `modules`. Otherwise it will get modules with `getModules`. NOTE: *CREATING* A
+#'   GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
+#'   IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
