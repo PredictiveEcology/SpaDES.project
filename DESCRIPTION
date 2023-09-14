@@ -27,11 +27,13 @@ Imports:
 Suggests:
     covr,
     details,
+    ellipsis,
     geodata,
     googledrive,
     httr,
     igraph,
     knitr,
+    raster,
     reproducible,
     rmarkdown,
     rstudioapi,
@@ -46,7 +48,8 @@ Suggests:
     waldo,
     withr
 Remotes: 
-    PredictiveEcology/SpaDES.config@development
+    PredictiveEcology/SpaDES.config@development,
+    PredictiveEcology/SpaDES.core@useCache2
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3

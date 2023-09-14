@@ -68,13 +68,19 @@ utils::globalVariables(c(
 #'   See [setup].
 #' @param sideEffects Optional. This can be an expression or one or more filenames or
 #'   a code chunk surrounded by `{...}`.
-#'   This/these will be parsed and evaluated, but nothing returned. This is intended
+#'   If a non-text files is specified (e.g., *not .txt or .R* currently),
+#'   these files will simply be downloaded, using their relative path as specified
+#'   in the github notation. They will be downloaded or accessed locally at that
+#'   relative path.
+#'   If these file names represent scripts, this/these will be parsed and evaluated,
+#'   but nothing returned. This is intended
 #'   to be used for functions, such as cloud authentication or configurations,
 #'   that are run for their side effects only.
-#'   See [setup].
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
-#'   `modules`. Otherwise it will get modules with `getModules`.
+#'   `modules`. Otherwise it will get modules with `getModules`. NOTE: *CREATING* A
+#'   GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
+#'   IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
@@ -105,9 +111,18 @@ utils::globalVariables(c(
 #'   the `defaultDots` will be overridden. This can be particularly useful if the
 #'   arguments passed to `...` do not always exist, but rely on external e.g., batch
 #'   processing to optionally fill them. See examples.
-#' @param ... further arguments passed to `SpaDES.core::simInit`, or `SpaDES.core::simInitAndSpades`,
+#' @param ... further named arguments that acts like `objects`, but a different
+#'   way to specify them. These can be anything. The general use case
+#'   is to create the `objects` that are would be passed to
+#'   `SpaDES.core::simInit`, or `SpaDES.core::simInitAndSpades`,
 #'   (e.g. `studyAreaName` or `objects`) or additional objects to be passed to the simulation
-#'   (traditionally passed as a named list to the `objects` argument).
+#'   (in older versions of `SpaDES.core`, these were passed as a named list
+#'   to the `objects` argument). **Order matters**. These are sequentially evaluated,
+#'   and also any arguments that are specified before the named arguments
+#'   e.g., `name`, `paths`, will be evaluated prior to any of the named arguments,
+#'   i.e., "at the start" of the `setupProject`.
+#'   If placed after the first named argument, then they will be evaluated at the
+#'   end of the `setupProject`, so can access all the packages, objects, etc.
 #'
 #' @export
 #'
@@ -252,6 +267,7 @@ utils::globalVariables(c(
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
 #' @rdname setupProject
+#' @seealso \code{vignette("SpaDES project setup", package = "SpaDES.project")}
 #'
 #' @examples
 #' ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
@@ -259,240 +275,16 @@ utils::globalVariables(c(
 #' library(SpaDES.project)
 #'
 #' # Run all tests in a temporary directory, do not disrupt user's current project
-#' tmpdir <- file.path(tempdir())
 #' \dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
-#' originalDir <- setwd(tmpdir)
 #' \dontshow{
 #' if (is.null(getOption("repos"))) {
 #'   options(repos = c(CRAN = "https://cloud.r-project.org"))
 #' }
-#' origLibPaths <- .libPaths()
 #' }
 #'  ## simplest case; just creates folders
 #' out <- setupProject(
-#'   name = "example_1"
+#'   paths = list(projectPath = ".") #
 #' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' # set relative paths & modules, install packages in isolated folder
-#' #   (which is the default behaviour; use libPaths argument to specify otherwise)
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_2",
-#'   paths = list(modulePath = "m"),
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-#' )
-#' out
-#' setwd(tmpdir)
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## With options and params set
-#' out <- setupProject(
-#'   name = "example_3",
-#'   options = list(reproducible.useTerra = TRUE),
-#'   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'   paths = list(modulePath = "m"),
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## using an options file that is remote
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_4",
-#'   options = c(
-#'     "PredictiveEcology/SpaDES.project@transition/inst/options.R"
-#'   ),
-#'   params = list(
-#'     Biomass_borealDataPrep = list(.plots = "screen")
-#'   ),
-#'   paths = list(
-#'     modulePath = "m",
-#'     projectPath = file.path(tempdir(), "example_4") # can use absolute path
-#'   ),
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## setting arbitrary arguments, using defaultDots (1)
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_5",
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'   sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
-#'
-#'   # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
-#'   defaultDots = list(mode = "development",
-#'                      studyAreaName = "MB"),
-#'   mode = mode, # may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above
-#'   studyAreaName = studyAreaName#, # same as previous argument.
-#'   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## setting arbitrary arguments, using defaultDots (2)
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "LandWeb", # must be same as projectPath if both specified
-#'   paths = list(projectPath = "LandWeb"),
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'   config = "LandWeb",
-#'   defaultDots = list(mode = "development",
-#'                      studyAreaName = "MB"),
-#'   mode = mode, studyAreaName = studyAreaName#,
-#'   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## Pass args from GlobalEnv
-#' setwd(tmpdir)
-#' studyAreaName <- "AB"
-#' out <- setupProject(
-#'   paths = list(projectPath = "LandWeb"),
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-#'   defaultDots = list(mode = "development",
-#'                      studyAreaName = "MB"),
-#'   mode = "development",
-#'   studyAreaName = studyAreaName
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## mixture of named list element, github file and local file for e.g., options
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_8",
-#'   options = list(
-#'     reproducible.useTerra = TRUE,
-#'     "PredictiveEcology/SpaDES.project@transition/inst/options.R",
-#'     system.file("authentication.R", package = "SpaDES.project") # local file
-#'   ),
-#'   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-#'   paths = list(modulePath = "m"),
-#'   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' \dontshow{
-#' #  if (isFALSE(Require:::isWindows())) \{
-#' }
-#' ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_9",
-#'   studyArea = list("Al|Brit")
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' # example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
-#' #    with level 2 administrative boundaries
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_10",
-#'   studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005")
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## If using SpaDES.core, the return object can be passed to `simInit` via `do.call`:
-#' # do.call(simInit, out)
-#'
-#' ## load packages using `require` argument
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
-#'   standAlone = TRUE,
-#'   require = c(
-#'     "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-#'     "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
-#'   ),
-#'   modules = c(
-#'     "PredictiveEcology/Biomass_speciesData@master",
-#'     "PredictiveEcology/Biomass_borealDataPrep@development",
-#'     "PredictiveEcology/Biomass_core@master",
-#'     "PredictiveEcology/Biomass_validationKNN@master",
-#'     "PredictiveEcology/Biomass_speciesParameters@development"
-#'   ),
-#'   objects = list(
-#'     studyAreaLarge = terra::vect(
-#'       terra::ext(-598722.985900015, -557858.350337621,
-#'                  776827.300151124, 837385.414396185),
-#'       crs = terra::crs("epsg:3978")
-#'     ),
-#'     studyArea = terra::vect(
-#'       terra::ext(-598722.985900015, -578177.124187722,
-#'                  779252.422377214, 809573.532597151),
-#'       crs = terra::crs("epsg:3978")
-#'     )
-#'   )
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## or alternatively:
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   paths = list(projectPath = "MEE_Paper2"), # will deduce name of project from projectPath
-#'   standAlone = TRUE,
-#'   require = c(
-#'     "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-#'     "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
-#'   ),
-#'   modules = c(
-#'     "PredictiveEcology/Biomass_speciesData@master",
-#'     "PredictiveEcology/Biomass_borealDataPrep@development",
-#'     "PredictiveEcology/Biomass_core@master",
-#'     "PredictiveEcology/Biomass_validationKNN@master",
-#'     "PredictiveEcology/Biomass_speciesParameters@development"
-#'   ),
-#'   studyAreaLarge = terra::vect(
-#'     terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
-#'     crs = terra::crs("epsg:3978")
-#'   ),
-#'   studyArea = terra::vect(
-#'     terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
-#'     crs = terra::crs("epsg:3978")
-#'   )
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' ## Make project-level change to .libPaths() that is persistent
-#' setwd(tmpdir)
-#' out <- setupProject(
-#'   name = "example_11",
-#'   package = "terra",
-#'   updateRprofile = TRUE
-#' )
-#' \dontshow{
-#' ## cleanup / restore state
-#' .teardownProject(out$paths, origLibPaths)
-#' }
-#' setwd(originalDir)
-#'
-#' \dontshow{
-#' # 8\}
-#' }
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
                          require = NULL, studyArea = NULL,
@@ -507,20 +299,24 @@ setupProject <- function(name, paths, modules, packages,
 
   envir = environment()
 
-  dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
-  dotsSUBreworked <- list()
-  for (i in seq(dotsSUB)) {
-    val <- try(eval(dotsSUB[[i]], envir = envir))
-    if (is(val, "try-error"))
-      val <- dotsSUB[[i]]
-    newNam <- names(dotsSUB)[i]
-    dotsSUBreworked[[newNam]] <- val
-    assign(newNam, val)
+  origArgOrder <- names(sys.calls()[[1]])
+  if (is.null(origArgOrder)) {
+    firstNamedArg <- 0
+  } else {
+    firstNamedArg <- min(which(origArgOrder %in% formalArgs(setupProject)))
   }
-  if (exists("dotsSUBreworked"))
-    dotsSUB <- dotsSUBreworked
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsLater <- dotsSUB
+  if (firstNamedArg > 2) { # there is always an empty one at first slot
+    firstSet <- (1:(firstNamedArg - 2))
+    dotsLater <- dotsSUB[-firstSet]
+    dotsSUB <- dotsSUB[firstSet]
+    dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
+  }
 
+  timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+  if (!missing(timesSUB))
+    times <- evalSUB(val = timesSUB, envir = envir, valObjName = "times", envir2 = parent.frame())
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -536,7 +332,7 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(name)) {
     name <- basename(normPath(pathsSUB[["projectPath"]]))
   } else {
-    name <- checkNameProjectPathConflict(name, paths)
+    name <- checkNameProjectPathConflict(name, pathsSUB)
   }
   gtwd <- getwd()
   weird <- 0
@@ -561,18 +357,10 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(packages))
     packages <- NULL
 
-  if (!is.null(studyArea))
-    if (is(studyArea, "list"))
-      packages <- unique(c(packages, c("geodata")))
-
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
-
-  if (!is.null(studyArea)) {
-    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
-  }
 
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
                                      envir = envir, verbose = verbose)
@@ -605,6 +393,23 @@ setupProject <- function(name, paths, modules, packages,
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                         overwrite = overwrite, envir = envir, verbose = verbose)
+
+
+  studyAreaSUB <- substitute(studyArea)
+  if (!is.null(studyAreaSUB)) {
+    isSAlist <- try(is(studyArea, "list"), silent = TRUE)
+
+    if (is(isSAlist, "try-error")) {
+      extraPackages <- c("terra", "geodata")
+      Require::Install(extraPackages)
+    }
+    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
+  }
+
+  if (length(dotsLater)) {
+    dotsLater <- dotsToHereOuter(dots, dotsLater, defaultDots)
+    dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
+  }
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
@@ -639,7 +444,11 @@ setupProject <- function(name, paths, modules, packages,
 #' `rasterPath` and `terraPath` are all "temporary" or "scratch" directories.
 #'
 #' @return
-#' `setupPaths` returns a list of paths that are created. It is also called for its
+#' `setupPaths` returns a list of paths that are created. `projectPath` will be
+#' assumed to be the base of other non-temporary and non-R-library paths. This means
+#' that all paths that are directly used by `simInit` are assumed to be relative
+#' to the `projectPath`. If a user chooses to specify absolute paths, then they will
+#' be returned as is. It is also called for its
 #' side effect which is to call `setPaths`, with each of these paths as an argument.
 #' See table for details.
 #'
@@ -741,7 +550,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   }
   if (inProject) {
-    paths[["projectPath"]] <- "." # checkPaths will make an absolute
+    paths[["projectPath"]] <- normPath(".") # checkPaths will make an absolute
   }
   # on linux, `normPath` doesn't expand if path doesn't exist -- so create first
   paths[["projectPath"]] <- checkPath(paths[["projectPath"]], create = TRUE)
@@ -753,7 +562,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   paths <- lapply(paths, checkPath, create = TRUE)
 
   if (!inProject) {
-    setwd(paths[["projectPath"]])
+    setwd(checkPath(paths[["projectPath"]], create = TRUE))
   }
 
   if (is.null(paths$scratchPath)) {
@@ -778,11 +587,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- lapply(paths, normPath)
 
-  changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
+  changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+                        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
+  # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
 
   Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                        updateRprofile = updateRprofile,
                        exact = FALSE, verbose = verbose)
+  paths[["packagePath"]] <- .libPaths()[1]
 
   do.call(setPaths, paths[spPaths])
 
@@ -795,13 +607,22 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #' @rdname setup
 #'
 #' @details
-#' `setupSideEffects` can handle sequentially specified values, meaning a user can
+#' Most arguments in the family of `setup*` functions are run *sequentially*, even within
+#' the argument. Since most arguments take lists, the user can set values at a first
+#' value of a list, then use it in calculation of the 2nd value and so on. See
+#' examples. This "sequential" evaluation occurs in the `...`, `setupSideEffects`, `setupOptions`,
+#' `setupParams` (this does not work for `setupPaths`) can handle sequentially
+#' specified values, meaning a user can
 #' first create a list of default options, then a list of user-desired options that
 #' may or may not replace individual values. This can create hierarchies, *based on
 #' order*.
 #'
 #' @return
-#' `setupSideEffects` is run for its side effects, with nothing returned to user.
+#' `setupSideEffects` is run for its side effects (e.g., web authentication, custom package
+#' options that cannot use `base::options`), with deliberately nothing returned to user.
+#' This, like other parts of this function, attempts to prevent unwanted outcomes
+#' that occur when a user uses e.g., `source` without being very careful about
+#' what and where the objects are sourced to.
 #'
 #'
 #' @importFrom data.table data.table
@@ -912,9 +733,10 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
   envs <- list(envir) # means
 
   llOuter <- lapply(files, function(optFiles) {
-    pp <- parse(optFiles)
+    if (isTRUE(file_ext(optFiles) %in% c("txt", "R"))) {
+      pp <- parse(optFiles)
 
-    envs2 <- lapply(pp, function(p) {
+      envs2 <- lapply(pp, function(p) {
       env <- new.env(parent = tail(envs, 1)[[1]])
       if (isUnevaluatedList(p) || isFALSE(namedList)) {
         # robust to code failures
@@ -964,10 +786,14 @@ parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame
           as.list(env)[[1]]
         })
         os <- Reduce(modifyList, ll)
+        }
+      } else {
+        os <- as.list(tail(envs2, 1)[[1]])
       }
     } else {
-      os <- as.list(tail(envs2, 1)[[1]])
+      os <- NULL
     }
+
     os
   })
 
@@ -1119,7 +945,10 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
       gitSplit <- Require::invertList(gitSplit)
 
       origDir <- getwd()
-      on.exit(setwd(origDir))
+      on.exit({
+        setwd(origDir)
+      }
+        )
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
@@ -1371,9 +1200,17 @@ checkProjectPath <- function(paths, name, envir, envir2) {
   }
   if (is.null(paths[["projectPath"]])) {
     prjPth <- if (missing(name))
-      list(projectPath = normPath("."))
-    else
-      list(projectPath = checkPath(name, create = TRUE))
+      normPath(".")
+    else {
+      if (isInProject(name)) {
+        normPath(".")
+      } else {
+        checkPath(name, create = TRUE)
+      }
+
+    }
+    prjPth <- list(projectPath = prjPth)
+
     paths <- append(prjPth, as.list(paths))
     paths <- paths[nzchar(names(paths))]
   }
@@ -1724,15 +1561,17 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   else
     dots <- append(dots, dotsSUB)
   haveDefaults <- !missing(defaultDots)
+  localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-                d1 <- try(eval(d, envir = envir), silent = TRUE)
+                d1 <- try(eval(d, envir = localEnv), silent = TRUE)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
                     d1 <- defaultDots[[nam]]
                   else
                     d1 <- d
                 }
+                assign(nam, d1, envir = localEnv) # sequential
                 d1
               })
   list2env(dots, envir = envir)
@@ -1928,7 +1767,8 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
     messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath (",
                    paths$packagePath, ")", verbose = verbose)
 
-    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]))
+    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
       for (pkg in deps) {
         pkgDir <- file.path(.libPaths(), pkg)
         de <- dir.exists(pkgDir)
@@ -1937,19 +1777,22 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
         newFiles <- file.path(paths[["packagePath"]], pkg, files1)
         lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
         oldFiles <- file.path(pkgDir, files1)
-        browser()
-        Require:::linkOrCopy(oldFiles, newFiles)
+
+        file.copy(oldFiles, newFiles, overwrite = TRUE)
       }
   }
 }
 
 checkNameProjectPathConflict <- function(name, paths) {
   if (!missing(paths)) {
-    prjNmBase <- basename2(paths[["projectPath"]])
-    if (!identical(basename(name), prjNmBase) && !is.null(prjNmBase)) {
-      warning("both projectPath and name are supplied, but they are not the same; ",
-              "these must be the same basename; using projectPath: ", paths[["projectPath"]])
-      name <- prjNmBase
+    if (!is.null(paths[["projectPath"]])) {
+      paths[["projectPath"]] <- normPath(paths[["projectPath"]])
+      prjNmBase <- basename2(paths[["projectPath"]])
+      if (!identical(basename(name), prjNmBase) && !is.null(prjNmBase)) {
+        warning("both projectPath and name are supplied, but they are not the same; ",
+                "these must be the same basename; using projectPath: ", paths[["projectPath"]])
+        name <- prjNmBase
+      }
     }
   }
   name
@@ -1962,4 +1805,20 @@ basename2 <- function (x) {
   else {
     basename(x)
   }
+}
+
+dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots, envir = envir)
+  dotsSUBreworked <- list()
+  for (i in seq(dotsSUB)) {
+    val <- try(eval(dotsSUB[[i]], envir = envir))
+    if (is(val, "try-error"))
+      val <- dotsSUB[[i]]
+    newNam <- names(dotsSUB)[i]
+    dotsSUBreworked[[newNam]] <- val
+    assign(newNam, val, envir = envir)
+  }
+  if (exists("dotsSUBreworked"))
+    dotsSUB <- dotsSUBreworked
+  dotsSUB
 }

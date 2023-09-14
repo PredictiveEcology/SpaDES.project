@@ -1,9 +1,9 @@
 ---
-title: "Installing SpaDES"
-author: "Alex M. Chubaty"
+title: "SpaDES project setup"
+author: "Eliot McIntire"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Installing SpaDES}
+  %\VignetteIndexEntry{SpaDES project setup}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options: 
@@ -14,149 +14,433 @@ editor_options:
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  echo = TRUE,
-  eval = FALSE
+  echo = TRUE
 )
+
+SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
+useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
+
+knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
+                        Sys.info()["user"] == "emcintir" && interactive())
+
+options(Require.clonePkgs = TRUE)
+
+```
+
+```{r setCRAN,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
+ options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
 ```
 
 # Getting started
 
-This guide shows how to install all requisite software to easily get started with a new SpaDES project.
-To run development modules etc., users will need to have installed R, Rstudio and SpaDES.
+`SpaDES` is a set of R packages that provide a modular framework for doing ecological analysis, simulation, forecasting and other ecological objectives. The key element of a `SpaDES` analysis is the *module*: a chunk of code that does something and has computer- and human-readable metadata associated with it. It is common within a `SpaDES` project that a user will use many modules, created by them or by others. This potential *growth* of a project complexity leads to a number of challenges including paths (e.g., for data inputs, outputs, figures, modules, packages), package dependencies, and simultaneous module development and synchornization. While a `SpaDES` project can be developed like any other that a user may have already been familiar with, this `SpaDES.project` package helps to create a clean, repeatable set up for any package. The defaults will keep a given project files and pacakges isolated from other projects on a computer. 
 
-## Installing prerequisites
+Below, we show a number of examples, from simple to moderate complexity, of the usage of `setupProject`. Since, there are a number pre-requisites, we start there.
 
-### Installing R
+## Installing prerequisites, system dependencies, R and Rstudio
 
-#### Windows
+To begin, users will need to have installed R, Rstudio and potentially other system-level dependencies.
+[See vignette here](https://spades-project.predictiveecology.org/articles/iv-LandR-fireSense.html)
 
-1. Download and run the R installer (as administrator!) from <https://cran.r-project.org/bin/windows/base>.
 
-2. (Optional) To build and compile packages, download and install the latest Rtools (as administrator!) from <https://cran.r-project.org/bin/windows/Rtools/>.
-    Be sure to check the "add rtools to PATH" option during installation.
+## Start working with existing modules
 
-3. Install GIS tools by downloading OSGeo4W from <http://download.osgeo.org/osgeo4w/osgeo4w-setup-x86_64.exe> and running the installer (select 'Express Install').
+### `setupProject` function
 
-#### macOS
+This function does a variety of things to setup a SpaDES project, by assigned values to these arguments: 
 
-1. Download and run the R installer from <https://cran.r-project.org/bin/macosx>.
+- `paths` - a standardized set of paths, 
+- `modules` -- either downloads them from a cloud repository or user identifies local ones
+- `packages` to install and/or load (`require` argument) that are not already identified in the `modules`'s metadata
+- `params` - to set parameter values for any of the `modules`
+- `options` - to set base `R` `options`
 
-2. Install Xcode commandline tools from the terminal:
+See `?setupProject()` for more details.
 
-    ```
-    xcode-select --install
-    ```
+### Default values
 
-3. Install homebrew from the terminal (more info at <https://brew.sh/>):
+One of the important reasons for using `setupProject` is that there are many default values that can be taken advantage of, keeping code cleaner and shorter in many cases.
 
-    ```
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    ```
+### Setting up the `SpaDES.core::simInit` call
 
-4. Install GDAL and other spatial packages:
+The output from `setupProject` is a list with several named elements. These are intended to be passed directly to `simInit` to initiate a `simList` and potentially a `spades` call.
 
-    ```
-    brew install pkg-config
-    brew install gdal
-    ```
-    
-    Then, install spatial R packages from source to pick up the new GDAL and PROJ libraries:
-  
-    ```{r install-spatial}
-    ## (re)install spatial packages from source
-    install.packages(c("rgeos", "sf", "sp"), type = "source")
-    
-    ## rgdal requires some additional configuration to build correctly:
-    ##   based on http://stackoverflow.com/a/26836125/1380598
-    install.packages("rgdal", type = "source",
-                     configure.args = c("--with-proj-include=/usr/local/include",
-                                        "--with-proj-lib=/usr/local/lib"))
-    library(rgdal) ## confirm the GDAL version being used
-    ```
+#### Arguments as values or urls
 
-5. Install OpenMP support for `data.table`:
+For most arguments, the values can either be named lists or character vectors of strings that end in `.R` that represent `urls` to cloud or local R scripts that will be sourced.  This allows a user to start with very simple argument values and progressively add arbitrary complexity as a project becomes larger. 
 
-    ```
-    brew install llvm
-    ```
+#### Arguments sourced sequentially
 
-6. Install GLPK (needed for full `igraph` functionality):
+The argument values in each of the arguments are sourced sequentially, so a previous value can be used by a subsequent value. 
 
-    ```
-    brew install glpk
-    ```
+SpaDES` and other packages
 
-    Then, reinstall `igraph` from source so it is compiled with GLPK:
-
-    ```{r install-igraph}
-    install.packages("igraph", type = "source")
-    ```
-
-#### Linux
-
-Install via `apt` or `yum` depending on your distribution.
-Instructions for Ubuntu 20.04 LTS are shown below.
-
-1. Install R and its development libraries:
-
-    ```
-    sudo apt install r-base r-base-dev
-    ```
-
-2. Install java and configure R to use it:
-
-    ```
-    sudo apt build-dep -y r-cran-rjava
-    sudo R CMD javareconf
-    ```
-
-3. Install dependencies for spatial and other packages:
-
-    ```
-    sudo apt build-dep -y r-cran-tkrplot
-
-    sudo apt-get install -y \
-      curl \
-      gdal-bin \
-      git \
-      libcairo2-dev \
-      libcurl4-openssl-dev \
-      libgdal-dev \
-      libgeos-dev \
-      libgit2-dev \
-      libglpk-dev \
-      libgmp-dev \
-      libjq-dev \
-      libmagick++-dev \
-      libproj-dev \
-      libprotobuf-dev \
-      libprotoc-dev \
-      libssh2-1-dev \
-      libssl-dev \
-      libudunits2-dev \
-      libv8-dev \
-      libxml2-dev \
-      libxt-dev \
-      pandoc \
-      pandoc-citeproc \
-      protobuf-compiler \
-      python3-gdal \
-      tcl-dev \
-      tk-dev
-    ```
-
-### Install `SpaDES` and other packages
-
-```
+```{r install-spades-project,eval=TRUE}
 if (!require("SpaDES.project")) {
   {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
    require("SpaDES.project")}
 }
+```
+
+
+#### Arguments not sourced to .GlobalEnv
+
+```{r clean1,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+origLibPaths <- .libPaths()[1]
+options(Require.verbose = -2) # so install.packages isn't super verbose
+knitr::opts_knit$set(root.dir = tempdir()) 
+```
+
+
+#### Set paths for a SpaDES project
+
+```{r simplest, eval=TRUE}
+library(SpaDES.project)
 setupProject()
 ```
 
-### Installing Rstudio
+#### set relative paths & modules, install packages in isolated folder
 
-**Recommended.**
+```{r clean0,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_2"), create = TRUE ))
+```
 
-Download and run the installer for your operating system from <https://www.rstudio.com/products/rstudio/download/#download>.
+```{r example2,eval=TRUE}
+out <- setupProject(
+  paths = list(modulePath = "m", 
+               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+```
+
+```{r clean2,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_3"), create = TRUE ))
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+```
+
+#### With options and params set
+
+
+```{r example3,eval=TRUE}
+out <- setupProject(
+  options = list(reproducible.useTerra = TRUE),
+  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+  paths = list(modulePath = "m",
+               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+```
+
+```{r clean3,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_4"), create = TRUE ))
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+```
+
+## using an options file that is remote
+
+```{r example_4,eval=TRUE} 
+out <- setupProject(
+  options = c(
+    "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+  ),
+  params = list(
+    Biomass_borealDataPrep = list(.plots = "screen")
+  ),
+  paths = list(modulePath = "m",
+               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+```
+
+```{r clean4,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_5"), create = TRUE ))
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+```
+
+## setting arbitrary arguments, using defaultDots (1)
+
+```{r example_5,eval=TRUE}
+out <- setupProject(
+  name = "example_5", # puts in a folder with this name
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
+
+  # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = mode, # may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above
+  studyAreaName = studyAreaName#, # same as previous argument.
+  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+)
+```
+
+```{r clean5,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
+ options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_6"), create = TRUE ))
+```
+
+## setting arbitrary arguments, using defaultDots (2)
+
+```{r example6,eval=TRUE}
+out <- setupProject(
+  name = "example_6", # must be same as projectPath if both specified
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  config = "LandWeb",
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = mode, studyAreaName = studyAreaName#,
+  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+)
+```
+
+```{r clean6,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_7"), create = TRUE ))
+```
+
+## Pass args from GlobalEnv
+
+```{r example7,eval=TRUE}
+studyAreaName <- "AB"
+out <- setupProject(
+  paths = list(projectPath = "example_7"),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = "development",
+  studyAreaName = studyAreaName  # <----- pass it here, naming it
+)
+```
+
+```{r clean7,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_8"), create = TRUE ))
+```
+
+## mixture of named list element, github file and local file for e.g., options
+```{r example8,eval=TRUE}
+out <- setupProject(
+  options = list(
+    reproducible.useTerra = TRUE,
+    "PredictiveEcology/SpaDES.project@transition/inst/options.R",
+    system.file("authentication.R", package = "SpaDES.project") # local file
+  ),
+  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+  paths = list(modulePath = "m",
+                 projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+```
+
+```{r clean8,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_9"), create = TRUE ))
+```
+
+
+## examples with studyArea argument
+
+### passed in long-lat, for Alberta and British Columbia, Canada
+
+
+```{r example9,eval=TRUE}
+out <- setupProject(
+  name = "example_9",
+  studyArea = list("Al|Brit")
+)
+```
+
+
+```{r clean9,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_10"), create = TRUE ))
+```
+
+
+### example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK, with level 2 administrative boundaries
+
+
+```{r example10,eval=TRUE}
+out <- setupProject(
+  name = "example_10",
+  studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005")
+)
+```
+
+```{r clean10,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_11"), create = TRUE ))
+```
+
+## `require` and `objects` arguments
+
+Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceeded it in the call.
+
+
+```{r example11,eval=TRUE}
+out <- setupProject(
+  paths = list(projectPath = "example_11"), # will deduce name of project from projectPath
+  standAlone = TRUE,
+  require = c(
+    "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+    "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
+  ),
+  modules = c(
+    "PredictiveEcology/Biomass_speciesData@master",
+    "PredictiveEcology/Biomass_borealDataPrep@development",
+    "PredictiveEcology/Biomass_core@master",
+    "PredictiveEcology/Biomass_validationKNN@master",
+    "PredictiveEcology/Biomass_speciesParameters@development"
+  ),
+  objects = list(
+    studyAreaLarge = terra::vect(
+      terra::ext(-598722.985900015, -557858.350337621,
+                 776827.300151124, 837385.414396185),
+      crs = terra::crs("epsg:3978")
+    ),
+    studyArea = terra::vect(
+      terra::ext(-598722.985900015, -578177.124187722,
+                 779252.422377214, 809573.532597151),
+      crs = terra::crs("epsg:3978")
+    )
+  )
+)
+```
+
+
+
+```{r clean11,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_12"), create = TRUE ))
+```
+
+
+## Passing named arguments as part of the `...`
+
+Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
+
+```{r example12,eval=TRUE}
+out <- setupProject(
+  paths = list(projectPath = "example_12"), # will deduce name of project from projectPath
+  standAlone = TRUE,
+  require = c(
+    "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+    "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
+  ),
+  modules = c(
+    "PredictiveEcology/Biomass_speciesData@master",
+    "PredictiveEcology/Biomass_borealDataPrep@development",
+    "PredictiveEcology/Biomass_core@master",
+    "PredictiveEcology/Biomass_validationKNN@master",
+    "PredictiveEcology/Biomass_speciesParameters@development"
+  ),
+  studyAreaLarge = terra::vect(
+    terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
+    crs = terra::crs("epsg:3978")
+  ),
+  studyArea = terra::vect(
+    terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
+    crs = terra::crs("epsg:3978")
+  )
+)
+```
+
+
+```{r clean12,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_13"), create = TRUE ))
+```
+
+
+## Make project-level change to .libPaths() that is persistent
+
+```{r example13,eval=TRUE}
+out <- setupProject(
+  name = "example_13",
+  package = "terra",
+  updateRprofile = TRUE
+)
+```
+
+
+## Find other's modules
+
+One powerful aspect of `SpaDES` is the ability to connect to other people's modules. It can be challenging to know where other modules are and what they do. Using the `listModules` function. 
+
+```{r clean13,eval=TRUE,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
+```
+
+```{r listModulesSmall,eval=TRUE}
+## get all the fireSense modules from the Predictive Ecology GitHub repository
+Account <- "PredictiveEcology"
+grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
+mods <- listModules(grepListShort, accounts = Account)
+
+modPath <- normPath(".")
+out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
+  out <- getModule(paste0(nam, "/", mod),
+  modulePath = modPath)
+  out
+})
+
+if (requireNamespace("igraph", quietly = TRUE) && 
+    requireNamespace("visNetwork", quietly = TRUE) &&
+    requireNamespace("SpaDES.core", quietly = TRUE)) {
+
+  DT <- moduleDependencies(mods, modulePath = modPath)
+  graph <- moduleDependenciesToGraph(DT)
+  (vn <- PlotModuleGraph(graph))
+}
+```
+
+```{r listModulesAll,eval=TRUE}
+# Can do same, but with long list -- not done here -- can try
+accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
+                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
+grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
+                  "LandMine", "LandWeb", "NRV", #"scfm",
+                  "priority", "fire", 
+                  "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+modsLong <- listModules(grepListLong, accounts = accountsListLong)
+# pass to listModules for much larger figure
+modPath <- normPath(".")
+out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
+  out <- getModule(paste0(nam, "/", mod),
+                   modulePath = modPath)
+  out
+})
+
+if (requireNamespace("igraph", quietly = TRUE) && 
+    requireNamespace("visNetwork", quietly = TRUE) &&
+    requireNamespace("SpaDES.core", quietly = TRUE) ) {
+
+  DT <- moduleDependencies(modsLong, modulePath = modPath)
+  graph <- moduleDependenciesToGraph(DT)
+  (vn <- PlotModuleGraph(graph))
+}
+
+
+```
