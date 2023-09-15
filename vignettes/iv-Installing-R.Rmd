@@ -21,7 +21,7 @@ knitr::opts_chunk$set(
 
 ## Installing R
 
-### Installing prerequisites
+### Traditional installation
 
 #### Windows
 
@@ -30,7 +30,7 @@ knitr::opts_chunk$set(
 2. (Optional) To build and compile packages, download and install the latest Rtools (as administrator!) from <https://cran.r-project.org/bin/windows/Rtools/>.
     Be sure to check the "add rtools to PATH" option during installation.
 
-3. Install GIS tools by downloading OSGeo4W from <http://download.osgeo.org/osgeo4w/osgeo4w-setup-x86_64.exe> and running the installer (select 'Express Install').
+3. (Optional) Install GIS tools by downloading OSGeo4W from <http://download.osgeo.org/osgeo4w/osgeo4w-setup-x86_64.exe> and running the installer (select 'Express Install').
 
 #### macOS
 
@@ -59,23 +59,24 @@ knitr::opts_chunk$set(
   
     ```{r install-spatial}
     ## (re)install spatial packages from source
-    install.packages(c("rgeos", "sf", "sp"), type = "source")
+    install.packages("sf", type = "source",
+                     configure.args = "--with-proj-lib=$(brew --prefix)/lib/")
     
-    ## rgdal requires some additional configuration to build correctly:
-    ##   based on http://stackoverflow.com/a/26836125/1380598
+    install.packages("terra", type = "source")
+    
+    ## legacy spatial packages may still be required until fully retired Oct 2023
     install.packages("rgdal", type = "source",
-                     configure.args = c("--with-proj-include=/usr/local/include",
-                                        "--with-proj-lib=/usr/local/lib"))
-    library(rgdal) ## confirm the GDAL version being used
+                     configure.args = c("--with-proj-lib=$(brew --prefix)/lib/",
+                                        "--with-proj-include=$(brew --prefix)/include/"))
+    
+    install.packages("rgeos", type = "source")
+    
+    ## confirm the GDAL, GEOS, PROJ versions being used
+    library(sf)
+    library(rgdal)
     ```
 
-5. Install OpenMP support for `data.table`:
-
-    ```
-    brew install llvm
-    ```
-
-6. Install GLPK (needed for full `igraph` functionality):
+5. Install GLPK (needed for full `igraph` functionality):
 
     ```
     brew install glpk
@@ -92,9 +93,24 @@ knitr::opts_chunk$set(
 Install via `apt` or `yum` depending on your distribution.
 Instructions for Ubuntu 20.04 LTS are shown below.
 
-1. Install R and its development libraries:
+1. Install R and its development libraries following instructions based on <https://cran.r-project.org/bin/linux/ubuntu>:
 
     ```
+    ## update indices
+    sudo apt update -qq
+    
+    ## install two helper packages we need
+    sudo apt install --no-install-recommends software-properties-common dirmngr
+    
+    ## add the signing key (by Michael Rutter) for these repos
+    ## To verify key, run gpg --show-keys /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc 
+    ## Fingerprint: E298A3A825C0D65DFD57CBB651716619E084DAB9
+    wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
+    
+    ## add the R 4.0 repo from CRAN
+    sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+    
+    ## install R and its development libraries
     sudo apt install r-base r-base-dev
     ```
 
@@ -140,9 +156,63 @@ Instructions for Ubuntu 20.04 LTS are shown below.
       tk-dev
     ```
 
+### Alternate installation
 
-### Installing Rstudio
+For users who require multiple versions of R concurrently, `rig` (<https://github.com/r-lib/rig>) provides the simplest mechanism for managing and running multiple installations.
+
+1. Install `rig` for your system following instructions here:
+    <https://github.com/r-lib/rig#id-installation>
+
+2. Install the versions of R you need:
+
+    ```bash
+    rig add 4.3
+    rig add 4.2
+    rig add 4.1
+    ```
+    
+    You can see the installed versions (and the default, starred) by using `rig list`.
+    
+    Set the default version using the names from `rig list`:
+    
+    ```bash
+    rig default 4.3.1
+    ```
+3. Setup symlinks to allow easy launch of versioned R sessions:
+
+    ```bash
+    rig system make-links
+    ```
+  
+    E.g., to launch R 4.2 on macOS, use `R-4.2-arm64`
+
+4. On macOS, restrict access to system package directories:
+
+    ```bash
+    rig system fix-permissions
+    ```
+
+5. On macOS can also use the menu bar app (<https://github.com/r-lib/rig#id-macos-menu-bar-app>) to manage their R versions:
+
+    ```bash
+    open -a Rig
+    ```
+
+    Be sure to open the Rig app preferences to allow launch at startup.
+
+#### Launching Rstudio using a specific version of R
+
+```bash
+## e.g., on macOS:
+rig rstudio 4.2-arm64
+
+## e.g., for a project using renv on ubuntu:
+cd ~/path/to/project
+rig rstudio renv.lock
+```
+
+## Installing Rstudio
 
 **Recommended.**
 
-Download and run the installer for your operating system from <https://www.rstudio.com/products/rstudio/download/#download>.
+Download and run the installer for your operating system from <https://posit.co/download/rstudio-desktop/>.

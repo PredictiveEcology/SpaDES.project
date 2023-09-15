@@ -23,10 +23,10 @@ utils::globalVariables(c(
 #' @export
 #' @seealso [getGithubFile]
 #' @inheritParams Require::Require
+#' @importFrom data.table rbindlist set
+#' @importFrom Require checkPath extractPkgGitHub extractInequality extractVersionNumber
+#' @importFrom Require normPath trimVersionNumber
 #' @importFrom utils capture.output
-#' @importFrom Require checkPath normPath trimVersionNumber extractPkgGitHub
-#' @importFrom data.table set
-#' @importFrom Require extractInequality extractVersionNumber
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
