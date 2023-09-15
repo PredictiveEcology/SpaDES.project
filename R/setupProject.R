@@ -290,16 +290,19 @@ utils::globalVariables(c(
 #' library(SpaDES.project)
 #'
 #' # Run all tests in a temporary directory, do not disrupt user's current project
-#' \dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+#' \dontshow{origDir <- getwd()
+#'           tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 #' \dontshow{
 #' if (is.null(getOption("repos"))) {
 #'   options(repos = c(CRAN = "https://cloud.r-project.org"))
-#' }
+#'   }
+#'   setwd(tmpdir)
 #' }
 #'  ## simplest case; just creates folders
 #' out <- setupProject(
 #'   paths = list(projectPath = ".") #
 #' )
+#' \dontshow{setwd(origDir)}
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
                          require = NULL, studyArea = NULL,

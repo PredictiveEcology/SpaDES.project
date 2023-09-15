@@ -334,16 +334,19 @@ out <- setupProject(.mode = .mode,
 library(SpaDES.project)
 
 # Run all tests in a temporary directory, do not disrupt user's current project
-\dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+\dontshow{origDir <- getwd()
+          tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 \dontshow{
 if (is.null(getOption("repos"))) {
   options(repos = c(CRAN = "https://cloud.r-project.org"))
-}
+  }
+  setwd(tmpdir)
 }
  ## simplest case; just creates folders
 out <- setupProject(
   paths = list(projectPath = ".") #
 )
+\dontshow{setwd(origDir)}
 }
 \seealso{
 \code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
