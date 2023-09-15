@@ -22,7 +22,7 @@ hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, q
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
-                        Sys.info()["user"] == "emcintir" && interactive())
+                        Sys.info()["user"] == "emcintir")# && interactive())
 options(Ncpus = 1)
 
 # options(Require.clonePkgs = TRUE)
