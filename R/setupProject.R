@@ -526,7 +526,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
-  paths <- parseFileLists(paths, paths[["projectPath"]], overwrite = overwrite,
+  paths <- parseFileLists(paths, paths, overwrite = overwrite,
                           envir = envir, verbose = verbose)
 
   if (!missing(name))
@@ -661,7 +661,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
       sideEffects <- tf
     }
 
-    sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
+    sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
                                   overwrite = overwrite, envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
@@ -701,7 +701,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envir, envir2 = parent.frame())
 
-    options <- parseFileLists(options, paths[["projectPath"]], overwrite = overwrite,
+    options <- parseFileLists(options, paths, overwrite = overwrite,
                               envir = envir, verbose = verbose)
 
     postOptions <- options()
@@ -936,7 +936,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     isRepo <- nzchar(exts) & exts %in% ".R"
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
-      modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = overwrite,
+      modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = overwrite,
                                 envir = envir, verbose = verbose)
     }
 
@@ -1095,7 +1095,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envir, envir2 = parent.frame())
-    params <- parseFileLists(params, paths[["projectPath"]], overwrite = overwrite,
+    params <- parseFileLists(params, paths, overwrite = overwrite,
                              envir = envir, verbose = verbose)
 
     if (length(params)) {
@@ -1163,7 +1163,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 }
 
 
-parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE, envir,
+parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envir,
                            verbose = getOption("Require.verbose", 1L), dots, ...) {
   if (is(obj, "list")) {
     nams <- names(obj)
@@ -1174,7 +1174,7 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
         namedElements <- obj[which(named)]
       obj <- Map(objInner = obj[notNamed],
                  function(objInner)
-                   parseFileLists(objInner, projectPath, namedList, overwrite,
+                   parseFileLists(objInner, paths[["projectPath"]], namedList, overwrite,
                                   envir, verbose, dots, ...))
       obj <- Reduce(f = append, obj)
       if (any(named))
@@ -1186,17 +1186,56 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
-        opt <- getGithubFile(opt, destDir = projectPath, overwrite = overwrite)
+        rem <- opt
+        opt <- file.path(paths$inputPath, basename(opt))
+        fe <- file.exists(opt)
+        if (fe && isFALSE(overwrite)) {
+          message(opt, " already exists; not downloading")
+        } else {
+          if (fe) {
+            message(opt, " already exists; overwrite = TRUE; downloading again")
+            unlink(opt)
+          }
+          destdir <- Require::tempdir2()
+          temp <- getGithubFile(rem, destDir = destdir, overwrite = overwrite)
+          copied <- linkOrCopy(temp, opt)
+        }
+
       } else {
+        isURL <- grepl("^http", opt)
+        if (isURL) {
+          destfile <- file.path(paths[["inputPath"]], basename(opt))
+          if (requireNamespace("reproducible", quietly = TRUE)) {
+            ret <- reproducible::preProcess(url = opt, targetFile = destfile, overwrite = overwrite, fun = NA)
+          } else {
+            dlfileOut <- try(download.file(url = opt, destfile = destfile))
+            if (is(dlfileOut, "try-error"))
+              stop("File could not be downloaded; perhaps try again after install.packages('reproducible')")
+          }
+          opt <- destfile
+        }
         if (!file.exists(opt))
           messageVerbose(opt, paste(" has no @ specified, so assuming a local file,",
                                     "but local file does not exist"), verbose = verbose)
       }
       opt
     }, SIMPLIFY = TRUE)
+    if (verbose > 0) {
+      objLocal <- gsub(paths$projectPath, "", obj)
+      mess <- unlist(Map(nam = obj, rem = names(obj), function(rem, nam) {
+        objRem <- strsplit(rem, split = "/")[[1]]
+        len <- length(objRem)
+        if (len > 5) {
+          paste0(paste(objRem[1:4], collapse = "/"), "/.../", paste(objRem[c(len - 1):len], collapse = "/"))
+        } else {
+          rem
+        }
+      }))
+      messageDF(data.frame(url = mess, "became" = "--->", localFile = objLocal))
+    }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      obj[areAbs %in% FALSE] <- file.path(projectPath, obj[areAbs %in% FALSE])
+      obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
     }
 
     obj <- parseListsSequentially(files = obj, namedList = namedList, envir = envir,
