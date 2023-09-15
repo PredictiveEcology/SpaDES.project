@@ -299,7 +299,9 @@ utils::globalVariables(c(
 #' @seealso `vignette("i-getting-started", package = "SpaDES.project")`
 #'
 #' @examples
-#' ## FOR MORE EXAMPLES SEE
+#' ## For more examples:
+#' vignette("i-getting-started", package = "SpaDES.project")
+#'
 #' library(SpaDES.project)
 #'
 #' \dontshow{origDir <- getwd()

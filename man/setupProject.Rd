@@ -343,10 +343,13 @@ out <- setupProject(.mode = .mode,
 }
 
 \examples{
-## FOR MORE EXAMPLES SEE
+## For more examples:
+vignette("i-getting-started", package = "SpaDES.project")
+
 library(SpaDES.project)
 
-\dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+\dontshow{origDir <- getwd()
+          tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 \dontshow{
 if (is.null(getOption("repos"))) {
   options(repos = c(CRAN = "https://cloud.r-project.org"))
@@ -364,5 +367,5 @@ out <- setupProject(
 \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
 \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
 
-\code{vignette("SpaDES project setup", package = "SpaDES.project")}
+\code{vignette("i-getting-started", package = "SpaDES.project")}
 }
