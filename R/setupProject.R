@@ -275,10 +275,6 @@ utils::globalVariables(c(
 #' ```
 #' }
 #'
-#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
-#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
-#' [user()], [machine()], [node()]
-#'
 #' @return
 #' `setupProject` will return a named list with elements `modules`, `paths`, `params`, and `times`.
 #' The goal of this list is to contain list elements that can be passed directly
@@ -297,7 +293,10 @@ utils::globalVariables(c(
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
 #' @rdname setupProject
-#' @seealso \code{vignette("SpaDES project setup", package = "SpaDES.project")}
+#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
+#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
+#' [user()], [machine()], [node()]
+#' @seealso `vignette("i-getting-started", package = "SpaDES.project")`
 #'
 #' @examples
 #' ## FOR MORE EXAMPLES SEE
