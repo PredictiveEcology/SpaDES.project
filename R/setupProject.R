@@ -167,6 +167,21 @@ utils::globalVariables(c(
 #' values, such as paths.
 #' }
 #'
+#' ```
+#' setupOptions(
+#'   maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
+#'
+#'   # Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+#'   #  or `setupProject`
+#'   if (.mode == "development") {
+#'      list(test = 2)
+#'   }
+#'   if (machine("A127")) {
+#'     list(test = 3)
+#'   }
+#' )
+#' ````
+#'
 #' \subsection{Values and/or files}{
 #' The arguments, `paths`, `options`, and `params`, can all
 #' understand lists of named values, character vectors, or a mixture by using a list where
@@ -288,16 +303,19 @@ utils::globalVariables(c(
 #' ## FOR MORE EXAMPLES SEE
 #' library(SpaDES.project)
 #'
-#' \dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+#' \dontshow{origDir <- getwd()
+#'           tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 #' \dontshow{
 #' if (is.null(getOption("repos"))) {
 #'   options(repos = c(CRAN = "https://cloud.r-project.org"))
-#' }
+#'   }
+#'   setwd(tmpdir)
 #' }
 #'  ## simplest case; just creates folders
 #' out <- setupProject(
 #'   paths = list(projectPath = ".") #
 #' )
+#' \dontshow{setwd(origDir)}
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
                          require = NULL, studyArea = NULL,
@@ -357,7 +375,7 @@ setupProject <- function(name, paths, modules, packages,
   }
   inProject <- isInProject(name)
 
-  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
+  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
                       updateRprofile) # don't pass envir because paths aren't evaluated yet
 
   setupSpaDES.ProjectDeps(paths, verbose = getOption("Require.verbose"))
@@ -392,8 +410,6 @@ setupProject <- function(name, paths, modules, packages,
     if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
       Require::Install("PredictiveEcology/SpaDES.config@development")
     }
-    localVars <- if (length(names(dotsSUB)))
-      mget(names(dotsSUB), envir = envir, inherits = FALSE) else list()
     messageWarnStop("config is not yet setup to run with SpaDES.project")
     if (FALSE)
       out <- do.call(SpaDES.config::useConfig, append(
@@ -721,9 +737,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete)))
 }
 
-
 isUnevaluatedList <- function(p) any( {
-
   if (!(length(p) == 1 && is.name(p))) { # this is "just" an object name
     if (grepl("^if$|^<-$", p[[1]])[1]) {
       if (grepl("^\\{$", p[[3]][[1]])[1]) {
@@ -740,13 +754,14 @@ isUnevaluatedList <- function(p) any( {
 }
 )
 
+#' @importFrom tools file_ext
 #' @importFrom utils modifyList tail
 parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame(),
                                    verbose = getOption("Require.verbose")) {
   envs <- list(envir) # means
 
   llOuter <- lapply(files, function(optFiles) {
-    if (isTRUE(file_ext(optFiles) %in% c("txt", "R"))) {
+    if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R"))) {
       pp <- parse(optFiles)
 
       envs2 <- lapply(pp, function(p) {
@@ -896,6 +911,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   }
   l
 }
+
 #' @export
 #' @rdname setup
 #' @details
@@ -910,6 +926,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' full module names and the list elemen.ts are the R packages that the module
 #' depends on (`reqsPkgs`)
 #'
+#' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -922,7 +939,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
-      paths <- setupPaths(paths = pathsSUB)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
     messageVerbose(yellow("setting up modules"), verbose = verbose)
@@ -1574,6 +1591,11 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   else
     dots <- append(dots, dotsSUB)
   haveDefaults <- !missing(defaultDots)
+  if (haveDefaults) {
+    newInEnv <- setdiff(names(defaultDots), ls(envir = envir))
+    list2env(defaultDots[newInEnv], envir = envir)
+    on.exit(rm(list = newInEnv, envir = envir))
+  }
   localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {

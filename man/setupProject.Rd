@@ -234,6 +234,20 @@ block that add new or override existing elements, followed by \code{machine} spe
 values, such as paths.
 }
 
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupOptions(
+  maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
+
+  # Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+  #  or `setupProject`
+  if (.mode == "development") \{
+     list(test = 2)
+  \}
+  if (machine("A127")) \{
+    list(test = 3)
+  \}
+)
+}\if{html}{\out{</div>}}
+
 \subsection{Values and/or files}{
 The arguments, \code{paths}, \code{options}, and \code{params}, can all
 understand lists of named values, character vectors, or a mixture by using a list where
@@ -336,12 +350,14 @@ library(SpaDES.project)
 \dontshow{
 if (is.null(getOption("repos"))) {
   options(repos = c(CRAN = "https://cloud.r-project.org"))
-}
+  }
+  setwd(tmpdir)
 }
  ## simplest case; just creates folders
 out <- setupProject(
   paths = list(projectPath = ".") #
 )
+\dontshow{setwd(origDir)}
 }
 \seealso{
 \code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
