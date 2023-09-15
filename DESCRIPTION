@@ -5,15 +5,15 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2023-08-25
-Version: 0.0.8.9002
+Date: 2023-09-15
+Version: 0.0.8.9003
 Authors@R: c(
-    person("Alex M", "Chubaty", email = "achubaty@for-cast.ca",
-           role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7146-8135")),
-    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca",
-           role = c("ctb"), comment = c(ORCID = "0000-0001-7397-2116")),
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
-           role = c("aut"), comment = c(ORCID = "0000-0002-6914-8316"))
+           role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
+    person("Alex M", "Chubaty", email = "achubaty@for-cast.ca",
+           role = c("ctb"), comment = c(ORCID = "0000-0001-7146-8135")),
+    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca",
+           role = c("ctb"), comment = c(ORCID = "0000-0001-7397-2116"))
     )
 Depends:
     R (>= 4.2)
@@ -23,10 +23,10 @@ Imports:
     methods,
     Require (>= 0.3.1),
     rprojroot,
+    tools,
     utils
 Suggests:
     covr,
-    details,
     ellipsis,
     geodata,
     googledrive,
@@ -37,13 +37,11 @@ Suggests:
     reproducible,
     rmarkdown,
     rstudioapi,
-    sessioninfo,
     sf,
     SpaDES.config,
     SpaDES.core,
     terra,
     testthat (>= 3.0.0),
-    usethis,
     visNetwork,
     waldo,
     withr

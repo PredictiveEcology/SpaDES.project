@@ -724,9 +724,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete)))
 }
 
-
 isUnevaluatedList <- function(p) any( {
-
   if (!(length(p) == 1 && is.name(p))) { # this is "just" an object name
     if (grepl("^if$|^<-$", p[[1]])[1]) {
       if (grepl("^\\{$", p[[3]][[1]])[1]) {
@@ -743,13 +741,14 @@ isUnevaluatedList <- function(p) any( {
 }
 )
 
+#' @importFrom tools file_ext
 #' @importFrom utils modifyList tail
 parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame(),
                                    verbose = getOption("Require.verbose")) {
   envs <- list(envir) # means
 
   llOuter <- lapply(files, function(optFiles) {
-    if (isTRUE(file_ext(optFiles) %in% c("txt", "R"))) {
+    if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R"))) {
       pp <- parse(optFiles)
 
       envs2 <- lapply(pp, function(p) {
@@ -899,6 +898,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   }
   l
 }
+
 #' @export
 #' @rdname setup
 #' @details
@@ -913,6 +913,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' full module names and the list elemen.ts are the R packages that the module
 #' depends on (`reqsPkgs`)
 #'
+#' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]

@@ -46,8 +46,7 @@ processes of the installs.}
 \item{modules}{A named list of character strings of full module names, as returned
 by \code{listModules}.}
 
-\item{modulePath}{A character string indicating the path where the modules
-are located.}
+\item{modulePath}{A character string indicating the path where the modules are located.}
 
 \item{md}{A data.table with columns \code{from} and \code{to}, showing relationships of
 objects in modules. Likely from \code{moduleDependencies}.}
