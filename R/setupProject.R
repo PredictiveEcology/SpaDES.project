@@ -85,8 +85,10 @@ utils::globalVariables(c(
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
 #' @param Restart If the `projectPath` is not the current path, and the session is in
-#'   Rstudio, and interactive, it will restart with a new Rstudio session with a
-#'   new project, with a root path set to `projectPath`. Default is `FALSE`.
+#'   RStudio, and interactive, it will create an RStudio Project file (and .Rproj.user
+#'   folder), restart with a new Rstudio session with that new project and with a root
+#'   path (i.e. working directory) set to `projectPath`. Default is `FALSE`, and no
+#'   RStudio Project is created.
 #' @param updateRprofile Logical. Should the `paths$packagePath` be set in the `.Rprofile`
 #'   file for this project. Note: if `paths$packagePath` is within the `tempdir()`,
 #'   then there will be a warning, indicating this won't persist. If the user is
