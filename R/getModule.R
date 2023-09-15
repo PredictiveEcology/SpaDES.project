@@ -167,7 +167,7 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   else {
     messageVerbose("downloaded ", file, verbose = verbose)
   }
-  out <- normPath(file)
+  out <- normPath(file.path(destDir, file))
   return(out)
 }
 
