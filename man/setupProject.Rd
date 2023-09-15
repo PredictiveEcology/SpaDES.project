@@ -100,8 +100,10 @@ convenience, \code{subregion = "..."}, which will be grepped with the column
 reproject the \code{studyArea}. See examples.}
 
 \item{Restart}{If the \code{projectPath} is not the current path, and the session is in
-Rstudio, and interactive, it will restart with a new Rstudio session with a
-new project, with a root path set to \code{projectPath}. Default is \code{FALSE}.}
+RStudio, and interactive, it will create an RStudio Project file (and .Rproj.user
+folder), restart with a new Rstudio session with that new project and with a root
+path (i.e. working directory) set to \code{projectPath}. Default is \code{FALSE}, and no
+RStudio Project is created.}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
@@ -159,37 +161,37 @@ end of the \code{setupProject}, so can access all the packages, objects, etc.}
 \value{
 \code{setupProject} will return a named list with elements \code{modules}, \code{paths}, \code{params}, and \code{times}.
 The goal of this list is to contain list elements that can be passed directly
-to \code{simInit}
-NOTE: both \code{projectPath} and \code{packagePath} will be omitted in the \code{paths} list
-as they are used to
-set current directory (found with \code{getwd()}) and \code{.libPaths()[1]}, and \code{simInit}
-does not accept these. \code{setupPaths} will return these two paths as it is not
-expected to be passed directly to \code{simInit}.
+to \code{simInit}.
+
 It will also append all elements passed by the user in the \code{...}.
 This list  can be passed directly to \code{SpaDES.core::simInit()} or
 \code{SpaDES.core::simInitAndSpades()} using a \code{do.call()}. See example.
+
+NOTE: both \code{projectPath} and \code{packagePath} will be omitted in the \code{paths} list
+as they are used to set current directory (found with \code{getwd()}) and \code{.libPaths()[1]},
+but are not accepted by \code{simInit}. \code{setupPaths} will still return these two paths as its
+outputs are not expected to be passed directly to \code{simInit} (unlike \code{setupProject} outputs).
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
 \code{setupPaths}, \code{setupModules}, \code{setupPackages}, \code{setupOptions},
 \code{setupSideEffects}, \code{setupParams},
-\code{setupGitIgnore}. Because of this
-sequence, users can take advantange of settings that happen before others. For
-example, users can set paths, then use those paths while setting up
-\code{params}, or they can set \code{options} that will can update/change \code{paths},
-\code{times} can be used in \code{params},
-for example.
-This sequence will create folder structures, install packages in either the \code{packages}
-or \code{require} arguments, load packages only from the \code{require} argument,
-set options, download or confirm the existence of modules, install missing
-packages from both the modules \code{reqdPkgs} fields and the user passed
-\code{packages} or \code{require}. It will also return elements that can be passed
+\code{setupGitIgnore}.
+
+This sequence will create folder structures, install missing packages from those
+listed in either the \code{packages}, \code{require} arguments or in the modules \code{reqdPkgs} fields,
+load packages (only those in the \code{require} argument), set options, download or
+confirm the existence of modules. It will also return elements that can be passed
 directly to \code{simInit}  or \code{simInitAndSpades}, specifically, \code{modules}, \code{params},
 \code{paths}, \code{times}, and any named elements passed to \code{...}. This function will also
-, if desired, change the .Rprofile file for this
-this project so that every time this project is opened, it has a specific
-\code{.libPaths()}. There are a number of convenience elements described in the
-section below. See Details.
+, if desired, change the .Rprofile file for this project so that every time
+the project is opened, it has a specific \code{.libPaths()}.
+
+There are a number of convenience elements described in the section below. See Details.
+Because of this sequence, users can take advantage of settings (i.e., objects)
+that happen (are created) before others. For example, users can set \code{paths}
+then use the \code{paths} list to set \code{options} that will can update/change \code{paths},
+or set \code{times} and use the \code{times} list for certain entries in \code{params}.
 }
 \section{Objective}{
 
@@ -271,37 +273,49 @@ helpful for clarity to put some in an external file.
 }
 
 \subsection{Specifying \code{paths}, \code{options}, \code{params}}{
-If \code{paths}, \code{options}, and/or \code{params}are a character string
+If \code{paths}, \code{options}, and/or \code{params} are a character string
 or character vector (or part of an unnamed list element) the string(s)
-will be interpretted as files to parse. These files should contain R code that
+will be interpreted as files to parse. These files should contain R code that
 specifies \emph{named lists}, where the names are one or more \code{paths}, \code{options},
 or are module names, each with a named list of parameters for that named module.
 This last named list for \code{params} follows the convention used for the \code{params} argument in
-\code{simInit(..., params = )}. The \code{options} file should
-not set \code{options} explicitly; only named lists. This enables options checking/validating
-to occur within \code{setupOptions} and \code{setupParams}.
+\code{simInit(..., params = )}.
 
 These files can use \code{paths}, \code{times}, plus any previous list in the sequence of
-\code{params} or \code{options} specified.
+\code{params} or \code{options} specified. Any functions that are used must be available,
+e.g., prefixed \code{Require::normPath} if the package has not been loaded (as recommended).
 
-A simplest case would be a file with this:
-\code{opts <- list(reproducible.destinationPath = "~/destPath")}. All named lists will
-be parsed into their own environment, and then will be sequentially evaluated (i.e.,
-subsequent lists will have access to previous lists), with each named elements
-setting or replacing the previously named element of the same name, creating a
-single list. This final list will be assigned to \code{options()} inside \code{setupOptions}.
-Because these are each parsed separately, it is not necessary to assign any list to
-an object; and the objects, if named, can be any name, even the same name repeatedly.
-The sequential nature means that a user can
-have a named list of default settings first in the file, then those defaults can
-be overridden by e.g., user-specific or machine-specific values that are
-specified subsequently in the same file or in a separate file. Any functions
-that are used must be available, e.g., prefixed \code{Require::normPath}.
+If passing a file to \code{options}, it should \strong{not set} \code{options()} explicitly;
+only create named lists. This enables options checking/validating
+to occur within \code{setupOptions} and \code{setupParams}. A simplest case would be a file with this:
+\code{opts <- list(reproducible.destinationPath = "~/destPath")}.
 
-NOTE: these will only parse items that are atomics (i.e., character, numeric, etc.),
-named lists or either of these that are protected by 1 level of "if". This
-will not work, therefore, for other side-effect elements, like authenticating
-with a cloud service.
+All named lists will be parsed into their own environment, and then will be
+sequentially evaluated (i.e., subsequent lists will have access to previous lists),
+with each named elements setting or replacing the previously named element of the same name,
+creating a single list. This final list will be assigned to, e.g., \code{options()} inside \code{setupOptions}.
+
+Because each list is parsed separately, they to not need to be assigned objects;
+if they are, the object name can be any name, even if similar to another object's name
+used to built the same argument's (i.e. \code{paths}, \code{params}, \code{options}) final list.
+Hence, in an file to passed to \code{options}, instead of incrementing the list as:
+{
+a <- list(optA = 1)
+b <- append(a, list(optB = 2))
+c <- append(b, list(optC = 2.5))
+d <- append(c, list(optD = 3))
+}
+one can do:
+{
+a <- list(optA = 1)
+a <- list(optB = 2)
+c <- list(optC = 2.5)
+list(optD = 3)
+}
+
+NOTE: only atomics (i.e., character, numeric, etc.), named lists, or either of these
+that are protected by 1 level of "if" are parsed. This will not work, therefore,
+for other side-effect elements, like authenticating with a cloud service.
 
 Several helper functions exist within \code{SpaDES.project} that may be useful, such
 as \code{user(...)}, \code{machine(...)}
@@ -329,11 +343,11 @@ out <- setupProject(.mode = .mode,
 }
 
 \examples{
-## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
-## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+## For more examples:
+vignette("i-getting-started", package = "SpaDES.project")
+
 library(SpaDES.project)
 
-# Run all tests in a temporary directory, do not disrupt user's current project
 \dontshow{origDir <- getwd()
           tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 \dontshow{
@@ -353,5 +367,5 @@ out <- setupProject(
 \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
 \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
 
-\code{vignette("SpaDES project setup", package = "SpaDES.project")}
+\code{vignette("i-getting-started", package = "SpaDES.project")}
 }
