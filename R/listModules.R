@@ -56,52 +56,13 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @inheritParams Require::Require
 #'
 #' @rdname listModules
+#' @seealso
+#' [metadataInModules()] helps to see different metadata elements in a folder of modules.
 #' @importFrom utils download.file
 #' @export
 #' @examples
+#' listModules(accounts = "PredictiveEcology", "none")
 #'
-#' \donttest{
-#' origLibPaths <- .libPaths()
-#' origWorkDir <- getwd()
-#'
-#' grepListShort <- "dataPrep"
-#' accountsListShort <- c("PredictiveEcology")
-#' mods <- listModules(grepListShort, accounts = accountsListShort)
-#'
-#' # Can do same, but with long list -- not done here
-#' accountsListShort <- c("PredictiveEcology", "ianmseddy", "achubaty",
-#'                        "FOR-CAST", "eliotmcintire", "tati-micheletti")
-#' grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
-#'                   "LandMine", "LandWeb", "NRV", #"scfm",
-#'                   "priority",
-#'                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
-#'
-#' modPath <- file.path(tempdir(), "testMods")
-#' out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-#'   out <- getModule(paste0(nam, "/", mod),
-#'   modulePath = modPath)
-#'   out
-#' })
-#'
-#' if (require("visNetwork") && require("igraph") && require("dplyr")) {
-#'   DT <- moduleDependencies(mods, modulePath = modPath)
-#'   graph <- moduleDependenciesToGraph(DT)
-#'   vn <- PlotModuleGraph(graph)
-#' }
-#'
-#' ## get all the fireSense modules from the Predictive Ecology GitHub repository
-#' Account <- "PredictiveEcology"
-#' mods <- listModules("fireSense", Account)
-#' out <- setupProject(
-#'   name = "example_fireSense",
-#'   modules = file.path(Account, mods[[Account]]),
-#'   paths = list(projectPath = file.path(tempdir(), "fireSense"))
-#' )
-#'
-#' ## cleanup
-#' .teardownProject(out$paths, origLibPaths)
-#' setwd(origWorkDir)
-#' }
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
@@ -111,7 +72,13 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     names(url) <- account
 
     tf <- tempfile()
+    om <- getOption("Require.offlineMode")
+    if (isTRUE(om))
+      opts <- options("Require.offlineMode" = FALSE)
+    on.exit(if (isTRUE(om)) options(opts))
     .downloadFileMasterMainAuth(url, destfile = tf, need = "master")
+    if (isTRUE(om))
+      options(opts)
     # download.file(url, destfile = tf)
     suppressWarnings({
       repos <- readLines(tf)
@@ -235,9 +202,8 @@ moduleDependenciesToGraph <- function(md) {
 #' @param graph An igraph object to plot. Likely returned by `moduleDependenciesToGraph`.
 PlotModuleGraph <- function(graph) {
   if (!requireNamespace("igraph", quietly = TRUE) ||
-      !requireNamespace("dplyr", quietly = TRUE) ||
       !requireNamespace("visNetwork", quietly = TRUE)) {
-    stop("need igraph, dplyr and visNetwork")
+    stop("need igraph and visNetwork")
   }
 
   graph <- igraph::simplify(graph)

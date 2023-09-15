@@ -13,7 +13,7 @@ Authors@R: c(
     person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca",
            role = c("ctb"), comment = c(ORCID = "0000-0001-7397-2116")),
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
-           role = c("ctb"), comment = c(ORCID = "0000-0002-6914-8316"))
+           role = c("aut"), comment = c(ORCID = "0000-0002-6914-8316"))
     )
 Depends:
     R (>= 4.2)
@@ -27,12 +27,13 @@ Imports:
 Suggests:
     covr,
     details,
-    dplyr,
+    ellipsis,
     geodata,
     googledrive,
     httr,
     igraph,
     knitr,
+    raster,
     reproducible,
     rmarkdown,
     rstudioapi,
@@ -47,10 +48,8 @@ Suggests:
     waldo,
     withr
 Remotes: 
-    PredictiveEcology/Require@development,
     PredictiveEcology/SpaDES.config@development,
-    PredictiveEcology/SpaDES.core@development,
-    PredictiveEcology/reproducible@development
+    PredictiveEcology/SpaDES.core@useCache2
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3

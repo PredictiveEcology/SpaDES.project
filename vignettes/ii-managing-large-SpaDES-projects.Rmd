@@ -206,7 +206,6 @@ out <- makeSureAllPackagesInstalled(modulePath = "modules")
 Require(c("config", "RCurl", "RPostgres", "tictoc", "XML"), require = FALSE)
 
 ## NOTE: always load packages LAST, after installation above;
-##       ensure plyr loaded before dplyr or there will be problems
 Require(c("data.table", "plyr", "pryr",
           "PredictiveEcology/reproducible@development (>= 1.2.8.9040)",
           "PredictiveEcology/LandR@development", ## TODO: workaround weird raster/sf method problem

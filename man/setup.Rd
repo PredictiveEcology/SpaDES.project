@@ -53,6 +53,7 @@ setupOptions(
 )
 
 setupModules(
+  name,
   paths,
   modules,
   useGit = FALSE,
@@ -153,16 +154,29 @@ the \code{defaultDots} will be overridden. This can be particularly useful if th
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
 processing to optionally fill them. See examples.}
 
-\item{...}{further arguments passed to \code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
+\item{...}{further named arguments that acts like \code{objects}, but a different
+way to specify them. These can be anything. The general use case
+is to create the \code{objects} that are would be passed to
+\code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
 (e.g. \code{studyAreaName} or \code{objects}) or additional objects to be passed to the simulation
-(traditionally passed as a named list to the \code{objects} argument).}
+(in older versions of \code{SpaDES.core}, these were passed as a named list
+to the \code{objects} argument). \strong{Order matters}. These are sequentially evaluated,
+and also any arguments that are specified before the named arguments
+e.g., \code{name}, \code{paths}, will be evaluated prior to any of the named arguments,
+i.e., "at the start" of the \code{setupProject}.
+If placed after the first named argument, then they will be evaluated at the
+end of the \code{setupProject}, so can access all the packages, objects, etc.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.
-This/these will be parsed and evaluated, but nothing returned. This is intended
+If a non-text files is specified (e.g., \emph{not .txt or .R} currently),
+these files will simply be downloaded, using their relative path as specified
+in the github notation. They will be downloaded or accessed locally at that
+relative path.
+If these file names represent scripts, this/these will be parsed and evaluated,
+but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
-that are run for their side effects only.
-See \link{setup}.}
+that are run for their side effects only.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
@@ -187,7 +201,9 @@ See \link{setup}.}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will get modules with \code{getModules}.}
+\code{modules}. Otherwise it will get modules with \code{getModules}. NOTE: \emph{CREATING} A
+GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
+IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
@@ -223,11 +239,19 @@ convenience, \code{subregion = "..."}, which will be grepped with the column
 reproject the \code{studyArea}. See examples.}
 }
 \value{
-\code{setupPaths} returns a list of paths that are created. It is also called for its
+\code{setupPaths} returns a list of paths that are created. \code{projectPath} will be
+assumed to be the base of other non-temporary and non-R-library paths. This means
+that all paths that are directly used by \code{simInit} are assumed to be relative
+to the \code{projectPath}. If a user chooses to specify absolute paths, then they will
+be returned as is. It is also called for its
 side effect which is to call \code{setPaths}, with each of these paths as an argument.
 See table for details.
 
-\code{setupSideEffects} is run for its side effects, with nothing returned to user.
+\code{setupSideEffects} is run for its side effects (e.g., web authentication, custom package
+options that cannot use \code{base::options}), with deliberately nothing returned to user.
+This, like other parts of this function, attempts to prevent unwanted outcomes
+that occur when a user uses e.g., \code{source} without being very careful about
+what and where the objects are sourced to.
 
 \code{setupOptions} is run for its side effects, namely, changes to the \code{options()}. The
 list of modified options will be added as an attribute (\code{attr(out, "projectOptions")}),
@@ -271,7 +295,12 @@ of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code
 \code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
 \code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
 
-\code{setupSideEffects} can handle sequentially specified values, meaning a user can
+Most arguments in the family of \verb{setup*} functions are run \emph{sequentially}, even within
+the argument. Since most arguments take lists, the user can set values at a first
+value of a list, then use it in calculation of the 2nd value and so on. See
+examples. This "sequential" evaluation occurs in the \code{...}, \code{setupSideEffects}, \code{setupOptions},
+\code{setupParams} (this does not work for \code{setupPaths}) can handle sequentially
+specified values, meaning a user can
 first create a list of default options, then a list of user-desired options that
 may or may not replace individual values. This can create hierarchies, \emph{based on
 order}.

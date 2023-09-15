@@ -74,10 +74,14 @@ See \link{setup}.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more filenames or
 a code chunk surrounded by \code{{...}}.
-This/these will be parsed and evaluated, but nothing returned. This is intended
+If a non-text files is specified (e.g., \emph{not .txt or .R} currently),
+these files will simply be downloaded, using their relative path as specified
+in the github notation. They will be downloaded or accessed locally at that
+relative path.
+If these file names represent scripts, this/these will be parsed and evaluated,
+but nothing returned. This is intended
 to be used for functions, such as cloud authentication or configurations,
-that are run for their side effects only.
-See \link{setup}.}
+that are run for their side effects only.}
 
 \item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
 not working.}
@@ -101,7 +105,9 @@ new project, with a root path set to \code{projectPath}. Default is \code{FALSE}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will get modules with \code{getModules}.}
+\code{modules}. Otherwise it will get modules with \code{getModules}. NOTE: \emph{CREATING} A
+GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
+IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}
@@ -137,28 +143,50 @@ processing to optionally fill them. See examples.}
 
 \item{dots}{Any other named objects passed as a list a user might want for other elements.}
 
-\item{...}{further arguments passed to \code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
+\item{...}{further named arguments that acts like \code{objects}, but a different
+way to specify them. These can be anything. The general use case
+is to create the \code{objects} that are would be passed to
+\code{SpaDES.core::simInit}, or \code{SpaDES.core::simInitAndSpades},
 (e.g. \code{studyAreaName} or \code{objects}) or additional objects to be passed to the simulation
-(traditionally passed as a named list to the \code{objects} argument).}
+(in older versions of \code{SpaDES.core}, these were passed as a named list
+to the \code{objects} argument). \strong{Order matters}. These are sequentially evaluated,
+and also any arguments that are specified before the named arguments
+e.g., \code{name}, \code{paths}, will be evaluated prior to any of the named arguments,
+i.e., "at the start" of the \code{setupProject}.
+If placed after the first named argument, then they will be evaluated at the
+end of the \code{setupProject}, so can access all the packages, objects, etc.}
 }
 \value{
 \code{setupProject} will return a named list with elements \code{modules}, \code{paths}, \code{params}, and \code{times}.
+The goal of this list is to contain list elements that can be passed directly
+to \code{simInit}
+NOTE: both \code{projectPath} and \code{packagePath} will be omitted in the \code{paths} list
+as they are used to
+set current directory (found with \code{getwd()}) and \code{.libPaths()[1]}, and \code{simInit}
+does not accept these. \code{setupPaths} will return these two paths as it is not
+expected to be passed directly to \code{simInit}.
 It will also append all elements passed by the user in the \code{...}.
 This list  can be passed directly to \code{SpaDES.core::simInit()} or
 \code{SpaDES.core::simInitAndSpades()} using a \code{do.call()}. See example.
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
-\code{setupPaths},
-\code{setupModules}, \code{setupPackages}, \code{setupOptions}, \code{setupSideEffects}, \code{setupParams},
+\code{setupPaths}, \code{setupModules}, \code{setupPackages}, \code{setupOptions},
+\code{setupSideEffects}, \code{setupParams},
 \code{setupGitIgnore}. Because of this
-order, settings in \code{options} can change \code{paths}, \code{times} can be used in \code{params},
+sequence, users can take advantange of settings that happen before others. For
+example, users can set paths, then use those paths while setting up
+\code{params}, or they can set \code{options} that will can update/change \code{paths},
+\code{times} can be used in \code{params},
 for example.
-This sequence will create folder structures, install & load packages indicated in the
-\code{require} argument, set options, download or confirms
-existence of modules, install missing
+This sequence will create folder structures, install packages in either the \code{packages}
+or \code{require} arguments, load packages only from the \code{require} argument,
+set options, download or confirm the existence of modules, install missing
 packages from both the modules \code{reqdPkgs} fields and the user passed
-\code{packages}, assign parameters, and if desired, change the .Rprofile file for this
+\code{packages} or \code{require}. It will also return elements that can be passed
+directly to \code{simInit}  or \code{simInitAndSpades}, specifically, \code{modules}, \code{params},
+\code{paths}, \code{times}, and any named elements passed to \code{...}. This function will also
+, if desired, change the .Rprofile file for this
 this project so that every time this project is opened, it has a specific
 \code{.libPaths()}. There are a number of convenience elements described in the
 section below. See Details.
@@ -177,7 +205,7 @@ as the project increases in complexity.
 any needs of arbitrarily complex projects, using the same structure
 \item Deal with the complexities of R package installation and loading when
 working with modules that may have been created by many users
-\item Allow every SpaDES project to have very similar structure, allowing
+\item Create a common SpaDES project structure, allowing
 easy transition from one project to another, regardless of complexity.
 }
 }
@@ -188,9 +216,12 @@ easy transition from one project to another, regardless of complexity.
 \subsection{Sequential evaluation}{
 Throughout these functions, efforts have been made to implement sequential evaluation,
 within files and within lists. This means that a user can \emph{use} the values from an
-upstream element in the list. For example, the following is valid:
+upstream element in the list. For example, the following where \code{projectPath} is
+part of the list that will be assigned to the \code{paths} argument and it is then
+used in the subsequent list element is valid:
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{paths = list(projectPath = "here", modulePath = file.path(paths[["projectPath"]], "modules")
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupPaths(paths = list(projectPath = "here",
+                        modulePath = file.path(paths[["projectPath"]], "modules")))
 }\if{html}{\out{</div>}}
 
 Because of such sequential evaluation, \code{paths}, \code{options}, and \code{params} files
@@ -200,6 +231,20 @@ then several lists of user-desired options behind an \verb{if (user("emcintir"))
 block that add new or override existing elements, followed by \code{machine} specific
 values, such as paths.
 }
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupOptions(
+  maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
+
+  # Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+  #  or `setupProject`
+  if (.mode == "development") \{
+     list(test = 2)
+  \}
+  if (machine("A127")) \{
+    list(test = 3)
+  \}
+)
+}\if{html}{\out{</div>}}
 
 \subsection{Values and/or files}{
 The arguments, \code{paths}, \code{options}, and \code{params}, can all
@@ -284,239 +329,26 @@ out <- setupProject(.mode = .mode,
 }
 
 \examples{
-\dontrun{
-if (isFALSE(Require:::isWindows())) {
-
 ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
 ## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
-
 library(SpaDES.project)
+
+# Run all tests in a temporary directory, do not disrupt user's current project
+\dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+\dontshow{
 if (is.null(getOption("repos"))) {
   options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
-oldDir <- setwd(Require::tempdir2())
-origLibPaths <- .libPaths()
-
+}
  ## simplest case; just creates folders
- out <- setupProject(
-  name = "example_SpaDES_project"
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-# set relative paths & modules, install packages in isolated folder
 out <- setupProject(
-  name = "example_SpaDES_project",
-  paths = list(projectPath = "SpaDES.project",
-               modulePath = "m",
-               scratchPath = tempdir()),
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+  paths = list(projectPath = ".") #
 )
-out
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## With options and params set
-out <- setupProject(
-  name = "example_SpaDES_project",
-  options = list(reproducible.useTerra = TRUE),
-  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-  paths = list(modulePath = "m",
-               projectPath = "SpaDES.project",
-               scratchPath = tempdir()),
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## using an options file that is remote
-out <- setupProject(
-  name = "example_SpaDES_project",
-  options = c(
-    "PredictiveEcology/SpaDES.project@transition/inst/options.R"
-  ),
-  params = list(
-    Biomass_borealDataPrep = list(.plots = "screen")
-  ),
-  paths = list(
-    modulePath = "m",
-    projectPath = "~/GitHub/SpaDES.project",
-    scratchPath = tempdir()
-  ),
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## setting arbitrary arguments, using defaultDots (1)
-out <- setupProject(
-  name = "example_SpaDES_project",
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
-
-  # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
-  defaultDots = list(mode = "development",
-                     studyAreaName = "MB"),
-  mode = mode, # may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above
-  studyAreaName = studyAreaName#, # same as previous argument.
-  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## setting arbitrary arguments, using defaultDots (2)
-out <- setupProject(
-  name = "example_SpaDES_project",
-  paths = list(projectPath = "LandWeb"),
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  config = "LandWeb",
-  defaultDots = list(mode = "development",
-                     studyAreaName = "MB"),
-  mode = mode, studyAreaName = studyAreaName#,
-  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## Pass args from GlobalEnv
-studyAreaName <- "AB"
-out <- setupProject(
-  name = "example_SpaDES_project",
-  paths = list(projectPath = "LandWeb"),
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  defaultDots = list(mode = "development",
-                     studyAreaName = "MB"),
-  mode = "development",
-  studyAreaName = studyAreaName
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## mixture of named list element, github file and local file for e.g., options
-out <- setupProject(
-  name = "example_SpaDES_project",
-  options = list(
-    reproducible.useTerra = TRUE,
-    "PredictiveEcology/SpaDES.project@transition/inst/options.R",
-    system.file("authentication.R", package = "SpaDES.project") # local file
-  ),
-  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-  paths = list(modulePath = "m",
-               projectPath = "SpaDES.project",
-               scratchPath = tempdir()),
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
-out <- setupProject(
-  name = "example_SpaDES_project",
-  studyArea = list("Al|Brit")
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-# example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
-#    with level 2 administrative boundaries
-out <- setupProject(
-  name = "example_SpaDES_project",
-  studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005")
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## If using SpaDES.core, the return object can be passed to `simInit` via `do.call`:
-# do.call(simInit, out)
-
-## load packages using `require` argument
-out <- setupProject(
-  paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
-  standAlone = TRUE,
-  require = c(
-    "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-    "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
-  ),
-  modules = c(
-    "PredictiveEcology/Biomass_speciesData@master",
-    "PredictiveEcology/Biomass_borealDataPrep@development",
-    "PredictiveEcology/Biomass_core@master",
-    "PredictiveEcology/Biomass_validationKNN@master",
-    "PredictiveEcology/Biomass_speciesParameters@development"
-  ),
-  objects = list(
-    studyAreaLarge = terra::vect(
-      terra::ext(-598722.985900015, -557858.350337621,
-                 776827.300151124, 837385.414396185),
-      crs = terra::crs("epsg:3978")
-    ),
-    studyArea = terra::vect(
-      terra::ext(-598722.985900015, -578177.124187722,
-                 779252.422377214, 809573.532597151),
-      crs = terra::crs("epsg:3978")
-    )
-  )
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## or alternatively:
-out <- setupProject(
-  paths = list(projectPath = "MEE_Paper"), # will deduce name of project from projectPath
-  standAlone = TRUE,
-  require = c(
-    "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-    "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
-  ),
-  modules = c(
-    "PredictiveEcology/Biomass_speciesData@master",
-    "PredictiveEcology/Biomass_borealDataPrep@development",
-    "PredictiveEcology/Biomass_core@master",
-    "PredictiveEcology/Biomass_validationKNN@master",
-    "PredictiveEcology/Biomass_speciesParameters@development"
-  ),
-  studyAreaLarge = terra::vect(
-    terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
-    crs = terra::crs("epsg:3978")
-  ),
-  studyArea = terra::vect(
-    terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
-    crs = terra::crs("epsg:3978")
-  )
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-## Make project-level change to .libPaths() that is persistent
-setwd(tempdir())
-out <- setupProject(
-  name = "example_SpaDES_project",
-  package = "terra",
-  updateRprofile = TRUE
-)
-
-## cleanup / restore state
-.teardownProject(out$paths, origLibPaths)
-
-setwd(oldDir)
-
-}
-}
 }
 \seealso{
 \code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
 \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
 \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
+
+\code{vignette("SpaDES project setup", package = "SpaDES.project")}
 }
