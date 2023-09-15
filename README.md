@@ -39,7 +39,7 @@ A user can, of course, attempt to wrangle all these issues themselves; instead, 
 
 # Getting started
 
-See package vignettes to get started.
+See [this package readme](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html) and vignettes to get started.
 
 1. [Getting started vignette](vignettes/i-getting-started.Rmd)
 2. [Using `git` and GitHub](vignettes/iii-using-git-github.Rmd)

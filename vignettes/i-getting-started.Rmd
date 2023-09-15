@@ -394,7 +394,7 @@ One powerful aspect of `SpaDES` is the ability to connect to other people's modu
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
 ```
 
-```{r listModulesSmall}
+```{r listModulesSmall,result='hide'}
 ## get all the fireSense modules from the Predictive Ecology GitHub repository
 Account <- "PredictiveEcology"
 grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
@@ -417,7 +417,7 @@ if (requireNamespace("igraph", quietly = TRUE) &&
 }
 ```
 
-```{r listModulesAll}
+```{r listModulesAll,result='hide'}
 # Can do same, but with long list -- not done here -- can try
 accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
                        "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
