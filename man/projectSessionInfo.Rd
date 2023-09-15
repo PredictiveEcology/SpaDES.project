@@ -20,12 +20,12 @@ saved inside the project directory, or added to a SpaDES \code{simList} to impro
 reproducibility of these workflows.
 }
 \examples{
-\dontrun{
 ## get project session info for current project
 projectSessionInfo()
 
 ## replace default session info in a simList
-mySimOut <- SpaDES.core::simInitAndSpades()
-mySimOut@.xData[["._sessionInfo"]] <- projectSessionInfo()
+if (requireNamespace("SpaDES.core", quietly = TRUE)) {
+  mySimOut <- SpaDES.core::simInitAndSpades()
+  mySimOut@.xData[["._sessionInfo"]] <- projectSessionInfo()
 }
 }

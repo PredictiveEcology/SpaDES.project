@@ -71,13 +71,13 @@ reproducibilityReceipt <- function(prjDir = NULL, title = "Reproducibility recei
 #' @export
 #'
 #' @examples
-#' \dontrun{
 #' ## get project session info for current project
 #' projectSessionInfo()
 #'
 #' ## replace default session info in a simList
-#' mySimOut <- SpaDES.core::simInitAndSpades()
-#' mySimOut@.xData[["._sessionInfo"]] <- projectSessionInfo()
+#' if (requireNamespace("SpaDES.core", quietly = TRUE)) {
+#'   mySimOut <- SpaDES.core::simInitAndSpades()
+#'   mySimOut@.xData[["._sessionInfo"]] <- projectSessionInfo()
 #' }
 projectSessionInfo <- function(prjDir = NULL) {
   if (is.null(prjDir)) {
