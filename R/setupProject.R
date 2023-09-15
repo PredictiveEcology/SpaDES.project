@@ -285,11 +285,9 @@ utils::globalVariables(c(
 #' @seealso \code{vignette("SpaDES project setup", package = "SpaDES.project")}
 #'
 #' @examples
-#' ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
-#' ## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+#' ## FOR MORE EXAMPLES SEE
 #' library(SpaDES.project)
 #'
-#' # Run all tests in a temporary directory, do not disrupt user's current project
 #' \dontshow{tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 #' \dontshow{
 #' if (is.null(getOption("repos"))) {
