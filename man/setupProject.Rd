@@ -55,8 +55,8 @@ See \link{setup}.}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
-not attached to the search path. See also the \code{require} argument.
-See \link{setup}.}
+not attached to the search path. See also the \code{require} argument. To force skip
+of package installation (without assessing modules), set \code{packages = NULL}}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.

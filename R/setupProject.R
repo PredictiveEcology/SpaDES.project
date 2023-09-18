@@ -52,8 +52,8 @@ utils::globalVariables(c(
 #'   not working.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
-#'   not attached to the search path. See also the `require` argument.
-#'   See [setup].
+#'   not attached to the search path. See also the `require` argument. To force skip
+#'   of package installation (without assessing modules), set `packages = NULL`
 #' @param require Optional. A character vector of packages to install *and* attach
 #'   (with `Require::Require`). These will be installed and attached at the start
 #'   of `setupProject` so that a user can use these during `setupProject`.
@@ -387,7 +387,7 @@ setupProject <- function(name, paths, modules, packages,
   names(modules) <- names(modulePackages)
 
   if (missing(packages))
-    packages <- NULL
+    packages <- character()
 
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
@@ -1041,11 +1041,13 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
 
-  if (missing(packages)) {
-    packages <- NULL
-  }
+  if (missing(packages))
+    packages <- character()
 
-  if (length(packages) || length(unlist(modulePackages)) || length(require) ) {
+  if (
+    (length(packages) || length(unlist(modulePackages)) || length(require)) &&
+    !is.null(packages)
+    ){
 
     messageVerbose(yellow("setting up packages..."), verbose = verbose)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
@@ -1079,6 +1081,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       }
     }
     messageVerbose(yellow("  done setting up packages"), verbose = verbose)
+  } else {
+    messageVerbose(yellow("  no packages to set up"), verbose = verbose)
   }
 
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
