@@ -1206,7 +1206,15 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
         rem <- opt
-        opt <- file.path(paths$inputPath, basename(opt))
+        gitRepo <- splitGitRepo(opt)
+        relativeFilePath <- extractGitHubFileRelativePath(opt)
+        if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
+          # This is a projectPath that is one level into a GitHub repository
+          opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
+        } else {
+          opt <- file.path(paths[["projectPath"]], relativeFilePath)
+        }
+
         fe <- file.exists(opt)
         if (fe && isFALSE(overwrite)) {
           message(opt, " already exists; not downloading")
