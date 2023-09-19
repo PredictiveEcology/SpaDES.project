@@ -147,8 +147,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #' @inheritParams getModule
 #' @seealso [getModule]
 #' @examples
-#' getGithubFile("PredictiveEcology/LandWeb@development/04-options.R",
-#'               destDir = Require::tempdir2())
+#' filename <- getGithubFile("PredictiveEcology/LandWeb@development/01b-options.R",
+#'                           destDir = Require::tempdir2())
 getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {
   gitRepo <- splitGitRepo(gitRepoFile)

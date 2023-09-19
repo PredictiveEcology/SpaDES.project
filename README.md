@@ -8,7 +8,7 @@
 
 # SpaDES.project
 
-Quickly setup 'SpaDES' project directories, get modules, and deal with a number of issues related to reproducibility and reusabililty. This package was designed with a PERFICT approach in mind (See McIntire et al. 2022).
+Quickly setup 'SpaDES' project directories, get modules, and deal with a number of issues related to reproducibility and reusabililty. This package was designed with a PERFICT approach in mind (See [McIntire et al. 2022](https://onlinelibrary.wiley.com/doi/full/10.1111/ele.13994)).
 
 # Why use this package
 
@@ -18,7 +18,7 @@ First, **PERFICT** is difficult to achieve, but is facilitated by `SpaDES` -- `S
 - a **modular coding** approach, 
 - *if the user would like to "develop" code*, **version control** (optional),
 
-We use [Github](https://github.com), [Posit](https://posit.co), and [`SpaDES`](https://spades.predictiveecology.org). While these are not the only options, we find them the easiest. We note that many users are not git users. We have conceived of `SpaDES.project` for these people also: a user can use a git-controlled project or not within the `SpaDES.project` setup. 
+We use [Posit](https://posit.co), [`SpaDES`](https://spades.predictiveecology.org) and [Github](https://github.com), respectivly. While these are not the only options, we find them the easiest. We note that many users are not git users. We have conceived of `SpaDES.project` for these people also: a user can use a git-controlled project or not within the `SpaDES.project` setup. 
 
 In addition to these tools, we have repeatedly hit many other issues throughout our years of experience wrangling projects with a diversity of developers, on a diversity of operating systems, with a diversity of users, data sources, packages, modules etc. These are the "costs" of open, modular, interoperable projects: *normal reproducible workflows will fail as the project complexity increases*. If one of the objectives is to build projects that are transferable to other users, it is unlikely to work with "normal workflows" because things like:
 
@@ -39,7 +39,7 @@ A user can, of course, attempt to wrangle all these issues themselves; instead, 
 
 # Getting started
 
-See package vignettes to get started.
+See [this package readme](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html) and vignettes to get started.
 
 1. [Getting started vignette](vignettes/i-getting-started.Rmd)
 2. [Using `git` and GitHub](vignettes/iii-using-git-github.Rmd)

@@ -4,26 +4,26 @@ utils::globalVariables(c(
 
 #' Sets up a new or existing SpaDES project
 #'
-#' `setupProject` calls a sequence of functions in this order:
+#' @description `setupProject` calls a sequence of functions in this order:
 #' `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`,
 #' `setupSideEffects`, `setupParams`,
-#' `setupGitIgnore`. Because of this
-#' sequence, users can take advantange of settings that happen before others. For
-#' example, users can set paths, then use those paths while setting up
-#' `params`, or they can set `options` that will can update/change `paths`,
-#' `times` can be used in `params`,
-#' for example.
-#' This sequence will create folder structures, install packages in either the `packages`
-#' or `require` arguments, load packages only from the `require` argument,
-#' set options, download or confirm the existence of modules, install missing
-#' packages from both the modules `reqdPkgs` fields and the user passed
-#' `packages` or `require`. It will also return elements that can be passed
+#' `setupGitIgnore`.
+#'
+#' This sequence will create folder structures, install missing packages from those
+#' listed in either the `packages`, `require` arguments or in the modules `reqdPkgs` fields,
+#' load packages (only those in the `require` argument), set options, download or
+#' confirm the existence of modules. It will also return elements that can be passed
 #' directly to `simInit`  or `simInitAndSpades`, specifically, `modules`, `params`,
 #' `paths`, `times`, and any named elements passed to `...`. This function will also
-#' , if desired, change the .Rprofile file for this
-#'  this project so that every time this project is opened, it has a specific
-#'  `.libPaths()`. There are a number of convenience elements described in the
-#'  section below. See Details.
+#' , if desired, change the .Rprofile file for this project so that every time
+#' the project is opened, it has a specific `.libPaths()`.
+#'
+#' There are a number of convenience elements described in the section below. See Details.
+#' Because of this sequence, users can take advantage of settings (i.e., objects)
+#' that happen (are created) before others. For example, users can set `paths`
+#' then use the `paths` list to set `options` that will can update/change `paths`,
+#' or set `times` and use the `times` list for certain entries in `params`.
+#'
 #'
 #' @param name Optional. If supplied, the name of the project. If not supplied, an
 #' attempt will be made to extract the name from the `paths[["projectPath"]]`.
@@ -52,8 +52,8 @@ utils::globalVariables(c(
 #'   not working.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
-#'   not attached to the search path. See also the `require` argument.
-#'   See [setup].
+#'   not attached to the search path. See also the `require` argument. To force skip
+#'   of package installation (without assessing modules), set `packages = NULL`
 #' @param require Optional. A character vector of packages to install *and* attach
 #'   (with `Require::Require`). These will be installed and attached at the start
 #'   of `setupProject` so that a user can use these during `setupProject`.
@@ -78,15 +78,18 @@ utils::globalVariables(c(
 #'   that are run for their side effects only.
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
-#'   `modules`. Otherwise it will get modules with `getModules`. NOTE: *CREATING* A
-#'   GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
-#'   IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.
+#'   `modules`. Otherwise it will download modules with `getModules`. NOTE: *CREATING* A
+#'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+#'   NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+#'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
 #' @param Restart If the `projectPath` is not the current path, and the session is in
-#'   Rstudio, and interactive, it will restart with a new Rstudio session with a
-#'   new project, with a root path set to `projectPath`. Default is `FALSE`.
+#'   RStudio, and interactive, it will create an RStudio Project file (and .Rproj.user
+#'   folder), restart with a new Rstudio session with that new project and with a root
+#'   path (i.e. working directory) set to `projectPath`. Default is `FALSE`, and no
+#'   RStudio Project is created.
 #' @param updateRprofile Logical. Should the `paths$packagePath` be set in the `.Rprofile`
 #'   file for this project. Note: if `paths$packagePath` is within the `tempdir()`,
 #'   then there will be a warning, indicating this won't persist. If the user is
@@ -205,37 +208,49 @@ utils::globalVariables(c(
 #' }
 #'
 #' \subsection{Specifying `paths`, `options`, `params`}{
-#' If `paths`, `options`, and/or `params`are a character string
+#' If `paths`, `options`, and/or `params` are a character string
 #' or character vector (or part of an unnamed list element) the string(s)
-#' will be interpretted as files to parse. These files should contain R code that
+#' will be interpreted as files to parse. These files should contain R code that
 #' specifies *named lists*, where the names are one or more `paths`, `options`,
 #' or are module names, each with a named list of parameters for that named module.
 #' This last named list for `params` follows the convention used for the `params` argument in
-#' `simInit(..., params = )`. The `options` file should
-#' not set `options` explicitly; only named lists. This enables options checking/validating
-#' to occur within `setupOptions` and `setupParams`.
+#' `simInit(..., params = )`.
 #'
 #' These files can use `paths`, `times`, plus any previous list in the sequence of
-#' `params` or `options` specified.
+#' `params` or `options` specified. Any functions that are used must be available,
+#'  e.g., prefixed `Require::normPath` if the package has not been loaded (as recommended).
 #'
-#' A simplest case would be a file with this:
-#' `opts <- list(reproducible.destinationPath = "~/destPath")`. All named lists will
-#' be parsed into their own environment, and then will be sequentially evaluated (i.e.,
-#' subsequent lists will have access to previous lists), with each named elements
-#' setting or replacing the previously named element of the same name, creating a
-#' single list. This final list will be assigned to `options()` inside `setupOptions`.
-#' Because these are each parsed separately, it is not necessary to assign any list to
-#' an object; and the objects, if named, can be any name, even the same name repeatedly.
-#' The sequential nature means that a user can
-#' have a named list of default settings first in the file, then those defaults can
-#' be overridden by e.g., user-specific or machine-specific values that are
-#' specified subsequently in the same file or in a separate file. Any functions
-#' that are used must be available, e.g., prefixed `Require::normPath`.
+#' If passing a file to `options`, it should **not set** `options()` explicitly;
+#' only create named lists. This enables options checking/validating
+#' to occur within `setupOptions` and `setupParams`. A simplest case would be a file with this:
+#' `opts <- list(reproducible.destinationPath = "~/destPath")`.
 #'
-#' NOTE: these will only parse items that are atomics (i.e., character, numeric, etc.),
-#'   named lists or either of these that are protected by 1 level of "if". This
-#'   will not work, therefore, for other side-effect elements, like authenticating
-#'   with a cloud service.
+#' All named lists will be parsed into their own environment, and then will be
+#' sequentially evaluated (i.e., subsequent lists will have access to previous lists),
+#' with each named elements setting or replacing the previously named element of the same name,
+#' creating a single list. This final list will be assigned to, e.g., `options()` inside `setupOptions`.
+#'
+#' Because each list is parsed separately, they to not need to be assigned objects;
+#' if they are, the object name can be any name, even if similar to another object's name
+#' used to built the same argument's (i.e. `paths`, `params`, `options`) final list.
+#' Hence, in an file to passed to `options`, instead of incrementing the list as:
+#' {
+#' a <- list(optA = 1)
+#' b <- append(a, list(optB = 2))
+#' c <- append(b, list(optC = 2.5))
+#' d <- append(c, list(optD = 3))
+#' }
+#' one can do:
+#' {
+#' a <- list(optA = 1)
+#' a <- list(optB = 2)
+#' c <- list(optC = 2.5)
+#' list(optD = 3)
+#' }
+#'
+#' NOTE: only atomics (i.e., character, numeric, etc.), named lists, or either of these
+#'   that are protected by 1 level of "if" are parsed. This will not work, therefore,
+#'   for other side-effect elements, like authenticating with a cloud service.
 #'
 #' Several helper functions exist within `SpaDES.project` that may be useful, such
 #' as `user(...)`, `machine(...)`
@@ -261,35 +276,35 @@ utils::globalVariables(c(
 #' ```
 #' }
 #'
-#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
-#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
-#' [user()], [machine()], [node()]
-#'
 #' @return
 #' `setupProject` will return a named list with elements `modules`, `paths`, `params`, and `times`.
 #' The goal of this list is to contain list elements that can be passed directly
-#' to `simInit`
-#' NOTE: both `projectPath` and `packagePath` will be omitted in the `paths` list
-#' as they are used to
-#' set current directory (found with `getwd()`) and `.libPaths()[1]`, and `simInit`
-#' does not accept these. `setupPaths` will return these two paths as it is not
-#' expected to be passed directly to `simInit`.
+#' to `simInit`.
+#'
 #' It will also append all elements passed by the user in the `...`.
 #' This list  can be passed directly to `SpaDES.core::simInit()` or
 #' `SpaDES.core::simInitAndSpades()` using a `do.call()`. See example.
+#'
+#' NOTE: both `projectPath` and `packagePath` will be omitted in the `paths` list
+#' as they are used to set current directory (found with `getwd()`) and `.libPaths()[1]`,
+#' but are not accepted by `simInit`. `setupPaths` will still return these two paths as its
+#' outputs are not expected to be passed directly to `simInit` (unlike `setupProject` outputs).
 #'
 #' @importFrom Require extractPkgName
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
 #' @rdname setupProject
-#' @seealso \code{vignette("SpaDES project setup", package = "SpaDES.project")}
+#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
+#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
+#' [user()], [machine()], [node()]
+#' @seealso `vignette("i-getting-started", package = "SpaDES.project")`
 #'
 #' @examples
-#' ## THESE EXAMPLES ARE NOT INTENDED TO BE RUN SEQUENTIALLY AS THEY WILL LOAD PACKAGES
-#' ## THAT WILL CONFLICT. PLEASE RESTART R BETWEEN EXAMPLES
+#' ## For more examples:
+#' vignette("i-getting-started", package = "SpaDES.project")
+#'
 #' library(SpaDES.project)
 #'
-#' # Run all tests in a temporary directory, do not disrupt user's current project
 #' \dontshow{origDir <- getwd()
 #'           tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
 #' \dontshow{
@@ -373,7 +388,7 @@ setupProject <- function(name, paths, modules, packages,
   names(modules) <- names(modulePackages)
 
   if (missing(packages))
-    packages <- NULL
+    packages <- character()
 
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
@@ -409,7 +424,6 @@ setupProject <- function(name, paths, modules, packages,
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                         overwrite = overwrite, envir = envir, verbose = verbose)
-
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
@@ -1027,11 +1041,13 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
 
-  if (missing(packages)) {
-    packages <- NULL
-  }
+  if (missing(packages))
+    packages <- character()
 
-  if (length(packages) || length(unlist(modulePackages)) || length(require) ) {
+  if (
+    (length(packages) || length(unlist(modulePackages)) || length(require)) &&
+    !is.null(packages)
+    ){
 
     messageVerbose(yellow("setting up packages..."), verbose = verbose)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
@@ -1065,6 +1081,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       }
     }
     messageVerbose(yellow("  done setting up packages"), verbose = verbose)
+  } else {
+    messageVerbose(yellow("  no packages to set up"), verbose = verbose)
   }
 
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
@@ -1730,7 +1748,12 @@ setupStudyArea <- function(studyArea, paths) {
 
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
     epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
-    studyArea <- do.call(geodata::gadm, as.list(geodatCall[-1]))
+    studyAreaOrig <- studyArea
+    studyArea <- withCallingHandlers(do.call(geodata::gadm, as.list(geodatCall[-1])),
+                                     message = function(m)
+                                       if (grepl("geodata server seems", m$message))
+                                         stop(m)
+    )
     studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ]
     if (!is.null(epsg))
       if (requireNamespace("terra")) {

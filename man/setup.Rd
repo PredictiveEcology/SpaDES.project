@@ -201,14 +201,15 @@ See \link{setup}.}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will get modules with \code{getModules}. NOTE: \emph{CREATING} A
-GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
-IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.}
+\code{modules}. Otherwise it will download modules with \code{getModules}. NOTE: \emph{CREATING} A
+GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
-not attached to the search path. See also the \code{require} argument.
-See \link{setup}.}
+not attached to the search path. See also the \code{require} argument. To force skip
+of package installation (without assessing modules), set \code{packages = NULL}}
 
 \item{modulePackages}{A named list, where names are the module names, and the elements
 of the list are packages in a form that \code{Require::Require} accepts.}
