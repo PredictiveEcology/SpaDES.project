@@ -151,10 +151,12 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #'                           destDir = Require::tempdir2())
 getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {
-  gitRepo <- splitGitRepo(gitRepoFile)
-  gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
-  file <- gsub(gitRepo, "", gitRepoFile)
-  file <- gsub("^\\/", "", file) # file is now relative path
+  gitRepo <- extractGitHubRepoFromFile(gitRepoFile)
+  file <- extractGitHubFileRelativePath(gitRepoFile, gitRepo)
+  # gitRepo <- splitGitRepo(gitRepoFile)
+  # gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
+  # file <- gsub(gitRepo, "", gitRepoFile)
+  # file <- gsub("^\\/", "", file) # file is now relative path
   if (nchar(dirname(file)))
     checkPath(file.path(destDir, dirname(file)), create = TRUE)
 
@@ -168,6 +170,19 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   out <- normPath(file.path(destDir, file))
   return(out)
 }
+
+extractGitHubFileRelativePath <- function(gitRepoFile, gitRepo) {
+  if (missing(gitRepo))
+    gitRepo <- extractGitHubRepoFromFile(gitRepoFile)
+  file <- gsub(gitRepo, "", gitRepoFile)
+  gsub("^\\/", "", file) # file is now relative path
+}
+
+extractGitHubRepoFromFile <- function(gitRepoFile) {
+  gitRepo <- splitGitRepo(gitRepoFile)
+  file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
+}
+
 
 #' @importFrom Require .downloadFileMasterMainAuth
 downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
