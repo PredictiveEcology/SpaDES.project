@@ -302,16 +302,17 @@ See setup.</p></dd>
 <dt>useGit</dt>
 <dd><p>A logical. If <code>TRUE</code>, it will use <code>git clone</code> and <code>git checkout</code>
 to get and change branch for each module, according to its specification in
-<code>modules</code>. Otherwise it will get modules with <code>getModules</code>. NOTE: <em>CREATING</em> A
-GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
-IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.</p></dd>
+<code>modules</code>. Otherwise it will download modules with <code>getModules</code>. NOTE: <em>CREATING</em> A
+GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.</p></dd>
 
 
 <dt>packages</dt>
 <dd><p>Optional. A vector of packages that must exist in the <code>libPaths</code>.
 This will be passed to <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Install</a></code>, i.e., these will be installed, but
-not attached to the search path. See also the <code>require</code> argument.
-See setup.</p></dd>
+not attached to the search path. See also the <code>require</code> argument. To force skip
+of package installation (without assessing modules), set <code>packages = NULL</code></p></dd>
 
 
 <dt>modulePackages</dt>

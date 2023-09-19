@@ -277,8 +277,11 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ### example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK, with level 2 administrative boundaries
 
+```{r explanationForExample10,eval=FALSE,echo=FALSE}
+# example_10 doesn't run behind some firewalls, so fails too frequently; skip evaluation in vignette
+```
 
-```{r example10}
+```{r example10,eval=FALSE} 
 out <- setupProject(
   name = "example_10",
   studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005")

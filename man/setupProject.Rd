@@ -107,9 +107,10 @@ RStudio Project is created.}
 
 \item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will get modules with \code{getModules}. NOTE: \emph{CREATING} A
-GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
-IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.}
+\code{modules}. Otherwise it will download modules with \code{getModules}. NOTE: \emph{CREATING} A
+GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}

@@ -78,9 +78,10 @@ utils::globalVariables(c(
 #'   that are run for their side effects only.
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
-#'   `modules`. Otherwise it will get modules with `getModules`. NOTE: *CREATING* A
-#'   GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
-#'   IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.
+#'   `modules`. Otherwise it will download modules with `getModules`. NOTE: *CREATING* A
+#'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+#'   NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+#'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
@@ -423,7 +424,6 @@ setupProject <- function(name, paths, modules, packages,
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                         overwrite = overwrite, envir = envir, verbose = verbose)
-
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
@@ -1709,7 +1709,12 @@ setupStudyArea <- function(studyArea, paths) {
 
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
     epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
-    studyArea <- do.call(geodata::gadm, as.list(geodatCall[-1]))
+    studyAreaOrig <- studyArea
+    studyArea <- withCallingHandlers(do.call(geodata::gadm, as.list(geodatCall[-1])),
+                                     message = function(m)
+                                       if (grepl("geodata server seems", m$message))
+                                         stop(m)
+    )
     studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ]
     if (!is.null(epsg))
       if (requireNamespace("terra")) {

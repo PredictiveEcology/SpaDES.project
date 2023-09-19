@@ -144,7 +144,7 @@ repository and branch name, e.g., <code>"PredictiveEcology/WBI_forecasts@Chubaty
 
 <dt>paths</dt>
 <dd><p>a list with named elements, specifically, <code>modulePath</code>, <code>projectPath</code>,
-<code>packagePath</code> and all others that are in <code>SpaDES.core::setPaths()</code>
+<code>packagePath</code> and all others that are in <code><a href="https://spades-core.predictiveecology.org/reference/setPaths.html" class="external-link">SpaDES.core::setPaths()</a></code>
 (i.e., <code>inputPath</code>, <code>outputPath</code>, <code>scratchPath</code>, <code>cachePath</code>, <code>rasterTmpDir</code>).
 Each of these has a sensible default, which will be overridden but any user
 supplied values.
@@ -167,14 +167,14 @@ See setup.</p></dd>
 <dt>packages</dt>
 <dd><p>Optional. A vector of packages that must exist in the <code>libPaths</code>.
 This will be passed to <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Install</a></code>, i.e., these will be installed, but
-not attached to the search path. See also the <code>require</code> argument.
-See setup.</p></dd>
+not attached to the search path. See also the <code>require</code> argument. To force skip
+of package installation (without assessing modules), set <code>packages = NULL</code></p></dd>
 
 
 <dt>times</dt>
 <dd><p>Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., <code>params</code>, e.g., <code>params = list(mod = list(startTime = times$start))</code>.
-See help for <code>SpaDES.core::simInit</code>.</p></dd>
+See help for <code><a href="https://spades-core.predictiveecology.org/reference/simInit.html" class="external-link">SpaDES.core::simInit</a></code>.</p></dd>
 
 
 <dt>options</dt>
@@ -218,7 +218,7 @@ See setup</p></dd>
 
 <dt>studyArea</dt>
 <dd><p>Optional. If a list, it will be passed to
-<code>geodata::gadm</code>. To specify a country other than the default <code>"CAN"</code>,
+<code><a href="https://rdrr.io/pkg/geodata/man/gadm.html" class="external-link">geodata::gadm</a></code>. To specify a country other than the default <code>"CAN"</code>,
 the list must have a named element, <code>"country"</code>. All other named elements
 will be passed to <code>gadm</code>. 2 additional named elements can be passed for
 convenience, <code>subregion = "..."</code>, which will be grepped with the column
@@ -237,9 +237,10 @@ RStudio Project is created.</p></dd>
 <dt>useGit</dt>
 <dd><p>A logical. If <code>TRUE</code>, it will use <code>git clone</code> and <code>git checkout</code>
 to get and change branch for each module, according to its specification in
-<code>modules</code>. Otherwise it will get modules with <code>getModules</code>. NOTE: <em>CREATING</em> A
-GIT REPOSITORY AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED.
-IT IS FINE IF THE PROJECT IS ALREADY A GIT REPOSITORY.</p></dd>
+<code>modules</code>. Otherwise it will download modules with <code>getModules</code>. NOTE: <em>CREATING</em> A
+GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.</p></dd>
 
 
 <dt>setLinuxBinaryRepo</dt>
@@ -296,7 +297,7 @@ processing to optionally fill them. See examples.</p></dd>
 <dd><p>further named arguments that acts like <code>objects</code>, but a different
 way to specify them. These can be anything. The general use case
 is to create the <code>objects</code> that are would be passed to
-<code>SpaDES.core::simInit</code>, or <code>SpaDES.core::simInitAndSpades</code>,
+<code><a href="https://spades-core.predictiveecology.org/reference/simInit.html" class="external-link">SpaDES.core::simInit</a></code>, or <code><a href="https://spades-core.predictiveecology.org/reference/simInitAndSpades.html" class="external-link">SpaDES.core::simInitAndSpades</a></code>,
 (e.g. <code>studyAreaName</code> or <code>objects</code>) or additional objects to be passed to the simulation
 (in older versions of <code>SpaDES.core</code>, these were passed as a named list
 to the <code>objects</code> argument). <strong>Order matters</strong>. These are sequentially evaluated,
@@ -317,8 +318,8 @@ to <code>simInit</code>.</p>
 
 
 <p>It will also append all elements passed by the user in the <code>...</code>.
-This list  can be passed directly to <code>SpaDES.core::simInit()</code> or
-<code>SpaDES.core::simInitAndSpades()</code> using a <code><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call()</a></code>. See example.</p>
+This list  can be passed directly to <code><a href="https://spades-core.predictiveecology.org/reference/simInit.html" class="external-link">SpaDES.core::simInit()</a></code> or
+<code><a href="https://spades-core.predictiveecology.org/reference/simInitAndSpades.html" class="external-link">SpaDES.core::simInitAndSpades()</a></code> using a <code><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call()</a></code>. See example.</p>
 
 
 <p>NOTE: both <code>projectPath</code> and <code>packagePath</code> will be omitted in the <code>paths</code> list
@@ -491,14 +492,15 @@ but as an unevaluated, captured list element.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">setting up paths ...</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Setting:</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   options(</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpAVBhVc/Require/cache'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpAVBhVc/Require/inputs'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpAVBhVc/Require/outputs'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpAVBhVc/Require/modules'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpAVBhVc/Require'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpwpALZd/Require/cache'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpwpALZd/Require/inputs'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpwpALZd/Require/outputs'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpwpALZd/Require/modules'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpwpALZd/Require'</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   )</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">  done setting up paths</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/Require/packages/x86_64-w64-mingw32/4.3)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">  no packages to set up</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/Require/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/getwd.html" class="external-link">setwd</a></span><span class="op">(</span><span class="va">origDir</span><span class="op">)</span></span></span>
 </code></pre></div>

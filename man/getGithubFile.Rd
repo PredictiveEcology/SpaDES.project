@@ -35,8 +35,8 @@ This can be used within e.g., the \code{options} or \code{params} arguments for
 \code{setupProject} to get a ready-made file for a project.
 }
 \examples{
-getGithubFile("PredictiveEcology/LandWeb@development/04-options.R",
-              destDir = Require::tempdir2())
+filename <- getGithubFile("PredictiveEcology/LandWeb@development/01b-options.R",
+                          destDir = Require::tempdir2())
 }
 \seealso{
 \link{getModule}
