@@ -1193,7 +1193,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         namedElements <- obj[which(named)]
       obj <- Map(objInner = obj[notNamed],
                  function(objInner)
-                   parseFileLists(objInner, paths[["projectPath"]], namedList, overwrite,
+                   parseFileLists(objInner, paths, namedList, overwrite,
                                   envir, verbose, dots, ...))
       obj <- Reduce(f = append, obj)
       if (any(named))
