@@ -1801,7 +1801,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
       if (requireNamespace("rstudioapi")) {
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
-        browser()
+        # browser()
         fe <- file.exists("~/.active-rstudio-document")
 
         rstudioapi::openProject(path = paths[["projectPath"]])
