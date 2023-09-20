@@ -427,13 +427,7 @@ setupProject <- function(name, paths, modules, packages,
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
-    isSAlist <- try(is(studyArea, "list"), silent = TRUE)
-
-    if (is(isSAlist, "try-error")) {
-      extraPackages <- c("terra", "geodata")
-      Require::Install(extraPackages)
-    }
-    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
+    dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame())
   }
 
   if (length(dotsLater)) {
@@ -1262,7 +1256,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           rem
         }
       }))
-      messageDF(data.frame(url = mess, "became" = "--->", localFile = objLocal))
+      messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
@@ -1333,7 +1327,7 @@ inTempProject <- function(paths) {
 
 evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
-  while (inherits(val, "call") || inherits(val, "name")) {
+  while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{")) {
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
     else {
@@ -1730,10 +1724,12 @@ stopMessForRequireFail <- function(pkg) {
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
 #' with subregion specification as described in the `studyArea` argument.fsu
-setupStudyArea <- function(studyArea, paths) {
+setupStudyArea <- function(studyArea, paths, envir) {
 
   if (missing(paths))
     paths <- list(inputPaths = ".")
+  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = parent.frame(), envir2 = envir)
+
   if (is(studyArea, "list")) {
     needRep <- !requireNamespace("reproducible", quietly = TRUE)
     needGeo <- !requireNamespace("geodata", quietly = TRUE)
@@ -1805,6 +1801,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
       if (requireNamespace("rstudioapi")) {
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
+        browser()
+        fe <- file.exists("~/.active-rstudio-document")
+
         rstudioapi::openProject(path = paths[["projectPath"]])
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
