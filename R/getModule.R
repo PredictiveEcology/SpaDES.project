@@ -153,10 +153,6 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {
   gitRepo <- extractGitHubRepoFromFile(gitRepoFile)
   file <- extractGitHubFileRelativePath(gitRepoFile, gitRepo)
-  # gitRepo <- splitGitRepo(gitRepoFile)
-  # gitRepo <- file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
-  # file <- gsub(gitRepo, "", gitRepoFile)
-  # file <- gsub("^\\/", "", file) # file is now relative path
   if (nchar(dirname(file)))
     checkPath(file.path(destDir, dirname(file)), create = TRUE)
 
@@ -167,7 +163,10 @@ getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
   else {
     messageVerbose("downloaded ", file, verbose = verbose)
   }
-  out <- normPath(file.path(destDir, file))
+  out <- if (!is.null(out))
+    names(out)
+  else
+    normPath(file.path(destDir, file))
   return(out)
 }
 
@@ -189,8 +188,9 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
                          verbose = getOption("Require.verbose")) {
   tryDownload <- TRUE
 
-  localFile <- gsub("\\?.+$", "", file)
+  localFile <- stripQuestionMark(file)
 
+  out <- NULL
   if (file.exists(file)) # file is expected to be relative path
     if (overwrite %in% FALSE) {
       messageVerbose(file, " already exists and overwrite = FALSE", verbose = verbose)
@@ -220,10 +220,12 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     }
     if (file.exists(tf)) {
       file <- file.path(destDir, localFile)
-      file.copy(tf, file, overwrite = TRUE)
+      out <- file.copy(tf, file, overwrite = TRUE)
+      names(out) <- file
     }
 
   }
+  out
 
 }
 
@@ -258,4 +260,8 @@ checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require
 
   }
   stateDT[]
+}
+
+stripQuestionMark <- function(file) {
+  gsub("\\?.+$", "", file)
 }
