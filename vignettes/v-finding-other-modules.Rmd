@@ -95,6 +95,8 @@ graph <- moduleDependenciesToGraph(DT)
 Account <- "PredictiveEcology"
 grepListShort <- "fireSense"
 mods <- listModules(grepListShort, accounts = Account)
+# The fireSense_Size* modules are no longer used
+mods$PredictiveEcology <- grep("Size", value = TRUE, invert = TRUE, mods$PredictiveEcology)
 
 modPath <- normPath(".")
 out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
@@ -153,6 +155,10 @@ grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
                   "priority", "fire",
                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 modsLong <- listModules(grepListLong, accounts = accountsListLong)
+# The fireSense_Size* modules are no longer used
+modsLong$PredictiveEcology <- grep("Size", value = TRUE, invert = TRUE, 
+                                   modsLong$PredictiveEcology)
+
 # pass to listModules for much larger figure
 modPath <- normPath(".")
 out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
