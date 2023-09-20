@@ -1207,13 +1207,15 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       if (isGH) {
         rem <- opt
         gitRepo <- splitGitRepo(opt)
+        opt <- stripQuestionMark(opt)
         relativeFilePath <- extractGitHubFileRelativePath(opt)
-        if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
-          # This is a projectPath that is one level into a GitHub repository
-          opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
-        } else {
-          opt <- file.path(paths[["projectPath"]], relativeFilePath)
-        }
+        # if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
+        #   # This is a projectPath that is one level into a GitHub repository
+        #   opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
+        # } else {
+        #   opt <- file.path(paths[["projectPath"]], relativeFilePath)
+        # }
+        opt <- stripDuplicateFolder(relativeFilePath, paths)
 
         fe <- file.exists(opt)
         if (fe && isFALSE(overwrite)) {
@@ -1223,6 +1225,8 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
             message(opt, " already exists; overwrite = TRUE; downloading again")
             unlink(opt)
           }
+          # opt is the correct destination file because it has removed potential duplicated folder names
+          #   but getGitHubfile won't know this ... so give it a temporary destdir
           destdir <- Require::tempdir2()
           temp <- getGithubFile(rem, destDir = destdir, overwrite = overwrite)
           copied <- linkOrCopy(temp, opt)
@@ -1914,3 +1918,13 @@ dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) 
     dotsSUB <- dotsSUBreworked
   dotsSUB
 }
+
+stripDuplicateFolder <- function(relativeFilePath, paths) {
+  if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
+    # This is a projectPath that is one level into a GitHub repository
+    opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
+  } else {
+    opt <- file.path(paths[["projectPath"]], relativeFilePath)
+  }
+}
+
