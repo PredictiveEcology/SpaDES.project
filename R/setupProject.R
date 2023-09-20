@@ -66,15 +66,15 @@ utils::globalVariables(c(
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
 #'   See [setup].
-#' @param sideEffects Optional. This can be an expression or one or more filenames or
+#' @param sideEffects Optional. This can be an expression or one or more file names or
 #'   a code chunk surrounded by `{...}`.
-#'   If a non-text files is specified (e.g., *not .txt or .R* currently),
+#'   If a non-text file name is specified (e.g., *not .txt or .R* currently),
 #'   these files will simply be downloaded, using their relative path as specified
 #'   in the github notation. They will be downloaded or accessed locally at that
 #'   relative path.
-#'   If these file names represent scripts, this/these will be parsed and evaluated,
-#'   but nothing returned. This is intended
-#'   to be used for functions, such as cloud authentication or configurations,
+#'   If these file names represent scripts (*.txt or .R), this/these will be parsed and evaluated,
+#'   but nothing is returned (i.e., any assigned objects are not returned). This is intended
+#'   to be used for operations like cloud authentication or configuration functions
 #'   that are run for their side effects only.
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
@@ -188,8 +188,8 @@ utils::globalVariables(c(
 #' understand lists of named values, character vectors, or a mixture by using a list where
 #' named elements are values and unnamed elements are character strings/vectors. Any unnamed
 #' character string/vector will be treated as a file path. If that file path has an `@` symbol,
-#' it will be assumed to be a file that exists on `https://github.com`. So a user can
-#' pass values, or pointers to remote and/or local paths that themselves have values.
+#' it will be assumed to be a file that exists on a GitHub repository in `https://github.com`.
+#' So a user can pass values, or pointers to remote and/or local paths that themselves have values.
 #'
 #' The following will set an option as declared, plus read the local file (with relative
 #' path), plus download and read the cloud-hosted file.
@@ -204,7 +204,11 @@ utils::globalVariables(c(
 #' ```
 #' This approach allows for an organic growth of complexity, e.g., a user begins with
 #' only named lists of values, but then as the number of values increases, it may be
-#' helpful for clarity to put some in an external file.
+#' helpful to put some in an external file.
+#'
+#' NOTE: if the GitHub repository is *private* the user *must* configure their GitHub
+#' token by setting the GITHUB_PAT environment variable -- unfortunately, the `usethis`
+#' approach to setting the token will not work at this moment.
 #' }
 #'
 #' \subsection{Specifying `paths`, `options`, `params`}{
