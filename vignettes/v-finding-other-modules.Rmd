@@ -53,6 +53,7 @@ One powerful aspect of `SpaDES` is the ability to connect to other people's modu
 
 ### A small selection of SpaDES modules
 
+#### **Some Biomass_* modules**
 This will search the `PredictiveEcology` github.com repository for any SpaDES module whose name has `Biomass_species`, `Biomass_core`, `Biomass_regen` in it. The search will find any module that contains those keywords, i.e., `Biomass_regen` will find `Biomass_regeneration`
 
 ```{r clean13,echo=FALSE}
@@ -84,10 +85,62 @@ if (requireNamespace("igraph", quietly = TRUE) &&
 }
 ```
 
+#### **FireSense modules**
+
+```{r FireSense,result='hide',message=FALSE}
+Account <- "PredictiveEcology"
+grepListShort <- "fireSense"
+mods <- listModules(grepListShort, accounts = Account)
+
+modPath <- normPath(".")
+out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
+  out <- getModule(paste0(nam, "/", mod),
+  modulePath = modPath)
+  out
+})
+
+if (requireNamespace("igraph", quietly = TRUE) &&
+    requireNamespace("visNetwork", quietly = TRUE) &&
+    requireNamespace("SpaDES.core", quietly = TRUE) &&
+    requireNamespace("raster", quietly = TRUE)) {
+
+  DT <- moduleDependencies(mods, modulePath = modPath)
+  graph <- moduleDependenciesToGraph(DT)
+  (vn <- PlotModuleGraph(graph))
+}
+```
+
+
+#### **LandR modules**
+
+```{r LandR,result='hide',message=FALSE}
+Account <- "PredictiveEcology"
+grepListShort <- "Biomass_|LandR"
+mods <- listModules(grepListShort, accounts = Account)
+
+modPath <- normPath(".")
+out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
+  out <- getModule(paste0(nam, "/", mod),
+  modulePath = modPath)
+  out
+})
+
+if (requireNamespace("igraph", quietly = TRUE) &&
+    requireNamespace("visNetwork", quietly = TRUE) &&
+    requireNamespace("SpaDES.core", quietly = TRUE) &&
+    requireNamespace("raster", quietly = TRUE)) {
+
+  DT <- moduleDependencies(mods, modulePath = modPath)
+  graph <- moduleDependenciesToGraph(DT)
+  (vn <- PlotModuleGraph(graph))
+}
+```
+
+
 
 ### A larger selection of "known" SpaDES modules
 
-```{r listModulesAll,result='hide',message=FALSE,error=FALSE}
+```{r listModulesAll,result='hide',message=FALSE,error=FALSE,warning=FALSE}
 # Can do same, but with long list -- not done here -- can try
 accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
                        "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
