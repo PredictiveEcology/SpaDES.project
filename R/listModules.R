@@ -128,6 +128,7 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
   names(modsFlat) <- modsFlat
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
+    # if(identical(mod, "fireSense_dataPrepFit")) debug(defineParameter)
     io <- SpaDES.core::inputObjects(module = mod, path = modulePath)
     oo <- SpaDES.core::outputObjects(module = mod, path = modulePath)
     list(io = io[[mod]], oo = oo[[mod]], name = mod)
