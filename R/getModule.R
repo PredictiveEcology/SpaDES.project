@@ -188,6 +188,9 @@ extractGitHubRepoFromFile <- function(gitRepoFile) {
 downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
                          verbose = getOption("Require.verbose")) {
   tryDownload <- TRUE
+
+  localFile <- gsub("\\?.+$", "", file)
+
   if (file.exists(file)) # file is expected to be relative path
     if (overwrite %in% FALSE) {
       messageVerbose(file, " already exists and overwrite = FALSE", verbose = verbose)
@@ -216,7 +219,7 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
       warning(warn, "\nIs the url misspelled or unavailable?")
     }
     if (file.exists(tf)) {
-      file <- file.path(destDir, file)
+      file <- file.path(destDir, localFile)
       file.copy(tf, file, overwrite = TRUE)
     }
 
