@@ -331,7 +331,7 @@ out <- setupProject(
 
 
 
-```{r clean11,echo=FALSE}
+```{r clean11,echo=FALSE,eval=FALSE}
 ## cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_12"), create = TRUE ))
@@ -387,64 +387,3 @@ out <- setupProject(
 ```
 
 
-## Find other's modules
-
-One powerful aspect of `SpaDES` is the ability to connect to other people's modules. It can be challenging to know where other modules are and what they do. Using the `listModules` function. 
-
-```{r clean13,echo=FALSE}
-## cleanup / restore state
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
-knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
-```
-
-```{r listModulesSmall,result='hide'}
-## get all the fireSense modules from the Predictive Ecology GitHub repository
-Account <- "PredictiveEcology"
-grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
-mods <- listModules(grepListShort, accounts = Account)
-
-modPath <- normPath(".")
-out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-  modulePath = modPath)
-  out
-})
-
-if (requireNamespace("igraph", quietly = TRUE) && 
-    requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE)) {
-
-  DT <- moduleDependencies(mods, modulePath = modPath)
-  graph <- moduleDependenciesToGraph(DT)
-  (vn <- PlotModuleGraph(graph))
-}
-```
-
-```{r listModulesAll,result='hide'}
-# Can do same, but with long list -- not done here -- can try
-accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
-                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
-grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
-                  "LandMine", "LandWeb", "NRV", #"scfm",
-                  "priority", "fire", 
-                  "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
-modsLong <- listModules(grepListLong, accounts = accountsListLong)
-# pass to listModules for much larger figure
-modPath <- normPath(".")
-out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-                   modulePath = modPath)
-  out
-})
-
-if (requireNamespace("igraph", quietly = TRUE) && 
-    requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE) ) {
-
-  DT <- moduleDependencies(modsLong, modulePath = modPath)
-  graph <- moduleDependenciesToGraph(DT)
-  (vn <- PlotModuleGraph(graph))
-}
-
-
-```

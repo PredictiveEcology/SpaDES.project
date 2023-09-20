@@ -64,6 +64,9 @@
     <li>
       <a href="articles/iv-Installing-R.html">Installing R</a>
     </li>
+    <li>
+      <a href="articles/v-finding-other-modules.html">Finding other modules</a>
+    </li>
   </ul>
 </li>
 <li>
@@ -126,7 +129,13 @@
 <div class="section level1">
 <h1 id="getting-started">Getting started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
 </h1>
-<p>See Articles in the menu bar at the top.</p>
+<p>See <a href="https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html" class="external-link">this package readme</a> and vignettes to get started.</p>
+<ol style="list-style-type: decimal">
+<li><a href="articles/i-getting-started.html">Getting started vignette</a></li>
+<li><a href="articles/iii-using-git-github.html">Using <code>git</code> and GitHub</a></li>
+<li><a href="articles/ii-Installing-R.html">Installing R</a></li>
+<li><a href="articles/v-finding-other-modules.html">Finding other SpaDES modules</a></li>
+</ol>
 <p><strong>Website:</strong> <a href="https://SpaDES.PredictiveEcology.org" class="external-link">https://SpaDES.PredictiveEcology.org</a></p>
 <p><strong>Wiki:</strong> <a href="https://github.com/PredictiveEcology/SpaDES/wiki" class="external-link">https://github.com/PredictiveEcology/SpaDES/wiki</a></p>
 <div class="section level2">
@@ -156,43 +165,11 @@
 <span>             modules <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span>,</span>
 <span>                         <span class="st">"PredictiveEcology/Biomass_core@development"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
+<div class="section level3">
+<h3 id="more-examples">More examples<a class="anchor" aria-label="anchor" href="#more-examples"></a>
+</h3>
+<p>See <a href="articles/i-getting-started.html">Getting Started Vignette</a></p>
 </div>
-<div class="section level2">
-<h2 id="complete-workflow-following-the-perfict-approach">Complete workflow following the PERFICT approach<a class="anchor" aria-label="anchor" href="#complete-workflow-following-the-perfict-approach"></a>
-</h2>
-<p>A complete workflow requires that all steps to make all components work must be part of the script without any “manual” interventions. The code below will setup up a project in its own folder, install 4 SpaDES modules, the install all necessary R packages to run those modules.</p>
-<pre><code><span></span>
-<span><span class="co"># project basics ------------------------------------------------------------------------------</span></span>
-<span><span class="va">prjPath</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"testProject"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># install and load packages -------------------------------------------------------------------</span></span>
-<span><span class="co"># installs in user library; in following setupProject call, these will be copied to project library</span></span>
-<span><span class="kw">while</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> </span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"SpaDES.project"</span>, repos <span class="op">=</span> <span class="st">"predictiveecology.r-universe.dev"</span><span class="op">)</span></span>
-<span>  </span>
-<span><span class="co">## Get SpaDES modules; here using known modules on GitHub.com</span></span>
-<span><span class="va">spOut</span> <span class="op">&lt;-</span> </span>
-<span>  <span class="fu"><a href="reference/setupProject.html">setupProject</a></span><span class="op">(</span>paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="va">prjPath</span><span class="op">)</span>,</span>
-<span>               standAlone <span class="op">=</span> <span class="cn">TRUE</span>,        <span class="co"># will put R packages in separate location</span></span>
-<span>               packages <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"googledrive"</span>, <span class="st">"RCurl"</span>, <span class="st">"XML"</span>,  <span class="co"># needed inside Biomass_borealDataPrep</span></span>
-<span>                            <span class="st">"PredictiveEcology/reproducible@development (&gt;= 1.2.16.9018)"</span><span class="op">)</span>, <span class="co"># minor update</span></span>
-<span>               modules <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"PredictiveEcology/Biomass_speciesFactorial"</span>,</span>
-<span>                           <span class="st">"PredictiveEcology/Biomass_speciesParameters@development"</span>,</span>
-<span>                           <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span>,</span>
-<span>                           <span class="st">"PredictiveEcology/Biomass_core@development"</span><span class="op">)</span><span class="op">)</span></span>
-<span>                           </span>
-<span>                           </span>
-<span><span class="va">spOut</span><span class="op">$</span><span class="va">objects</span><span class="op">$</span><span class="va">studyArea</span> <span class="op">&lt;-</span> <span class="fu">LandR</span><span class="fu">::</span><span class="fu"><a href="https://landr.predictiveecology.org/reference/randomStudyArea.html" class="external-link">randomStudyArea</a></span><span class="op">(</span>center <span class="op">=</span> <span class="cn">NULL</span>, size <span class="op">=</span> <span class="fl">1e9</span>, seed <span class="op">=</span> <span class="fl">32</span><span class="op">)</span></span>
-<span><span class="va">spOut</span><span class="op">$</span><span class="va">objects</span><span class="op">$</span><span class="va">studyAreaLarge</span> <span class="op">&lt;-</span> <span class="fu">LandR</span><span class="fu">::</span><span class="fu"><a href="https://landr.predictiveecology.org/reference/randomStudyArea.html" class="external-link">randomStudyArea</a></span><span class="op">(</span>center <span class="op">=</span> <span class="cn">NULL</span>, size <span class="op">=</span> <span class="fl">2e9</span>, seed <span class="op">=</span> <span class="fl">32</span><span class="op">)</span></span>
-<span><span class="va">spOut</span><span class="op">$</span><span class="va">params</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>.globals <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>sppEquivCol <span class="op">=</span> <span class="st">'Boreal'</span><span class="op">)</span><span class="op">)</span> <span class="co"># what species naming convention</span></span>
-<span><span class="kw">if</span> <span class="op">(</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://rspatial.org/raster" class="external-link">"raster"</a></span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/interactive.html" class="external-link">interactive</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu">raster</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/base/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">spOut</span><span class="op">$</span><span class="va">objects</span><span class="op">$</span><span class="va">studyAreaLarge</span><span class="op">)</span></span>
-<span>  <span class="fu">raster</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/base/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">spOut</span><span class="op">$</span><span class="va">objects</span><span class="op">$</span><span class="va">studyArea</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">simInit</span>, <span class="va">spOut</span><span class="op">)</span></span>
-<span><span class="va">sim</span><span class="op">$</span><span class="va">speciesLayers</span> <span class="op">&lt;-</span> <span class="fu">raster</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/raster/man/addLayer.html" class="external-link">dropLayer</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">speciesLayers</span>, i <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Pice_Spp"</span>, <span class="st">"Pinu_Spp"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">so</span> <span class="op">&lt;-</span> <span class="fu">spades</span><span class="op">(</span><span class="va">sim</span><span class="op">)</span></span></code></pre>
 </div>
 <div class="section level2">
 <h2 id="contributions">Contributions<a class="anchor" aria-label="anchor" href="#contributions"></a>

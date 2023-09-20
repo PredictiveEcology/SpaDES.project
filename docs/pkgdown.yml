@@ -6,9 +6,14 @@ articles:
   iii-using-git-github: iii-using-git-github.html
   iv-Installing-R: iv-Installing-R.html
 <<<<<<< HEAD
+<<<<<<< HEAD
 last_built: 2023-09-20T14:49Z
 =======
 last_built: 2023-09-20T16:15Z
+>>>>>>> transition
+=======
+  v-finding-other-modules: v-finding-other-modules.html
+last_built: 2023-09-20T16:54Z
 >>>>>>> transition
 urls:
   reference: http://spades-project.predictiveecology.org/reference
