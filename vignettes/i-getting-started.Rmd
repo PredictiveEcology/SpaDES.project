@@ -412,7 +412,8 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
 
 if (requireNamespace("igraph", quietly = TRUE) && 
     requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE)) {
+    requireNamespace("SpaDES.core", quietly = TRUE) &&
+    requireNamespace("raster", quietly = TRUE)) {
 
   DT <- moduleDependencies(mods, modulePath = modPath)
   graph <- moduleDependenciesToGraph(DT)
@@ -439,7 +440,8 @@ out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
 
 if (requireNamespace("igraph", quietly = TRUE) && 
     requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE) ) {
+    requireNamespace("SpaDES.core", quietly = TRUE) &&
+    requireNamespace("raster", quietly = TRUE) ) {
 
   DT <- moduleDependencies(modsLong, modulePath = modPath)
   graph <- moduleDependenciesToGraph(DT)
