@@ -100,7 +100,7 @@ setupGitIgnore(
   verbose
 )
 
-setupStudyArea(studyArea, paths)
+setupStudyArea(studyArea, paths, envir)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
