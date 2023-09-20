@@ -43,7 +43,8 @@ See [this package readme](https://htmlpreview.github.io/?https://raw.githubuserc
 
 1. [Getting started vignette](articles/i-getting-started.html)
 2. [Using `git` and GitHub](articles/iii-using-git-github.html)
-3. [Managing large SpaDES projects](articles/iv-Installing-R.html)
+3. [Installing R](articles/ii-Installing-R.html)
+4. [Finding other SpaDES modules](articles/v-finding-other-modules.html)
 
 **Website:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
 

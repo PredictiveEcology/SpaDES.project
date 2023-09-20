@@ -112,7 +112,7 @@ setupProject()
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_2"), create = TRUE ))
 ```
 
-```{r example2}
+```{r example2,eval=FALSE}
 out <- setupProject(
   paths = list(modulePath = "m", 
                projectPath = "."), # within vignette, project dir cannot be changed; user likely will
@@ -129,7 +129,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 #### With options and params set
 
 
-```{r example3}
+```{r example3,eval=FALSE}
 out <- setupProject(
   options = list(reproducible.useTerra = TRUE),
   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
@@ -147,7 +147,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## using an options file that is remote
 
-```{r example_4} 
+```{r example_4,eval=FALSE} 
 out <- setupProject(
   options = c(
     "PredictiveEcology/SpaDES.project@transition/inst/options.R"
@@ -169,7 +169,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## setting arbitrary arguments, using defaultDots (1)
 
-```{r example_5}
+```{r example_5,eval=FALSE}
 out <- setupProject(
   name = "example_5", # puts in a folder with this name
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -195,7 +195,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## setting arbitrary arguments, using defaultDots (2)
 
-```{r example6}
+```{r example6,eval=FALSE}
 out <- setupProject(
   name = "example_6", # must be same as projectPath if both specified
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -215,7 +215,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## Pass args from GlobalEnv
 
-```{r example7}
+```{r example7,eval=FALSE}
 studyAreaName <- "AB"
 out <- setupProject(
   paths = list(projectPath = "example_7"),
@@ -234,7 +234,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ## mixture of named list element, github file and local file for e.g., options
-```{r example8}
+```{r example8,eval=FALSE}
 out <- setupProject(
   options = list(
     reproducible.useTerra = TRUE,
@@ -299,7 +299,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceeded it in the call.
 
 
-```{r example11}
+```{r example11,eval=FALSE}
 out <- setupProject(
   paths = list(projectPath = "example_11"), # will deduce name of project from projectPath
   standAlone = TRUE,
@@ -331,7 +331,7 @@ out <- setupProject(
 
 
 
-```{r clean11,echo=FALSE}
+```{r clean11,echo=FALSE,eval=FALSE}
 ## cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_12"), create = TRUE ))
@@ -342,7 +342,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
 
-```{r example12}
+```{r example12,eval=FALSE}
 out <- setupProject(
   paths = list(projectPath = "example_12"), # will deduce name of project from projectPath
   standAlone = TRUE,
@@ -378,7 +378,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## Make project-level change to .libPaths() that is persistent
 
-```{r example13}
+```{r example13,eval=FALSE}
 out <- setupProject(
   name = "example_13",
   package = "terra",
@@ -387,66 +387,3 @@ out <- setupProject(
 ```
 
 
-## Find other's modules
-
-One powerful aspect of `SpaDES` is the ability to connect to other people's modules. It can be challenging to know where other modules are and what they do. Using the `listModules` function. 
-
-```{r clean13,echo=FALSE}
-## cleanup / restore state
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
-knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
-```
-
-```{r listModulesSmall,result='hide'}
-## get all the fireSense modules from the Predictive Ecology GitHub repository
-Account <- "PredictiveEcology"
-grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
-mods <- listModules(grepListShort, accounts = Account)
-
-modPath <- normPath(".")
-out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-  modulePath = modPath)
-  out
-})
-
-if (requireNamespace("igraph", quietly = TRUE) && 
-    requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE) &&
-    requireNamespace("raster", quietly = TRUE)) {
-
-  DT <- moduleDependencies(mods, modulePath = modPath)
-  graph <- moduleDependenciesToGraph(DT)
-  (vn <- PlotModuleGraph(graph))
-}
-```
-
-```{r listModulesAll,result='hide'}
-# Can do same, but with long list -- not done here -- can try
-accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
-                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
-grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
-                  "LandMine", "LandWeb", "NRV", #"scfm",
-                  "priority", "fire", 
-                  "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
-modsLong <- listModules(grepListLong, accounts = accountsListLong)
-# pass to listModules for much larger figure
-modPath <- normPath(".")
-out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-                   modulePath = modPath)
-  out
-})
-
-if (requireNamespace("igraph", quietly = TRUE) && 
-    requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE) &&
-    requireNamespace("raster", quietly = TRUE) ) {
-
-  DT <- moduleDependencies(modsLong, modulePath = modPath)
-  graph <- moduleDependenciesToGraph(DT)
-  (vn <- PlotModuleGraph(graph))
-}
-
-
-```
