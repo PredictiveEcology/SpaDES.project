@@ -1754,6 +1754,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
       if (requireNamespace("rstudioapi")) {
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
+        browser()
+        rstudioapi::initializeProject(paths[["projectPath"]])
         rstudioapi::openProject(path = paths[["projectPath"]])
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])

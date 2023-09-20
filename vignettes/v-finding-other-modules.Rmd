@@ -25,6 +25,8 @@ knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
                         Sys.info()["user"] == "emcintir")# && interactive())
 options(Ncpus = 1)
 
+knitr::opts_chunk$set(fig.width=9, fig.height=9) 
+
 # options(Require.clonePkgs = TRUE)
 
 ```
@@ -59,8 +61,7 @@ This will search the `PredictiveEcology` github.com repository for any SpaDES mo
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
 ```
 
-```{r listModulesSmall,result='hide'}
-## get all the fireSense modules from the Predictive Ecology GitHub repository
+```{r listModulesSmall,result='hide',message=FALSE}
 Account <- "PredictiveEcology"
 grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
 mods <- listModules(grepListShort, accounts = Account)
@@ -86,7 +87,7 @@ if (requireNamespace("igraph", quietly = TRUE) &&
 
 ### A larger selection of "known" SpaDES modules
 
-```{r listModulesAll,result='hide'}
+```{r listModulesAll,result='hide',message=FALSE,error=FALSE}
 # Can do same, but with long list -- not done here -- can try
 accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
                        "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")

@@ -226,7 +226,8 @@ PlotModuleGraph <- function(graph) {
     # visPhysics(repulsion = list(nodeDistance = 100)) |>
     visNetwork::visOptions(highlightNearest = TRUE,
                nodesIdSelection = TRUE,
-               height = "800px", width = "130%",
+               # height = "800px", width = "130%",
+               height = "100%", width = "100%",
                #highlightNearest = list(enabled = T, degree = 1, hover = F),
                collapse = TRUE) |>
     visNetwork::visInteraction(navigationButtons = TRUE)

@@ -70,11 +70,11 @@ One of the important reasons for using `setupProject` is that there are many def
 
 The output from `setupProject` is a list with several named elements. These are intended to be passed directly to `simInit` to initiate a `simList` and potentially a `spades` call.
 
-#### Arguments as values or urls
+#### **Arguments as values or urls**
 
 For most arguments, the values can either be named lists or character vectors of strings that end in `.R` that represent `urls` to cloud or local R scripts that will be sourced.  This allows a user to start with very simple argument values and progressively add arbitrary complexity as a project becomes larger. 
 
-#### Arguments sourced sequentially
+#### **Arguments sourced sequentially**
 
 The argument values in each of the arguments are sourced sequentially, so a previous value can be used by a subsequent value. 
 
@@ -88,7 +88,7 @@ if (!require("SpaDES.project")) {
 ```
 
 
-#### Arguments not sourced to .GlobalEnv
+#### **Arguments not sourced to .GlobalEnv**
 
 ```{r clean1,echo=FALSE}
 ## cleanup / restore state
