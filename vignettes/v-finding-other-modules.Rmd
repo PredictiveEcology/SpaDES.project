@@ -25,7 +25,7 @@ knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
                         Sys.info()["user"] == "emcintir")# && interactive())
 options(Ncpus = 1)
 
-knitr::opts_chunk$set(fig.width=9, fig.height=9) 
+knitr::opts_chunk$set(fig.width=9, fig.height=7) # sets html figure height and width
 
 # options(Require.clonePkgs = TRUE)
 
