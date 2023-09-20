@@ -5,7 +5,11 @@ articles:
   i-getting-started: i-getting-started.html
   iii-using-git-github: iii-using-git-github.html
   iv-Installing-R: iv-Installing-R.html
+<<<<<<< HEAD
 last_built: 2023-09-20T14:49Z
+=======
+last_built: 2023-09-20T16:15Z
+>>>>>>> transition
 urls:
   reference: http://spades-project.predictiveecology.org/reference
   article: http://spades-project.predictiveecology.org/articles
