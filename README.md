@@ -41,9 +41,9 @@ A user can, of course, attempt to wrangle all these issues themselves; instead, 
 
 See [this package readme](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html) and vignettes to get started.
 
-1. [Getting started vignette](vignettes/i-getting-started.Rmd)
-2. [Using `git` and GitHub](vignettes/iii-using-git-github.Rmd)
-3. [Managing large SpaDES projects](vignettes/iv-Installing-R.Rmd)
+1. [Getting started vignette](articles/i-getting-started.html)
+2. [Using `git` and GitHub](articles/iii-using-git-github.html)
+3. [Managing large SpaDES projects](articles/iv-Installing-R.html)
 
 **Website:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
 
@@ -81,48 +81,9 @@ setupProject(paths = list(projectPath = tempdir()),
                          "PredictiveEcology/Biomass_core@development"))
 ```
 
-## Complete workflow following the PERFICT approach
+### More examples
 
-A complete workflow requires that all steps to make all components work must be part of the script
-without any "manual" interventions. The code below will setup up a project in its own
-folder, install 4 SpaDES modules, the install all necessary R packages to run those modules.
-
-```
-
-# project basics ------------------------------------------------------------------------------
-prjPath <- file.path(tempdir(), "testProject")
-
-# install and load packages -------------------------------------------------------------------
-# installs in user library; in following setupProject call, these will be copied to project library
-while (!require("SpaDES.project", quietly = TRUE)) 
-  install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
-  
-## Get SpaDES modules; here using known modules on GitHub.com
-spOut <- 
-  setupProject(paths = list(projectPath = prjPath),
-               standAlone = TRUE,        # will put R packages in separate location
-               packages = c("googledrive", "RCurl", "XML",  # needed inside Biomass_borealDataPrep
-                            "PredictiveEcology/reproducible@development (>= 1.2.16.9018)"), # minor update
-               modules = c("PredictiveEcology/Biomass_speciesFactorial",
-                           "PredictiveEcology/Biomass_speciesParameters@development",
-                           "PredictiveEcology/Biomass_borealDataPrep@development",
-                           "PredictiveEcology/Biomass_core@development"))
-                           
-                           
-spOut$objects$studyArea <- LandR::randomStudyArea(center = NULL, size = 1e9, seed = 32)
-spOut$objects$studyAreaLarge <- LandR::randomStudyArea(center = NULL, size = 2e9, seed = 32)
-spOut$params = list(.globals = list(sppEquivCol = 'Boreal')) # what species naming convention
-if (require("raster", quietly = TRUE) && interactive()) {
-  raster::plot(spOut$objects$studyAreaLarge)
-  raster::plot(spOut$objects$studyArea, add = TRUE)
-}
-
-sim <- do.call(simInit, spOut)
-sim$speciesLayers <- raster::dropLayer(sim$speciesLayers, i = c("Pice_Spp", "Pinu_Spp"))
-so <- spades(sim)
-```
-
-
+See [Getting Started Vignette](articles/i-getting-started.html)
 
 ## Contributions
 
