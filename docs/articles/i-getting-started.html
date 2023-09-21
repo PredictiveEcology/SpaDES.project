@@ -5,13 +5,13 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SpaDES project setup • SpaDES.project</title>
+<title>Getting Started • SpaDES.project</title>
 <!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script><!-- Bootstrap --><link href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/3.4.0/flatly/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha256-nuL8/2cJ5NDSSwnKD8VqreErSWHtnEP9E7AySL+1ev4=" crossorigin="anonymous"></script><!-- bootstrap-toc --><link rel="stylesheet" href="../bootstrap-toc.css">
 <script src="../bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="../pkgdown.css" rel="stylesheet">
-<script src="../pkgdown.js"></script><meta property="og:title" content="SpaDES project setup">
+<script src="../pkgdown.js"></script><meta property="og:title" content="Getting Started">
 <meta property="og:description" content="SpaDES.project">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -56,7 +56,7 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
-      <a href="../articles/i-getting-started.html">SpaDES project setup</a>
+      <a href="../articles/i-getting-started.html">Getting Started</a>
     </li>
     <li>
       <a href="../articles/iii-using-git-github.html">Using git for project development</a>
@@ -93,7 +93,7 @@
       </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
-      <h1 data-toc-skip>SpaDES project setup</h1>
+      <h1 data-toc-skip>Getting Started</h1>
                         <h4 data-toc-skip class="author">Eliot
 McIntire</h4>
             
@@ -105,9 +105,6 @@ McIntire</h4>
 
     
     
-<div class="section level2">
-<h2 id="getting-started">Getting started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
-</h2>
 <p><code>SpaDES</code> is a collection of R packages designed to provide
 a flexible framework for ecological analysis, simulations, forecasting,
 and other ecological tasks. At its core, a <code>SpaDES</code> analysis
@@ -130,19 +127,20 @@ same computer.</p>
 the utilization of the <code><a href="../reference/setupProject.html">setupProject()</a></code> function. To ensure a
 smooth understanding of these examples, we will begin by discussing the
 necessary prerequisites.</p>
-<div class="section level3">
-<h3 id="setting-up-prerequisites-installing-system-dependencies-r-and-rstudio">Setting Up Prerequisites: Installing System Dependencies, R, and
+<div class="section level2">
+<h2 id="setting-up-prerequisites-installing-system-dependencies-r-and-rstudio">Setting Up Prerequisites: Installing System Dependencies, R, and
 RStudio<a class="anchor" aria-label="anchor" href="#setting-up-prerequisites-installing-system-dependencies-r-and-rstudio"></a>
-</h3>
+</h2>
 <p>To get started, users should have already installed R, RStudio, and
 possibly other system-level dependencies.<br><a href="iv-Installing-R.html">See vignette here</a></p>
 <p>Now that we’ve established the prerequisites, let’s explore various
 examples of how to use the <code><a href="../reference/setupProject.html">setupProject()</a></code> function, ranging
-from simple to moderately complex scenarios.</p>
+from simple to moderately complex scenarios. We will start by installing
+the package.</p>
 </div>
-<div class="section level3">
-<h3 id="installing-spades-project">Installing <code>SpaDES.project</code><a class="anchor" aria-label="anchor" href="#installing-spades-project"></a>
-</h3>
+<div class="section level2">
+<h2 id="installing-spades-project">Installing <code>SpaDES.project</code><a class="anchor" aria-label="anchor" href="#installing-spades-project"></a>
+</h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"SpaDES.project"</span>, repos <span class="op">=</span> <span class="st">"predictiveecology.r-universe.dev"</span><span class="op">)</span></span>
@@ -150,13 +148,39 @@ from simple to moderately complex scenarios.</p>
 <span><span class="op">}</span></span>
 <span><span class="co">#&gt; Loading required package: SpaDES.project</span></span></code></pre></div>
 </div>
+<div class="section level2">
+<h2 id="understanding-spades-projects-main-function-setupproject">Understanding <code>SpaDES.project</code>’s Main Function:
+<code>setupProject()</code><a class="anchor" aria-label="anchor" href="#understanding-spades-projects-main-function-setupproject"></a>
+</h2>
 <div class="section level3">
-<h3 id="start-working-with-existing-modules">Start Working With Existing Modules<a class="anchor" aria-label="anchor" href="#start-working-with-existing-modules"></a>
+<h3 id="function-objectives">Function objectives<a class="anchor" aria-label="anchor" href="#function-objectives"></a>
 </h3>
-<div class="section level4">
-<h4 id="setupproject-function">
-<code>setupProject()</code> function<a class="anchor" aria-label="anchor" href="#setupproject-function"></a>
-</h4>
+<p>The primary five objectives of this function are:</p>
+<p><strong>1. Preparation for simInit:</strong> These functions are
+designed to set the stage for a smooth transition into the simInit
+phase.</p>
+<p><strong>2. Minimizing .GlobalEnv Assignments:</strong> An important
+goal is to encourage best practices by reducing the need for assignments
+to the .GlobalEnv. This practice fosters clean, maintainable code that
+remains reproducible even as project complexity grows.</p>
+<p><strong>3. Simplicity for Beginners, Versatility for
+Experts:</strong> The functions are crafted to be approachable for
+beginners, offering simplicity, while at the same time, providing the
+power and flexibility needed to address the demands of highly intricate
+projects, all within the same structural framework.</p>
+<p><strong>4. Handling Package Complexity:</strong> These functions
+address the complexities associated with R package installation and
+loading, especially when working with modules created by various
+users.</p>
+<p><strong>5. Creating a Standardized Project Structure:</strong> They
+facilitate the establishment of a consistent SpaDES project structure.
+This uniformity eases the transition from one project to another,
+regardless of project complexity, promoting a seamless and efficient
+workflow.</p>
+</div>
+<div class="section level3">
+<h3 id="function-tasks">Function Tasks<a class="anchor" aria-label="anchor" href="#function-tasks"></a>
+</h3>
 <p>This function performs a variety of tasks to set up a SpaDES project
 by assigning values to these arguments:</p>
 <ul>
@@ -178,115 +202,446 @@ metadata of the <code>modules</code>.</li>
 <code>options</code> - To configure basic <code>R</code>
 <code>options</code>.</li>
 </ul>
-<p>See <code>?setupProject()</code> for more details.</p>
-</div>
-<div class="section level4">
-<h4 id="default-values">Default values<a class="anchor" aria-label="anchor" href="#default-values"></a>
-</h4>
-<p>One compelling reason to use <code><a href="../reference/setupProject.html">setupProject()</a></code> is the
-availability of numerous default values that can be leveraged, leading
-to cleaner and more concise code in many instances.</p>
-</div>
-<div class="section level4">
-<h4 id="setting-up-the-spades-coresiminit-call">Setting up the <code>SpaDES.core::simInit</code> Call<a class="anchor" aria-label="anchor" href="#setting-up-the-spades-coresiminit-call"></a>
-</h4>
+<p>More specifically, this function orchestrates a series of operations
+in the following order: <code>setupPaths</code>,
+<code>setupModules</code>, <code>setupPackages</code>,
+<code>setupOptions</code>, <code>setupSideEffects</code>,
+<code>setupParams</code>, and <code>setupGitIgnore</code>. This sequence
+accomplishes several tasks, including the creation of folder structures,
+installation of missing packages listed in either the
+<code>packages</code> or <code>require</code> arguments, loading of
+packages (limited to those specified in the <code>require</code>
+argument), configuration of options, and the download or validation of
+modules. Additionally, it returns elements that can be directly passed
+to <code>simInit</code> or <code>simInitAndSpades</code>, specifically
+modules, params, paths, times, and any named elements passed to …
+(<code>Dots</code>). If desired, this function can also modify the
+<code>.Rprofile</code> file for the project, ensuring that each time the
+project is opened, it adopts specific <code><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths()</a></code>.</p>
+<p>This sequence allows users to leverage settings (i.e., objects) that
+are established before others. More on this below (section ### What
+Makes this Function so Special).</p>
+<p>For user convenience, there are several auxiliary elements, as
+described in the help file of the function:
+<code>?setupProject()</code>.</p>
 <p>The output from <code><a href="../reference/setupProject.html">setupProject()</a></code> is a list containing
 several named elements. These elements are designed to be passed
 directly to <code>simInit</code> to initialize a <code>simList</code>
 and, potentially, a <code>spades</code> call.</p>
-<div class="section level5">
-<h5 id="arguments-as-values-or-urls">
-<strong>Arguments as values or urls</strong><a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>
-</h5>
-<p>For most arguments, the values can be either named lists or character
-vectors consisting of strings ending in <code>.R</code>, representing
-<code>urls</code> to cloud or local R scripts to be sourced. This
-flexibility enables users to begin with simple argument values and
-gradually introduce greater complexity as a project expands in
-scale.</p>
 </div>
-<div class="section level5">
-<h5 id="arguments-sourced-sequentially">
-<strong>Arguments sourced sequentially</strong><a class="anchor" aria-label="anchor" href="#arguments-sourced-sequentially"></a>
-</h5>
-<p>The argument values within each of the arguments are sourced
-sequentially. This means that a previous value can be utilized by a
-subsequent one.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Use the newValue in `secondValue`</span></span>
-<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"test"</span>,</span>
-<span>             newValue <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>             secondValue <span class="op">=</span> <span class="va">newValue</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">out</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"newValue"</span>, <span class="st">"secondValue"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt; $newValue</span></span>
-<span><span class="co">#&gt; [1] 1</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $secondValue</span></span>
-<span><span class="co">#&gt; [1] 2</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="function-arguments">Function arguments<a class="anchor" aria-label="anchor" href="#function-arguments"></a>
+</h3>
+<p>The full list of arguments is as follow:</p>
+<pre><code><span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
+<span>  <span class="va">name</span>,</span>
+<span>  <span class="va">paths</span>,</span>
+<span>  <span class="va">modules</span>,</span>
+<span>  <span class="va">packages</span>,</span>
+<span>  <span class="va">times</span>,</span>
+<span>  <span class="va">options</span>,</span>
+<span>  <span class="va">params</span>,</span>
+<span>  <span class="va">sideEffects</span>,</span>
+<span>  <span class="va">config</span>,</span>
+<span>  require <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  studyArea <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  Restart <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"SpaDES.project.Restart"</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
+<span>  useGit <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  setLinuxBinaryRepo <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  standAlone <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  libPaths <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  updateRprofile <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"Require.updateRprofile"</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
+<span>  overwrite <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"Require.verbose"</span>, <span class="fl">1L</span><span class="op">)</span>,</span>
+<span>  <span class="va">defaultDots</span>,</span>
+<span>  <span class="va">dots</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre>
+<p>Below is a detailed explanation of each argument. This is also
+available in the function’s help file, but is here for convenience.</p>
+<table class="table">
+<colgroup>
+<col width="17%">
+<col width="82%">
+</colgroup>
+<thead><tr class="header">
+<th>Argument</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>name</strong></td>
+<td>Optional. If supplied, the name of the project. If not supplied, an
+attempt will be made to extract the name from the
+<code>paths[["projectPath"]]</code>. If this is a GitHub project, then
+it should indicate the full Github repository and branch name, e.g., “<a href="mailto:PredictiveEcology/WBI_forecasts@ChubatyPubNum12" class="email">PredictiveEcology/WBI_forecasts@ChubatyPubNum12</a>”</td>
+</tr>
+<tr class="even">
+<td><strong>paths</strong></td>
+<td>A list with named elements, specifically, modulePath, projectPath,
+packagePath and all others that are in
+<code><a href="https://spades-core.predictiveecology.org/reference/setPaths.html" class="external-link">SpaDES.core::setPaths()</a></code> (i.e., inputPath, outputPath,
+scratchPath, cachePath, rasterTmpDir). Each of these has a sensible
+default, which will be overridden by any user supplied values. See
+<code>setup</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>modules</strong></td>
+<td>A character string of modules to pass to <code>getModule</code>.
+These should be one of: simple name (e.g., fireSense) which will be
+searched for locally in the <code>paths[["modulePath"]]</code>; or a
+GitHub repo with branch (<a href="mailto:GitHubAccount/Repo@branch" class="email">GitHubAccount/Repo@branch</a> e.g., “<a href="mailto:PredictiveEcology/Biomass_core@development" class="email">PredictiveEcology/Biomass_core@development</a>”); or a
+character vector that identifies one or more (not optional file
+extension) .R file(s) (local or GitHub) to parse that will produce a
+character vector assigned to the name “modules”. If the entire project
+is a git repository, then it will not try to re-get these modules;
+instead it will rely on the user managing their git status outside of
+this function. See <code>setup</code>.</td>
+</tr>
+<tr class="even">
+<td><strong>packages</strong></td>
+<td>Optional. A vector of packages that must exist in the libPaths. This
+will be passed to <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Install</a></code>, i.e., these will be
+installed, but not attached to the search path. See also the
+<code>require</code> argument. To force skip package installation
+(without assessing modules), set <code>packages = NULL</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>times</strong></td>
+<td>Optional. This will be returned if supplied; if supplied, the values
+can be used in e.g., <code>params</code>, e.g.,
+<code>params = list(mod = list(startTime = times$start))</code>. See
+help for <code><a href="https://spades-core.predictiveecology.org/reference/simInit.html" class="external-link">SpaDES.core::simInit</a></code>.</td>
+</tr>
+<tr class="even">
+<td><strong>options</strong></td>
+<td>Optional. Either a named list to be passed to <code>options</code>
+or a character vector indicating one or more file(s) to source, in the
+order provided. These will be sourced into a temporary environment (not
+the .GlobalEnv), so they will not create globally accessible objects.
+See details. See <code>setup</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>params</strong></td>
+<td>Optional. Similar to options, however, this named list will be
+returned, i.e., there are no side effects. See <code>setup</code>.</td>
+</tr>
+<tr class="even">
+<td><strong>sideEffects</strong></td>
+<td>Optional. This can be an expression or one or more filenames or a
+code chunk surrounded by <code>{...}</code>. If a non-text files is
+specified (e.g., not .txt or .R currently), these files will simply be
+downloaded, using their relative path as specified in the github
+notation. They will be downloaded or accessed locally at that relative
+path. If these file names represent scripts, this/these will be parsed
+and evaluated, but nothing returned. This is intended to be used for
+functions, such as cloud authentication or configurations, that are run
+for their side effects only.</td>
+</tr>
+<tr class="odd">
+<td><strong>config</strong></td>
+<td>Still experimental linkage to the SpaDES.config package. Currently
+not working.</td>
+</tr>
+<tr class="even">
+<td><strong>require</strong></td>
+<td>Optional. A character vector of packages to install and attach (with
+Require::Require). These will be installed and attached at the start of
+setupProject so that a user can use these during setupProject. See
+<code>setup</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>studyArea</strong></td>
+<td>Optional. If a list, it will be passed to
+<code><a href="https://rdrr.io/pkg/geodata/man/gadm.html" class="external-link">geodata::gadm</a></code>. To specify a country other than the default
+“CAN”, the list must have a named element, “country”. All other named
+elements will be passed to gadm. 2 additional named elements can be
+passed for convenience, <code>subregion = "..."</code>, which will be
+grepped with the column NAME_1, and <code>epsg = "..."</code>, so a user
+can pass an epsg.io code to reproject the studyArea. See examples.</td>
+</tr>
+<tr class="even">
+<td><strong>Restart</strong></td>
+<td>If the projectPath is not the current path, and the session is in
+RStudio, and interactive, it will create an RStudio Project file (and
+.Rproj.user folder), restart with a new Rstudio session with that new
+project and with a root path (i.e. working directory) set to
+projectPath. Default is FALSE, and no RStudio Project is created.</td>
+</tr>
+<tr class="odd">
+<td><strong>useGit</strong></td>
+<td>A logical. If TRUE, it will use <code>git clone</code> and
+<code>git checkout</code> to get and change branch for each module,
+according to its specification in <code>modules</code>. Otherwise it
+will download modules with <code>getModules</code>. NOTE: CREATING A GIT
+REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP
+TO BE A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE
+PATHS.</td>
+</tr>
+<tr class="even">
+<td><strong>setLinuxBinaryRepo</strong></td>
+<td>Logical. Should the binary RStudio Package Manager be used on Linux
+(ignored if Windows).</td>
+</tr>
+<tr class="odd">
+<td><strong>standAlone</strong></td>
+<td>A logical. Passed to <code>Require::standAlone</code>. This keeps
+all packages installed in a project-level library, if TRUE. Default is
+TRUE.</td>
+</tr>
+<tr class="even">
+<td><strong>libPaths</strong></td>
+<td>Deprecated. Use <code>paths = list(packagePath = ...)</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>updateRprofile</strong></td>
+<td>Logical. Should the <code>paths$packagePath</code> be set in the
+.Rprofile file for this project. Note: if <code>paths$packagePath</code>
+is within the <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir()</a></code>, then there will be a warning,
+indicating this won’t persist. If the user is using Rstudio and the
+<code>paths$projectPath</code> is not the root of the current Rstudio
+project, then a warning will be given, indicating the .Rprofile may not
+be read upon restart.</td>
+</tr>
+<tr class="even">
+<td><strong>overwrite</strong></td>
+<td>Logical. Passed to <code>getModule</code>, and
+<code>setupParams</code>, <code>setupOptions</code>.</td>
+</tr>
+<tr class="odd">
+<td><strong>verbose</strong></td>
+<td>Numeric or logical indicating how verbose should the function be. If
+-1 or -2, then as little verbosity as possible. If 0 or FALSE, then
+minimal outputs; if 1 or TRUE, more outputs; 2 even more. NOTE: in
+Require function, when verbose &gt;= 2, the return object will have an
+attribute: attr(.., “Require”) which has lots of information about the
+processes of the installs.</td>
+</tr>
+<tr class="even">
+<td><strong>defaultDots</strong></td>
+<td>A named list of any arbitrary R objects. These can be supplied to
+give default values to objects that are otherwise passed in with the …,
+i.e., not specifically named for these <code>setup*</code> functions. If
+named objects are supplied as top-level arguments, then the
+<code>defaultDots</code> will be overridden. This can be particularly
+useful if the arguments passed to … do not always exist, but rely on
+external e.g., batch processing to optionally fill them. See
+examples.</td>
+</tr>
+<tr class="odd">
+<td><strong>dots</strong></td>
+<td>Any other named objects passed as a list a user might want for other
+elements.</td>
+</tr>
+<tr class="even">
+<td><strong>…</strong></td>
+<td>Further named arguments that act like objects, but in a different
+way to specify them. These can be anything. The general use case is to
+create the objects that would be passed to
+<code><a href="https://spades-core.predictiveecology.org/reference/simInit.html" class="external-link">SpaDES.core::simInit</a></code>, or
+<code><a href="https://spades-core.predictiveecology.org/reference/simInitAndSpades.html" class="external-link">SpaDES.core::simInitAndSpades</a></code>,
+(e.g. <code>studyAreaName</code> or <code>objects</code>) or additional
+objects to be passed to the simulation (in older versions of
+<code>SpaDES.core</code>, these were passed as a named list to the
+<code>objects</code> argument). Order matters. These are sequentially
+evaluated, and also any arguments that are specified before the named
+arguments e.g., <code>name</code>, <code>paths</code>, will be evaluated
+prior to any of the named arguments, i.e., “at the start” of the
+<code>setupProject</code>. If placed after the first named argument,
+then they will be evaluated at the end of the <code>setupProject</code>,
+so can access all the packages, objects, etc.</td>
+</tr>
+</tbody>
+</table>
 </div>
-<div class="section level5">
-<h5 id="arguments-not-sourced-to--globalenv">
-<strong>Arguments not sourced to .GlobalEnv</strong><a class="anchor" aria-label="anchor" href="#arguments-not-sourced-to--globalenv"></a>
-</h5>
-<p>The <code>.GlobalEnv</code> in <code>R</code> is special because it
-is in the search path of any user-created function. This is very
-convenient, but also provides the potential for many problems. For
-example, a variable could be misspelled in a code chunck, but the code
-doesn’t fail because the <code>.GlobalEnv</code> has the same variable,
-spelled correctly.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Gets the wrong version of the module</span></span>
-<span><span class="va">githubRepo</span> <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_core@development"</span> <span class="co"># incorrect one -- used in error</span></span>
-<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
-<span>             gitHubRepo <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_core@main"</span>, <span class="co"># The correct one --&gt; not used</span></span>
-<span>             modules <span class="op">=</span> <span class="va">githubRepo</span>,</span>
-<span>             packages <span class="op">=</span> <span class="cn">NULL</span> <span class="co"># no packages for this demonstration</span></span>
-<span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level5">
-<h5 id="set-paths-for-a-spades-project">
-<strong>Set paths for a SpaDES project</strong><a class="anchor" aria-label="anchor" href="#set-paths-for-a-spades-project"></a>
-</h5>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="section level2">
+<h2 id="what-makes-this-function-so-special">What Makes this Function so Special<a class="anchor" aria-label="anchor" href="#what-makes-this-function-so-special"></a>
+</h2>
+<p>In addition to its capability to specify paths, options, and
+parameters for the entire simulation or workflow, regardless of the
+modules used, this function offers three distinct advantages that
+enhance its convenience, detailed below:</p>
+<p><em>1. Versatile Argument Types:</em> Arguments can be provided as
+both values and/or URLs, allowing flexibility in how information is
+sourced and integrated into the setup.</p>
+<p><em>2. Sequential Argument Processing:</em> Arguments are sourced in
+a sequential manner during function evaluation. This sequential
+processing enables a logical flow and great flexibility in setting up
+the project.</p>
+<p><em>3. Handling Missing Values:</em> The function accommodates
+missing values gracefully, making it adaptable to various project
+scenarios where certain parameters or information may not be yet
+available.</p>
+<div class="section level3">
+<h3 id="versatile-argument-types">
+<strong>1. Versatile Argument Types</strong><a class="anchor" aria-label="anchor" href="#versatile-argument-types"></a>
+</h3>
+<p>The first important advantage of <code><a href="../reference/setupProject.html">setupProject()</a></code> is the
+type of inputs for arguments it can take, which can be lists of, and/or
+paths. For most arguments, the values can be either named lists or
+character vectors consisting of strings ending in <code>.R</code>,
+representing <code>urls</code> to cloud or local R scripts to be
+sourced. More specifically, the function arguments <code>paths</code>,
+<code>options</code>, and <code>params</code>, can all understand lists
+of named values, character vectors, or a mixture by using a list where
+named elements are values and unnamed elements are character
+strings/vectors. <em>Any unnamed character string/vector will be treated
+as a file path.</em> If that file path has an @ symbol, it will be
+assumed to be a file that exists on ⁠<a href="https://github.com" class="external-link uri">https://github.com</a>. So a user can pass values, or
+pointers to remote and/or local paths that, themselves, have values.</p>
+<p>The following will set an option as declared (i.e.,
+<code>reproducible.useTerra = TRUE</code>), plus read the local
+<code>inst/options.R</code> file (with relative path), plus download and
+read the cloud-hosted
+<code>PredictiveEcology/SpaDES.project@transition/inst/options.R</code>
+file.</p>
+<pre><code><span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
+<span>   options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>                  <span class="st">"inst/options.R"</span>,</span>
+<span>                  <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
+<span>                 <span class="op">)</span></span>
+<span>   <span class="op">)</span></span></code></pre>
+<p>This approach allows for an organic growth of complexity, e.g., a
+user begins with only named lists of values, but then as the number of
+values increases, it may be helpful for clarity to put some in an
+external file.</p>
+</div>
+<div class="section level3">
+<h3 id="sequential-argument-processing">
+<strong>2. Sequential Argument Processing</strong><a class="anchor" aria-label="anchor" href="#sequential-argument-processing"></a>
+</h3>
+<p>The second important advantage of <code><a href="../reference/setupProject.html">setupProject()</a></code>,
+briefly mentioned above, is that argument values within each of the
+function arguments are sourced in a sequential manner. This implies that
+a prior value can be leveraged by a subsequent one <em>within the same
+function call</em>. For example, users can set paths, and subsequently,
+employ the paths list to configure options that can update or modify
+paths as needed. Similarly, users can set times and apply the times list
+for specific entries in the parameters (<code>params</code>)
+configuration. For instance, consider the following example, where
+<code>projectPath</code> is included as part of the list assigned to the
+<code>paths</code> argument. This value is then utilized in the
+subsequent list element:</p>
+<pre><code><span><span class="fu"><a href="../reference/setup.html">setupPaths</a></span><span class="op">(</span>paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="st">"here"</span>,</span>
+<span>                        modulePath <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">paths</span><span class="op">[[</span><span class="st">"projectPath"</span><span class="op">]</span><span class="op">]</span>, <span class="st">"modules"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="co"># Note how 'modulePaths' is passed based on the previous argument 'projectPath' in the same function call.</span></span></code></pre>
+<p>Because of such sequential evaluation, <code>paths</code>,
+<code>options</code>, and <code>params</code> files can be sequential
+lists that have impose a hierarchy specified by the order. In a more
+complex example, a user can first create a list of default options, then
+several lists of user-desired options behind an ⁠if
+<code>(user("userNamer"))</code>⁠ block that adds new or overrides
+existing elements, followed by machine specific values, such as
+paths:</p>
+<pre><code>setupOptions(
+  maxMemory &lt;- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
+  # Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+  #  or `setupProject`
+  if (.mode == "development") {
+     list(test = 2)
+  }
+  if (machine("A127")) {
+    list(test = 3)
+  }
+)</code></pre>
+</div>
+<div class="section level3">
+<h3 id="handling-missing-values">
+<strong>3. Handling Missing Values</strong><a class="anchor" aria-label="anchor" href="#handling-missing-values"></a>
+</h3>
+<p>To facilitate batch submission, users can specify arguments in the
+form of <code>argument = value</code>, even when <code>value</code> is
+missing (i.e., not previously defined in the Environment). This
+unconventional approach may not typically work with standard argument
+parsing, but it has been specifically designed to function within this
+context. For instance, in the following example, you can specify
+<code>.mode = .mode</code>. If R cannot find a valid value for
+<code>.mode</code> on the right-hand side, it will gracefully skip
+without raising an error. This feature enables users to source a script
+with the following line from a batch script where <code>.mode</code> is
+specified. When running this line separately, without the batch script
+specification, <code>.mode</code> will have no value assigned to it.
+Additionally, we include <code>.nodes</code> as an example of passing a
+value that does exist. In the output, the non-existent
+<code>.mode</code> will be returned as an unevaluated, captured list
+element:</p>
+<pre><code><span><span class="va">.nodes</span> <span class="op">&lt;-</span> <span class="fl">2</span></span>
+<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>.mode <span class="op">=</span> <span class="va">.mode</span>,</span>
+<span>                    .nodes <span class="op">=</span> <span class="va">.nodes</span>,</span>
+<span>                    options <span class="op">=</span> <span class="st">"https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/inst/options.R"</span></span>
+<span>                    <span class="op">)</span></span></code></pre>
+</div>
+</div>
+<div class="section level2">
+<h2 id="relationship-between-setupproject-and-spades-coresiminit-call">Relationship between <code>setupProject()</code> and
+<code>SpaDES.core::simInit</code> Call<a class="anchor" aria-label="anchor" href="#relationship-between-setupproject-and-spades-coresiminit-call"></a>
+</h2>
+<p>The output from <code><a href="../reference/setupProject.html">setupProject()</a></code> is a list containing
+several named elements. These elements are designed to be passed
+directly to <code>simInit</code> to initialize a <code>simList</code>
+and, potentially, a <code>spades</code> call.</p>
+</div>
+<div class="section level2">
+<h2 id="see-also">See Also<a class="anchor" aria-label="anchor" href="#see-also"></a>
+</h2>
+<p>In R, checkout the help files for other functions such as:
+<code><a href="../reference/setup.html">?setupPaths</a></code> <code><a href="../reference/setup.html">?setupOptions</a></code>
+<code><a href="../reference/setup.html">?setupPackages</a></code> <code><a href="../reference/setup.html">?setupModules</a></code>
+<code><a href="../reference/setup.html">?setupGitIgnore</a></code></p>
+<p>Other helpful functions that are worse going though are
+<code><a href="../reference/helpers.html">?user</a></code>, <code><a href="../reference/helpers.html">?machine</a></code>, and <code><a href="../reference/helpers.html">?node</a></code>.</p>
+</div>
+<div class="section level2">
+<h2 id="examples-of-usage-of-setupproject">Examples of usage of <code>setupProject()</code><a class="anchor" aria-label="anchor" href="#examples-of-usage-of-setupproject"></a>
+</h2>
+<div class="section level3">
+<h3 id="default-values">Default values<a class="anchor" aria-label="anchor" href="#default-values"></a>
+</h3>
+<p>One compelling reason to use <code><a href="../reference/setupProject.html">setupProject()</a></code> is the
+availability of numerous default values that can be leveraged, leading
+to cleaner and more concise code in many instances. This code sets all
+default values for <code>paths</code>.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://spades-project.predictiveecology.org/" class="external-link">SpaDES.project</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
 <span><span class="co">#&gt; Setting:</span></span>
 <span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/RtmpkpArEr'</span></span>
+<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/cache'</span></span>
+<span><span class="co">#&gt;     spades.inputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/inputs'</span></span>
+<span><span class="co">#&gt;     spades.outputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/outputs'</span></span>
+<span><span class="co">#&gt;     spades.modulePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/modules'</span></span>
+<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes'</span></span>
 <span><span class="co">#&gt;   )</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
-<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/RtmpkpArEr/packages/x86_64-w64-mingw32/4.3)</span></span>
+<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3)</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
-<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/RtmpkpArEr/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
+<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
 <span><span class="co">#&gt; $modules</span></span>
 <span><span class="co">#&gt; named character(0)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths</span></span>
 <span><span class="co">#&gt; $paths$cachePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/cache"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/cache"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$inputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/inputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/inputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$modulePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/modules"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/modules"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$outputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/outputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/RtmpkpArEr/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/RtmpkpArEr"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkpArEr/RtmpkpArEr/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -299,23 +654,133 @@ spelled correctly.</p>
 <span><span class="co">#&gt; $times$end</span></span>
 <span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
 </div>
-<div class="section level5">
-<h5 id="set-relative-paths-modules-install-packages-in-isolated-folder">
-<strong>set relative paths &amp; modules, install packages in
-isolated folder</strong><a class="anchor" aria-label="anchor" href="#set-relative-paths-modules-install-packages-in-isolated-folder"></a>
-</h5>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
-<span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"m"</span>, </span>
-<span>               projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
-<span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
+<div class="section level3">
+<h3 id="arguments-sourced-sequentially">Arguments sourced sequentially<a class="anchor" aria-label="anchor" href="#arguments-sourced-sequentially"></a>
+</h3>
+<p>The argument values within each of the arguments are sourced
+sequentially. This means that a previous value can be utilized by a
+subsequent one.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Use the newValue in `secondValue`</span></span>
+<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"test"</span>,</span>
+<span>             newValue <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>             secondValue <span class="op">=</span> <span class="va">newValue</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">out</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"newValue"</span>, <span class="st">"secondValue"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; $newValue</span></span>
+<span><span class="co">#&gt; [1] 1</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $secondValue</span></span>
+<span><span class="co">#&gt; [1] 2</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="arguments-not-sourced-to--globalenv">Arguments not sourced to .GlobalEnv<a class="anchor" aria-label="anchor" href="#arguments-not-sourced-to--globalenv"></a>
+</h3>
+<p>The <code>.GlobalEnv</code> in <code>R</code> is special because it
+is in the search path of any user-created function. This is very
+convenient, but also provides the potential for many problems. For
+example, a variable could be misspelled in a code chunck, but the code
+doesn’t fail because the <code>.GlobalEnv</code> has the same variable,
+spelled correctly.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Gets the wrong version of the module</span></span>
+<span><span class="va">githubRepo</span> <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_core@development"</span> <span class="co"># incorrect one -- used in error</span></span>
+<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
+<span>             gitHubRepo <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_core@main"</span>, <span class="co"># The correct one --&gt; not used</span></span>
+<span>             modules <span class="op">=</span> <span class="va">githubRepo</span>,</span>
+<span>             packages <span class="op">=</span> <span class="cn">NULL</span> <span class="co"># no packages for this demonstration</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level5">
-<h5 id="with-options-and-params-set">
-<strong>With options and params set</strong><a class="anchor" aria-label="anchor" href="#with-options-and-params-set"></a>
-</h5>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="section level3">
+<h3 id="paths">Paths<a class="anchor" aria-label="anchor" href="#paths"></a>
+</h3>
+<p>Some paths are relative to the <code>projectPath</code>, except for 2
+specific exceptions: <code>packagePath</code> is not placed within the
+<code>projectPath</code> and all “scratch” i.e., “temporary” folders.
+<code>packagePath</code> is placed in the
+<code>tools::R_user_dir(name)</code> folder, which is project specific,
+but does not clutter the <code>projectPath</code> with hundreds of
+folders that can interfere with many user actions especially in Rstudio.
+For example, “Find in Files” will take much longer (especially on
+Windows) if all the package files are in the <code>projectPath</code>
+(there are ways around this, but they require custom setups).</p>
+<p>In this example, <code>modulePath</code> will be set to
+<code>file.path(packagePath, modulePath)</code>; since
+<code>packagePath</code> is unspecified, <code>setupProject</code>
+assumes the current directory is the desired root of the project.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://spades-project.predictiveecology.org/" class="external-link">SpaDES.project</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"myModules"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
+<span><span class="co">#&gt; Setting:</span></span>
+<span><span class="co">#&gt;   options(</span></span>
+<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/cache'</span></span>
+<span><span class="co">#&gt;     spades.inputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/inputs'</span></span>
+<span><span class="co">#&gt;     spades.outputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/outputs'</span></span>
+<span><span class="co">#&gt;     spades.modulePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/myModules'</span></span>
+<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes'</span></span>
+<span><span class="co">#&gt;   )</span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
+<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3)</span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
+<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
+<span><span class="co">#&gt; $modules</span></span>
+<span><span class="co">#&gt; named character(0)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths</span></span>
+<span><span class="co">#&gt; $paths$cachePath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/cache"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$inputPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/inputs"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$modulePath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/myModules"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$outputPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/outputs"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$rasterPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes/raster"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$scratchPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$terraPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp2h2SDy/vignettes/terra"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $params</span></span>
+<span><span class="co">#&gt; list()</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $times</span></span>
+<span><span class="co">#&gt; $times$start</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $times$end</span></span>
+<span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="get-modules-from-github">Get modules from GitHub<a class="anchor" aria-label="anchor" href="#get-modules-from-github"></a>
+</h3>
+<p>This will retrieve the module as specified, and place it in
+<code>modulePath</code>, which is unspecified here, thus taking the
+default. This specification will not re-download the file if it exists
+locally, with a message indicating this each time. This specification
+will also automatically install all missing packages that are in
+<code>reqdPkgs</code> metadata of the module(s). NOTE: we can omit this
+package installation step by specifying <code>package = NULL</code>.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
+<span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span>,</span>
+<span>  package <span class="op">=</span> <span class="cn">NULL</span> <span class="co"># for this example, skip installation</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="with-options-and-params-set">With options and params set<a class="anchor" aria-label="anchor" href="#with-options-and-params-set"></a>
+</h3>
+<p>We can start to increase the complexity of the
+<code>setupProject</code> call gradually. Once we have the module.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Biomass_borealDataPrep <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>.plots <span class="op">=</span> <span class="st">"screen"</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -323,13 +788,19 @@ isolated folder</strong><a class="anchor" aria-label="anchor" href="#set-relativ
 <span>               projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-</div>
-</div>
-</div>
-<div class="section level3">
-<h3 id="using-an-options-file-that-is-remote">using an options file that is remote<a class="anchor" aria-label="anchor" href="#using-an-options-file-that-is-remote"></a>
-</h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="arguments-as-values-or-urls">Arguments as values or urls<a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>
+</h4>
+<p>For most arguments, the values can be either named lists or character
+vectors consisting of strings ending in <code>.R</code>, representing
+<code>urls</code> to cloud or local R scripts to be sourced. This
+flexibility enables users to begin with simple argument values and
+gradually introduce greater complexity as a project expands in
+scale.</p>
+<div class="section level5">
+<h5 id="using-an-options-file-that-is-remote">Using an Options File that is Remote<a class="anchor" aria-label="anchor" href="#using-an-options-file-that-is-remote"></a>
+</h5>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>    <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
@@ -342,10 +813,11 @@ isolated folder</strong><a class="anchor" aria-label="anchor" href="#set-relativ
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="setting-arbitrary-arguments-using-defaultdots-1">setting arbitrary arguments, using defaultDots (1)<a class="anchor" aria-label="anchor" href="#setting-arbitrary-arguments-using-defaultdots-1"></a>
-</h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+</div>
+<div class="section level4">
+<h4 id="setting-arbitrary-arguments-using-defaultdots">Setting arbitrary arguments, using defaultDots<a class="anchor" aria-label="anchor" href="#setting-arbitrary-arguments-using-defaultdots"></a>
+</h4>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  name <span class="op">=</span> <span class="st">"example_5"</span>, <span class="co"># puts in a folder with this name</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span>,</span>
@@ -359,24 +831,11 @@ isolated folder</strong><a class="anchor" aria-label="anchor" href="#set-relativ
 <span>  <span class="co"># params = list("Biomass_borealDataPrep" = list(.useCache = mode))</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="setting-arbitrary-arguments-using-defaultdots-2">setting arbitrary arguments, using defaultDots (2)<a class="anchor" aria-label="anchor" href="#setting-arbitrary-arguments-using-defaultdots-2"></a>
-</h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
-<span>  name <span class="op">=</span> <span class="st">"example_6"</span>, <span class="co"># must be same as projectPath if both specified</span></span>
-<span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span>,</span>
-<span>  config <span class="op">=</span> <span class="st">"LandWeb"</span>,</span>
-<span>  defaultDots <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>.mode <span class="op">=</span> <span class="st">"development"</span>,</span>
-<span>                     studyAreaName <span class="op">=</span> <span class="st">"MB"</span><span class="op">)</span>,</span>
-<span>  mode <span class="op">=</span> <span class="va">.mode</span>, studyAreaName <span class="op">=</span> <span class="va">studyAreaName</span><span class="co">#,</span></span>
-<span>  <span class="co"># params = list("Biomass_borealDataPrep" = list(.useCache = mode))</span></span>
-<span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="pass-args-from-globalenv">Pass args from GlobalEnv<a class="anchor" aria-label="anchor" href="#pass-args-from-globalenv"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">studyAreaName</span> <span class="op">&lt;-</span> <span class="st">"AB"</span></span>
 <span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="st">"example_7"</span><span class="op">)</span>,</span>
@@ -388,34 +847,31 @@ isolated folder</strong><a class="anchor" aria-label="anchor" href="#set-relativ
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="mixture-of-named-list-element-github-file-and-local-file-for-e-g--options">mixture of named list element, github file and local file for e.g.,
-options<a class="anchor" aria-label="anchor" href="#mixture-of-named-list-element-github-file-and-local-file-for-e-g--options"></a>
+<h3 id="mixing-argument-a-named-list-a-github-file-and-local-file">Mixing argument: a named list, a github file and local file<a class="anchor" aria-label="anchor" href="#mixing-argument-a-named-list-a-github-file-and-local-file"></a>
 </h3>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<p>There are several ways to specifying an argument, as we have seen. We
+can also mix and match these ways:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>    <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"authentication.R"</span>, package <span class="op">=</span> <span class="st">"SpaDES.project"</span><span class="op">)</span> <span class="co"># local file</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Biomass_borealDataPrep <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>.plots <span class="op">=</span> <span class="st">"screen"</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"m"</span>,</span>
-<span>                 projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
-<span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
+<span>    reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,                                 <span class="co"># direct argument # sets one option</span></span>
+<span>    <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span>, <span class="co"># remote file -- sets many options</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"authentication.R"</span>, package <span class="op">=</span> <span class="st">"SpaDES.project"</span><span class="op">)</span>   <span class="co"># local file -- sets gargle options</span></span>
+<span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="section level4">
-<h4 id="studyarea-argument">
+</div>
+<div class="section level3">
+<h3 id="studyarea-argument">
 <code>studyArea</code> argument<a class="anchor" aria-label="anchor" href="#studyarea-argument"></a>
-</h4>
+</h3>
 <p><code><a href="../reference/setup.html">?setupStudyArea</a></code> for more details. A user can choose to
 use the internal <code>setupStudyArea</code> function, which will use
 the <code>gadm</code> global database. Setting the
 <code>studyArea</code> argument to a <code>list</code> will trigger the
 use of <code>setupStudyArea</code>.</p>
-<div class="section level5">
-<h5 id="alberta-and-british-columbia-canada">
-<strong>Alberta and British Columbia, Canada</strong><a class="anchor" aria-label="anchor" href="#alberta-and-british-columbia-canada"></a>
-</h5>
+<div class="section level4">
+<h4 id="alberta-and-british-columbia-canada">Alberta and British Columbia, Canada<a class="anchor" aria-label="anchor" href="#alberta-and-british-columbia-canada"></a>
+</h4>
 <p>In this example, we will select an area in northwestern Alberta and
 the adjacent northeastern BC, Canada. We use the internal matching,
 because we aren’t sure of the exact names: for the top level
@@ -424,20 +880,20 @@ because we aren’t sure of the exact names: for the top level
 specify using the names in that column. If a user does not know which
 values exist, they can not specify <code>NAME_2</code>, then visualize
 the resulting map and click on values, such as:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setup.html">setupStudyArea</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Al|Brit"</span>, level <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Installing geodata</span></span>
 <span><span class="co">#&gt; -- Installing from:</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  -- Local: Rcpp, geodata, terra</span></span></span>
 <span><span class="co">#&gt; <span style="color: #0000BB;">-- 1:3 of 3. Estimated time left: ...; est. finish: ...calculating</span></span></span>
 <span><span class="co">#&gt; Warning: package 'terra' is in use and will not be installed</span></span>
-<span><span class="co">#&gt; Installing packages into 'C:/Users/emcintir/AppData/Roaming/R/data/R/RtmpkpArEr/packages/x86_64-w64-mingw32/4.3'</span></span>
+<span><span class="co">#&gt; Installing packages into 'C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3'</span></span>
 <span><span class="co">#&gt; (as 'lib' is unspecified)</span></span>
 <span><span class="co">#&gt; package 'Rcpp' successfully unpacked and MD5 sums checked</span></span>
 <span><span class="co">#&gt; package 'geodata' successfully unpacked and MD5 sums checked</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; The downloaded binary packages are in</span></span>
-<span><span class="co">#&gt;  C:\Users\emcintir\AppData\Local\Temp\RtmpkpArEr\downloaded_packages</span></span>
+<span><span class="co">#&gt;  C:\Users\emcintir\AppData\Local\Temp\Rtmp2h2SDy\downloaded_packages</span></span>
 <span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/interactive.html" class="external-link">interactive</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://quickplot.predictiveecology.org" class="external-link">quickPlot</a></span><span class="op">)</span></span>
@@ -451,18 +907,16 @@ the resulting map and click on values, such as:</p>
 <span><span class="co"># Can pick multiple parts with partial matching</span></span>
 <span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setup.html">setupStudyArea</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Al|Brit"</span>, level <span class="op">=</span> <span class="fl">2</span>, NAME_2 <span class="op">=</span> <span class="st">"19|18|17|Peace"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level5">
-<h5 id="specify-an-epsg">
-<strong>Specify an <code>epsg</code></strong><a class="anchor" aria-label="anchor" href="#specify-an-epsg"></a>
-</h5>
+<div class="section level4">
+<h4 id="specify-an-epsg">Specify an <code>epsg</code><a class="anchor" aria-label="anchor" href="#specify-an-epsg"></a>
+</h4>
 <p>We can get the <code>studyArea</code> in a different projection if we
 specify the <code>epsg</code> code.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  name <span class="op">=</span> <span class="st">"example_10"</span>,</span>
 <span>  studyArea <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Al|Brit|Sas"</span>, level <span class="op">=</span> <span class="fl">2</span>, epsg <span class="op">=</span> <span class="st">"3005"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-</div>
 </div>
 </div>
 <div class="section level3">
@@ -479,7 +933,7 @@ will have access to all the <code>packages</code> and
 <code>require</code> packages, plus any other arguments (e.g.,
 <code>paths</code> or other named arguments in the <code>...</code>)
 that preceded it in the call.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="st">"example_11"</span><span class="op">)</span>, <span class="co"># will deduce name of project from projectPath</span></span>
 <span>  standAlone <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -519,7 +973,7 @@ will be returned at the top level of the list, instead of within the
 <code>simInit</code>, so it can handle either using <code>objects</code>
 (the original way to pass arguments to <code>simInit</code>) or just
 arbitrarily named arguments.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="st">"example_12"</span><span class="op">)</span>, <span class="co"># will deduce name of project from projectPath</span></span>
 <span>  standAlone <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -547,7 +1001,7 @@ arbitrarily named arguments.</p>
 <div class="section level3">
 <h3 id="make-project-level-change-to--libpaths-that-is-persistent">Make project-level change to .libPaths() that is persistent<a class="anchor" aria-label="anchor" href="#make-project-level-change-to--libpaths-that-is-persistent"></a>
 </h3>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  name <span class="op">=</span> <span class="st">"example_13"</span>,</span>
 <span>  package <span class="op">=</span> <span class="st">"terra"</span>,</span>

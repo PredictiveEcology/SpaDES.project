@@ -54,7 +54,7 @@ or set times and use the times list for certain entries in params."><!-- mathjax
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/i-getting-started.html">SpaDES project setup</a>
+      <a href="../articles/i-getting-started.html">Getting Started</a>
     </li>
     <li>
       <a href="../articles/iii-using-git-github.html">Using git for project development</a>
@@ -270,7 +270,15 @@ be read upon restart.</p></dd>
 
 
 <dt>overwrite</dt>
-<dd><p>Logical. Passed to <code>getModule</code>, and <code>setupParams</code>, <code>setupOptions</code></p></dd>
+<dd><p>Logical vector or character vector, however, only <code>getModule</code> will respond
+to a vector of values. If length-one <code>TRUE</code>, then all files that were previously downloaded
+will be overwritten throughout the sequence of <code>setupProject</code>. If a vector of
+logical or character, these will be passed to <code>getModule</code>: only the named
+modules will be overwritten or the logical vector of the modules.
+NOTE: if a vector, no other file specified anywhere in <code>setupProject</code> will be
+overwritten except a module that/those names, because
+only <code>setupModules</code> is currently responsive to a vector. To have fine grained control,
+a user can just manually delete a file, then rerun.</p></dd>
 
 
 <dt>verbose</dt>
@@ -495,11 +503,11 @@ but as an unevaluated, captured list element.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">setting up paths ...</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Setting:</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   options(</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpYz6yDq/Require/cache'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpYz6yDq/Require/inputs'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpYz6yDq/Require/outputs'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpYz6yDq/Require/modules'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpYz6yDq/Require'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpKIy2Hs/Require/cache'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpKIy2Hs/Require/inputs'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpKIy2Hs/Require/outputs'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpKIy2Hs/Require/modules'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpKIy2Hs/Require'</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   )</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">  done setting up paths</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/Require/packages/x86_64-w64-mingw32/4.3)</span>
