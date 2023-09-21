@@ -323,7 +323,12 @@ these packages to \code{Require::Install(...)}.
 \code{setupGitIgnore} will add.
 
 \code{setupStudyArea} only uses \code{inputPath} within its \code{paths} argument, which will
-be passed to \code{path} argument of \code{gadm}.
+be passed to \code{path} argument of \code{gadm}. User can pass any named list element
+that matches the columns in the \code{sf} object, including e.g., \code{NAME_1} and, if \code{level = 2},
+is specified, then \code{NAME_2}.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
+}\if{html}{\out{</div>}}
 }
 \section{Paths}{
 

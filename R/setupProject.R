@@ -1674,7 +1674,13 @@ stopMessForRequireFail <- function(pkg) {
 #'
 #' @details
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
-#' be passed to `path` argument of `gadm`.
+#' be passed to `path` argument of `gadm`. User can pass any named list element
+#' that matches the columns in the `sf` object, including e.g., `NAME_1` and, if `level = 2`,
+#' is specified, then `NAME_2`.
+#'
+#' ```
+#' setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
+#' ```
 #'
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
@@ -1715,7 +1721,28 @@ setupStudyArea <- function(studyArea, paths) {
                                        if (grepl("geodata server seems", m$message))
                                          stop(m)
     )
-    studyArea <- studyArea[grep(tolower(paste0("^", subregion)), tolower(studyArea$NAME_1)), ]
+    hasSubregion <- grep("subregion", names(studyAreaOrig))
+    names(studyAreaOrig)[hasSubregion] <- "NAME_1"
+    poss <- setdiff(names(studyAreaOrig), c("country", "level", "path"))
+    for (col in poss) {
+      greppedNames <- grep(studyArea[[col]][[1]], pattern = studyAreaOrig[[col]], value = TRUE)
+      colInSA <- studyArea[[col]][[1]]
+      if (is.null(colInSA)) {
+        warning("There is no column ", col, "; ",
+                "\nDid you mean one or more of:\n  ", paste(names(studyArea), collapse = "\n  "),
+                "\nSkipping subsetting of studyArea by ", col
+        )
+
+      } else {
+        keep <- which(tolower(colInSA) %in% tolower(greppedNames))
+        if (length(keep) == 0) {
+          warning(studyAreaOrig[[col]], " does not match any values in ", col,". ",
+                  "\nDid you mean one or more of:\n  ", paste(colInSA, collapse = "\n  "),
+                  "\nReturning empty studyArea")
+        }
+        studyArea <- studyArea[keep, ]
+      }
+    }
     if (!is.null(epsg))
       if (requireNamespace("terra")) {
          studyArea |> terra::project(epsg)
