@@ -66,7 +66,10 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
+
   names(accounts) <- accounts
+  if (missing(keywords))
+    keywords <- ""
   outs <- lapply(accounts, function(account) {
     url <- paste0("https://api.github.com/users/", account, "/repos?per_page=200")
     names(url) <- account
@@ -86,12 +89,19 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     repos <- unlist(strsplit(repos, ","))
 
     out <- lapply(keywords, function(mg) {
+      hasKeyword <- nchar(mg) != 0
+      if (hasKeyword)
       messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
+      else
+        messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
       if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
-      outs <- grep(mg, repos, value = TRUE)
+
+      patt <- if (hasKeyword) mg else account
+
+      outs <- if (hasKeyword) grep(mg, repos, value = TRUE) else repos
       gitRepo <- grep("full_name", outs, value = TRUE)
       gitRepo <- strsplit(gitRepo, "\"")
-      gitRepo <- grep(mg, unlist(gitRepo), value = TRUE)
+      gitRepo <- grep(patt, unlist(gitRepo), value = TRUE)
       if (length(gitRepo)) {
         gitPaths <- paste0("https://github.com/", gitRepo, "/blob/master/",
                            basename(gitRepo), ".R")
@@ -100,7 +110,8 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
               MoreArgs = list(account = account) ))
         if (any(!isRepo)) {
           notRepo <- gitRepo[!isRepo]
-          message("These are not SpaDES modules: ", paste(notRepo, collapse = ", "))
+          messageVerbose("These are not SpaDES modules: ", paste(notRepo, collapse = ", "),
+                         verbose = verbose, verboseLevel = 2)
         }
         gitRepo <- gitRepo[isRepo]
         outs <- grep("\"name", outs, value = TRUE)
