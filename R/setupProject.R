@@ -723,6 +723,12 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envir, envir2 = parent.frame())
 
+    if (missing(paths)) {
+      pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
+      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
+    }
+
     options <- parseFileLists(options, paths[["projectPath"]], overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
