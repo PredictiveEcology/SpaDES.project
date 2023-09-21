@@ -353,7 +353,7 @@ setupProject <- function(name, paths, modules, packages,
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
   if (firstNamedArg > 2) { # there is always an empty one at first slot
-    firstSet <- (1:(firstNamedArg - 2))
+    firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
     dotsLater <- dotsSUB[-firstSet]
     dotsSUB <- dotsSUB[firstSet]
     dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
@@ -1164,13 +1164,16 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     if (length(notNamed)) {
       if (any(named))
         namedElements <- obj[which(named)]
-      obj <- Map(objInner = obj[notNamed],
+      obj[notNamed] <- Map(objInner = obj[notNamed],
                  function(objInner)
                    parseFileLists(objInner, paths, namedList, overwrite,
                                   envir, verbose, dots, ...))
-      obj <- Reduce(f = modifyList, obj)
       if (any(named))
-        obj <- append(namedElements, obj)
+        obj[named] <- Map(x = obj[named], nam = names(namedElements), function(x, nam) {
+          y <- list(x)
+          names(y) <- nam
+          y})
+      obj <- Reduce(f = modifyList, obj)
     }
   }
 
