@@ -25,6 +25,12 @@ knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
                         Sys.info()["user"] == "emcintir")# && interactive())
 options(Ncpus = 1)
 
+if (Sys.info()["user"] == "emcintir") {
+  knitr::opts_knit$set(root.dir = Require::checkPath(file.path("c:/Eliot/tmp", "listModules"), create = TRUE ))
+} else { 
+  knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
+}
+
 knitr::opts_chunk$set(fig.width=9, fig.height=7) # sets html figure height and width
 
 # options(Require.clonePkgs = TRUE)
@@ -69,7 +75,6 @@ This will search the `PredictiveEcology` github.com repository for any SpaDES mo
 ```{r clean13,echo=FALSE}
 ## cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
-knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
 ```
 
 ```{r listModulesSmall,result='hide',message=FALSE}
