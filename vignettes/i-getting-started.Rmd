@@ -48,7 +48,16 @@ In the following section, we present a range of examples showcasing the utilizat
 To get started, users should have already installed R, RStudio, and possibly other system-level dependencies.  
 [See vignette here](iv-Installing-R.html)  
 
-Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios.  
+Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios. We will start by installing the package.    
+
+## Installing `SpaDES.project`
+
+```{r install-spades-project}
+if (!require("SpaDES.project")) {
+  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+   require("SpaDES.project")}
+}
+```
 
 ## Understanding `SpaDES.project`'s Main Function: `setupProject()`
 
@@ -231,11 +240,12 @@ Other helpful functions that are worse going though are `?user`, `?machine`, and
 
 ### SpaDES` and other packages
 
-```{r install-spades-project}
-if (!require("SpaDES.project")) {
-  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
-   require("SpaDES.project")}
-}
+```{r sequential}
+# Use the newValue in `secondValue`
+out <- setupProject(name = "test",
+             newValue = 1,
+             secondValue = newValue + 1)
+out[c("newValue", "secondValue")]
 ```
 
 
@@ -246,6 +256,20 @@ if (!require("SpaDES.project")) {
 origLibPaths <- .libPaths()[1]
 options(Require.verbose = 2) # so install.packages isn't super verbose
 knitr::opts_knit$set(root.dir = tempdir()) 
+```
+
+The `.GlobalEnv` in `R` is special because it is in the search path of any user-created function. This is very convenient, but also provides the potential for many problems. For example, a variable could be misspelled in a code chunck, but the code doesn't fail because the `.GlobalEnv` has the same variable, spelled correctly.
+
+```{r Global,eval=FALSE}
+# Gets the wrong version of the module
+githubRepo = "PredictiveEcology/Biomass_core@development" # incorrect one -- used in error
+out <- setupProject(
+             gitHubRepo = "PredictiveEcology/Biomass_core@main", # The correct one --> not used
+             modules = githubRepo,
+             packages = NULL # no packages for this demonstration
+)
+
+
 ```
 
 

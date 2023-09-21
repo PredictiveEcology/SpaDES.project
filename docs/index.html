@@ -101,33 +101,44 @@
 <p>Quickly setup ‘SpaDES’ project directories, get modules, and deal with a number of issues related to reproducibility and reusabililty. This package was designed with a PERFICT approach in mind (See <a href="https://onlinelibrary.wiley.com/doi/full/10.1111/ele.13994" class="external-link">McIntire et al. 2022</a>).</p>
 </div>
 <div class="section level1">
-<h1 id="why-use-this-package">Why use this package<a class="anchor" aria-label="anchor" href="#why-use-this-package"></a>
+<h1 id="why-choose-this-package">Why Choose This Package<a class="anchor" aria-label="anchor" href="#why-choose-this-package"></a>
 </h1>
-<p>First, <strong>PERFICT</strong> is difficult to achieve, but is facilitated by <code>SpaDES</code> – <code>SpaDES.project</code> helps set up a <code>SpaDES</code> project. In addition to <code>R</code>, the scripting language, there are 3 “tools” that are very helpful:</p>
-<ul>
-<li>an <strong>IDE</strong> that encourages the use of <em>projects</em>,</li>
-<li>a <strong>modular coding</strong> approach,</li>
+<p>Achieving <strong>PERFICT</strong> in your projects can be challenging, but it becomes more accessible with the use of <code>SpaDES</code>. The <code>SpaDES.project</code> tool is designed to streamline the setup of <code>SpaDES</code> projects. Complementing the <code>R</code> scripting language, there are three valuable tools at your disposal:</p>
+<ol style="list-style-type: decimal">
 <li>
-<em>if the user would like to “develop” code</em>, <strong>version control</strong> (optional),</li>
-</ul>
-<p>We use <a href="https://posit.co" class="external-link">Posit</a>, <a href="https://spades.predictiveecology.org" class="external-link"><code>SpaDES</code></a> and <a href="https://github.com" class="external-link">Github</a>, respectivly. While these are not the only options, we find them the easiest. We note that many users are not git users. We have conceived of <code>SpaDES.project</code> for these people also: a user can use a git-controlled project or not within the <code>SpaDES.project</code> setup.</p>
-<p>In addition to these tools, we have repeatedly hit many other issues throughout our years of experience wrangling projects with a diversity of developers, on a diversity of operating systems, with a diversity of users, data sources, packages, modules etc. These are the “costs” of open, modular, interoperable projects: <em>normal reproducible workflows will fail as the project complexity increases</em>. If one of the objectives is to build projects that are transferable to other users, it is unlikely to work with “normal workflows” because things like:</p>
+<strong>Integrated Development Environment (IDE)</strong>: This IDE encourages the organization of your work into projects, enhancing your workflow efficiency.</li>
+<li>
+<strong>Modular Coding Approach</strong>: Embrace a modular approach to coding, allowing for easier maintenance and collaboration.</li>
+<li>
+<strong>Version Control (Optional)</strong>: For those interested in code development, <code>SpaDES</code> supports version control through platforms like <a href="https://github.com" class="external-link">GitHub</a>, giving you control over project history and collaboration.</li>
+</ol>
+<div class="section level2">
+<h2 id="our-recommended-tools">Our Recommended Tools<a class="anchor" aria-label="anchor" href="#our-recommended-tools"></a>
+</h2>
+<p>Our preferred toolset includes <a href="https://posit.co" class="external-link">Posit</a> (specifically, <code>RStudio</code>), <a href="https://spades.predictiveecology.org" class="external-link"><code>SpaDES</code></a>, and <a href="https://github.com" class="external-link">GitHub</a>. While these are our recommendations, there are alternative options available. We acknowledge that not all users are familiar with Git, and that’s perfectly acceptable. <code>SpaDES.project</code> has been designed to cater to all users, whether they choose to use a Git-controlled project or not.</p>
+</div>
+<div class="section level2">
+<h2 id="project-challenges">Project Challenges<a class="anchor" aria-label="anchor" href="#project-challenges"></a>
+</h2>
+<p>Beyond these tools, our extensive experience in managing projects with diverse developers, operating systems, users, data sources, and packages has revealed various challenges. These challenges arise due to the nature of open, modular, and interoperable projects. As project complexity increases, typical reproducible workflows may falter. Issues include:</p>
 <ul>
-<li>different <code>.Rprofile</code> files,</li>
-<li>paths that are not transferable,</li>
-<li>packages that do not work identically across operating systems,</li>
-<li>package version conflicts</li>
-<li>package loading/installing order problems (can’t install a different version of a package, while it is already loaded),</li>
-<li>spaghetti code (i.e., where an object is defined in one file and used in another file),</li>
-<li>whether the user knows how to use github or not, cryptic code and objects (“just run that line, don’t worry about what it does”),</li>
-<li>objects by a user being defined in the <code>.GlobalEnv</code> resulting in code written by a developer not failing when it <em>should</em> fail,</li>
-<li>and more generally, because different users have different competencies,</li>
+<li>Variations in <code>.Rprofile</code> files.</li>
+<li>Non-transferable file paths.</li>
+<li>Incompatibilities between packages on different operating systems.</li>
+<li>Conflicts between package versions.</li>
+<li>Problems with the order of package loading and installation (e.g., inability to install a different version of a package while it’s already loaded).</li>
+<li>Spaghetti code, where objects are defined in one file and used in another.</li>
+<li>Differences in users’ familiarity with GitHub.</li>
+<li>The presence of cryptic code and objects (“just run that line, don’t worry about what it does”).</li>
+<li>Objects defined by a user lingering in the <code>.GlobalEnv</code>, leading to undetected issues.</li>
+<li>Varying competencies among different users.</li>
 </ul>
-<p>Because of these and other factors, it is not sufficient simply to build a “reproducible” script: it must be a <em>reusable</em> script that works verbatim on any machine, any operating system, for any user.</p>
-<p>A user can, of course, attempt to wrangle all these issues themselves; instead, we built <code>SpaDES.project</code> that was built from our most complex projects to date, yet conceived with the beginner in mind, while anticipating these issues so they don’t come to haunt the users later.</p>
+<p>Given these complexities, it’s not enough to create a “reproducible” script; it must be a “reusable” script that functions flawlessly on any machine, operating system, and for any user.</p>
+<p>Users can certainly attempt to address these issues individually, but we’ve developed <code>SpaDES.project</code> as a solution. It’s derived from our most intricate projects to date, yet it’s designed with beginners in mind. We’ve anticipated these challenges so that users won’t encounter them unexpectedly during their project journeys.</p>
+</div>
 </div>
 <div class="section level1">
-<h1 id="getting-started">Getting started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
+<h1 id="getting-started">Getting Started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
 </h1>
 <p>See <a href="https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html" class="external-link">this package readme</a> and vignettes to get started.</p>
 <ol style="list-style-type: decimal">
