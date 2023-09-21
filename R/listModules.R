@@ -237,7 +237,8 @@ PlotModuleGraph <- function(graph) {
   groups <- ifelse(grepl("Biomass", names), "Biomass",
                    ifelse(grepl("fireSense", ignore.case = TRUE, names), "FireSense",
                           ifelse(grepl("CBM", ignore.case = TRUE, names), "CBM",
-                                 ifelse(grepl("ROF", ignore.case = TRUE, names), "RoF", "Other"))))
+                                 ifelse(grepl("DataPrep", ignore.case = TRUE, names), "DataPrep",
+                                        ifelse(grepl("ROF", ignore.case = TRUE, names), "RoF", "Other")))))
 
   nodes <- data.frame(id = igraph::V(graph)$name, title = igraph::V(graph)$name, group = groups)
   nodes <- nodes[order(nodes$id, decreasing = F),]
@@ -248,6 +249,7 @@ PlotModuleGraph <- function(graph) {
     visNetwork::visGroups(groupname = "Biomass", color = "orange",
               shadow = list(enabled = TRUE)) |>
     # red triangle for group "B"
+    visNetwork::visGroups(groupname = "DataPrep", color = "turquoise") |>
     visNetwork::visGroups(groupname = "FireSense", color = "red") |>
     visNetwork::visGroups(groupname = "CBM", color = "green") |>
     visNetwork::visGroups(groupname = "RoF", color = "lightgreen") |>
