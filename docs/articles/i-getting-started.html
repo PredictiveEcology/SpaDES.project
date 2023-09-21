@@ -141,7 +141,7 @@ examples of how to use the <code><a href="../reference/setupProject.html">setupP
 from simple to moderately complex scenarios.</p>
 </div>
 <div class="section level3">
-<h3 id="installing-spades-promect">Installing <code>SpaDES.promect</code><a class="anchor" aria-label="anchor" href="#installing-spades-promect"></a>
+<h3 id="installing-spades-project">Installing <code>SpaDES.project</code><a class="anchor" aria-label="anchor" href="#installing-spades-project"></a>
 </h3>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
@@ -217,19 +217,6 @@ subsequent one.</p>
 <span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"test"</span>,</span>
 <span>             newValue <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>             secondValue <span class="op">=</span> <span class="va">newValue</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
-<span><span class="co">#&gt; Setting:</span></span>
-<span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/test/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/test/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/test/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/test/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/test'</span></span>
-<span><span class="co">#&gt;   )</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
-<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/test/packages/x86_64-w64-mingw32/4.3)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
-<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/test/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
 <span><span class="va">out</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"newValue"</span>, <span class="st">"secondValue"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $newValue</span></span>
 <span><span class="co">#&gt; [1] 1</span></span>
@@ -265,40 +252,40 @@ spelled correctly.</p>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
 <span><span class="co">#&gt; Setting:</span></span>
 <span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/Rtmp84UsmK'</span></span>
+<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/cache'</span></span>
+<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/inputs'</span></span>
+<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/outputs'</span></span>
+<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/modules'</span></span>
+<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/Rtmp8wFvEV'</span></span>
 <span><span class="co">#&gt;   )</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
-<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/Rtmp84UsmK/packages/x86_64-w64-mingw32/4.3)</span></span>
+<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/Rtmp8wFvEV/packages/x86_64-w64-mingw32/4.3)</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
-<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/Rtmp84UsmK/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
+<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/Rtmp8wFvEV/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
 <span><span class="co">#&gt; $modules</span></span>
 <span><span class="co">#&gt; named character(0)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths</span></span>
 <span><span class="co">#&gt; $paths$cachePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/cache"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/cache"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$inputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/inputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/inputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$modulePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/modules"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/modules"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$outputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/outputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/Rtmp84UsmK/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/Rtmp8wFvEV/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/Rtmp84UsmK"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/Rtmp8wFvEV"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/Rtmp84UsmK/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/Rtmp8wFvEV/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -428,11 +415,11 @@ options<a class="anchor" aria-label="anchor" href="#mixture-of-named-list-elemen
 <span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
 <span><span class="co">#&gt; Setting:</span></span>
 <span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/example_9/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/example_9/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/example_9/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/example_9/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp84UsmK/example_9'</span></span>
+<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/example_9/cache'</span></span>
+<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/example_9/inputs'</span></span>
+<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/example_9/outputs'</span></span>
+<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/example_9/modules'</span></span>
+<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmp8wFvEV/example_9'</span></span>
 <span><span class="co">#&gt;   )</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
 <span><span class="co">#&gt; Copying SpaDES.project, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/example_9/packages/x86_64-w64-mingw32/4.3)</span></span>

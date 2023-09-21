@@ -50,7 +50,7 @@ To get started, users should have already installed R, RStudio, and possibly oth
 
 Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios.  
 
-## Installing `SpaDES.promect`
+## Installing `SpaDES.project`
 
 ```{r install-spades-project}
 if (!require("SpaDES.project")) {
@@ -89,7 +89,7 @@ For most arguments, the values can be either named lists or character vectors co
 
 The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
 
-```{r sequential}
+```{r sequential,message=FALSE}
 # Use the newValue in `secondValue`
 out <- setupProject(name = "test",
              newValue = 1,
