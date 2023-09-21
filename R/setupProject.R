@@ -105,7 +105,15 @@ utils::globalVariables(c(
 #'        convenience, `subregion = "..."`, which will be grepped with the column
 #'        `NAME_1`, and `epsg = "..."`, so a user can pass an `epsg.io` code to
 #'        reproject the `studyArea`. See examples.
-#' @param overwrite Logical. Passed to `getModule`, and `setupParams`, `setupOptions`
+#' @param overwrite Logical vector or character vector, however, only `getModule` will respond
+#'   to a vector of values. If length-one `TRUE`, then all files that were previously downloaded
+#'   will be overwritten throughout the sequence of `setupProject`. If a vector of
+#'   logical or character, these will be passed to `getModule`: only the named
+#'   modules will be overwritten or the logical vector of the modules.
+#'   NOTE: if a vector, no other file specified anywhere in `setupProject` will be
+#'   overwritten except a module that/those names, because
+#'   only `setupModules` is currently responsive to a vector. To have fine grained control,
+#'   a user can just manually delete a file, then rerun.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects.
 #'   These can be supplied to give default values to objects that
@@ -395,10 +403,10 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
 
-  sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = overwrite,
+  sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
                                      envir = envir, verbose = verbose)
 
-  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = overwrite, envir = envir)
+  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envir)
   options <- opts[["newOptions"]] # put into this environment so parsing can access
 
   # Run 2nd time after sideEffects & setupOptions -- may not be necessary
@@ -423,7 +431,7 @@ setupProject <- function(name, paths, modules, packages,
 
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
-                        overwrite = overwrite, envir = envir, verbose = verbose)
+                        overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
@@ -540,7 +548,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
-  paths <- parseFileLists(paths, paths[["projectPath"]], overwrite = overwrite,
+  paths <- parseFileLists(paths, paths[["projectPath"]], overwrite = isTRUE(overwrite),
                           envir = envir, verbose = verbose)
 
   if (!missing(name))
@@ -676,7 +684,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     }
 
     sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
-                                  overwrite = overwrite, envir = envir, verbose = verbose)
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
 
@@ -715,7 +723,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envir, envir2 = parent.frame())
 
-    options <- parseFileLists(options, paths[["projectPath"]], overwrite = overwrite,
+    options <- parseFileLists(options, paths[["projectPath"]], overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
     postOptions <- options()
@@ -951,7 +959,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     isRepo <- nzchar(exts) & exts %in% ".R"
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
-      modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = overwrite,
+      modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = isTRUE(overwrite),
                                 envir = envir, verbose = verbose)
     }
 
@@ -1114,7 +1122,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envir, envir2 = parent.frame())
-    params <- parseFileLists(params, paths[["projectPath"]], overwrite = overwrite,
+    params <- parseFileLists(params, paths[["projectPath"]], overwrite = isTRUE(overwrite),
                              envir = envir, verbose = verbose)
 
     if (length(params)) {
@@ -1193,7 +1201,7 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
         namedElements <- obj[which(named)]
       obj <- Map(objInner = obj[notNamed],
                  function(objInner)
-                   parseFileLists(objInner, projectPath, namedList, overwrite,
+                   parseFileLists(objInner, projectPath, namedList, isTRUE(overwrite),
                                   envir, verbose, dots, ...))
       obj <- Reduce(f = append, obj)
       if (any(named))
@@ -1205,7 +1213,7 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
-        opt <- getGithubFile(opt, destDir = projectPath, overwrite = overwrite)
+        opt <- getGithubFile(opt, destDir = projectPath, overwrite = isTRUE(overwrite))
       } else {
         if (!file.exists(opt))
           messageVerbose(opt, paste(" has no @ specified, so assuming a local file,",

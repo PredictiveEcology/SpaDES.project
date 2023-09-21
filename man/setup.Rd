@@ -130,7 +130,15 @@ using \code{Rstudio} and the \code{paths$projectPath} is not the root of the cur
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
 be read upon restart.}
 
-\item{overwrite}{Logical. Passed to \code{getModule}, and \code{setupParams}, \code{setupOptions}}
+\item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
+to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
+will be overwritten throughout the sequence of \code{setupProject}. If a vector of
+logical or character, these will be passed to \code{getModule}: only the named
+modules will be overwritten or the logical vector of the modules.
+NOTE: if a vector, no other file specified anywhere in \code{setupProject} will be
+overwritten except a module that/those names, because
+only \code{setupModules} is currently responsive to a vector. To have fine grained control,
+a user can just manually delete a file, then rerun.}
 
 \item{envir}{An environment within which to look for objects. If called alone,
 the function should use its own internal environment. If called from another
