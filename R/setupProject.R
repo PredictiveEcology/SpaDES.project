@@ -546,7 +546,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
-  paths <- parseFileLists(paths, paths, overwrite = overwrite,
+  paths <- parseFileLists(paths, paths, overwrite = isTRUE(overwrite),
                           envir = envir, verbose = verbose)
 
   if (!missing(name))
@@ -682,7 +682,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     }
 
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
-                                  overwrite = overwrite, envir = envir, verbose = verbose)
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
 
@@ -721,7 +721,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envir, envir2 = parent.frame())
 
-    options <- parseFileLists(options, paths, overwrite = overwrite,
+    options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
     postOptions <- options()
@@ -957,7 +957,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     isRepo <- nzchar(exts) & exts %in% ".R"
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
-      modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = overwrite,
+      modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
                                 envir = envir, verbose = verbose)
     }
 
@@ -970,7 +970,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
         opt <- options(Require.offlineMode = FALSE)
         on.exit(try(options(opt), silent = TRUE))
       }
-      out <- getModule(modules, paths[["modulePath"]], overwrite)
+      out <- getModule(modules, paths[["modulePath"]], overwrite = overwrite)
       if (isTRUE(offlineMode))
         options(opt)
       anyfailed <- out$failed
@@ -1120,7 +1120,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envir, envir2 = parent.frame())
-    params <- parseFileLists(params, paths, overwrite = overwrite,
+    params <- parseFileLists(params, paths, overwrite = isTRUE(overwrite),
                              envir = envir, verbose = verbose)
 
     if (length(params)) {
@@ -1234,7 +1234,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           # opt is the correct destination file because it has removed potential duplicated folder names
           #   but getGitHubfile won't know this ... so give it a temporary destdir
           destdir <- Require::tempdir2()
-          temp <- getGithubFile(rem, destDir = destdir, overwrite = overwrite)
+          temp <- getGithubFile(rem, destDir = destdir, overwrite = isTRUE(overwrite))
           copied <- linkOrCopy(temp, opt)
         }
 
@@ -1243,7 +1243,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         if (isURL) {
           destfile <- file.path(paths[["inputPath"]], basename(opt))
           if (requireNamespace("reproducible", quietly = TRUE)) {
-            ret <- reproducible::preProcess(url = opt, targetFile = destfile, overwrite = overwrite, fun = NA)
+            ret <- reproducible::preProcess(url = opt, targetFile = destfile, overwrite = isTRUE(overwrite), fun = NA)
           } else {
             dlfileOut <- try(download.file(url = opt, destfile = destfile))
             if (is(dlfileOut, "try-error"))
