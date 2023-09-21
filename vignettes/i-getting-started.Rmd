@@ -90,7 +90,11 @@ For most arguments, the values can be either named lists or character vectors co
 The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
 
 ```{r sequential}
-
+# Use the newValue in `secondValue`
+out <- setupProject(name = "test",
+             newValue = 1,
+             secondValue = newValue + 1)
+out[c("newValue", "secondValue")]
 
 ```
 
@@ -103,6 +107,20 @@ The argument values within each of the arguments are sourced sequentially. This 
 origLibPaths <- .libPaths()[1]
 options(Require.verbose = 2) # so install.packages isn't super verbose
 knitr::opts_knit$set(root.dir = tempdir()) 
+```
+
+The `.GlobalEnv` in `R` is special because it is in the search path of any user-created function. This is very convenient, but also provides the potential for many problems. For example, a variable could be misspelled in a code chunck, but the code doesn't fail because the `.GlobalEnv` has the same variable, spelled correctly.
+
+```{r Global,eval=FALSE}
+# Gets the wrong version of the module
+githubRepo = "PredictiveEcology/Biomass_core@development" # incorrect one -- used in error
+out <- setupProject(
+             gitHubRepo = "PredictiveEcology/Biomass_core@main", # The correct one --> not used
+             modules = githubRepo,
+             packages = NULL # no packages for this demonstration
+)
+
+
 ```
 
 
