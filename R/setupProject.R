@@ -349,7 +349,7 @@ setupProject <- function(name, paths, modules, packages,
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
   if (firstNamedArg > 2) { # there is always an empty one at first slot
-    firstSet <- (1:(firstNamedArg - 2))
+    firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
     dotsLater <- dotsSUB[-firstSet]
     dotsSUB <- dotsSUB[firstSet]
     dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
