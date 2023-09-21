@@ -1166,13 +1166,16 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     if (length(notNamed)) {
       if (any(named))
         namedElements <- obj[which(named)]
-      obj <- Map(objInner = obj[notNamed],
+      obj[notNamed] <- Map(objInner = obj[notNamed],
                  function(objInner)
                    parseFileLists(objInner, projectPath, namedList, isTRUE(overwrite),
                                   envir, verbose, dots, ...))
-      obj <- Reduce(f = modifyList, obj)
       if (any(named))
-        obj <- append(namedElements, obj)
+        obj[named] <- Map(x = obj[named], nam = names(namedElements), function(x, nam) {
+          y <- list(x)
+          names(y) <- nam
+          y})
+      obj <- Reduce(f = modifyList, obj)
     }
   }
 
