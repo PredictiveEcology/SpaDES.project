@@ -716,12 +716,18 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
 
     messageVerbose(yellow("setting up options..."), verbose = verbose)
 
-    preOptions <- options()
+    preOptions <- base::options() # need prefix or else greedy evaluation occurs on the `options()` as if it is the arg
 
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envir, envir2 = parent.frame())
 
-    options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
+    if (missing(paths)) {
+      pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
+      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
+    }
+
+    options <- parseFileLists(options, paths[["projectPath"]], overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
     postOptions <- options()
@@ -763,79 +769,36 @@ isUnevaluatedList <- function(p) any( {
 
 #' @importFrom tools file_ext
 #' @importFrom utils modifyList tail
-parseListsSequentially <- function(files, namedList = TRUE, envir = parent.frame(),
+parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir = parent.frame(),
                                    verbose = getOption("Require.verbose")) {
   envs <- list(envir) # means
 
-  llOuter <- lapply(files, function(optFiles) {
-    if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R"))) {
-      pp <- parse(optFiles)
-
-      envs2 <- lapply(pp, function(p) {
-      env <- new.env(parent = tail(envs, 1)[[1]])
-      if (isUnevaluatedList(p) || isFALSE(namedList)) {
-        # robust to code failures
-        # Try whole list first; if fails, then do individual list elements
-        withCallingHandlers(for (i in 1:2) {
-          safe <- TRUE
-          out <- evalListElems(p, envir = env, verbose = verbose)
-          if (safe)
-            break
-        }, message = function(m) {
-
-          missingPkgs <- grepl("there is no package called", m)
-          if (any(missingPkgs)) {
-            pkgs <- gsub("^.+called \u2018(.+)\u2019.*$", "\\1", m$message)
-            messageVerbose(pkgs, " is missing; attempting to install it. ",
-                           "\nIf this fails, please add it manually to the `packages` argument")
-            Require::Install(pkgs)
-            safe <<- FALSE
-            invokeRestart("muffleMessage")
-          }
-        })
-        if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
-          # putting the object `mode` into the env; but if there is no assignment
-          # then we need to put the object into the environment
-          env$opt <- out
-        envs <<- append(envs, list(env))
-
-      }
-      env
-    })
-
-    os <- list()
+  if (!missing(curly)) {
+    obj2 <- deparse(curly)
+    obj <- obj2[-c(1, length(obj2))]
+    parsed <- parse(text = obj)
+  }
+  if (!missing(parsed)) {
+    envs2 <- parseExpressionSequentially(parsed, envs, namedList, verbose)
     if (isTRUE(namedList)) {
-      isNamedList <- mapply(env = envs2, function(env) {
-        isNamedList <- FALSE
-        if (length(ls(env))) {
-          obj <- get(ls(env), env)
-          if (is(obj, "list"))
-            if (!is.null(names(obj)))
-              isNamedList <- TRUE
-        }
-        isNamedList
-      }, SIMPLIFY = TRUE)
-
-      if (isTRUE(any(isNamedList))) {
-        ll <- Map(env = envs2[isNamedList], function(env) {
-          as.list(env)[[1]]
-        })
-        os <- Reduce(modifyList, ll)
-        }
-      } else {
-        os <- as.list(tail(envs2, 1)[[1]])
-      }
+      os <- parseEnvsWithNamedListsSequentially(envs2)
     } else {
-      os <- NULL
+      os <- as.list(tail(envs2, 1)[[1]])
     }
+  } else {
+    llOuter <- lapply(files, function(optFiles) {
+      os <- NULL
+      if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R"))) {
+        pp <- parse(optFiles)
+        obj <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
+                                      verbose = verbose)
+      }})
+    if (isTRUE(namedList))
+      os <- Reduce(modifyList, llOuter)
+    else
+      os <- tail(llOuter, 1)[[1]][[1]]
+  }
 
-    os
-  })
-
-  if (isTRUE(namedList))
-    os <- Reduce(modifyList, llOuter)
-  else
-    os <- tail(llOuter, 1)[[1]][[1]]
   os
 }
 
@@ -1192,7 +1155,11 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
                            verbose = getOption("Require.verbose", 1L), dots, ...) {
   if (is(obj, "list")) {
     nams <- names(obj)
-    named <- nzchar(nams)
+    if (is.null(nams)) {
+      named <- rep(FALSE, length(obj))
+    } else {
+      named <- nzchar(nams)
+    }
     notNamed <- which(!named)
     if (length(notNamed)) {
       if (any(named))
@@ -1201,7 +1168,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
                  function(objInner)
                    parseFileLists(objInner, paths, namedList, overwrite,
                                   envir, verbose, dots, ...))
-      obj <- Reduce(f = append, obj)
+      obj <- Reduce(f = modifyList, obj)
       if (any(named))
         obj <- append(namedElements, obj)
     }
@@ -1275,7 +1242,13 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
     }
 
+  }
+
+  if (is.character(obj)) {
     obj <- parseListsSequentially(files = obj, namedList = namedList, envir = envir,
+                                  verbose = verbose)
+  } else if (is(obj, "{")) {
+    obj <- parseListsSequentially(curly = obj, namedList = namedList, envir = envir,
                                   verbose = verbose)
   }
 
@@ -1966,3 +1939,60 @@ stripDuplicateFolder <- function(relativeFilePath, paths) {
   }
 }
 
+
+parseExpressionSequentially <- function(pp, envs, namedList, verbose) {
+  envs2 <- lapply(pp, function(p) {
+    env <- new.env(parent = tail(envs, 1)[[1]])
+    if (isUnevaluatedList(p) || isFALSE(namedList)) {
+      # robust to code failures
+      # Try whole list first; if fails, then do individual list elements
+      withCallingHandlers(for (i in 1:2) {
+        safe <- TRUE
+        out <- evalListElems(p, envir = env, verbose = verbose)
+        if (safe)
+          break
+      }, message = function(m) {
+
+        missingPkgs <- grepl("there is no package called", m)
+        if (any(missingPkgs)) {
+          pkgs <- gsub("^.+called \u2018(.+)\u2019.*$", "\\1", m$message)
+          messageVerbose(pkgs, " is missing; attempting to install it. ",
+                         "\nIf this fails, please add it manually to the `packages` argument")
+          Require::Install(pkgs)
+          safe <<- FALSE
+          invokeRestart("muffleMessage")
+        }
+      })
+      if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
+        # putting the object `mode` into the env; but if there is no assignment
+        # then we need to put the object into the environment
+        env$opt <- out
+      envs <<- append(envs, list(env))
+
+    }
+    env
+  })
+}
+
+
+parseEnvsWithNamedListsSequentially <- function(envs2) {
+  os <- list()
+
+  isNamedList <- mapply(env = envs2, function(env) {
+    isNamedList <- FALSE
+    if (length(ls(env))) {
+      obj <- get(ls(env), env)
+      if (is(obj, "list"))
+        if (!is.null(names(obj)))
+          isNamedList <- TRUE
+    }
+    isNamedList
+  }, SIMPLIFY = TRUE)
+
+  if (isTRUE(any(isNamedList))) {
+    ll <- Map(env = envs2[isNamedList], function(env) {
+      as.list(env)[[1]]
+    })
+    os <- Reduce(modifyList, ll)
+  }
+}
