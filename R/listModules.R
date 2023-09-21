@@ -149,10 +149,15 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
     # If modules have errors, let them pass
-    io <- tryCatch(SpaDES.core::inputObjects(module = mod, path = modulePath),
-                   error = function(x) {message(x); a = list(list()); names(a) <- mod; a})
-    oo <- tryCatch(SpaDES.core::outputObjects(module = mod, path = modulePath),
-                   error = function(x) {message(x); a = list(list()); names(a) <- mod; a})
+    # if (mod %in% "mapBins") browser()
+    io <- try(SpaDES.core::inputObjects(module = mod, path = modulePath))
+    if (is(io, "try-error")) {
+      message(io); io = list(list()); names(io) <- mod
+      }
+    oo <- try(SpaDES.core::outputObjects(module = mod, path = modulePath))
+    if (is(oo, "try-error")) {
+      message(oo); oo = list(list()); names(oo) <- mod
+    }
     list(io = io[[mod]], oo = oo[[mod]], name = mod)
   })
 
