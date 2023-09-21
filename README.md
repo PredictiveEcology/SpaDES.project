@@ -10,34 +10,38 @@
 
 Quickly setup 'SpaDES' project directories, get modules, and deal with a number of issues related to reproducibility and reusabililty. This package was designed with a PERFICT approach in mind (See [McIntire et al. 2022](https://onlinelibrary.wiley.com/doi/full/10.1111/ele.13994)).
 
-# Why use this package
+# Why Choose This Package
 
-First, **PERFICT** is difficult to achieve, but is facilitated by `SpaDES` -- `SpaDES.project` helps set up a `SpaDES` project. In addition to `R`, the scripting language, there are 3 "tools" that are very helpful: 
+Achieving **PERFICT** in your projects can be challenging, but it becomes more accessible with the use of `SpaDES`. The `SpaDES.project` tool is designed to streamline the setup of `SpaDES` projects. Complementing the `R` scripting language, there are three valuable tools at your disposal: 
 
-- an **IDE** that encourages the use of *projects*, 
-- a **modular coding** approach, 
-- *if the user would like to "develop" code*, **version control** (optional),
+1. **Integrated Development Environment (IDE)**: This IDE encourages the organization of your work into projects, enhancing your workflow efficiency. 
+2. **Modular Coding Approach**: Embrace a modular approach to coding, allowing for easier maintenance and collaboration. 
+3. **Version Control (Optional)**: For those interested in code development, `SpaDES` supports version control through platforms like [GitHub](https://github.com), giving you control over project history and collaboration.
 
-We use [Posit](https://posit.co), [`SpaDES`](https://spades.predictiveecology.org) and [Github](https://github.com), respectivly. While these are not the only options, we find them the easiest. We note that many users are not git users. We have conceived of `SpaDES.project` for these people also: a user can use a git-controlled project or not within the `SpaDES.project` setup. 
+## Our Recommended Tools
 
-In addition to these tools, we have repeatedly hit many other issues throughout our years of experience wrangling projects with a diversity of developers, on a diversity of operating systems, with a diversity of users, data sources, packages, modules etc. These are the "costs" of open, modular, interoperable projects: *normal reproducible workflows will fail as the project complexity increases*. If one of the objectives is to build projects that are transferable to other users, it is unlikely to work with "normal workflows" because things like:
+Our preferred toolset includes [Posit](https://posit.co) (specifically, `RStudio`), [`SpaDES`](https://spades.predictiveecology.org), and [GitHub](https://github.com). While these are our recommendations, there are alternative options available. We acknowledge that not all users are familiar with Git, and that's perfectly acceptable. `SpaDES.project` has been designed to cater to all users, whether they choose to use a Git-controlled project or not.
 
-- different `.Rprofile` files, 
-- paths that are not transferable, 
-- packages that do not work identically across operating systems, 
-- package version conflicts
-- package loading/installing order problems (can't install a different version of a package, while it is already loaded),
-- spaghetti code (i.e., where an object is defined in one file and used in another file),
-- whether the user knows how to use github or not, 
-cryptic code and objects ("just run that line, don't worry about what it does"), 
-- objects by a user being defined in the `.GlobalEnv` resulting in code written by a developer not failing when it *should* fail,
-- and more generally, because different users have different competencies,
+## Project Challenges
 
-Because of these and other factors, it is not sufficient simply to build a "reproducible" script: it must be a *reusable* script that works verbatim on any machine, any operating system, for any user. 
+Beyond these tools, our extensive experience in managing projects with diverse developers, operating systems, users, data sources, and packages has revealed various challenges. These challenges arise due to the nature of open, modular, and interoperable projects. As project complexity increases, typical reproducible workflows may falter. Issues include:
 
-A user can, of course, attempt to wrangle all these issues themselves; instead, we built `SpaDES.project` that was built from our most complex projects to date, yet conceived with the beginner in mind, while anticipating these issues so they don't come to haunt the users later.
+- Variations in `.Rprofile` files.
+- Non-transferable file paths.
+- Incompatibilities between packages on different operating systems.
+- Conflicts between package versions.
+- Problems with the order of package loading and installation (e.g., inability to install a different version of a package while it's already loaded).
+- Spaghetti code, where objects are defined in one file and used in another.
+- Differences in users' familiarity with GitHub.
+- The presence of cryptic code and objects ("just run that line, don't worry about what it does").
+- Objects defined by a user lingering in the `.GlobalEnv`, leading to undetected issues.
+- Varying competencies among different users.  
 
-# Getting started
+Given these complexities, it's not enough to create a "reproducible" script; it must be a "reusable" script that functions flawlessly on any machine, operating system, and for any user.   
+
+Users can certainly attempt to address these issues individually, but we've developed `SpaDES.project` as a solution. It's derived from our most intricate projects to date, yet it's designed with beginners in mind. We've anticipated these challenges so that users won't encounter them unexpectedly during their project journeys.  
+
+# Getting Started
 
 See [this package readme](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html) and vignettes to get started.
 
