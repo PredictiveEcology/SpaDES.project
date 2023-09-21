@@ -240,7 +240,7 @@ Other helpful functions that are worse going though are `?user`, `?machine`, and
 
 ### SpaDES` and other packages
 
-```{r sequential}
+```{r sequential,message=FALSE}
 # Use the newValue in `secondValue`
 out <- setupProject(name = "test",
              newValue = 1,
