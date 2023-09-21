@@ -66,7 +66,10 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
+
   names(accounts) <- accounts
+  if (missing(keywords))
+    keywords <- ""
   outs <- lapply(accounts, function(account) {
     url <- paste0("https://api.github.com/users/", account, "/repos?per_page=200")
     names(url) <- account
@@ -86,12 +89,28 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     repos <- unlist(strsplit(repos, ","))
 
     out <- lapply(keywords, function(mg) {
-      messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
+      hasKeyword <- nchar(mg) != 0
+      if (hasKeyword)
+        messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
+      else
+        messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
       if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
-      outs <- grep(mg, repos, value = TRUE)
+
+      archivedLines <- grep("archived.*true", repos)
+      patt <- if (hasKeyword) mg else account
+      archivedRepos <- character()
+      if (length(archivedLines)) {
+        fullName <- grep("full_name", repos)
+        repoLine <- unlist(lapply(archivedLines, function(arch) which.min(fullName < arch) - 1))
+        toArchive <- repos[fullName[repoLine]]
+        archivedRepos <- unlist(lapply(strsplit(toArchive, "\""), tail, 1))
+      }
+
+      outs <- if (hasKeyword) grep(mg, repos, value = TRUE) else repos
       gitRepo <- grep("full_name", outs, value = TRUE)
       gitRepo <- strsplit(gitRepo, "\"")
-      gitRepo <- grep(mg, unlist(gitRepo), value = TRUE)
+      gitRepo <- grep(patt, unlist(gitRepo), value = TRUE)
+      gitRepo <- setdiff(gitRepo, archivedRepos)
       if (length(gitRepo)) {
         gitPaths <- paste0("https://github.com/", gitRepo, "/blob/master/",
                            basename(gitRepo), ".R")
@@ -100,7 +119,8 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
               MoreArgs = list(account = account) ))
         if (any(!isRepo)) {
           notRepo <- gitRepo[!isRepo]
-          message("These are not SpaDES modules: ", paste(notRepo, collapse = ", "))
+          messageVerbose("These are not SpaDES modules: ", paste(notRepo, collapse = ", "),
+                         verbose = verbose, verboseLevel = 2)
         }
         gitRepo <- gitRepo[isRepo]
         outs <- grep("\"name", outs, value = TRUE)
@@ -128,8 +148,16 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
   names(modsFlat) <- modsFlat
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
-    io <- SpaDES.core::inputObjects(module = mod, path = modulePath)
-    oo <- SpaDES.core::outputObjects(module = mod, path = modulePath)
+    # If modules have errors, let them pass
+    # if (mod %in% "mapBins") browser()
+    io <- try(SpaDES.core::inputObjects(module = mod, path = modulePath))
+    if (is(io, "try-error")) {
+      message(io); io = list(list()); names(io) <- mod
+      }
+    oo <- try(SpaDES.core::outputObjects(module = mod, path = modulePath))
+    if (is(oo, "try-error")) {
+      message(oo); oo = list(list()); names(oo) <- mod
+    }
     list(io = io[[mod]], oo = oo[[mod]], name = mod)
   })
 
@@ -209,7 +237,8 @@ PlotModuleGraph <- function(graph) {
   groups <- ifelse(grepl("Biomass", names), "Biomass",
                    ifelse(grepl("fireSense", ignore.case = TRUE, names), "FireSense",
                           ifelse(grepl("CBM", ignore.case = TRUE, names), "CBM",
-                                 ifelse(grepl("ROF", ignore.case = TRUE, names), "RoF", "Other"))))
+                                 ifelse(grepl("DataPrep", ignore.case = TRUE, names), "DataPrep",
+                                        ifelse(grepl("ROF", ignore.case = TRUE, names), "RoF", "Other")))))
 
   nodes <- data.frame(id = igraph::V(graph)$name, title = igraph::V(graph)$name, group = groups)
   nodes <- nodes[order(nodes$id, decreasing = F),]
@@ -220,13 +249,15 @@ PlotModuleGraph <- function(graph) {
     visNetwork::visGroups(groupname = "Biomass", color = "orange",
               shadow = list(enabled = TRUE)) |>
     # red triangle for group "B"
+    visNetwork::visGroups(groupname = "DataPrep", color = "turquoise") |>
     visNetwork::visGroups(groupname = "FireSense", color = "red") |>
     visNetwork::visGroups(groupname = "CBM", color = "green") |>
     visNetwork::visGroups(groupname = "RoF", color = "lightgreen") |>
     # visPhysics(repulsion = list(nodeDistance = 100)) |>
     visNetwork::visOptions(highlightNearest = TRUE,
                nodesIdSelection = TRUE,
-               height = "800px", width = "130%",
+               # height = "800px", width = "130%",
+               height = "100%", width = "100%",
                #highlightNearest = list(enabled = T, degree = 1, hover = F),
                collapse = TRUE) |>
     visNetwork::visInteraction(navigationButtons = TRUE)

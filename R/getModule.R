@@ -46,22 +46,27 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
                         hasVersionSpec = !is.na(extractVersionNumber(modules)))
 
   stateDT[localExists & is.na(versionSpec), sufficient := TRUE]
+  if (any(!overwrite %in% FALSE)) {
+    if (is.logical(overwrite)) {
+      mess <- paste(overwrite, collapse = ", ")
+      modsToOverwrite <- unique(extractPkgName(modules[overwrite]))
+      mess <- paste0("c(", mess, ")")
+    } else {
+      mess <- paste(overwrite, collapse = "', '")
+      modsToOverwrite <- overwrite
+      mess <- paste0("c('", mess, "')")
+    }
+    stateDT[localExists & (modNam %in% modsToOverwrite | moduleFullName %in% modsToOverwrite),
+            sufficient := FALSE]
+    if (isTRUE(any(stateDT$localExists)))
+      messageVerbose("overwrite = ", mess,"; redownloading ", paste(modsToOverwrite, collapse = ", "))
+  }
 
-  # modsToDL <- modules
-  # messForDL <- rep("already local", length(modsToDL))
-  # names(messForDL) <- modsToDL
-
-  if (overwrite %in% FALSE) {
+  if (all(!overwrite %in% FALSE)) {
     if (any(stateDT$localExists %in% TRUE)) {
       messageVerbose("Local copies: ", verbose = verbose)
       stateDT <- checkModuleVersion(stateDT, modulePath, verbose = getOption("Require.verbose"))
-      # stateDT[localExists & !is.na(versionSpec), sufficient :=
-      #            checkModuleVersion(moduleFullName, versionSpec, modulePath, verbose = getOption("Require.verbose"))]
     }
-
-    # append modules that exist and fail test with modules don't exist
-    # modsToDL <- unique(c(modsToDLDF$modules[!modsToDLDF$sufficient %in% TRUE],
-    #                      modules[localExists %in% FALSE]))
 
   }
   stateDT[localExists %in% FALSE | sufficient %in% FALSE, needDownload := TRUE]
@@ -72,7 +77,9 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     on.exit(setwd(od))
 
     out <-
-      Map(modToDL = stateDT$moduleFullName[stateDT$needDownload %in% TRUE], function(modToDL) {
+      Map(modToDL = stateDT$moduleFullName[stateDT$needDownload %in% TRUE],
+          overwrite = stateDT$needDownload[stateDT$needDownload %in% TRUE],
+          function(modToDL, overwrite) {
         dd <- .rndstr(1)
         modNameShort <- Require::extractPkgName(modToDL)
         Require::checkPath(dd, create = TRUE)

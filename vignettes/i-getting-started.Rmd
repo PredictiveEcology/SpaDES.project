@@ -1,9 +1,9 @@
 ---
-title: "SpaDES project setup"
+title: "Getting Started"
 author: "Eliot McIntire"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{SpaDES project setup}
+  %\VignetteIndexEntry{Getting Started}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options: 
@@ -17,12 +17,13 @@ knitr::opts_chunk$set(
   echo = TRUE
 )
 
+# Most are eval=FALSE within each chunk; but a few are not. Those must be eval=FALSE on GA and CRAN
 SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
 hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
-                        Sys.info()["user"] == "emcintir")# && interactive())
+                       Sys.info()["user"] == "emcintir")# && interactive())
 options(Ncpus = 1)
 
 # options(Require.clonePkgs = TRUE)
@@ -30,55 +31,24 @@ options(Ncpus = 1)
 ```
 
 ```{r setCRAN,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
  options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
 ```
 
-# Getting started
+`SpaDES` is a collection of R packages designed to provide a flexible framework for ecological analysis, simulations, forecasting, and other ecological tasks. At its core, a `SpaDES` analysis revolves around the concept of a "module" - a self-contained unit of code that performs a specific function and includes both machine-readable and human-readable metadata. In a typical `SpaDES` project, users often employ multiple modules, whether they've authored them or they've been contributed by others. This scalability introduces several challenges, including managing file paths (e.g., for data inputs, outputs, figures, modules, and packages), handling package dependencies, and coordinating the development of multiple modules simultaneously. While it is possible to develop a `SpaDES` project using methods familiar to the user, the `SpaDES.project` package streamlines this process, facilitating a clean, reproducible and reusable project setup for any project. Default settings ensure that project files and packages are kept isolated, preventing potential conflicts with other projects on the same computer.  
 
-`SpaDES` is a set of R packages that provide a modular framework for doing ecological analysis, simulation, forecasting and other ecological objectives. The key element of a `SpaDES` analysis is the *module*: a chunk of code that does something and has computer- and human-readable metadata associated with it. It is common within a `SpaDES` project that a user will use many modules, created by them or by others. This potential *growth* of a project complexity leads to a number of challenges including paths (e.g., for data inputs, outputs, figures, modules, packages), package dependencies, and simultaneous module development and synchornization. While a `SpaDES` project can be developed like any other that a user may have already been familiar with, this `SpaDES.project` package helps to create a clean, repeatable set up for any package. The defaults will keep a given project files and pacakges isolated from other projects on a computer. 
+In the following section, we present a range of examples showcasing the utilization of the `setupProject()` function. To ensure a smooth understanding of these examples, we will begin by discussing the necessary prerequisites.  
 
-Below, we show a number of examples, from simple to moderate complexity, of the usage of `setupProject`. Since, there are a number pre-requisites, we start there.
+# Setting Up Prerequisites: Installing System Dependencies, R, and RStudio  
 
-## Installing prerequisites, system dependencies, R and Rstudio
+To get started, users should have already installed R, RStudio, and possibly other system-level dependencies.  
+[See vignette here](iv-Installing-R.html)  
 
-To begin, users will need to have installed R, Rstudio and potentially other system-level dependencies.
-[See vignette here](https://spades-project.predictiveecology.org/articles/iv-LandR-fireSense.html)
+Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios.  
 
-
-## Start working with existing modules
-
-### `setupProject` function
-
-This function does a variety of things to setup a SpaDES project, by assigned values to these arguments: 
-
-- `paths` - a standardized set of paths, 
-- `modules` -- either downloads them from a cloud repository or user identifies local ones
-- `packages` to install and/or load (`require` argument) that are not already identified in the `modules`'s metadata
-- `params` - to set parameter values for any of the `modules`
-- `options` - to set base `R` `options`
-
-See `?setupProject()` for more details.
-
-### Default values
-
-One of the important reasons for using `setupProject` is that there are many default values that can be taken advantage of, keeping code cleaner and shorter in many cases.
-
-### Setting up the `SpaDES.core::simInit` call
-
-The output from `setupProject` is a list with several named elements. These are intended to be passed directly to `simInit` to initiate a `simList` and potentially a `spades` call.
-
-#### Arguments as values or urls
-
-For most arguments, the values can either be named lists or character vectors of strings that end in `.R` that represent `urls` to cloud or local R scripts that will be sourced.  This allows a user to start with very simple argument values and progressively add arbitrary complexity as a project becomes larger. 
-
-#### Arguments sourced sequentially
-
-The argument values in each of the arguments are sourced sequentially, so a previous value can be used by a subsequent value. 
-
-SpaDES` and other packages
+# Installing `SpaDES.project`
 
 ```{r install-spades-project}
 if (!require("SpaDES.project")) {
@@ -87,48 +57,87 @@ if (!require("SpaDES.project")) {
 }
 ```
 
+# `setupProject()` function
 
-#### Arguments not sourced to .GlobalEnv
+This function performs a variety of tasks to set up a SpaDES project by assigning values to these arguments:   
 
-```{r clean1,echo=FALSE}
-## cleanup / restore state
-origLibPaths <- .libPaths()[1]
-options(Require.verbose = 2) # so install.packages isn't super verbose
-knitr::opts_knit$set(root.dir = tempdir()) 
-```
+- `paths` - A standardized set of paths.  
+- `modules` - Either downloads them from a cloud repository or user identifies local ones.  
+- `packages` - To install and/or load (using the `require` argument) packages not already identified in the metadata of the `modules`.
+- `params` - For setting parameter values for any of the `modules`.
+- `options` - To configure basic `R` `options`.  
 
+See `?setupProject()` for more details.
 
-#### Set paths for a SpaDES project
+The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call.  
+
+Next, we will outline some of the features of `setupProject` and the `setup*` family of functions.
+
+## Default values
+
+One compelling reason to use `setupProject()` is the availability of numerous default values that can be leveraged, leading to cleaner and more concise code in many instances. This code sets all default values for `paths`. 
 
 ```{r simplest}
 library(SpaDES.project)
 setupProject()
 ```
 
-#### set relative paths & modules, install packages in isolated folder
 
-```{r clean0,echo=FALSE}
-## cleanup / restore state
-knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_2"), create = TRUE ))
+## Arguments sourced sequentially
+
+The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
+
+```{r sequential,message=FALSE}
+# Use the newValue in `secondValue`
+out <- setupProject(name = "test",
+             newValue = 1,
+             secondValue = newValue + 1)
+out[c("newValue", "secondValue")]
+
 ```
+
+
+## Arguments not sourced to .GlobalEnv
+
+The `.GlobalEnv` in `R` is special because it is in the search path of any user-created function. This is very convenient, but also provides the potential for many problems. For example, a variable could be misspelled in a code chunck, but the code doesn't fail because the `.GlobalEnv` has the same variable, spelled correctly.
+
+```{r Global,eval=FALSE}
+# Gets the wrong version of the module
+githubRepo = "PredictiveEcology/Biomass_core@development" # incorrect one -- used in error
+out <- setupProject(
+             gitHubRepo = "PredictiveEcology/Biomass_core@main", # The correct one --> not used
+             modules = githubRepo,
+             packages = NULL # no packages for this demonstration
+)
+
+
+```
+
+## Paths 
+
+Some paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
+
+In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
+
+```{r simplest}
+library(SpaDES.project)
+setupProject(paths = list(modulePath = "myModules"))
+```
+
+## Get modules from GitHub
+
+This will retrieve the module as specified, and place it in `modulePath`, which is unspecified here, thus taking the default. This specification will not re-download the file if it exists locally, with a message indicating this each time. This specification will also automatically install all missing packages that are in `reqdPkgs` metadata of the module(s). NOTE: we can omit this package installation step by specifying `package = NULL`.
 
 ```{r example2,eval=FALSE}
 out <- setupProject(
-  paths = list(modulePath = "m", 
-               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  package = NULL # for this example, skip installation
 )
 ```
 
-```{r clean2,echo=FALSE}
-## cleanup / restore state
-knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_3"), create = TRUE ))
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
-```
+## With options and params set
 
-#### With options and params set
-
-
+We can start to increase the complexity of the `setupProject` call gradually. Once we have the module.
 ```{r example3,eval=FALSE}
 out <- setupProject(
   options = list(reproducible.useTerra = TRUE),
@@ -140,12 +149,16 @@ out <- setupProject(
 ```
 
 ```{r clean3,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_4"), create = TRUE ))
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-## using an options file that is remote
+### Arguments as values or urls
+
+For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. This flexibility enables users to begin with simple argument values and gradually introduce greater complexity as a project expands in scale.
+
+#### using an options file that is remote
 
 ```{r example_4,eval=FALSE} 
 out <- setupProject(
@@ -162,12 +175,12 @@ out <- setupProject(
 ```
 
 ```{r clean4,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_5"), create = TRUE ))
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-## setting arbitrary arguments, using defaultDots (1)
+# setting arbitrary arguments, using defaultDots (1)
 
 ```{r example_5,eval=FALSE}
 out <- setupProject(
@@ -185,7 +198,7 @@ out <- setupProject(
 ```
 
 ```{r clean5,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
  options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
@@ -193,7 +206,7 @@ if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_6"), create = TRUE ))
 ```
 
-## setting arbitrary arguments, using defaultDots (2)
+# setting arbitrary arguments, using defaultDots (2)
 
 ```{r example6,eval=FALSE}
 out <- setupProject(
@@ -208,12 +221,12 @@ out <- setupProject(
 ```
 
 ```{r clean6,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_7"), create = TRUE ))
 ```
 
-## Pass args from GlobalEnv
+# Pass args from GlobalEnv
 
 ```{r example7,eval=FALSE}
 studyAreaName <- "AB"
@@ -228,12 +241,12 @@ out <- setupProject(
 ```
 
 ```{r clean7,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_8"), create = TRUE ))
 ```
 
-## mixture of named list element, github file and local file for e.g., options
+# mixture of named list element, github file and local file for e.g., options
 ```{r example8,eval=FALSE}
 out <- setupProject(
   options = list(
@@ -249,33 +262,49 @@ out <- setupProject(
 ```
 
 ```{r clean8,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_9"), create = TRUE ))
 ```
 
 
-## examples with studyArea argument
+## `studyArea` argument
 
-### passed in long-lat, for Alberta and British Columbia, Canada
+`?setupStudyArea` for more details. A user can choose to use the internal `setupStudyArea` function, which will use the `gadm` global database. Setting the `studyArea` argument to a `list` will trigger the use of `setupStudyArea`.
+
+### Alberta and British Columbia, Canada
+
+In this example, we will select an area in northwestern Alberta and the adjacent northeastern BC, Canada. We use the internal matching, because we aren't sure of the exact names: for the top level (`NAME_1`), we use either "Al" or "Brit", separated by the "or" symbol, `|`. For the second level, we do the same, but specify using the names in that column. If a user does not know which values exist, they can not specify `NAME_2`, then visualize the resulting map and click on values, such as:
 
 
 ```{r example9}
-setupProject(
-  name = "example_9",
-  studyArea = list("Al|Brit")
-)
+out <- setupStudyArea(list("Al|Brit", level = 2))
+
+if (interactive()) {
+  library(quickPlot)
+  dev() # open a non-RStudio window; can't use RStudio for `clickValues` below
+  Plot(out)
+  val <- clickValues()
+  out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = val$NAME_2))
+  Plot(out, new = TRUE) # need "new = TRUE" to clear previous map 
+}
+
+# Can pick multiple parts with partial matching
+out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = "19|18|17|Peace"))
+
 ```
 
 
 ```{r clean9,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_10"), create = TRUE ))
 ```
 
 
-### example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK, with level 2 administrative boundaries
+### Specify an `epsg`
+
+We can get the `studyArea` in a different projection if we specify the `epsg` code.
 
 ```{r explanationForExample10,eval=FALSE,echo=FALSE}
 # example_10 doesn't run behind some firewalls, so fails too frequently; skip evaluation in vignette
@@ -289,14 +318,14 @@ out <- setupProject(
 ```
 
 ```{r clean10,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_11"), create = TRUE ))
 ```
 
-## `require` and `objects` arguments
+# `require` and `objects` arguments
 
-Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceeded it in the call.
+Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceded it in the call.
 
 
 ```{r example11,eval=FALSE}
@@ -316,13 +345,13 @@ out <- setupProject(
   ),
   objects = list(
     studyAreaLarge = terra::vect(
-      terra::ext(-598722.985900015, -557858.350337621,
-                 776827.300151124, 837385.414396185),
+      terra::ext(-598722, -557858,
+                 776827, 837385),
       crs = terra::crs("epsg:3978")
     ),
     studyArea = terra::vect(
-      terra::ext(-598722.985900015, -578177.124187722,
-                 779252.422377214, 809573.532597151),
+      terra::ext(-598722, -578177,
+                 779252, 809573),
       crs = terra::crs("epsg:3978")
     )
   )
@@ -332,13 +361,13 @@ out <- setupProject(
 
 
 ```{r clean11,echo=FALSE,eval=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_12"), create = TRUE ))
 ```
 
 
-## Passing named arguments as part of the `...`
+# Passing named arguments as part of the `...`
 
 Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
 
@@ -358,11 +387,11 @@ out <- setupProject(
     "PredictiveEcology/Biomass_speciesParameters@development"
   ),
   studyAreaLarge = terra::vect(
-    terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
+    terra::ext(-598722, -557858, 776827, 837385),
     crs = terra::crs("epsg:3978")
   ),
   studyArea = terra::vect(
-    terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
+    terra::ext(-598722, -578177, 779252, 809573),
     crs = terra::crs("epsg:3978")
   )
 )
@@ -370,13 +399,13 @@ out <- setupProject(
 
 
 ```{r clean12,echo=FALSE}
-## cleanup / restore state
+# cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_13"), create = TRUE ))
 ```
 
 
-## Make project-level change to .libPaths() that is persistent
+# Make project-level change to .libPaths() that is persistent
 
 ```{r example13,eval=FALSE}
 out <- setupProject(
