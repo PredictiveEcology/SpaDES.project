@@ -105,15 +105,9 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
   out
 })
 
-if (requireNamespace("igraph", quietly = TRUE) &&
-    requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE) &&
-    requireNamespace("raster", quietly = TRUE)) {
-
-  DT <- moduleDependencies(mods, modulePath = modPath)
-  graph <- moduleDependenciesToGraph(DT)
-  (vn <- PlotModuleGraph(graph))
-}
+DT <- moduleDependencies(mods, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
 ```
 
 
@@ -131,15 +125,9 @@ out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
   out
 })
 
-if (requireNamespace("igraph", quietly = TRUE) &&
-    requireNamespace("visNetwork", quietly = TRUE) &&
-    requireNamespace("SpaDES.core", quietly = TRUE) &&
-    requireNamespace("raster", quietly = TRUE)) {
-
-  DT <- moduleDependencies(mods, modulePath = modPath)
-  graph <- moduleDependenciesToGraph(DT)
-  (vn <- PlotModuleGraph(graph))
-}
+DT <- moduleDependencies(mods, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
 ```
 
 
@@ -158,6 +146,32 @@ modsLong <- listModules(grepListLong, accounts = accountsListLong)
 # The fireSense_Size* modules are no longer used
 modsLong$PredictiveEcology <- grep("Size", value = TRUE, invert = TRUE, 
                                    modsLong$PredictiveEcology)
+
+# pass to listModules for much larger figure
+modPath <- normPath(".")
+out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
+  out <- getModule(paste0(nam, "/", mod),
+                   modulePath = modPath)
+  out
+})
+
+DT <- moduleDependencies(modsLong, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
+
+
+```
+
+
+### All SpaDES modules in a set of known accounts
+
+This takes much longer to run as it scans all (open) repositories for each element of `accounts`. It will search for a relatively "lightweight" indicator of a SpaDES module, namely, a file at the top level that has the same name as the repository, but whose file extension is `.R`.
+
+```{r listModulesReallyAll,result='hide',message=FALSE,error=FALSE,warning=FALSE,fig.height=12}
+# Can do same, but with long list -- not done here -- can try
+accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
+                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
+modsLong <- listModules(accounts = accountsListLong)
 
 # pass to listModules for much larger figure
 modPath <- normPath(".")
