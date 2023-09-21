@@ -124,14 +124,14 @@ out <- setupProject(
 ```
 
 
-#### Set paths for a SpaDES project
+#### **Set paths for a SpaDES project**
 
 ```{r simplest}
 library(SpaDES.project)
 setupProject()
 ```
 
-#### set relative paths & modules, install packages in isolated folder
+#### **set relative paths & modules, install packages in isolated folder**
 
 ```{r clean0,echo=FALSE}
 ## cleanup / restore state
@@ -152,7 +152,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-#### With options and params set
+#### **With options and params set**
 
 
 ```{r example3,eval=FALSE}
@@ -281,16 +281,30 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 
-## examples with studyArea argument
+### `studyArea` argument
 
-### passed in long-lat, for Alberta and British Columbia, Canada
+`?setupStudyArea` for more details. A user can choose to use the internal `setupStudyArea` function, which will use the `gadm` global database. Setting the `studyArea` argument to a `list` will trigger the use of `setupStudyArea`.
+
+#### **Alberta and British Columbia, Canada**
+
+In this example, we will select an area in northwestern Alberta and the adjacent northeastern BC, Canada. We use the internal matching, because we aren't sure of the exact names: for the top level (`NAME_1`), we use either "Al" or "Brit", separated by the "or" symbol, `|`. For the second level, we do the same, but specify using the names in that column. If a user does not know which values exist, they can not specify `NAME_2`, then visualize the resulting map and click on values, such as:
 
 
 ```{r example9}
-out <- setupProject(
-  name = "example_9",
-  studyArea = list("Al|Brit")
-)
+out <- setupStudyArea(list("Al|Brit", level = 2))
+
+if (interactive()) {
+  library(quickPlot)
+  dev() # open a non-RStudio window; can't use RStudio for `clickValues` below
+  Plot(out)
+  val <- clickValues()
+  out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = val$NAME_2))
+  Plot(out, new = TRUE) # need "new = TRUE" to clear previous map 
+}
+
+# Can pick multiple parts with partial matching
+out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = "19|18|17|Peace"))
+
 ```
 
 
@@ -301,7 +315,9 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 
-### example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK, with level 2 administrative boundaries
+#### **Specify an `epsg`**
+
+We can get the `studyArea` in a different projection if we specify the `epsg` code.
 
 ```{r explanationForExample10,eval=FALSE,echo=FALSE}
 # example_10 doesn't run behind some firewalls, so fails too frequently; skip evaluation in vignette
@@ -322,7 +338,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## `require` and `objects` arguments
 
-Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceeded it in the call.
+Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceded it in the call.
 
 
 ```{r example11,eval=FALSE}
@@ -342,13 +358,13 @@ out <- setupProject(
   ),
   objects = list(
     studyAreaLarge = terra::vect(
-      terra::ext(-598722.985900015, -557858.350337621,
-                 776827.300151124, 837385.414396185),
+      terra::ext(-598722, -557858,
+                 776827, 837385),
       crs = terra::crs("epsg:3978")
     ),
     studyArea = terra::vect(
-      terra::ext(-598722.985900015, -578177.124187722,
-                 779252.422377214, 809573.532597151),
+      terra::ext(-598722, -578177,
+                 779252, 809573),
       crs = terra::crs("epsg:3978")
     )
   )
@@ -384,11 +400,11 @@ out <- setupProject(
     "PredictiveEcology/Biomass_speciesParameters@development"
   ),
   studyAreaLarge = terra::vect(
-    terra::ext(-598722.985900015, -557858.350337621, 776827.300151124, 837385.414396185),
+    terra::ext(-598722, -557858, 776827, 837385),
     crs = terra::crs("epsg:3978")
   ),
   studyArea = terra::vect(
-    terra::ext(-598722.985900015, -578177.124187722, 779252.422377214, 809573.532597151),
+    terra::ext(-598722, -578177, 779252, 809573),
     crs = terra::crs("epsg:3978")
   )
 )
