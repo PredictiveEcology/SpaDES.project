@@ -91,17 +91,26 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
     out <- lapply(keywords, function(mg) {
       hasKeyword <- nchar(mg) != 0
       if (hasKeyword)
-      messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
+        messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
       else
         messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
       if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
 
+      archivedLines <- grep("archived.*true", repos)
       patt <- if (hasKeyword) mg else account
+      archivedRepos <- character()
+      if (length(archivedLines)) {
+        fullName <- grep("full_name", repos)
+        repoLine <- unlist(lapply(archivedLines, function(arch) which.min(fullName < arch) - 1))
+        toArchive <- repos[fullName[repoLine]]
+        archivedRepos <- unlist(lapply(strsplit(toArchive, "\""), tail, 1))
+      }
 
       outs <- if (hasKeyword) grep(mg, repos, value = TRUE) else repos
       gitRepo <- grep("full_name", outs, value = TRUE)
       gitRepo <- strsplit(gitRepo, "\"")
       gitRepo <- grep(patt, unlist(gitRepo), value = TRUE)
+      gitRepo <- setdiff(gitRepo, archivedRepos)
       if (length(gitRepo)) {
         gitPaths <- paste0("https://github.com/", gitRepo, "/blob/master/",
                            basename(gitRepo), ".R")
