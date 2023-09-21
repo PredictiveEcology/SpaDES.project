@@ -108,90 +108,100 @@ McIntire</h4>
 <div class="section level2">
 <h2 id="getting-started">Getting started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
 </h2>
-<p><code>SpaDES</code> is a set of R packages that provide a modular
-framework for doing ecological analysis, simulation, forecasting and
-other ecological objectives. The key element of a <code>SpaDES</code>
-analysis is the <em>module</em>: a chunk of code that does something and
-has computer- and human-readable metadata associated with it. It is
-common within a <code>SpaDES</code> project that a user will use many
-modules, created by them or by others. This potential <em>growth</em> of
-a project complexity leads to a number of challenges including paths
-(e.g., for data inputs, outputs, figures, modules, packages), package
-dependencies, and simultaneous module development and synchornization.
-While a <code>SpaDES</code> project can be developed like any other that
-a user may have already been familiar with, this
-<code>SpaDES.project</code> package helps to create a clean, repeatable
-set up for any package. The defaults will keep a given project files and
-pacakges isolated from other projects on a computer.</p>
-<p>Below, we show a number of examples, from simple to moderate
-complexity, of the usage of <code>setupProject</code>. Since, there are
-a number pre-requisites, we start there.</p>
+<p><code>SpaDES</code> is a collection of R packages designed to provide
+a flexible framework for ecological analysis, simulations, forecasting,
+and other ecological tasks. At its core, a <code>SpaDES</code> analysis
+revolves around the concept of a “module” - a self-contained unit of
+code that performs a specific function and includes both
+machine-readable and human-readable metadata. In a typical
+<code>SpaDES</code> project, users often employ multiple modules,
+whether they’ve authored them or they’ve been contributed by others.
+This scalability introduces several challenges, including managing file
+paths (e.g., for data inputs, outputs, figures, modules, and packages),
+handling package dependencies, and coordinating the development of
+multiple modules simultaneously. While it is possible to develop a
+<code>SpaDES</code> project using methods familiar to the user, the
+<code>SpaDES.project</code> package streamlines this process,
+facilitating a clean, reproducible and reusable project setup for any
+project. Default settings ensure that project files and packages are
+kept isolated, preventing potential conflicts with other projects on the
+same computer.</p>
+<p>In the following section, we present a range of examples showcasing
+the utilization of the <code><a href="../reference/setupProject.html">setupProject()</a></code> function. To ensure a
+smooth understanding of these examples, we will begin by discussing the
+necessary prerequisites.</p>
 <div class="section level3">
-<h3 id="installing-prerequisites-system-dependencies-r-and-rstudio">Installing prerequisites, system dependencies, R and Rstudio<a class="anchor" aria-label="anchor" href="#installing-prerequisites-system-dependencies-r-and-rstudio"></a>
+<h3 id="setting-up-prerequisites-installing-system-dependencies-r-and-rstudio">Setting Up Prerequisites: Installing System Dependencies, R, and
+RStudio<a class="anchor" aria-label="anchor" href="#setting-up-prerequisites-installing-system-dependencies-r-and-rstudio"></a>
 </h3>
-<p>To begin, users will need to have installed R, Rstudio and
-potentially other system-level dependencies. <a href="iv-Installing-R.html">See vignette here</a></p>
+<p>To get started, users should have already installed R, RStudio, and
+possibly other system-level dependencies.<br><a href="iv-Installing-R.html">See vignette here</a></p>
+<p>Now that we’ve established the prerequisites, let’s explore various
+examples of how to use the <code><a href="../reference/setupProject.html">setupProject()</a></code> function, ranging
+from simple to moderately complex scenarios.</p>
 </div>
 <div class="section level3">
-<h3 id="start-working-with-existing-modules">Start working with existing modules<a class="anchor" aria-label="anchor" href="#start-working-with-existing-modules"></a>
+<h3 id="start-working-with-existing-modules">Start Working With Existing Modules<a class="anchor" aria-label="anchor" href="#start-working-with-existing-modules"></a>
 </h3>
 <div class="section level4">
 <h4 id="setupproject-function">
-<code>setupProject</code> function<a class="anchor" aria-label="anchor" href="#setupproject-function"></a>
+<code>setupProject()</code> function<a class="anchor" aria-label="anchor" href="#setupproject-function"></a>
 </h4>
-<p>This function does a variety of things to setup a SpaDES project, by
-assigned values to these arguments:</p>
+<p>This function performs a variety of tasks to set up a SpaDES project
+by assigning values to these arguments:</p>
 <ul>
 <li>
-<code>paths</code> - a standardized set of paths,</li>
-<li>
-<code>modules</code> – either downloads them from a cloud repository
-or user identifies local ones</li>
-<li>
-<code>packages</code> to install and/or load (<code>require</code>
-argument) that are not already identified in the <code>modules</code>’s
-metadata</li>
-<li>
-<code>params</code> - to set parameter values for any of the
-<code>modules</code>
+<code>paths</code> - A standardized set of paths.<br>
 </li>
 <li>
-<code>options</code> - to set base <code>R</code>
-<code>options</code>
+<code>modules</code> - Either downloads them from a cloud repository
+or user identifies local ones.<br>
 </li>
+<li>
+<code>packages</code> - To install and/or load (using the
+<code>require</code> argument) packages not already identified in the
+metadata of the <code>modules</code>.</li>
+<li>
+<code>params</code> - For setting parameter values for any of the
+<code>modules</code>.</li>
+<li>
+<code>options</code> - To configure basic <code>R</code>
+<code>options</code>.</li>
 </ul>
 <p>See <code>?setupProject()</code> for more details.</p>
 </div>
 <div class="section level4">
 <h4 id="default-values">Default values<a class="anchor" aria-label="anchor" href="#default-values"></a>
 </h4>
-<p>One of the important reasons for using <code>setupProject</code> is
-that there are many default values that can be taken advantage of,
-keeping code cleaner and shorter in many cases.</p>
+<p>One compelling reason to use <code><a href="../reference/setupProject.html">setupProject()</a></code> is the
+availability of numerous default values that can be leveraged, leading
+to cleaner and more concise code in many instances.</p>
 </div>
 <div class="section level4">
-<h4 id="setting-up-the-spades-coresiminit-call">Setting up the <code>SpaDES.core::simInit</code> call<a class="anchor" aria-label="anchor" href="#setting-up-the-spades-coresiminit-call"></a>
+<h4 id="setting-up-the-spades-coresiminit-call">Setting up the <code>SpaDES.core::simInit</code> Call<a class="anchor" aria-label="anchor" href="#setting-up-the-spades-coresiminit-call"></a>
 </h4>
-<p>The output from <code>setupProject</code> is a list with several
-named elements. These are intended to be passed directly to
-<code>simInit</code> to initiate a <code>simList</code> and potentially
-a <code>spades</code> call.</p>
+<p>The output from <code><a href="../reference/setupProject.html">setupProject()</a></code> is a list containing
+several named elements. These elements are designed to be passed
+directly to <code>simInit</code> to initialize a <code>simList</code>
+and, potentially, a <code>spades</code> call.</p>
 <div class="section level5">
 <h5 id="arguments-as-values-or-urls">
 <strong>Arguments as values or urls</strong><a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>
 </h5>
-<p>For most arguments, the values can either be named lists or character
-vectors of strings that end in <code>.R</code> that represent
-<code>urls</code> to cloud or local R scripts that will be sourced. This
-allows a user to start with very simple argument values and
-progressively add arbitrary complexity as a project becomes larger.</p>
+<p>For most arguments, the values can be either named lists or character
+vectors consisting of strings ending in <code>.R</code>, representing
+<code>urls</code> to cloud or local R scripts to be sourced. This
+flexibility enables users to begin with simple argument values and
+gradually introduce greater complexity as a project expands in
+scale.</p>
 </div>
 <div class="section level5">
 <h5 id="arguments-sourced-sequentially">
 <strong>Arguments sourced sequentially</strong><a class="anchor" aria-label="anchor" href="#arguments-sourced-sequentially"></a>
 </h5>
-<p>The argument values in each of the arguments are sourced
-sequentially, so a previous value can be used by a subsequent value.</p>
+<p>The argument values within each of the arguments are sourced
+sequentially. This means that a previous value can be utilized by a
+subsequent one.</p>
 <p>SpaDES` and other packages</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
@@ -214,40 +224,40 @@ sequentially, so a previous value can be used by a subsequent value.</p>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
 <span><span class="co">#&gt; Setting:</span></span>
 <span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/Rtmpu4064z'</span></span>
+<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/cache'</span></span>
+<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/inputs'</span></span>
+<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/outputs'</span></span>
+<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/modules'</span></span>
+<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/RtmpM3t4AI'</span></span>
 <span><span class="co">#&gt;   )</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
-<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/Rtmpu4064z/packages/x86_64-w64-mingw32/4.3)</span></span>
+<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/RtmpM3t4AI/packages/x86_64-w64-mingw32/4.3)</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
-<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/Rtmpu4064z/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
+<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/RtmpM3t4AI/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
 <span><span class="co">#&gt; $modules</span></span>
 <span><span class="co">#&gt; named character(0)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths</span></span>
 <span><span class="co">#&gt; $paths$cachePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/cache"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/cache"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$inputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/inputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/inputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$modulePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/modules"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/modules"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$outputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/outputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/Rtmpu4064z/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/RtmpM3t4AI/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/Rtmpu4064z"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/RtmpM3t4AI"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/Rtmpu4064z/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/RtmpM3t4AI/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -377,11 +387,11 @@ options<a class="anchor" aria-label="anchor" href="#mixture-of-named-list-elemen
 <span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
 <span><span class="co">#&gt; Setting:</span></span>
 <span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/example_9/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/example_9/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/example_9/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/example_9/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/Rtmpu4064z/example_9'</span></span>
+<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/example_9/cache'</span></span>
+<span><span class="co">#&gt;     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/example_9/inputs'</span></span>
+<span><span class="co">#&gt;     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/example_9/outputs'</span></span>
+<span><span class="co">#&gt;     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/example_9/modules'</span></span>
+<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpM3t4AI/example_9'</span></span>
 <span><span class="co">#&gt;   )</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
 <span><span class="co">#&gt; Copying SpaDES.project, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/example_9/packages/x86_64-w64-mingw32/4.3)</span></span>

@@ -50,6 +50,15 @@ To get started, users should have already installed R, RStudio, and possibly oth
 
 Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios.  
 
+## Installing `SpaDES.promect`
+
+```{r install-spades-project}
+if (!require("SpaDES.project")) {
+  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+   require("SpaDES.project")}
+}
+```
+
 ## Start Working With Existing Modules
 
 ### `setupProject()` function
@@ -80,14 +89,11 @@ For most arguments, the values can be either named lists or character vectors co
 
 The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
 
-SpaDES` and other packages
+```{r sequential}
 
-```{r install-spades-project}
-if (!require("SpaDES.project")) {
-  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
-   require("SpaDES.project")}
-}
+
 ```
+
 
 
 #### **Arguments not sourced to .GlobalEnv**
