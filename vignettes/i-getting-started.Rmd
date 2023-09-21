@@ -50,9 +50,23 @@ To get started, users should have already installed R, RStudio, and possibly oth
 
 Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios.  
 
-## Start Working With Existing Modules
+## Understanding `SpaDES.project`'s Main Function: `setupProject()`
 
-### `setupProject()` function
+### Function objectives
+
+The primary five objectives of this function are:
+
+**1. Preparation for simInit:** These functions are designed to set the stage for a smooth transition into the simInit phase. 
+
+**2. Minimizing .GlobalEnv Assignments:** An important goal is to encourage best practices by reducing the need for assignments to the .GlobalEnv. This practice fosters clean, maintainable code that remains reproducible even as project complexity grows. 
+
+**3. Simplicity for Beginners, Versatility for Experts:** The functions are crafted to be approachable for beginners, offering simplicity, while at the same time, providing the power and flexibility needed to address the demands of highly intricate projects, all within the same structural framework. 
+
+**4. Handling Package Complexity:** These functions address the complexities associated with R package installation and loading, especially when working with modules created by various users. 
+
+**5. Creating a Standardized Project Structure:** They facilitate the establishment of a consistent SpaDES project structure. This uniformity eases the transition from one project to another, regardless of project complexity, promoting a seamless and efficient workflow.  
+
+### Function Tasks
 
 This function performs a variety of tasks to set up a SpaDES project by assigning values to these arguments:   
 
@@ -62,25 +76,160 @@ This function performs a variety of tasks to set up a SpaDES project by assignin
 - `params` - For setting parameter values for any of the `modules`.
 - `options` - To configure basic `R` `options`.  
 
-See `?setupProject()` for more details.
+More specifically, this function orchestrates a series of operations in the following order: `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`, `setupSideEffects`, `setupParams`, and `setupGitIgnore`. This sequence accomplishes several tasks, including the creation of folder structures, installation of missing packages listed in either the `packages` or `require` arguments, loading of packages (limited to those specified in the `require` argument), configuration of options, and the download or validation of modules. Additionally, it returns elements that can be directly passed to `simInit` or `simInitAndSpades`, specifically modules, params, paths, times, and any named elements passed to ... (`Dots`). If desired, this function can also modify the `.Rprofile` file for the project, ensuring that each time the project is opened, it adopts specific `.libPaths()`.  
 
-### Default values
+This sequence allows users to leverage settings (i.e., objects) that are established before others. More on this below (section ### What Makes this Function so Special).  
+
+For user convenience, there are several auxiliary elements, as described in the help file of the function: `?setupProject()`.
+
+### Function arguments  
+
+The full list of arguments is as follow:  
+
+```
+setupProject(
+  name,
+  paths,
+  modules,
+  packages,
+  times,
+  options,
+  params,
+  sideEffects,
+  config,
+  require = NULL,
+  studyArea = NULL,
+  Restart = getOption("SpaDES.project.Restart", FALSE),
+  useGit = FALSE,
+  setLinuxBinaryRepo = TRUE,
+  standAlone = TRUE,
+  libPaths = NULL,
+  updateRprofile = getOption("Require.updateRprofile", FALSE),
+  overwrite = FALSE,
+  verbose = getOption("Require.verbose", 1L),
+  defaultDots,
+  dots,
+  ...
+)
+```
+  
+  
+Below is a detailed explanation of each argument. This is also available in the function's help file, but is here for convenience.  
+
+
+| Argument               | Description                                                                                                      |
+|------------------------|------------------------------------------------------------------------------------------------------------------|
+| **name**               | Optional. If supplied, the name of the project. If not supplied, an attempt will be made to extract the name from the `paths[["projectPath"]]`. If this is a GitHub project, then it should indicate the full Github repository and branch name, e.g., "PredictiveEcology/WBI_forecasts@ChubatyPubNum12" |
+| **paths**              | A list with named elements, specifically, modulePath, projectPath, packagePath and all others that are in `SpaDES.core::setPaths()` (i.e., inputPath, outputPath, scratchPath, cachePath, rasterTmpDir). Each of these has a sensible default, which will be overridden by any user supplied values. See `setup`. |
+| **modules**            | A character string of modules to pass to `getModule`. These should be one of: simple name (e.g., fireSense) which will be searched for locally in the `paths[["modulePath"]]`; or a GitHub repo with branch (GitHubAccount/Repo@branch e.g., "PredictiveEcology/Biomass_core@development"); or a character vector that identifies one or more (not optional file extension) .R file(s) (local or GitHub) to parse that will produce a character vector assigned to the name "modules". If the entire project is a git repository, then it will not try to re-get these modules; instead it will rely on the user managing their git status outside of this function. See `setup`. |
+| **packages**           | Optional. A vector of packages that must exist in the libPaths. This will be passed to `Require::Install`, i.e., these will be installed, but not attached to the search path. See also the `require` argument. To force skip package installation (without assessing modules), set `packages = NULL`. |
+| **times**              | Optional. This will be returned if supplied; if supplied, the values can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`. See help for `SpaDES.core::simInit`. |
+| **options**            | Optional. Either a named list to be passed to `options` or a character vector indicating one or more file(s) to source, in the order provided. These will be sourced into a temporary environment (not the .GlobalEnv), so they will not create globally accessible objects. See details. See `setup`. |
+| **params**             | Optional. Similar to options, however, this named list will be returned, i.e., there are no side effects. See `setup`. |
+| **sideEffects**        | Optional. This can be an expression or one or more filenames or a code chunk surrounded by `{...}`. If a non-text files is specified (e.g., not .txt or .R currently), these files will simply be downloaded, using their relative path as specified in the github notation. They will be downloaded or accessed locally at that relative path. If these file names represent scripts, this/these will be parsed and evaluated, but nothing returned. This is intended to be used for functions, such as cloud authentication or configurations, that are run for their side effects only. |
+| **config**             | Still experimental linkage to the SpaDES.config package. Currently not working. |
+| **require**            | Optional. A character vector of packages to install and attach (with Require::Require). These will be installed and attached at the start of setupProject so that a user can use these during setupProject. See `setup`. |
+| **studyArea**          | Optional. If a list, it will be passed to `geodata::gadm`. To specify a country other than the default "CAN", the list must have a named element, "country". All other named elements will be passed to gadm. 2 additional named elements can be passed for convenience, `subregion = "..."`, which will be grepped with the column NAME_1, and `epsg = "..."`, so a user can pass an epsg.io code to reproject the studyArea. See examples. |
+| **Restart**            | If the projectPath is not the current path, and the session is in RStudio, and interactive, it will create an RStudio Project file (and .Rproj.user folder), restart with a new Rstudio session with that new project and with a root path (i.e. working directory) set to projectPath. Default is FALSE, and no RStudio Project is created. |
+| **useGit**             | A logical. If TRUE, it will use `git clone` and `git checkout` to get and change branch for each module, according to its specification in `modules`. Otherwise it will download modules with `getModules`. NOTE: CREATING A GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. |
+| **setLinuxBinaryRepo** | Logical. Should the binary RStudio Package Manager be used on Linux (ignored if Windows). |
+| **standAlone**         | A logical. Passed to `Require::standAlone`. This keeps all packages installed in a project-level library, if TRUE. Default is TRUE. |
+| **libPaths**           | Deprecated. Use `paths = list(packagePath = ...)`. |
+| **updateRprofile**     | Logical. Should the `paths$packagePath` be set in the .Rprofile file for this project. Note: if `paths$packagePath` is within the `tempdir()`, then there will be a warning, indicating this won't persist. If the user is using Rstudio and the `paths$projectPath` is not the root of the current Rstudio project, then a warning will be given, indicating the .Rprofile may not be read upon restart. |
+| **overwrite**          | Logical. Passed to `getModule`, and `setupParams`, `setupOptions`. |
+| **verbose**            | Numeric or logical indicating how verbose should the function be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE, then minimal outputs; if 1 or TRUE, more outputs; 2 even more. NOTE: in Require function, when verbose >= 2, the return object will have an attribute: attr(.., "Require") which has lots of information about the processes of the installs. |
+| **defaultDots**        | A named list of any arbitrary R objects. These can be supplied to give default values to objects that are otherwise passed in with the ..., i.e., not specifically named for these `setup*` functions. If named objects are supplied as top-level arguments, then the `defaultDots` will be overridden. This can be particularly useful if the arguments passed to ... do not always exist, but rely on external e.g., batch processing to optionally fill them. See examples. |
+| **dots**               | Any other named objects passed as a list a user might want for other elements. |
+| **...**                | Further named arguments that act like objects, but in a different way to specify them. These can be anything. The general use case is to create the objects that would be passed to `SpaDES.core::simInit`, or `SpaDES.core::simInitAndSpades`, (e.g. `studyAreaName` or `objects`) or additional objects to be passed to the simulation (in older versions of `SpaDES.core`, these were passed as a named list to the `objects` argument). Order matters. These are sequentially evaluated, and also any arguments that are specified before the named arguments e.g., `name`, `paths`, will be evaluated prior to any of the named arguments, i.e., "at the start" of the `setupProject`. If placed after the first named argument, then they will be evaluated at the end of the `setupProject`, so can access all the packages, objects, etc. |  
+
+### Default Values
 
 One compelling reason to use `setupProject()` is the availability of numerous default values that can be leveraged, leading to cleaner and more concise code in many instances.  
 
-### Setting up the `SpaDES.core::simInit` Call
+### What Makes this Function so Special 
 
-The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call.  
+In addition to its capability to specify paths, options, and parameters for the entire simulation or workflow, regardless of the modules used, this function offers three distinct advantages that enhance its convenience, detailed below:  
 
-#### **Arguments as values or urls**
+*1. Versatile Argument Types:* Arguments can be provided as both values and/or URLs, allowing flexibility in how information is sourced and integrated into the setup.  
 
-For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. This flexibility enables users to begin with simple argument values and gradually introduce greater complexity as a project expands in scale.
+*2. Sequential Argument Processing:* Arguments are sourced in a sequential manner during function evaluation. This sequential processing enables a logical flow and great flexibility in setting up the project.
 
-#### **Arguments sourced sequentially**
+*3. Handling Missing Values:* The function accommodates missing values gracefully, making it adaptable to various project scenarios where certain parameters or information may not be yet available.  
 
-The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
+#### **1. Versatile Argument Types**  
 
-SpaDES` and other packages
+The first important advantage of `setupProject()` is the type of inputs for arguments it can take, which can be lists of, and/or paths. For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. More specifically, the function arguments `paths`, `options`, and `params`, can all understand lists of named values, character vectors, or a mixture by using a list where named elements are values and unnamed elements are character strings/vectors. *Any unnamed character string/vector will be treated as a file path.* If that file path has an @ symbol, it will be assumed to be a file that exists on ⁠https://github.com. So a user can pass values, or pointers to remote and/or local paths that, themselves, have values.  
+
+The following will set an option as declared (i.e., `reproducible.useTerra = TRUE`), plus read the local `inst/options.R` file (with relative path), plus download and read the cloud-hosted `PredictiveEcology/SpaDES.project@transition/inst/options.R` file.    
+
+```
+setupProject(
+   options = list(reproducible.useTerra = TRUE,
+                  "inst/options.R",
+                  "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+                 )
+   )
+```  
+
+This approach allows for an organic growth of complexity, e.g., a user begins with only named lists of values, but then as the number of values increases, it may be helpful for clarity to put some in an external file.  
+
+#### **2. Sequential Argument Processing**  
+
+The second important advantage of `setupProject()`, briefly mentioned above, is that argument values within each of the function arguments are sourced in a sequential manner. This implies that a prior value can be leveraged by a subsequent one _within the same function call_. For example, users can set paths, and subsequently, employ the paths list to configure options that can update or modify paths as needed. Similarly, users can set times and apply the times list for specific entries in the parameters (`params`) configuration. For instance, consider the following example, where `projectPath` is included as part of the list assigned to the `paths` argument. This value is then utilized in the subsequent list element:
+
+```
+setupPaths(paths = list(projectPath = "here",
+                        modulePath = file.path(paths[["projectPath"]], "modules"))) # Note how 'modulePaths' is passed based on the previous argument 'projectPath' in the same function call.
+```  
+
+Because of such sequential evaluation, `paths`, `options`, and `params` files can be sequential lists that have impose a hierarchy specified by the order. In a more complex example, a user can first create a list of default options, then several lists of user-desired options behind an ⁠if `(user("userNamer"))`⁠ block that adds new or overrides existing elements, followed by machine specific values, such as paths:  
+
+```
+setupOptions(
+  maxMemory <- 5e+9 # if (grepl("LandWeb", runName)) 5e+12 else 5e+9
+
+  # Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`
+  #  or `setupProject`
+  if (.mode == "development") {
+     list(test = 2)
+  }
+  if (machine("A127")) {
+    list(test = 3)
+  }
+)
+```  
+
+#### **3. Handling Missing Values**  
+
+To facilitate batch submission, users can specify arguments in the form of `argument = value`, even when `value` is missing (i.e., not previously defined in the Environment). This unconventional approach may not typically work with standard argument parsing, but it has been specifically designed to function within this context. For instance, in the following example, you can specify `.mode = .mode`. If R cannot find a valid value for `.mode` on the right-hand side, it will gracefully skip without raising an error. This feature enables users to source a script with the following line from a batch script where `.mode` is specified. When running this line separately, without the batch script specification, `.mode` will have no value assigned to it. Additionally, we include `.nodes` as an example of passing a value that does exist. In the output, the non-existent `.mode` will be returned as an unevaluated, captured list element:   
+
+```
+.nodes <- 2
+out <- setupProject(.mode = .mode,
+                    .nodes = .nodes,
+                    options = "https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/inst/options.R"
+                    )
+```
+
+
+### Relationship between `setupProject()` and `SpaDES.core::simInit` Call
+
+The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call.   
+
+### See Also  
+
+In R, checkout the help files for other functions such as: 
+`?setupPaths`
+`?setupOptions`
+`?setupPackages`
+`?setupModules`
+`?setupGitIgnore`  
+
+Other helpful functions that are worse going though are `?user`, `?machine`, and `?node`.  
+
+## Other examples of usage of `setupProject()`
+
+### SpaDES` and other packages
 
 ```{r install-spades-project}
 if (!require("SpaDES.project")) {
@@ -90,7 +239,7 @@ if (!require("SpaDES.project")) {
 ```
 
 
-#### **Arguments not sourced to .GlobalEnv**
+### **Arguments not sourced to .GlobalEnv**
 
 ```{r clean1,echo=FALSE}
 ## cleanup / restore state
@@ -100,14 +249,14 @@ knitr::opts_knit$set(root.dir = tempdir())
 ```
 
 
-#### Set paths for a SpaDES project
+### Set paths for a SpaDES project
 
 ```{r simplest}
-library(SpaDES.project)
+library("SpaDES.project")
 setupProject()
 ```
 
-#### set relative paths & modules, install packages in isolated folder
+### Set relative paths & modules, install packages in isolated folder
 
 ```{r clean0,echo=FALSE}
 ## cleanup / restore state
@@ -128,7 +277,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-#### With options and params set
+### With options and params set
 
 
 ```{r example3,eval=FALSE}
@@ -147,7 +296,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-## using an options file that is remote
+### Using an Options File that is Remote
 
 ```{r example_4,eval=FALSE} 
 out <- setupProject(
@@ -169,7 +318,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-## setting arbitrary arguments, using defaultDots (1)
+### Setting arbitrary arguments, using defaultDots (1)
 
 ```{r example_5,eval=FALSE}
 out <- setupProject(
@@ -195,7 +344,7 @@ if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_6"), create = TRUE ))
 ```
 
-## setting arbitrary arguments, using defaultDots (2)
+### Setting arbitrary arguments, using defaultDots (2)
 
 ```{r example6,eval=FALSE}
 out <- setupProject(
@@ -215,7 +364,7 @@ out <- setupProject(
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_7"), create = TRUE ))
 ```
 
-## Pass args from GlobalEnv
+## Pass args from GlobalEnv  
 
 ```{r example7,eval=FALSE}
 studyAreaName <- "AB"
@@ -235,7 +384,8 @@ out <- setupProject(
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_8"), create = TRUE ))
 ```
 
-## mixture of named list element, github file and local file for e.g., options
+### mixture of named list element, github file and local file for e.g., options  
+
 ```{r example8,eval=FALSE}
 out <- setupProject(
   options = list(
@@ -257,9 +407,9 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 
-## examples with studyArea argument
+### Examples with StudyArea Argument
 
-### passed in long-lat, for Alberta and British Columbia, Canada
+#### passed in long-lat, for Alberta and British Columbia, Canada
 
 
 ```{r example9}
@@ -277,7 +427,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 
-### example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK, with level 2 administrative boundaries
+#### Example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK, with level 2 administrative boundaries
 
 ```{r explanationForExample10,eval=FALSE,echo=FALSE}
 # example_10 doesn't run behind some firewalls, so fails too frequently; skip evaluation in vignette
@@ -296,7 +446,7 @@ out <- setupProject(
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_11"), create = TRUE ))
 ```
 
-## `require` and `objects` arguments
+### `require` and `objects` arguments
 
 Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceeded it in the call.
 
@@ -340,7 +490,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 
-## Passing named arguments as part of the `...`
+### Passing named arguments as part of the `...`
 
 Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
 
@@ -378,7 +528,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 
-## Make project-level change to .libPaths() that is persistent
+### Make project-level change to .libPaths() that is persistent
 
 ```{r example13,eval=FALSE}
 out <- setupProject(
