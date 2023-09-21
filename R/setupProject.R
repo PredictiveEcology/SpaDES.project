@@ -972,7 +972,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
         opt <- options(Require.offlineMode = FALSE)
         on.exit(try(options(opt), silent = TRUE))
       }
-      out <- getModule(modules, paths[["modulePath"]], overwrite)
+      out <- getModule(modules, paths[["modulePath"]], overwrite = overwrite)
       if (isTRUE(offlineMode))
         options(opt)
       anyfailed <- out$failed
