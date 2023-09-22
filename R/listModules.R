@@ -71,7 +71,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @rdname listModules
 #' @seealso
 #' [metadataInModules()] helps to see different metadata elements in a folder of modules.
-#' @importFrom utils download.file
+#' @importFrom utils download.file stack
 #' @export
 #' @examples
 #' listModules(accounts = "PredictiveEcology", "none")
@@ -149,7 +149,7 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
     })
     setdiff(unlist(out), omit)
   })
-  st <- stack(outs)
+  st <- utils::stack(outs)
   st <- paste(st$ind, st$values, sep = "/")
   if (isTRUE(returnList))
     return(outs)

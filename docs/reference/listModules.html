@@ -24,7 +24,7 @@ and their interdependencies."><!-- mathjax --><script src="https://cdnjs.cloudfl
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9004</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9005</span>
       </span>
     </div>
 
@@ -83,8 +83,12 @@ and their interdependencies.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">listModules</span><span class="op">(</span></span>
 <span>  <span class="va">keywords</span>,</span>
 <span>  <span class="va">accounts</span>,</span>
+<span>  includeForks <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  includeArchived <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  excludeStale <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  omit <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fireSense_dataPrepFitRas"</span><span class="op">)</span>,</span>
 <span>  purge <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  returnList <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"Require.verbose"</span>, <span class="fl">1L</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -110,6 +114,23 @@ modules</p></dd>
 <code>PredictiveEcology</code> to search.</p></dd>
 
 
+<dt>includeForks</dt>
+<dd><p>Should the returned list include repositories that are forks
+(i.e., not the original repository). Default is <code>FALSE</code>.</p></dd>
+
+
+<dt>includeArchived</dt>
+<dd><p>Should the returned list include repositories that are archived
+(i.e., developer has retired them). Default is <code>FALSE</code>.</p></dd>
+
+
+<dt>excludeStale</dt>
+<dd><p>Logical or date. If <code>TRUE</code>, then only repositories that are still active
+(commits in the past 2 years) are returned. If a date (e.g., "2021-01-01"),
+then only repositories with commits since that date are returned.
+Default is <code>TRUE</code>, i.e., only include active in past 2 years.</p></dd>
+
+
 <dt>omit</dt>
 <dd><p>A vector of character strings of repositories to ignore.</p></dd>
 
@@ -117,6 +138,13 @@ modules</p></dd>
 <dt>purge</dt>
 <dd><p>There is some internal caching that occurs. Setting this to <code>TRUE</code> will
 remove any cached data that is part of the requested <code>accounts</code> and <code>keywords</code>.</p></dd>
+
+
+<dt>returnList</dt>
+<dd><p>Should the function return a named list where the name is the <code>account</code>
+and the elements are the <code>repositories</code> selected. Default <code>FALSE</code>, i.e., return
+a character vector. This is included to allow a user to maintain backwards compatibility
+by setting <code>returnList = TRUE</code></p></dd>
 
 
 <dt>verbose</dt>
@@ -129,8 +157,8 @@ processes of the installs.</p></dd>
 
 
 <dt>modules</dt>
-<dd><p>A named list of character strings of full module names, as returned
-by <code>listModules</code>.</p></dd>
+<dd><p>Either a character vector of local module names, or a named list
+of character strings of short module names (i.e., the folder paths in <code>modulePath</code>).</p></dd>
 
 
 <dt>modulePath</dt>
@@ -150,7 +178,8 @@ objects in modules. Likely from <code>moduleDependencies</code>.</p></dd>
     <h2>Value</h2>
     
 
-<p><code>listModules</code> returns a named list of all SpaDES modules in the given repositories with
+<p><code>listModules</code> returns a character vector of paste0(account, "/", Repository) for
+all SpaDES modules in the given repositories with
 the <code>accounts</code> and <code>keywords</code> provided.</p>
     </div>
     <div id="see-also">
@@ -161,10 +190,9 @@ the <code>accounts</code> and <code>keywords</code> provided.</p>
     <div id="ref-examples">
     <h2>Examples</h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">listModules</span><span class="op">(</span>accounts <span class="op">=</span> <span class="st">"PredictiveEcology"</span>, <span class="st">"none"</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Using GITHUB_PAT to access files on GitHub</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> searching keyword: none in PredictiveEcology</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $PredictiveEcology</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> character(0)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

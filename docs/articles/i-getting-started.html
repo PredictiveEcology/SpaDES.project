@@ -39,7 +39,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9004</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9005</span>
       </span>
     </div>
 
@@ -143,7 +143,7 @@ the package.</p>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"SpaDES.project"</span>, repos <span class="op">=</span> <span class="st">"predictiveecology.r-universe.dev"</span><span class="op">)</span></span>
+<span>  <span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"SpaDES.project"</span>, repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"predictiveecology.r-universe.dev"</span>, <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"repos"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span>   <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">}</span></span>
 <span><span class="op">}</span></span></code></pre></div>
 </div>
@@ -305,7 +305,7 @@ file.</p>
 <span><span class="co">#&gt;                             optionName</span></span>
 <span><span class="co">#&gt;                                                           newValue</span></span>
 <span><span class="co">#&gt;  1:                                                           TRUE</span></span>
-<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project</span></span>
+<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project</span></span>
 <span><span class="co">#&gt;  3:                                                     1048576000</span></span>
 <span><span class="co">#&gt;  4:                                                          FALSE</span></span>
 <span><span class="co">#&gt;  5:                                                              1</span></span>
@@ -344,7 +344,7 @@ file.</p>
 <span><span class="co">#&gt; 15:                                                                    </span></span>
 <span><span class="co">#&gt; 16:                                                               FALSE</span></span>
 <span><span class="co">#&gt; 17:                                                               FALSE</span></span>
-<span><span class="co">#&gt; 18: C:\\Users\\emcintir\\AppData\\Local\\Temp\\RtmpS267u9/SpaDES/inputs</span></span>
+<span><span class="co">#&gt; 18: C:\\Users\\emcintir\\AppData\\Local\\Temp\\RtmpC4WDaS/SpaDES/inputs</span></span>
 <span><span class="co">#&gt; 19:                                                           &lt;list[5]&gt;</span></span>
 <span><span class="co">#&gt; 20:                                                                   1</span></span>
 <span><span class="co">#&gt; 21:                                                                TRUE</span></span>
@@ -473,13 +473,13 @@ default values for <code>paths</code>.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -569,13 +569,13 @@ assumes the current directory is the desired root of the project.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpC4WDaS/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -616,7 +616,8 @@ package installation step by specifying <code>package = NULL</code>.</p>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"m"</span>,</span>
 <span>               projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="arguments-as-values-or-urls">Arguments as values or urls<a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>

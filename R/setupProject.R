@@ -86,7 +86,8 @@ utils::globalVariables(c(
 #'   `modules`. Otherwise it will download modules with `getModules`. NOTE: *CREATING* A
 #'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 #'   NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
-#'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.
+#'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
+#'   be set with the `option(SpaDES.project.useGit = xxx)`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
@@ -339,7 +340,8 @@ setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, config,
                          require = NULL, studyArea = NULL,
                          Restart = getOption("SpaDES.project.Restart", FALSE),
-                         useGit = FALSE, setLinuxBinaryRepo = TRUE,
+                         useGit = getOption("SpaDES.project.useGit", FALSE),
+                         setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = NULL,
                          updateRprofile = getOption("Require.updateRprofile", FALSE),
                          overwrite = FALSE, # envir = environment(),
@@ -916,7 +918,8 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' depends on (`reqsPkgs`)
 #'
 #' @importFrom tools file_ext
-setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE, envir = environment(),
+setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.project.useGit", FALSE),
+                         overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -1044,6 +1047,8 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     continue <- 3L
     while (continue) {
       mp <- unname(unlist(modulePackages))
+      if (!any(grepl("SpaDES.core", extractPkgName(mp))))
+        mp <- c(mp, "SpaDES.core")
       # requireToTry <- unique(c(mp, require))
       packagesToTry <- unique(c(packages, mp, require))
       requirePkgNames <- Require::extractPkgName(require)

@@ -87,7 +87,7 @@ Account <- "PredictiveEcology"
 grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
 mods <- listModules(grepListShort, accounts = Account)
 
-modPath <- normPath(".")
+modPath <- normPath(tempdir2())
 getModule(mods, modulePath = modPath)
 
 DT <- moduleDependencies(mods, modulePath = modPath)
@@ -102,7 +102,6 @@ Account <- "PredictiveEcology"
 grepListShort <- "fireSense"
 mods <- listModules(grepListShort, accounts = Account)
 
-modPath <- normPath(".")
 getModule(mods, modulePath = modPath)
 
 DT <- moduleDependencies(mods, modulePath = modPath)
@@ -118,7 +117,6 @@ Account <- "PredictiveEcology"
 grepListShort <- "Biomass_|LandR"
 mods <- listModules(grepListShort, accounts = Account)
 
-modPath <- normPath(".")
 getModule(mods, modulePath = modPath)
 
 DT <- moduleDependencies(mods, modulePath = modPath)
@@ -141,7 +139,6 @@ grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
 modsLong <- listModules(grepListLong, accounts = accountsListLong)
 
 # pass to listModules for much larger figure
-modPath <- normPath(".")
 getModule(modsLong, modulePath = modPath)
 
 DT <- moduleDependencies(modsLong, modulePath = modPath)
@@ -163,7 +160,6 @@ accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
 modsLong <- listModules(accounts = accountsListLong)
 
 # pass to listModules for much larger figure
-modPath <- normPath(".")
 getModule(modsLong, modulePath = modPath)
 
 DT <- moduleDependencies(modsLong, modulePath = modPath)
