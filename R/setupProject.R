@@ -1778,6 +1778,9 @@ setupStudyArea <- function(studyArea, paths, envir) {
 
     studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
     epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
+
+    studyArea[["epsg"]] <- NULL
+
     studyAreaOrig <- studyArea
     studyArea <- withCallingHandlers(do.call(geodata::gadm, as.list(geodatCall[-1])),
                                      message = function(m)
@@ -1808,7 +1811,7 @@ setupStudyArea <- function(studyArea, paths, envir) {
     }
     if (!is.null(epsg))
       if (requireNamespace("terra")) {
-         studyArea |> terra::project(epsg)
+         studyArea <- studyArea |> terra::project(epsg)
       } else {
         warning("Could not reproject; need ")
       }
