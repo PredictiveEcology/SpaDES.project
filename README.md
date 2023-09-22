@@ -74,7 +74,7 @@ See [this package readme](https://htmlpreview.github.io/?https://raw.githubuserc
 [![Codecov test coverage](https://codecov.io/gh/PredictiveEcology/SpaDES.project/branch/development/graph/badge.svg)](https://app.codecov.io/gh/PredictiveEcology/SpaDES.project?branch=development)
 
 ```r
-install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+install.packages("SpaDES.project", repos = c("predictiveecology.r-universe.dev", getOption("repos")))
 ```
 
 ### Get modules in a new project 

@@ -58,7 +58,7 @@ Now that we've established the prerequisites, let's explore various examples of 
 
 ```{r install-spades-project,eval=TRUE}
 if (!require("SpaDES.project")) {
-  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+  {install.packages("SpaDES.project", repos = c("predictiveecology.r-universe.dev", getOption("repos")))
    require("SpaDES.project")}
 }
 ```

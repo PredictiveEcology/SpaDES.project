@@ -21,10 +21,15 @@ SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "ter
 hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
-knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
-                        Sys.info()["user"] == "emcintir")# && interactive())
-options(Ncpus = 1)
+scalls <- sys.calls()
+a <- format(scalls)
 
+# Run everything during `pkgdown::build_*` (which uses rmarkdown::render)
+knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
+                        Sys.info()["user"] == "emcintir" && 
+  any(grepl("rmarkdown::render", a)))# && interactive())
+
+options(Ncpus = 1)
 if (Sys.info()["user"] == "emcintir") {
   knitr::opts_knit$set(root.dir = Require::checkPath(file.path("c:/Eliot/tmp", "listModules"), create = TRUE ))
 } else { 
@@ -46,7 +51,7 @@ if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
 
 ```{r install-spades-project}
 if (!require("SpaDES.project")) {
-  {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
+  {install.packages("SpaDES.project", repos = c("predictiveecology.r-universe.dev", getOption("repos")))
    require("SpaDES.project")}
 }
 ```
@@ -83,11 +88,7 @@ grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
 mods <- listModules(grepListShort, accounts = Account)
 
 modPath <- normPath(".")
-out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-  modulePath = modPath)
-  out
-})
+getModule(mods, modulePath = modPath)
 
 DT <- moduleDependencies(mods, modulePath = modPath)
 graph <- moduleDependenciesToGraph(DT)
@@ -100,15 +101,9 @@ graph <- moduleDependenciesToGraph(DT)
 Account <- "PredictiveEcology"
 grepListShort <- "fireSense"
 mods <- listModules(grepListShort, accounts = Account)
-# The fireSense_Size* modules are no longer used
-mods$PredictiveEcology <- grep("Size", value = TRUE, invert = TRUE, mods$PredictiveEcology)
 
 modPath <- normPath(".")
-out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-  modulePath = modPath)
-  out
-})
+getModule(mods, modulePath = modPath)
 
 DT <- moduleDependencies(mods, modulePath = modPath)
 graph <- moduleDependenciesToGraph(DT)
@@ -124,11 +119,7 @@ grepListShort <- "Biomass_|LandR"
 mods <- listModules(grepListShort, accounts = Account)
 
 modPath <- normPath(".")
-out <- Map(mod = mods, nam = names(mods), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-  modulePath = modPath)
-  out
-})
+getModule(mods, modulePath = modPath)
 
 DT <- moduleDependencies(mods, modulePath = modPath)
 graph <- moduleDependenciesToGraph(DT)
@@ -148,17 +139,10 @@ grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
                   "priority", "fire",
                   "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
 modsLong <- listModules(grepListLong, accounts = accountsListLong)
-# The fireSense_Size* modules are no longer used
-modsLong$PredictiveEcology <- grep("Size", value = TRUE, invert = TRUE, 
-                                   modsLong$PredictiveEcology)
 
 # pass to listModules for much larger figure
 modPath <- normPath(".")
-out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-                   modulePath = modPath)
-  out
-})
+getModule(modsLong, modulePath = modPath)
 
 DT <- moduleDependencies(modsLong, modulePath = modPath)
 graph <- moduleDependenciesToGraph(DT)
@@ -180,11 +164,7 @@ modsLong <- listModules(accounts = accountsListLong)
 
 # pass to listModules for much larger figure
 modPath <- normPath(".")
-out <- Map(mod = modsLong, nam = names(modsLong), function(mod, nam) {
-  out <- getModule(paste0(nam, "/", mod),
-                   modulePath = modPath)
-  out
-})
+getModule(modsLong, modulePath = modPath)
 
 DT <- moduleDependencies(modsLong, modulePath = modPath)
 graph <- moduleDependenciesToGraph(DT)
