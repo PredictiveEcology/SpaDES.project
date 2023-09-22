@@ -424,7 +424,7 @@ setupProject <- function(name, paths, modules, packages,
 
   # 2nd time
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envir,
-                       verbose = verbose - 2)
+                       verbose = verbose - 1)
   if (!is.null(opts$newOptions))
     opts <- mergeOpts(opts, optsFirst, verbose)
 
@@ -2031,14 +2031,20 @@ parseEnvsWithNamedListsSequentially <- function(envs2) {
 mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L)) {
   b <- opts$updates
   a <- optsFirst$updates
-  d <- b[a, on = "optionName"]
-  if (!is.null(d)) {
-    messageVerbose(yellow("options setup:"), verbose = verbose, verboseLevel = 0)
-    d[unlist(lapply(newValue, is.null)), newValue := i.newValue]
-    d[, oldValue := i.oldValue]
-    d[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
-    messageDF(opts$updates, verbose = verbose)
+  if (!is.null(b))
+  a <- b[a, on = "optionName"]
+  if (!is.null(a)) {
+    messageVerbose(yellow("  options changed:"), verbose = verbose, verboseLevel = 0)
+    if (!is.null(b)) {
+      a[unlist(lapply(newValue, is.null)), newValue := i.newValue]
+      a[, oldValue := i.oldValue]
+      a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+    }
+    messageDF(a, verbose = verbose)
+  } else {
+    messageVerbose(yellow("  no options changed"), verbose = verbose, verboseLevel = 0)
   }
-  opts$updates <- d
+
+  opts$updates <- a
   opts
 }
