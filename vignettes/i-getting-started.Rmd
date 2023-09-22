@@ -222,7 +222,7 @@ out$modules # shows @development, which is unexpected
 
 ## Paths 
 
-Some paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
+All paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders, are place in a subfolder of `tempdir()`. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
 
 In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
 
@@ -261,11 +261,11 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-### Arguments as values or urls
+## Arguments as values or urls
 
 For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. This flexibility enables users to begin with simple argument values and gradually introduce greater complexity as a project expands in scale.
 
-#### Using an Options File that is Remote
+In this first example, `options` is set by parsing a file that is at a remote location. This file will be downloaded first, if it does not exist locally, then parsed from the local location.
 
 ```{r example_4,error=FALSE} 
 out <- setupProject(
@@ -287,7 +287,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
-### Setting arbitrary arguments, using defaultDots
+## Setting arbitrary arguments, using defaultDots
 
 ```{r example_5,error=FALSE}
 out <- setupProject(

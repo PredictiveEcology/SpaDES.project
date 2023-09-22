@@ -296,13 +296,13 @@ file.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -340,7 +340,7 @@ file.</p>
 <span><span class="co">#&gt; 20:                  spades.useRequire</span></span>
 <span><span class="co">#&gt;                                                           newValue</span></span>
 <span><span class="co">#&gt;  1:                                                           TRUE</span></span>
-<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project</span></span>
+<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project</span></span>
 <span><span class="co">#&gt;  3:                                                     1048576000</span></span>
 <span><span class="co">#&gt;  4:                                                          FALSE</span></span>
 <span><span class="co">#&gt;  5:                                                              1</span></span>
@@ -504,13 +504,13 @@ default values for <code>paths</code>.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -565,9 +565,10 @@ spelled correctly.</p>
 <div class="section level3">
 <h3 id="paths">Paths<a class="anchor" aria-label="anchor" href="#paths"></a>
 </h3>
-<p>Some paths are relative to the <code>projectPath</code>, except for 2
+<p>All paths are relative to the <code>projectPath</code>, except for 2
 specific exceptions: <code>packagePath</code> is not placed within the
-<code>projectPath</code> and all “scratch” i.e., “temporary” folders.
+<code>projectPath</code> and all “scratch” i.e., “temporary” folders,
+are place in a subfolder of <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir()</a></code>.
 <code>packagePath</code> is placed in the
 <code>tools::R_user_dir(name)</code> folder, which is project specific,
 but does not clutter the <code>projectPath</code> with hundreds of
@@ -599,13 +600,13 @@ assumes the current directory is the desired root of the project.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -648,18 +649,19 @@ package installation step by specifying <code>package = NULL</code>.</p>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
-<div class="section level4">
-<h4 id="arguments-as-values-or-urls">Arguments as values or urls<a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>
-</h4>
+</div>
+<div class="section level3">
+<h3 id="arguments-as-values-or-urls">Arguments as values or urls<a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>
+</h3>
 <p>For most arguments, the values can be either named lists or character
 vectors consisting of strings ending in <code>.R</code>, representing
 <code>urls</code> to cloud or local R scripts to be sourced. This
 flexibility enables users to begin with simple argument values and
 gradually introduce greater complexity as a project expands in
 scale.</p>
-<div class="section level5">
-<h5 id="using-an-options-file-that-is-remote">Using an Options File that is Remote<a class="anchor" aria-label="anchor" href="#using-an-options-file-that-is-remote"></a>
-</h5>
+<p>In this first example, <code>options</code> is set by parsing a file
+that is at a remote location. This file will be downloaded first, if it
+does not exist locally, then parsed from the local location.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -674,10 +676,9 @@ scale.</p>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
 </div>
-</div>
-<div class="section level4">
-<h4 id="setting-arbitrary-arguments-using-defaultdots">Setting arbitrary arguments, using defaultDots<a class="anchor" aria-label="anchor" href="#setting-arbitrary-arguments-using-defaultdots"></a>
-</h4>
+<div class="section level3">
+<h3 id="setting-arbitrary-arguments-using-defaultdots">Setting arbitrary arguments, using defaultDots<a class="anchor" aria-label="anchor" href="#setting-arbitrary-arguments-using-defaultdots"></a>
+</h3>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  name <span class="op">=</span> <span class="st">"example_5"</span>, <span class="co"># puts in a folder with this name</span></span>
@@ -692,7 +693,6 @@ scale.</p>
 <span>  <span class="co"># params = list("Biomass_borealDataPrep" = list(.useCache = mode))</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
-</div>
 </div>
 <div class="section level3">
 <h3 id="pass-args-from-globalenv">Pass args from GlobalEnv<a class="anchor" aria-label="anchor" href="#pass-args-from-globalenv"></a>
