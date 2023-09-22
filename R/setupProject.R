@@ -5,9 +5,9 @@ utils::globalVariables(c(
 #' Sets up a new or existing SpaDES project
 #'
 #' @description `setupProject` calls a sequence of functions in this order:
-#' `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`,
-#' `setupSideEffects`, `setupParams`,
-#' `setupGitIgnore`.
+#' `setupOptions` (first time), `setupPaths`, `setupModules`, `setupPackages`,
+#' `setupSideEffects`, `setupOptions` (second time), `setupParams`,
+#' `setupGitIgnore`, and `setupRestart`.
 #'
 #' This sequence will create folder structures, install missing packages from those
 #' listed in either the `packages`, `require` arguments or in the modules `reqdPkgs` fields,
@@ -60,8 +60,12 @@ utils::globalVariables(c(
 #'   See [setup]
 #' @param options Optional. Either a named list to be passed to `options`
 #'   or a character vector indicating one or more file(s) to source,
-#'   in the order provided. These will be sourced into a temporary environment (not
-#'   the `.GlobalEnv`), so they will not create globally accessible objects. See details.
+#'   in the order provided. These will be parsed locally (not
+#'   the `.GlobalEnv`), so they will not create globally accessible objects. NOTE:
+#'   `options` is run 2x within `setupProject`, once before `setupPaths` and once
+#'   after `setupPackages`. This occurs because many packages use options for their
+#'   behaviour (need them set before e.g., `Require::require` is run; but many packages
+#'   also change `options` at startup. See details.
 #'   See [setup].
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
@@ -390,10 +394,14 @@ setupProject <- function(name, paths, modules, packages,
   }
   inProject <- isInProject(name)
 
-  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
-                      updateRprofile) # don't pass envir because paths aren't evaluated yet
+  # setupOptions is run twice -- because package startup often changes options
+  optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
+                            envir = envir, verbose = verbose - 1)
 
-  setupSpaDES.ProjectDeps(paths, verbose = getOption("Require.verbose"))
+  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
+                      updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
+
+  setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   modulePackages <- setupModules(name, paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
@@ -411,7 +419,12 @@ setupProject <- function(name, paths, modules, packages,
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
                                      envir = envir, verbose = verbose)
 
-  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envir)
+  # 2nd time
+  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envir,
+                       verbose = verbose - 2)
+  if (!is.null(opts$newOptions))
+    opts <- mergeOpts(opts, optsFirst, verbose)
+
   options <- opts[["newOptions"]] # put into this environment so parsing can access
 
   # Run 2nd time after sideEffects & setupOptions -- may not be necessary
@@ -697,8 +710,8 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' @details
 #' `setupOptions` can handle sequentially specified values, meaning a user can
 #' first create a list of default options, then a list of user-desired options that
-#' may or may not replace individual values. This can create hierarchies, *based on
-#' order*.
+#' may or may not replace individual values. Thus final values will be based on the
+#' order that they are provided.
 #'
 #' @return
 #' `setupOptions` is run for its side effects, namely, changes to the `options()`. The
@@ -2005,4 +2018,19 @@ parseEnvsWithNamedListsSequentially <- function(envs2) {
     })
     os <- Reduce(modifyList, ll)
   }
+}
+
+mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L)) {
+  b <- opts$updates
+  a <- optsFirst$updates
+  d <- b[a, on = "optionName"]
+  if (!is.null(d)) {
+    messageVerbose(yellow("options setup:"), verbose = verbose, verboseLevel = 0)
+    d[unlist(lapply(newValue, is.null)), newValue := i.newValue]
+    d[, oldValue := i.oldValue]
+    d[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+    messageDF(opts$updates, verbose = verbose)
+  }
+  opts$updates <- d
+  opts
 }
