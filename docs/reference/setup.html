@@ -292,8 +292,12 @@ See help for <code><a href="https://spades-core.predictiveecology.org/reference/
 <dt>options</dt>
 <dd><p>Optional. Either a named list to be passed to <code>options</code>
 or a character vector indicating one or more file(s) to source,
-in the order provided. These will be sourced into a temporary environment (not
-the <code>.GlobalEnv</code>), so they will not create globally accessible objects. See details.
+in the order provided. These will be parsed locally (not
+the <code>.GlobalEnv</code>), so they will not create globally accessible objects. NOTE:
+<code>options</code> is run 2x within <code>setupProject</code>, once before <code>setupPaths</code> and once
+after <code>setupPackages</code>. This occurs because many packages use options for their
+behaviour (need them set before e.g., <code>Require::require</code> is run; but many packages
+also change <code>options</code> at startup. See details.
 See setup.</p></dd>
 
 
@@ -444,8 +448,8 @@ may or may not replace individual values. This can create hierarchies, <em>based
 order</em>.</p>
 <p><code>setupOptions</code> can handle sequentially specified values, meaning a user can
 first create a list of default options, then a list of user-desired options that
-may or may not replace individual values. This can create hierarchies, <em>based on
-order</em>.</p>
+may or may not replace individual values. Thus final values will be based on the
+order that they are provided.</p>
 <p><code>setupModules</code> will download all modules do not yet exist locally. The current
 test for "exists locally" is simply whether the directory exists. If a user
 wants to update the module, <code>overwrite = TRUE</code> must be set, or else the user can

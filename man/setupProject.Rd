@@ -64,8 +64,12 @@ See help for \code{SpaDES.core::simInit}.}
 
 \item{options}{Optional. Either a named list to be passed to \code{options}
 or a character vector indicating one or more file(s) to source,
-in the order provided. These will be sourced into a temporary environment (not
-the \code{.GlobalEnv}), so they will not create globally accessible objects. See details.
+in the order provided. These will be parsed locally (not
+the \code{.GlobalEnv}), so they will not create globally accessible objects. NOTE:
+\code{options} is run 2x within \code{setupProject}, once before \code{setupPaths} and once
+after \code{setupPackages}. This occurs because many packages use options for their
+behaviour (need them set before e.g., \code{Require::require} is run; but many packages
+also change \code{options} at startup. See details.
 See \link{setup}.}
 
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
@@ -183,9 +187,9 @@ outputs are not expected to be passed directly to \code{simInit} (unlike \code{s
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
-\code{setupPaths}, \code{setupModules}, \code{setupPackages}, \code{setupOptions},
-\code{setupSideEffects}, \code{setupParams},
-\code{setupGitIgnore}.
+\code{setupOptions} (first time), \code{setupPaths}, \code{setupModules}, \code{setupPackages},
+\code{setupSideEffects}, \code{setupOptions} (second time), \code{setupParams},
+\code{setupGitIgnore}, and \code{setupRestart}.
 
 This sequence will create folder structures, install missing packages from those
 listed in either the \code{packages}, \code{require} arguments or in the modules \code{reqdPkgs} fields,

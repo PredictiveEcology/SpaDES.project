@@ -220,8 +220,8 @@ modules, params, paths, times, and any named elements passed to …
 <code>.Rprofile</code> file for the project, ensuring that each time the
 project is opened, it adopts specific <code><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths()</a></code>.</p>
 <p>This sequence allows users to leverage settings (i.e., objects) that
-are established before others. More on this below (section ### What
-Makes this Function so Special).</p>
+are established before others. More on this below (section <a href="#what-makes-this-function-so-special">What Makes this Function so
+Special</a>).</p>
 <p>For user convenience, there are several auxiliary elements, as
 described in the help file of the function:
 <code>?setupProject()</code>.</p>
@@ -273,50 +273,13 @@ read the cloud-hosted
 <code>PredictiveEcology/SpaDES.project@transition/inst/options.R</code>
 file.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
-<span>   options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>                  <span class="st">"inst/options.R"</span>,</span>
-<span>                  <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
-<span>                 <span class="op">)</span></span>
-<span>   <span class="op">)</span></span>
-<span><span class="co">#&gt; $modules</span></span>
-<span><span class="co">#&gt; named character(0)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths</span></span>
-<span><span class="co">#&gt; $paths$cachePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/cache"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths$inputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/inputs"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths$modulePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/modules"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths$outputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/raster"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/terra"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $params</span></span>
-<span><span class="co">#&gt; list()</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $times</span></span>
-<span><span class="co">#&gt; $times$start</span></span>
-<span><span class="co">#&gt; [1] 0</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $times$end</span></span>
-<span><span class="co">#&gt; [1] 1</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; attr(,"projectOptions")</span></span>
+<code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
+<span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>                 <span class="st">"inst/options.R"</span>,</span>
+<span>                 <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">out</span>, <span class="st">"projectOptions"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;                             optionName</span></span>
 <span><span class="co">#&gt;  1:              reproducible.useTerra</span></span>
 <span><span class="co">#&gt;  2:                          fftempdir</span></span>
@@ -325,61 +288,67 @@ file.</p>
 <span><span class="co">#&gt;  5:                      LandR.verbose</span></span>
 <span><span class="co">#&gt;  6:                       map.dataPath</span></span>
 <span><span class="co">#&gt;  7:                      map.overwrite</span></span>
-<span><span class="co">#&gt;  8:                    map.maxNumCores</span></span>
-<span><span class="co">#&gt;  9:                    rasterMaxMemory</span></span>
-<span><span class="co">#&gt; 10:       reproducible.destinationPath</span></span>
-<span><span class="co">#&gt; 11:               reproducible.useGDAL</span></span>
-<span><span class="co">#&gt; 12: reproducible.useNewDigestAlgorithm</span></span>
-<span><span class="co">#&gt; 13:            reproducible.inputPaths</span></span>
-<span><span class="co">#&gt; 14:               reproducible.devMode</span></span>
-<span><span class="co">#&gt; 15:             reproducible.overwrite</span></span>
-<span><span class="co">#&gt; 16:              reproducible.useCloud</span></span>
-<span><span class="co">#&gt; 17:                   spades.inputPath</span></span>
-<span><span class="co">#&gt; 18:            spades.moduleCodeChecks</span></span>
-<span><span class="co">#&gt; 19:                spades.recoveryMode</span></span>
-<span><span class="co">#&gt; 20:                  spades.useRequire</span></span>
+<span><span class="co">#&gt;  8:                       map.tilePath</span></span>
+<span><span class="co">#&gt;  9:                    map.maxNumCores</span></span>
+<span><span class="co">#&gt; 10:                    rasterMaxMemory</span></span>
+<span><span class="co">#&gt; 11:       reproducible.destinationPath</span></span>
+<span><span class="co">#&gt; 12:               reproducible.useGDAL</span></span>
+<span><span class="co">#&gt; 13: reproducible.useNewDigestAlgorithm</span></span>
+<span><span class="co">#&gt; 14:            reproducible.inputPaths</span></span>
+<span><span class="co">#&gt; 15:               reproducible.devMode</span></span>
+<span><span class="co">#&gt; 16:             reproducible.overwrite</span></span>
+<span><span class="co">#&gt; 17:              reproducible.useCloud</span></span>
+<span><span class="co">#&gt; 18:                   spades.inputPath</span></span>
+<span><span class="co">#&gt; 19:            spades.moduleCodeChecks</span></span>
+<span><span class="co">#&gt; 20:                spades.recoveryMode</span></span>
+<span><span class="co">#&gt; 21:                  spades.useRequire</span></span>
+<span><span class="co">#&gt;                             optionName</span></span>
 <span><span class="co">#&gt;                                                           newValue</span></span>
 <span><span class="co">#&gt;  1:                                                           TRUE</span></span>
-<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project</span></span>
+<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project</span></span>
 <span><span class="co">#&gt;  3:                                                     1048576000</span></span>
 <span><span class="co">#&gt;  4:                                                          FALSE</span></span>
 <span><span class="co">#&gt;  5:                                                              1</span></span>
 <span><span class="co">#&gt;  6:                          C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
 <span><span class="co">#&gt;  7:                                                          FALSE</span></span>
-<span><span class="co">#&gt;  8:                                                              2</span></span>
-<span><span class="co">#&gt;  9:                                                          5e+09</span></span>
-<span><span class="co">#&gt; 10:                          C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
-<span><span class="co">#&gt; 11:                                                          FALSE</span></span>
-<span><span class="co">#&gt; 12:                                                           TRUE</span></span>
-<span><span class="co">#&gt; 13:                 C:/Eliot/OneDrive - NRCan RNCan/Documents/data</span></span>
-<span><span class="co">#&gt; 14:                                                           TRUE</span></span>
+<span><span class="co">#&gt;  8:                                                      &lt;call[3]&gt;</span></span>
+<span><span class="co">#&gt;  9:                                                              2</span></span>
+<span><span class="co">#&gt; 10:                                                          5e+09</span></span>
+<span><span class="co">#&gt; 11:                          C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
+<span><span class="co">#&gt; 12:                                                          FALSE</span></span>
+<span><span class="co">#&gt; 13:                                                           TRUE</span></span>
+<span><span class="co">#&gt; 14:                 C:/Eliot/OneDrive - NRCan RNCan/Documents/data</span></span>
 <span><span class="co">#&gt; 15:                                                           TRUE</span></span>
 <span><span class="co">#&gt; 16:                                                           TRUE</span></span>
-<span><span class="co">#&gt; 17:                         C:/Eliot/GitHub/SpaDES.project/outputs</span></span>
-<span><span class="co">#&gt; 18:                                                          FALSE</span></span>
+<span><span class="co">#&gt; 17:                                                           TRUE</span></span>
+<span><span class="co">#&gt; 18:                         C:/Eliot/GitHub/SpaDES.project/outputs</span></span>
 <span><span class="co">#&gt; 19:                                                          FALSE</span></span>
 <span><span class="co">#&gt; 20:                                                          FALSE</span></span>
-<span><span class="co">#&gt;                                  oldValue</span></span>
-<span><span class="co">#&gt;  1:                                      </span></span>
-<span><span class="co">#&gt;  2:                                      </span></span>
-<span><span class="co">#&gt;  3:                                      </span></span>
-<span><span class="co">#&gt;  4:                                      </span></span>
-<span><span class="co">#&gt;  5:                                      </span></span>
-<span><span class="co">#&gt;  6:                                      </span></span>
-<span><span class="co">#&gt;  7:                                      </span></span>
-<span><span class="co">#&gt;  8:                                      </span></span>
-<span><span class="co">#&gt;  9:                                      </span></span>
-<span><span class="co">#&gt; 10:                                      </span></span>
-<span><span class="co">#&gt; 11:                                      </span></span>
-<span><span class="co">#&gt; 12:                                      </span></span>
-<span><span class="co">#&gt; 13:                                      </span></span>
-<span><span class="co">#&gt; 14:                                      </span></span>
-<span><span class="co">#&gt; 15:                                 FALSE</span></span>
-<span><span class="co">#&gt; 16:                                 FALSE</span></span>
-<span><span class="co">#&gt; 17: C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
-<span><span class="co">#&gt; 18:                             &lt;list[5]&gt;</span></span>
-<span><span class="co">#&gt; 19:                                     1</span></span>
-<span><span class="co">#&gt; 20:                                  TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt; 21:                                                          FALSE</span></span>
+<span><span class="co">#&gt;                                                           newValue</span></span>
+<span><span class="co">#&gt;                                                                oldValue</span></span>
+<span><span class="co">#&gt;  1:                                                                    </span></span>
+<span><span class="co">#&gt;  2:                                                                    </span></span>
+<span><span class="co">#&gt;  3:                                                                    </span></span>
+<span><span class="co">#&gt;  4:                                                                    </span></span>
+<span><span class="co">#&gt;  5:                                                                    </span></span>
+<span><span class="co">#&gt;  6:                                                                    </span></span>
+<span><span class="co">#&gt;  7:                                                                    </span></span>
+<span><span class="co">#&gt;  8:                                                                    </span></span>
+<span><span class="co">#&gt;  9:                                                                    </span></span>
+<span><span class="co">#&gt; 10:                                                                    </span></span>
+<span><span class="co">#&gt; 11:                                                                    </span></span>
+<span><span class="co">#&gt; 12:                                                                    </span></span>
+<span><span class="co">#&gt; 13:                                                                    </span></span>
+<span><span class="co">#&gt; 14:                                                                    </span></span>
+<span><span class="co">#&gt; 15:                                                                    </span></span>
+<span><span class="co">#&gt; 16:                                                               FALSE</span></span>
+<span><span class="co">#&gt; 17:                                                               FALSE</span></span>
+<span><span class="co">#&gt; 18: C:\\Users\\emcintir\\AppData\\Local\\Temp\\RtmpS267u9/SpaDES/inputs</span></span>
+<span><span class="co">#&gt; 19:                                                           &lt;list[5]&gt;</span></span>
+<span><span class="co">#&gt; 20:                                                                   1</span></span>
+<span><span class="co">#&gt; 21:                                                                TRUE</span></span>
+<span><span class="co">#&gt;                                                                oldValue</span></span></code></pre></div>
 <p>This approach allows for an organic growth of complexity, e.g., a
 user begins with only named lists of values, but then as the number of
 values increases, it may be helpful for clarity to put some in an
@@ -504,13 +473,13 @@ default values for <code>paths</code>.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -600,13 +569,13 @@ assumes the current directory is the desired root of the project.</p>
 <span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpsNRob8/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpS267u9/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -647,8 +616,7 @@ package installation step by specifying <code>package = NULL</code>.</p>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"m"</span>,</span>
 <span>               projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="arguments-as-values-or-urls">Arguments as values or urls<a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>

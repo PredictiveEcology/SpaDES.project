@@ -93,7 +93,7 @@ This function performs a variety of tasks to set up a SpaDES project by assignin
 
 More specifically, this function orchestrates a series of operations in the following order: `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`, `setupSideEffects`, `setupParams`, and `setupGitIgnore`. This sequence accomplishes several tasks, including the creation of folder structures, installation of missing packages listed in either the `packages` or `require` arguments, loading of packages (limited to those specified in the `require` argument), configuration of options, and the download or validation of modules. Additionally, it returns elements that can be directly passed to `simInit` or `simInitAndSpades`, specifically modules, params, paths, times, and any named elements passed to ... (`Dots`). If desired, this function can also modify the `.Rprofile` file for the project, ensuring that each time the project is opened, it adopts specific `.libPaths()`.  
 
-This sequence allows users to leverage settings (i.e., objects) that are established before others. More on this below (section ### What Makes this Function so Special).  
+This sequence allows users to leverage settings (i.e., objects) that are established before others. More on this below (section [What Makes this Function so Special]).  
 
 For user convenience, there are several auxiliary elements, as described in the help file of the function: `?setupProject()`.
 
@@ -117,13 +117,14 @@ The first important advantage of `setupProject()` is the type of inputs for argu
 
 The following will set an option as declared (i.e., `reproducible.useTerra = TRUE`), plus read the local `inst/options.R` file (with relative path), plus download and read the cloud-hosted `PredictiveEcology/SpaDES.project@transition/inst/options.R` file.    
 
-```{r versatile}
-setupProject(
-   options = list(reproducible.useTerra = TRUE,
-                  "inst/options.R",
-                  "PredictiveEcology/SpaDES.project@transition/inst/options.R"
-                 )
-   )
+```{r versatile,message=FALSE}
+out <- setupProject(
+  options = list(reproducible.useTerra = TRUE,
+                 "inst/options.R",
+                 "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+  )
+)
+attr(out, "projectOptions")
 ```  
 
 This approach allows for an organic growth of complexity, e.g., a user begins with only named lists of values, but then as the number of values increases, it may be helpful for clarity to put some in an external file.  

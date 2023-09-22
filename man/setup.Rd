@@ -192,8 +192,12 @@ See help for \code{SpaDES.core::simInit}.}
 
 \item{options}{Optional. Either a named list to be passed to \code{options}
 or a character vector indicating one or more file(s) to source,
-in the order provided. These will be sourced into a temporary environment (not
-the \code{.GlobalEnv}), so they will not create globally accessible objects. See details.
+in the order provided. These will be parsed locally (not
+the \code{.GlobalEnv}), so they will not create globally accessible objects. NOTE:
+\code{options} is run 2x within \code{setupProject}, once before \code{setupPaths} and once
+after \code{setupPackages}. This occurs because many packages use options for their
+behaviour (need them set before e.g., \code{Require::require} is run; but many packages
+also change \code{options} at startup. See details.
 See \link{setup}.}
 
 \item{modules}{a character string of modules to pass to \code{getModule}. These
@@ -316,8 +320,8 @@ order}.
 
 \code{setupOptions} can handle sequentially specified values, meaning a user can
 first create a list of default options, then a list of user-desired options that
-may or may not replace individual values. This can create hierarchies, \emph{based on
-order}.
+may or may not replace individual values. Thus final values will be based on the
+order that they are provided.
 
 \code{setupModules} will download all modules do not yet exist locally. The current
 test for "exists locally" is simply whether the directory exists. If a user
