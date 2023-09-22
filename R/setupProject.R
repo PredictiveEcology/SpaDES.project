@@ -555,7 +555,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
-  messageVerbose(yellow("setting up paths ..."), verbose = verbose)
+  messageVerbose(yellow("setting up paths ..."), verbose = verbose, verboseLevel = 0)
 
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths[["projectPath"]]))`
   pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
@@ -647,9 +647,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
                        exact = FALSE, verbose = verbose)
   paths[["packagePath"]] <- .libPaths()[1]
 
-  do.call(setPaths, paths[spPaths])
+  do.call(setPaths, append(paths[spPaths], list(verbose = verbose)))
 
-  messageVerbose(yellow("  done setting up paths"), verbose = verbose)
+  messageVerbose(yellow("  done setting up paths"), verbose = verbose, verboseLevel = 0)
 
   paths[order(names(paths))]
 }
@@ -685,7 +685,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   if (!missing(sideEffects)) {
-    messageVerbose(yellow("setting up sideEffects..."), verbose = verbose)
+    messageVerbose(yellow("setting up sideEffects..."), verbose = verbose, verboseLevel = 0)
 
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envir, envir2 = parent.frame())
@@ -698,7 +698,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
                                   overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
-    messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
+    messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
   }
 
 }
@@ -730,7 +730,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   updates <- NULL
   if (!missing(options)) {
 
-    messageVerbose(yellow("setting up options..."), verbose = verbose)
+    messageVerbose(yellow("setting up options..."), verbose = verbose, verboseLevel = 0)
 
     preOptions <- base::options() # need prefix or else greedy evaluation occurs on the `options()` as if it is the arg
 
@@ -763,7 +763,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
         messageDF(updates, verbose = verbose)
       }
     }
-    messageVerbose(yellow("  done setting up options"), verbose = verbose)
+    messageVerbose(yellow("  done setting up options"), verbose = verbose, verboseLevel = 0)
   }
   return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete, updates = updates)))
 }
@@ -930,7 +930,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
       paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
-    messageVerbose(yellow("setting up modules"), verbose = verbose)
+    messageVerbose(yellow("setting up modules..."), verbose = verbose, verboseLevel = 0)
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envir, envir2 = parent.frame())
@@ -951,7 +951,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
         opt <- options(Require.offlineMode = FALSE)
         on.exit(try(options(opt), silent = TRUE))
       }
-      out <- getModule(modules, paths[["modulePath"]], overwrite = overwrite)
+      out <- getModule(modules, paths[["modulePath"]], overwrite = overwrite, verbose = verbose)
       if (isTRUE(offlineMode))
         options(opt)
       anyfailed <- out$failed
@@ -999,6 +999,8 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     modulePackages <- packagesInModules(modulePath = paths[["modulePath"]], modules = modulesOrigPkgName)
     modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
     packages <- modulePackages[modulesSimple]
+    messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
+
   }
   names(packages) <- modulesOrig
   return(packages)
@@ -1036,7 +1038,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     !is.null(packages)
     ){
 
-    messageVerbose(yellow("setting up packages..."), verbose = verbose)
+    messageVerbose(yellow("setting up packages..."), verbose = verbose, verboseLevel = 0)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
     while (continue) {
@@ -1067,9 +1069,9 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
         continue <- 0L
       }
     }
-    messageVerbose(yellow("  done setting up packages"), verbose = verbose)
+    messageVerbose(yellow("  done setting up packages"), verbose = verbose, verboseLevel = 0)
   } else {
-    messageVerbose(yellow("  no packages to set up"), verbose = verbose)
+    messageVerbose(yellow("no packages to set up"), verbose = verbose, verboseLevel = 0)
   }
 
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
@@ -1097,7 +1099,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
     params <- list()
   } else {
 
-    messageVerbose(yellow("setting up params..."), verbose = verbose)
+    messageVerbose(yellow("setting up params..."), verbose = verbose, verboseLevel = 0)
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envir, envir2 = parent.frame())
@@ -1162,7 +1164,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
       messageVerbose(blue("The following params were created: "), verbose = verbose, verboseLevel = 2)
       oo <- capture.output(params)
       messageVerbose(blue(paste(oo, collapse = "\n")), verboseLevel = 2, verbose = verbose)
-      messageVerbose(yellow("  done setting up params"), verbose = verbose)
+      messageVerbose(yellow("  done setting up params"), verbose = verbose, verboseLevel = 0)
     }
   }
   return(params)
@@ -1213,10 +1215,10 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
         fe <- file.exists(opt)
         if (fe && isFALSE(overwrite)) {
-          message(opt, " already exists; not downloading")
+          messageVerbose(opt, " already exists; not downloading", verbose = verbose)
         } else {
           if (fe) {
-            message(opt, " already exists; overwrite = TRUE; downloading again")
+            messageVerbose(opt, " already exists; overwrite = TRUE; downloading again", verbose = verbose)
             unlink(opt)
           }
           # opt is the correct destination file because it has removed potential duplicated folder names
