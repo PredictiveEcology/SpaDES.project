@@ -161,7 +161,7 @@ test_that("test setupProject - remote options file", {
         options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
         paths = list(modulePath = "m",
-                     projectPath = "test",
+                     projectPath = ".",
                      scratchPath = tempdir()),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development"
       )
