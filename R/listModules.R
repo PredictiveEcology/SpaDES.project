@@ -61,6 +61,10 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'   (commits in the past 2 years) are returned. If a date (e.g., "2021-01-01"),
 #'   then only repositories with commits since that date are returned.
 #'   Default is `TRUE`, i.e., only include active in past 2 years.
+#' @param returnList Should the function return a named list where the name is the `account`
+#'  and the elements are the `repositories` selected. Default `FALSE`, i.e., return
+#'  a character vector. This is included to allow a user to maintain backwards compatibility
+#'  by setting `returnList = TRUE`
 #' @importFrom Require .downloadFileMasterMainAuth
 #' @inheritParams Require::Require
 #'
@@ -74,7 +78,7 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'
 listModules <- function(keywords, accounts, includeForks = FALSE,
                         includeArchived = FALSE, excludeStale = TRUE, omit = c("fireSense_dataPrepFitRas"),
-                        purge = FALSE,
+                        purge = FALSE, returnList = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
 
   names(accounts) <- accounts
@@ -145,7 +149,11 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
     })
     setdiff(unlist(out), omit)
   })
-  outs
+  st <- stack(outs)
+  st <- paste(st$ind, st$values, sep = "/")
+  if (isTRUE(returnList))
+    return(outs)
+  st
 }
 
 #' @rdname listModules
@@ -153,7 +161,10 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
 #' @importFrom data.table := as.data.table
 #' @export
 moduleDependencies <- function(modules, modulePath = getOption("reproducible.modulePath", ".")) {
-  modsFlat <- unlist(modules)
+  if (is.list(modules))
+    modsFlat <- unlist(modules)
+  else
+    modsFlat <- Require::extractPkgName(modules)
   names(modsFlat) <- modsFlat
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
