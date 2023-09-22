@@ -5,24 +5,8 @@ articles:
   i-getting-started: i-getting-started.html
   iii-using-git-github: iii-using-git-github.html
   iv-Installing-R: iv-Installing-R.html
-<<<<<<< HEAD
-<<<<<<< HEAD
-last_built: 2023-09-20T14:49Z
-=======
-last_built: 2023-09-20T16:15Z
->>>>>>> transition
-=======
   v-finding-other-modules: v-finding-other-modules.html
-<<<<<<< HEAD
-<<<<<<< HEAD
-last_built: 2023-09-20T16:54Z
->>>>>>> transition
-=======
-last_built: 2023-09-21T18:54Z
->>>>>>> transition
-=======
-last_built: 2023-09-21T22:22Z
->>>>>>> transition
+last_built: 2023-09-21T23:06Z
 urls:
   reference: http://spades-project.predictiveecology.org/reference
   article: http://spades-project.predictiveecology.org/articles

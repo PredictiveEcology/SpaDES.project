@@ -457,8 +457,9 @@ setupProject <- function(name, paths, modules, packages,
                             # we also lose projectPath --> but this is getwd()
     params = params,
     times = times), dotsSUB)
-  if (!is.null(options))
-    attr(out, "projectOptions") <- options
+  if (!is.null(options)) {
+    attr(out, "projectOptions") <- opts$updates
+  }
 
   return(out)
 }
@@ -712,6 +713,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   newValuesComplete <- oldValuesComplete <- NULL
+  updates <- NULL
   if (!missing(options)) {
 
     messageVerbose(yellow("setting up options..."), verbose = verbose)
@@ -724,10 +726,10 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
-      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
-    options <- parseFileLists(options, paths[["projectPath"]], overwrite = isTRUE(overwrite),
+    options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
     postOptions <- options()
@@ -742,12 +744,14 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       oldValues <- options(newValues)
       if (length(newValues)) {
         messageVerbose("The following options have been changed", verbose = verbose)
-        messageDF(data.table::data.table(optionName = names(newValues), newValue = newValues,
-                                         oldValue = oldValues), verbose = verbose)
+        updates <- data.table::data.table(optionName = names(newValues), newValue = newValues,
+                                          oldValue = oldValues)
+        messageDF(updates, verbose = verbose)
       }
     }
+    messageVerbose(yellow("  done setting up options"), verbose = verbose)
   }
-  return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete)))
+  return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete, updates = updates)))
 }
 
 isUnevaluatedList <- function(p) any( {
@@ -1205,6 +1209,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           #   but getGitHubfile won't know this ... so give it a temporary destdir
           destdir <- Require::tempdir2()
           temp <- getGithubFile(rem, destDir = destdir, overwrite = isTRUE(overwrite))
+          checkPath(dirname(opt), create = TRUE)
           copied <- linkOrCopy(temp, opt)
         }
 
@@ -1228,7 +1233,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       opt
     }, SIMPLIFY = TRUE)
     if (verbose > 0) {
-      objLocal <- gsub(paths$projectPath, "", obj)
+      objLocal <- gsub(paths[["projectPath"]], "", obj)
       mess <- unlist(Map(nam = obj, rem = names(obj), function(rem, nam) {
         objRem <- strsplit(rem, split = "/")[[1]]
         len <- length(objRem)
@@ -1238,7 +1243,8 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           rem
         }
       }))
-      messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
+      if (!identical(mess, objLocal))
+        messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
