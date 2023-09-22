@@ -10,8 +10,12 @@
 listModules(
   keywords,
   accounts,
+  includeForks = FALSE,
+  includeArchived = FALSE,
+  excludeStale = TRUE,
   omit = c("fireSense_dataPrepFitRas"),
   purge = FALSE,
+  returnList = FALSE,
   verbose = getOption("Require.verbose", 1L)
 )
 
@@ -31,10 +35,26 @@ modules}
 \item{accounts}{A vector of character strings identifying GitHub accounts e.g.,
 \code{PredictiveEcology} to search.}
 
+\item{includeForks}{Should the returned list include repositories that are forks
+(i.e., not the original repository). Default is \code{FALSE}.}
+
+\item{includeArchived}{Should the returned list include repositories that are archived
+(i.e., developer has retired them). Default is \code{FALSE}.}
+
+\item{excludeStale}{Logical or date. If \code{TRUE}, then only repositories that are still active
+(commits in the past 2 years) are returned. If a date (e.g., "2021-01-01"),
+then only repositories with commits since that date are returned.
+Default is \code{TRUE}, i.e., only include active in past 2 years.}
+
 \item{omit}{A vector of character strings of repositories to ignore.}
 
 \item{purge}{There is some internal caching that occurs. Setting this to \code{TRUE} will
 remove any cached data that is part of the requested \code{accounts} and \code{keywords}.}
+
+\item{returnList}{Should the function return a named list where the name is the \code{account}
+and the elements are the \code{repositories} selected. Default \code{FALSE}, i.e., return
+a character vector. This is included to allow a user to maintain backwards compatibility
+by setting \code{returnList = TRUE}}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
@@ -43,8 +63,8 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 attribute: \code{attr(.., "Require")} which has lots of information about the
 processes of the installs.}
 
-\item{modules}{A named list of character strings of full module names, as returned
-by \code{listModules}.}
+\item{modules}{Either a character vector of local module names, or a named list
+of character strings of short module names (i.e., the folder paths in \code{modulePath}).}
 
 \item{modulePath}{A character string indicating the path where the modules are located.}
 
@@ -54,7 +74,8 @@ objects in modules. Likely from \code{moduleDependencies}.}
 \item{graph}{An igraph object to plot. Likely returned by \code{moduleDependenciesToGraph}.}
 }
 \value{
-\code{listModules} returns a named list of all SpaDES modules in the given repositories with
+\code{listModules} returns a character vector of paste0(account, "/", Repository) for
+all SpaDES modules in the given repositories with
 the \code{accounts} and \code{keywords} provided.
 }
 \description{
