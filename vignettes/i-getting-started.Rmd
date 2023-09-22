@@ -10,6 +10,8 @@ editor_options:
   chunk_output_type: console
 ---
 
+
+
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -19,12 +21,13 @@ knitr::opts_chunk$set(
 
 # Most are eval=FALSE within each chunk; but a few are not. Those must be eval=FALSE on GA and CRAN
 SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
-hasSuggests <- all(sapply(SuggestedPkgsNeeded, requireNamespace, character.only = TRUE, quietly = TRUE))
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, requireNamespace, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
+# Keep eval = TRUE on for emcintir because these are also tests
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
-                       Sys.info()["user"] == "emcintir" && interactive())
-knitr::opts_knit$set(root.dir = rstudioapi::getActiveProject())
+                       Sys.info()["user"] == "emcintir")# && interactive())
+knitr::opts_knit$set(root.dir = ifelse(basename(getwd()) == "vignettes", "..", "."))
 knitr::opts_chunk$set(message=FALSE)
 
 options(Ncpus = 1)
@@ -242,7 +245,7 @@ out <- setupProject(
 ## With options and params set
 
 We can start to increase the complexity of the `setupProject` call gradually. Once we have the module.
-```{r example3}
+```{r example3,error=FALSE}
 out <- setupProject(
   options = list(reproducible.useTerra = TRUE),
   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
@@ -264,7 +267,7 @@ For most arguments, the values can be either named lists or character vectors co
 
 #### Using an Options File that is Remote
 
-```{r example_4} 
+```{r example_4,error=FALSE} 
 out <- setupProject(
   options = c(
     "PredictiveEcology/SpaDES.project@transition/inst/options.R"
@@ -286,7 +289,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ### Setting arbitrary arguments, using defaultDots
 
-```{r example_5}
+```{r example_5,error=FALSE}
 out <- setupProject(
   name = "example_5", # puts in a folder with this name
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -309,7 +312,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ## Pass args from GlobalEnv
 
-```{r example7}
+```{r example7,error=FALSE}
 studyAreaName <- "AB"
 out <- setupProject(
   paths = list(projectPath = "example_7"),
