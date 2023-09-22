@@ -37,7 +37,8 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' and their interdependencies.
 #'
 #' @return
-#' `listModules` returns a named list of all SpaDES modules in the given repositories with
+#' `listModules` returns a character vector of paste0(account, "/", Repository) for
+#' all SpaDES modules in the given repositories with
 #' the `accounts` and `keywords` provided.
 #'
 #' @param keywords A vector of character strings that will be used as keywords for identify
@@ -50,8 +51,16 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #'
 #' @param purge There is some internal caching that occurs. Setting this to `TRUE` will
 #'   remove any cached data that is part of the requested `accounts` and `keywords`.
-#' @param modules A named list of character strings of full module names, as returned
-#'   by `listModules`.
+#' @param modules Either a character vector of local module names, or a named list
+#'   of character strings of short module names (i.e., the folder paths in `modulePath`).
+#' @param includeArchived Should the returned list include repositories that are archived
+#'   (i.e., developer has retired them). Default is `FALSE`.
+#' @param includeForks Should the returned list include repositories that are forks
+#'   (i.e., not the original repository). Default is `FALSE`.
+#' @param excludeStale Logical or date. If `TRUE`, then only repositories that are still active
+#'   (commits in the past 2 years) are returned. If a date (e.g., "2021-01-01"),
+#'   then only repositories with commits since that date are returned.
+#'   Default is `TRUE`, i.e., only include active in past 2 years.
 #' @importFrom Require .downloadFileMasterMainAuth
 #' @inheritParams Require::Require
 #'
@@ -63,7 +72,8 @@ validUrlMemoise <- function(url, account, repo, t = 2) {
 #' @examples
 #' listModules(accounts = "PredictiveEcology", "none")
 #'
-listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas"),
+listModules <- function(keywords, accounts, includeForks = FALSE,
+                        includeArchived = FALSE, excludeStale = TRUE, omit = c("fireSense_dataPrepFitRas"),
                         purge = FALSE,
                         verbose = getOption("Require.verbose", 1L)) {
 
@@ -96,21 +106,20 @@ listModules <- function(keywords, accounts, omit = c("fireSense_dataPrepFitRas")
         messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
       if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
 
-      archivedLines <- grep("archived.*true", repos)
       patt <- if (hasKeyword) mg else account
-      archivedRepos <- character()
-      if (length(archivedLines)) {
-        fullName <- grep("full_name", repos)
-        repoLine <- unlist(lapply(archivedLines, function(arch) which.min(fullName < arch) - 1))
-        toArchive <- repos[fullName[repoLine]]
-        archivedRepos <- unlist(lapply(strsplit(toArchive, "\""), tail, 1))
-      }
+
+      # Potential removals
+      staleRepos <- identifyRepos(before = excludeStale, repos = repos, remove = !excludeStale %in% FALSE)
+      archivedRepos <- identifyRepos("archived.*true", repos = repos, remove = includeArchived %in% FALSE)
+      forkedRepos <- identifyRepos("fork\\>.*true", repos = repos, remove = includeForks %in% FALSE)
 
       outs <- if (hasKeyword) grep(mg, repos, value = TRUE) else repos
       gitRepo <- grep("full_name", outs, value = TRUE)
       gitRepo <- strsplit(gitRepo, "\"")
       gitRepo <- grep(patt, unlist(gitRepo), value = TRUE)
       gitRepo <- setdiff(gitRepo, archivedRepos)
+      gitRepo <- setdiff(gitRepo, forkedRepos)
+      gitRepo <- setdiff(gitRepo, staleRepos)
       if (length(gitRepo)) {
         gitPaths <- paste0("https://github.com/", gitRepo, "/blob/master/",
                            basename(gitRepo), ".R")
@@ -261,4 +270,44 @@ PlotModuleGraph <- function(graph) {
                #highlightNearest = list(enabled = T, degree = 1, hover = F),
                collapse = TRUE) |>
     visNetwork::visInteraction(navigationButtons = TRUE)
+}
+
+
+identifyRepos <- function(pattern = "archived.*true", before, repos, remove = TRUE) {
+  reposOut <- character()
+  if (remove %in% TRUE) {
+    if (!missing(before)) {
+      if (!before %in% FALSE) {
+        if (isTRUE(before)) {
+          before <- Sys.time() - 365 * 3600 * 24
+        }
+      }
+      pattern <- "updated_at"
+    }
+
+    lines1 <- grep(pattern, repos)
+    fullName <- grep("full_name\\>", repos)
+    repoLine <- unlist(lapply(lines1, function(line) which.min(fullName < line) - 1))
+    repoLine[repoLine == 0] <- length(repoLine) # last one needs adding
+    toRemove <- repos[fullName[repoLine]]
+    reposOut <- unlist(lapply(strsplit(toRemove, "\""), tail, 1))
+
+    if (!missing(before)) {
+      lines2 <- grep("pushed_at", repos)
+      updatedAt <- repos[lines1]
+      updatedAt <- unlist(lapply(strsplit(updatedAt, "\""), tail, 1))
+      pushedAt <- repos[lines2]
+      pushedAt <- unlist(lapply(strsplit(pushedAt, "\""), tail, 1))
+      notStale <- as.POSIXct(before) <= pmax(as.POSIXct(updatedAt), as.POSIXct(pushedAt))
+      reposOut <- reposOut[!notStale]
+    }
+  }
+  reposOut
+}
+
+extractRepoFromGitApi <- function(pattern, repos) {
+  lines <- grep(pattern, repos, value = F)
+  lines <- min(lines)
+  lines <- lines:(lines+103)
+  repos[lines]
 }
