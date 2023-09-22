@@ -63,7 +63,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   }
 
   if (all(!overwrite %in% FALSE)) {
-    if (any(stateDT$localExists %in% TRUE)) {
+    if (any(stateDT$localExists %in% TRUE & !stateDT$sufficient %in% FALSE)) {
       messageVerbose("Local copies: ", verbose = verbose)
       stateDT <- checkModuleVersion(stateDT, modulePath, verbose = getOption("Require.verbose"))
     }

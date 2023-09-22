@@ -348,7 +348,8 @@ setupProject <- function(name, paths, modules, packages,
   if (is.null(origArgOrder)) {
     firstNamedArg <- 0
   } else {
-    firstNamedArg <- min(which(origArgOrder %in% formalArgs(setupProject)))
+    argsAreInFormals <- origArgOrder %in% formalArgs(setupProject)
+    firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
   }
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB

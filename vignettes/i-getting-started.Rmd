@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 
 # Most are eval=FALSE within each chunk; but a few are not. Those must be eval=FALSE on GA and CRAN
 SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
-hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, requireNamespace, character.only = TRUE, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
@@ -53,7 +53,7 @@ Now that we've established the prerequisites, let's explore various examples of 
 
 # Installing `SpaDES.project`
 
-```{r install-spades-project}
+```{r install-spades-project,eval=TRUE}
 if (!require("SpaDES.project")) {
   {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
    require("SpaDES.project")}
@@ -150,7 +150,7 @@ a <- setupOptions(options = list(
 
 To facilitate batch submission, users can specify arguments in the form of `argument = value`, even when `value` is missing (i.e., not previously defined in the Environment). This unconventional approach may not typically work with standard argument parsing, but it has been specifically designed to function within this context. For instance, in the following example, you can specify `.mode = .mode`. If R cannot find a valid value for `.mode` on the right-hand side, it will gracefully skip without raising an error. This feature enables users to source a script with the following line from a batch script where `.mode` is specified. When running this line separately, without the batch script specification, `.mode` will have no value assigned to it. Additionally, we include `.nodes` as an example of passing a value that does exist. In the output, the non-existent `.mode` will be returned as an unevaluated, captured list element:   
 
-```{r missingVals}
+```{r missingVals,eval=TRUE}
 .nodes <- 2
 out <- setupProject(.mode = .mode,
                     .nodes = .nodes)
@@ -180,7 +180,7 @@ Other helpful functions that are worse going though are `?user`, `?machine`, and
 
 One compelling reason to use `setupProject()` is the availability of numerous default values that can be leveraged, leading to cleaner and more concise code in many instances. This code sets all default values for `paths`. 
 
-```{r simplest}
+```{r simplest,eval=TRUE}
 library(SpaDES.project)
 setupProject()
 ```
@@ -190,7 +190,7 @@ setupProject()
 
 The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
 
-```{r sequential}
+```{r sequential,eval=TRUE}
 # Use the newValue in `secondValue`
 out <- setupProject(
              newValue = 1,
@@ -212,6 +212,7 @@ out <- setupProject(
              modules = githubRepo,
              packages = NULL # no packages for this demonstration
 )
+out$modules # shows @development, which is unexpected
 
 
 ```
@@ -222,7 +223,7 @@ Some paths are relative to the `projectPath`, except for 2 specific exceptions: 
 
 In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
 
-```{r simplest2}
+```{r simplest2,eval=TRUE}
 library(SpaDES.project)
 setupProject(paths = list(modulePath = "myModules"))
 ```
