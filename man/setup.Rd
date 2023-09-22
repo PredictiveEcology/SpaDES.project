@@ -100,7 +100,7 @@ setupGitIgnore(
   verbose
 )
 
-setupStudyArea(studyArea, paths)
+setupStudyArea(studyArea, paths, envir)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -175,15 +175,15 @@ i.e., "at the start" of the \code{setupProject}.
 If placed after the first named argument, then they will be evaluated at the
 end of the \code{setupProject}, so can access all the packages, objects, etc.}
 
-\item{sideEffects}{Optional. This can be an expression or one or more filenames or
+\item{sideEffects}{Optional. This can be an expression or one or more file names or
 a code chunk surrounded by \code{{...}}.
-If a non-text files is specified (e.g., \emph{not .txt or .R} currently),
+If a non-text file name is specified (e.g., \emph{not .txt or .R} currently),
 these files will simply be downloaded, using their relative path as specified
 in the github notation. They will be downloaded or accessed locally at that
 relative path.
-If these file names represent scripts, this/these will be parsed and evaluated,
-but nothing returned. This is intended
-to be used for functions, such as cloud authentication or configurations,
+If these file names represent scripts (*.txt or .R), this/these will be parsed and evaluated,
+but nothing is returned (i.e., any assigned objects are not returned). This is intended
+to be used for operations like cloud authentication or configuration functions
 that are run for their side effects only.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values

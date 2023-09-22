@@ -10,6 +10,8 @@ editor_options:
   chunk_output_type: console
 ---
 
+
+
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -19,11 +21,15 @@ knitr::opts_chunk$set(
 
 # Most are eval=FALSE within each chunk; but a few are not. Those must be eval=FALSE on GA and CRAN
 SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
-hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, requireNamespace, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 
+# Keep eval = TRUE on for emcintir because these are also tests
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests && 
                        Sys.info()["user"] == "emcintir")# && interactive())
+knitr::opts_knit$set(root.dir = ifelse(basename(getwd()) == "vignettes", "..", "."))
+knitr::opts_chunk$set(message=FALSE)
+
 options(Ncpus = 1)
 
 # options(Require.clonePkgs = TRUE)
@@ -50,7 +56,7 @@ Now that we've established the prerequisites, let's explore various examples of 
 
 # Installing `SpaDES.project`
 
-```{r install-spades-project}
+```{r install-spades-project,eval=TRUE}
 if (!require("SpaDES.project")) {
   {install.packages("SpaDES.project", repos = "predictiveecology.r-universe.dev")
    require("SpaDES.project")}
@@ -111,7 +117,7 @@ The first important advantage of `setupProject()` is the type of inputs for argu
 
 The following will set an option as declared (i.e., `reproducible.useTerra = TRUE`), plus read the local `inst/options.R` file (with relative path), plus download and read the cloud-hosted `PredictiveEcology/SpaDES.project@transition/inst/options.R` file.    
 
-```
+```{r versatile}
 setupProject(
    options = list(reproducible.useTerra = TRUE,
                   "inst/options.R",
@@ -126,20 +132,20 @@ This approach allows for an organic growth of complexity, e.g., a user begins wi
 
 The second important advantage of `setupProject()`, briefly mentioned above, is that argument values within each of the function arguments are sourced in a sequential manner. This implies that a prior value can be leveraged by a subsequent one _within the same function call_. For example, users can set paths, and subsequently, employ the paths list to configure options that can update or modify paths as needed. Similarly, users can set times and apply the times list for specific entries in the parameters (`params`) configuration. For instance, consider the following example, where `projectPath` is included as part of the list assigned to the `paths` argument. This value is then utilized in the subsequent list element:
 
-```
+```{r sequentialPaths,eval=FALSE}
+# 'modulePaths' is defined based on the previous argument 'projectPath' in the same function call.
 setupPaths(paths = list(projectPath = "here",
-                        modulePath = file.path(paths[["projectPath"]], "modules"))) # Note how 'modulePaths' is passed based on the previous argument 'projectPath' in the same function call.
+                        modulePath = file.path(paths[["projectPath"]], "modules"))) 
 ```  
 
 Because of such sequential evaluation, the content with R scripts can be sequential lists, and also the arguments can themselves be sequential. This creates a hierarchy specified by the order. In this fairly rich example, a user can first create a set of default options in a file, then custom elements, then a list of more changes protected by an ⁠if `(user("userNamer")). In the following example, `setupOptions` will first parse the file (`inst/options.R`), maintaining an active named list of options that will be set (lets call that `opts`), then it will `modifyList(opts, list(maxMemory = 6e+10))`, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the `opts` list. Finally, because this is `setupOptions`, it will call `options(opts)` with the new list values:
 
-```
+```{r sequentialOptions}
 a <- setupOptions(options = list(
-    "inst/options.R",                  # many items set because this is a file
-    maxMemory = 6e+9,                  # if only 1 item, doesn't need to be in a list
-    if(user("emcintir"))               # an "if" statement is OK
-        list(map.overwrite = TRUE,     # two items, so in a list
-             map.runAgain = T)
+    "inst/options.R",                        # many items set because this is a file; has "future.globals.maxSize" = 5.24288e8
+    future.globals.maxSize = 4e8,          # this value overrides first, because it is 2nd
+    if(user("emcintir"))                     # an "if" statement is OK --> but must use list after
+      list(future.globals.maxSize = 6e8)     # conditional on user, value is overridden again
 ))
 ```  
 
@@ -147,12 +153,11 @@ a <- setupOptions(options = list(
 
 To facilitate batch submission, users can specify arguments in the form of `argument = value`, even when `value` is missing (i.e., not previously defined in the Environment). This unconventional approach may not typically work with standard argument parsing, but it has been specifically designed to function within this context. For instance, in the following example, you can specify `.mode = .mode`. If R cannot find a valid value for `.mode` on the right-hand side, it will gracefully skip without raising an error. This feature enables users to source a script with the following line from a batch script where `.mode` is specified. When running this line separately, without the batch script specification, `.mode` will have no value assigned to it. Additionally, we include `.nodes` as an example of passing a value that does exist. In the output, the non-existent `.mode` will be returned as an unevaluated, captured list element:   
 
-```
+```{r missingVals,eval=TRUE}
 .nodes <- 2
 out <- setupProject(.mode = .mode,
-                    .nodes = .nodes,
-                    options = "https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/inst/options.R"
-                    )
+                    .nodes = .nodes)
+out[c(".mode", ".nodes")]
 ```
 
 
@@ -178,7 +183,7 @@ Other helpful functions that are worse going though are `?user`, `?machine`, and
 
 One compelling reason to use `setupProject()` is the availability of numerous default values that can be leveraged, leading to cleaner and more concise code in many instances. This code sets all default values for `paths`. 
 
-```{r simplest}
+```{r simplest,eval=TRUE}
 library(SpaDES.project)
 setupProject()
 ```
@@ -188,9 +193,9 @@ setupProject()
 
 The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.   
 
-```{r sequential,message=FALSE}
+```{r sequential,eval=TRUE}
 # Use the newValue in `secondValue`
-out <- setupProject(name = "test",
+out <- setupProject(
              newValue = 1,
              secondValue = newValue + 1)
 out[c("newValue", "secondValue")]
@@ -202,7 +207,7 @@ out[c("newValue", "secondValue")]
 
 The `.GlobalEnv` in `R` is special because it is in the search path of any user-created function. This is very convenient, but also provides the potential for many problems. For example, a variable could be misspelled in a code chunck, but the code doesn't fail because the `.GlobalEnv` has the same variable, spelled correctly.
 
-```{r Global,eval=FALSE}
+```{r Global}
 # Gets the wrong version of the module
 githubRepo = "PredictiveEcology/Biomass_core@development" # incorrect one -- used in error
 out <- setupProject(
@@ -210,6 +215,7 @@ out <- setupProject(
              modules = githubRepo,
              packages = NULL # no packages for this demonstration
 )
+out$modules # shows @development, which is unexpected
 
 
 ```
@@ -220,7 +226,7 @@ Some paths are relative to the `projectPath`, except for 2 specific exceptions: 
 
 In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
 
-```{r simplest2}
+```{r simplest2,eval=TRUE}
 library(SpaDES.project)
 setupProject(paths = list(modulePath = "myModules"))
 ```
@@ -229,7 +235,7 @@ setupProject(paths = list(modulePath = "myModules"))
 
 This will retrieve the module as specified, and place it in `modulePath`, which is unspecified here, thus taking the default. This specification will not re-download the file if it exists locally, with a message indicating this each time. This specification will also automatically install all missing packages that are in `reqdPkgs` metadata of the module(s). NOTE: we can omit this package installation step by specifying `package = NULL`.
 
-```{r example2,eval=FALSE}
+```{r example2}
 out <- setupProject(
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
   package = NULL # for this example, skip installation
@@ -239,7 +245,7 @@ out <- setupProject(
 ## With options and params set
 
 We can start to increase the complexity of the `setupProject` call gradually. Once we have the module.
-```{r example3,eval=FALSE}
+```{r example3,error=FALSE}
 out <- setupProject(
   options = list(reproducible.useTerra = TRUE),
   params = list(Biomass_borealDataPrep = list(.plots = "screen")),
@@ -261,7 +267,7 @@ For most arguments, the values can be either named lists or character vectors co
 
 #### Using an Options File that is Remote
 
-```{r example_4,eval=FALSE} 
+```{r example_4,error=FALSE} 
 out <- setupProject(
   options = c(
     "PredictiveEcology/SpaDES.project@transition/inst/options.R"
@@ -283,7 +289,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 ### Setting arbitrary arguments, using defaultDots
 
-```{r example_5,eval=FALSE}
+```{r example_5,error=FALSE}
 out <- setupProject(
   name = "example_5", # puts in a folder with this name
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -298,10 +304,15 @@ out <- setupProject(
 )
 ```
 
+```{r clean5,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_7"), create = TRUE ))
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+```
 
 ## Pass args from GlobalEnv
 
-```{r example7,eval=FALSE}
+```{r example7,error=FALSE}
 studyAreaName <- "AB"
 out <- setupProject(
   paths = list(projectPath = "example_7"),
@@ -323,7 +334,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 
 There are several ways to specifying an argument, as we have seen. We can also mix and match these ways:
 
-```{r example8,eval=FALSE}
+```{r example8}
 out <- setupProject(
   options = list(
     reproducible.useTerra = TRUE,                                 # direct argument # sets one option
@@ -342,7 +353,7 @@ out <- setupProject(
 In this example, we will select an area in northwestern Alberta and the adjacent northeastern BC, Canada. We use the internal matching, because we aren't sure of the exact names: for the top level (`NAME_1`), we use either "Al" or "Brit", separated by the "or" symbol, `|`. For the second level, we do the same, but specify using the names in that column. If a user does not know which values exist, they can not specify `NAME_2`, then visualize the resulting map and click on values, such as:
 
 
-```{r example9}
+```{r example9,eval=FALSE}
 out <- setupStudyArea(list("Al|Brit", level = 2))
 
 if (interactive()) {

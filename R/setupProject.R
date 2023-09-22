@@ -66,15 +66,15 @@ utils::globalVariables(c(
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
 #'   See [setup].
-#' @param sideEffects Optional. This can be an expression or one or more filenames or
+#' @param sideEffects Optional. This can be an expression or one or more file names or
 #'   a code chunk surrounded by `{...}`.
-#'   If a non-text files is specified (e.g., *not .txt or .R* currently),
+#'   If a non-text file name is specified (e.g., *not .txt or .R* currently),
 #'   these files will simply be downloaded, using their relative path as specified
 #'   in the github notation. They will be downloaded or accessed locally at that
 #'   relative path.
-#'   If these file names represent scripts, this/these will be parsed and evaluated,
-#'   but nothing returned. This is intended
-#'   to be used for functions, such as cloud authentication or configurations,
+#'   If these file names represent scripts (*.txt or .R), this/these will be parsed and evaluated,
+#'   but nothing is returned (i.e., any assigned objects are not returned). This is intended
+#'   to be used for operations like cloud authentication or configuration functions
 #'   that are run for their side effects only.
 #' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
@@ -196,8 +196,8 @@ utils::globalVariables(c(
 #' understand lists of named values, character vectors, or a mixture by using a list where
 #' named elements are values and unnamed elements are character strings/vectors. Any unnamed
 #' character string/vector will be treated as a file path. If that file path has an `@` symbol,
-#' it will be assumed to be a file that exists on `https://github.com`. So a user can
-#' pass values, or pointers to remote and/or local paths that themselves have values.
+#' it will be assumed to be a file that exists on a GitHub repository in `https://github.com`.
+#' So a user can pass values, or pointers to remote and/or local paths that themselves have values.
 #'
 #' The following will set an option as declared, plus read the local file (with relative
 #' path), plus download and read the cloud-hosted file.
@@ -212,7 +212,11 @@ utils::globalVariables(c(
 #' ```
 #' This approach allows for an organic growth of complexity, e.g., a user begins with
 #' only named lists of values, but then as the number of values increases, it may be
-#' helpful for clarity to put some in an external file.
+#' helpful to put some in an external file.
+#'
+#' NOTE: if the GitHub repository is *private* the user *must* configure their GitHub
+#' token by setting the GITHUB_PAT environment variable -- unfortunately, the `usethis`
+#' approach to setting the token will not work at this moment.
 #' }
 #'
 #' \subsection{Specifying `paths`, `options`, `params`}{
@@ -344,7 +348,8 @@ setupProject <- function(name, paths, modules, packages,
   if (is.null(origArgOrder)) {
     firstNamedArg <- 0
   } else {
-    firstNamedArg <- min(which(origArgOrder %in% formalArgs(setupProject)))
+    argsAreInFormals <- origArgOrder %in% formalArgs(setupProject)
+    firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
   }
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
@@ -435,13 +440,7 @@ setupProject <- function(name, paths, modules, packages,
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
-    isSAlist <- try(is(studyArea, "list"), silent = TRUE)
-
-    if (is(isSAlist, "try-error")) {
-      extraPackages <- c("terra", "geodata")
-      Require::Install(extraPackages)
-    }
-    dotsSUB$studyArea <- setupStudyArea(studyArea, paths)
+    dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame())
   }
 
   if (length(dotsLater)) {
@@ -459,8 +458,9 @@ setupProject <- function(name, paths, modules, packages,
                             # we also lose projectPath --> but this is getwd()
     params = params,
     times = times), dotsSUB)
-  if (!is.null(options))
-    attr(out, "projectOptions") <- options
+  if (!is.null(options)) {
+    attr(out, "projectOptions") <- opts$updates
+  }
 
   return(out)
 }
@@ -548,7 +548,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
-  paths <- parseFileLists(paths, paths[["projectPath"]], overwrite = isTRUE(overwrite),
+  paths <- parseFileLists(paths, paths, overwrite = isTRUE(overwrite),
                           envir = envir, verbose = verbose)
 
   if (!missing(name))
@@ -683,7 +683,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
       sideEffects <- tf
     }
 
-    sideEffects <- parseFileLists(sideEffects, paths[["projectPath"]], namedList = FALSE,
+    sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
                                   overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose)
   }
@@ -714,6 +714,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
   newValuesComplete <- oldValuesComplete <- NULL
+  updates <- NULL
   if (!missing(options)) {
 
     messageVerbose(yellow("setting up options..."), verbose = verbose)
@@ -726,10 +727,10 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
-      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
-    options <- parseFileLists(options, paths[["projectPath"]], overwrite = isTRUE(overwrite),
+    options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
     postOptions <- options()
@@ -744,12 +745,14 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       oldValues <- options(newValues)
       if (length(newValues)) {
         messageVerbose("The following options have been changed", verbose = verbose)
-        messageDF(data.table::data.table(optionName = names(newValues), newValue = newValues,
-                                         oldValue = oldValues), verbose = verbose)
+        updates <- data.table::data.table(optionName = names(newValues), newValue = newValues,
+                                          oldValue = oldValues)
+        messageDF(updates, verbose = verbose)
       }
     }
+    messageVerbose(yellow("  done setting up options"), verbose = verbose)
   }
-  return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete)))
+  return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete, updates = updates)))
 }
 
 isUnevaluatedList <- function(p) any( {
@@ -922,7 +925,7 @@ setupModules <- function(name, paths, modules, useGit = FALSE, overwrite = FALSE
     isRepo <- nzchar(exts) & exts %in% ".R"
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
-      modules <- parseFileLists(modules, paths[["projectPath"]], namedList = FALSE, overwrite = isTRUE(overwrite),
+      modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
                                 envir = envir, verbose = verbose)
     }
 
@@ -1085,7 +1088,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envir, envir2 = parent.frame())
-    params <- parseFileLists(params, paths[["projectPath"]], overwrite = isTRUE(overwrite),
+    params <- parseFileLists(params, paths, overwrite = isTRUE(overwrite),
                              envir = envir, verbose = verbose)
 
     if (length(params)) {
@@ -1153,7 +1156,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 }
 
 
-parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE, envir,
+parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envir,
                            verbose = getOption("Require.verbose", 1L), dots, ...) {
   if (is(obj, "list")) {
     nams <- names(obj)
@@ -1168,7 +1171,7 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
         namedElements <- obj[which(named)]
       obj[notNamed] <- Map(objInner = obj[notNamed],
                  function(objInner)
-                   parseFileLists(objInner, projectPath, namedList, isTRUE(overwrite),
+                   parseFileLists(objInner, paths, namedList, overwrite,
                                   envir, verbose, dots, ...))
       if (any(named))
         obj[named] <- Map(x = obj[named], nam = names(namedElements), function(x, nam) {
@@ -1183,17 +1186,70 @@ parseFileLists <- function(obj, projectPath, namedList = TRUE, overwrite = FALSE
     obj <- mapply(opt = obj, function(opt) {
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
-        opt <- getGithubFile(opt, destDir = projectPath, overwrite = isTRUE(overwrite))
+        rem <- opt
+        gitRepo <- splitGitRepo(opt)
+        opt <- stripQuestionMark(opt)
+        relativeFilePath <- extractGitHubFileRelativePath(opt)
+        # if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
+        #   # This is a projectPath that is one level into a GitHub repository
+        #   opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
+        # } else {
+        #   opt <- file.path(paths[["projectPath"]], relativeFilePath)
+        # }
+        opt <- stripDuplicateFolder(relativeFilePath, paths)
+
+        fe <- file.exists(opt)
+        if (fe && isFALSE(overwrite)) {
+          message(opt, " already exists; not downloading")
+        } else {
+          if (fe) {
+            message(opt, " already exists; overwrite = TRUE; downloading again")
+            unlink(opt)
+          }
+          # opt is the correct destination file because it has removed potential duplicated folder names
+          #   but getGitHubfile won't know this ... so give it a temporary destdir
+          destdir <- Require::tempdir2()
+          temp <- getGithubFile(rem, destDir = destdir, overwrite = isTRUE(overwrite))
+          checkPath(dirname(opt), create = TRUE)
+          copied <- linkOrCopy(temp, opt)
+        }
+
       } else {
+        isURL <- grepl("^http", opt)
+        if (isURL) {
+          destfile <- file.path(paths[["inputPath"]], basename(opt))
+          if (requireNamespace("reproducible", quietly = TRUE)) {
+            ret <- reproducible::preProcess(url = opt, targetFile = destfile, overwrite = isTRUE(overwrite), fun = NA)
+          } else {
+            dlfileOut <- try(download.file(url = opt, destfile = destfile))
+            if (is(dlfileOut, "try-error"))
+              stop("File could not be downloaded; perhaps try again after install.packages('reproducible')")
+          }
+          opt <- destfile
+        }
         if (!file.exists(opt))
           messageVerbose(opt, paste(" has no @ specified, so assuming a local file,",
                                     "but local file does not exist"), verbose = verbose)
       }
       opt
     }, SIMPLIFY = TRUE)
+    if (verbose > 0) {
+      objLocal <- gsub(paths[["projectPath"]], "", obj)
+      mess <- unlist(Map(nam = obj, rem = names(obj), function(rem, nam) {
+        objRem <- strsplit(rem, split = "/")[[1]]
+        len <- length(objRem)
+        if (len > 5) {
+          paste0(paste(objRem[1:4], collapse = "/"), "/.../", paste(objRem[c(len - 1):len], collapse = "/"))
+        } else {
+          rem
+        }
+      }))
+      if (!identical(mess, objLocal))
+        messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
+    }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      obj[areAbs %in% FALSE] <- file.path(projectPath, obj[areAbs %in% FALSE])
+      obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
     }
 
   }
@@ -1266,7 +1322,7 @@ inTempProject <- function(paths) {
 
 evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
-  while (inherits(val, "call") || inherits(val, "name")) {
+  while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{")) {
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
     else {
@@ -1669,10 +1725,12 @@ stopMessForRequireFail <- function(pkg) {
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
 #' with subregion specification as described in the `studyArea` argument.fsu
-setupStudyArea <- function(studyArea, paths) {
+setupStudyArea <- function(studyArea, paths, envir) {
 
   if (missing(paths))
     paths <- list(inputPaths = ".")
+  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = parent.frame(), envir2 = envir)
+
   if (is(studyArea, "list")) {
     needRep <- !requireNamespace("reproducible", quietly = TRUE)
     needGeo <- !requireNamespace("geodata", quietly = TRUE)
@@ -1765,8 +1823,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
       if (requireNamespace("rstudioapi")) {
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
-        browser()
-        rstudioapi::initializeProject(paths[["projectPath"]])
+        # browser()
+        fe <- file.exists("~/.active-rstudio-document")
+
         rstudioapi::openProject(path = paths[["projectPath"]])
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
@@ -1880,6 +1939,16 @@ dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) 
     dotsSUB <- dotsSUBreworked
   dotsSUB
 }
+
+stripDuplicateFolder <- function(relativeFilePath, paths) {
+  if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
+    # This is a projectPath that is one level into a GitHub repository
+    opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
+  } else {
+    opt <- file.path(paths[["projectPath"]], relativeFilePath)
+  }
+}
+
 
 parseExpressionSequentially <- function(pp, envs, namedList, verbose) {
   envs2 <- lapply(pp, function(p) {

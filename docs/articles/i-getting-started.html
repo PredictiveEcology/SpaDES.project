@@ -39,7 +39,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9003</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9004</span>
       </span>
     </div>
 
@@ -145,8 +145,7 @@ the package.</p>
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"SpaDES.project"</span>, repos <span class="op">=</span> <span class="st">"predictiveecology.r-universe.dev"</span><span class="op">)</span></span>
 <span>   <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="st"><a href="https://spades-project.predictiveecology.org/" class="external-link">"SpaDES.project"</a></span><span class="op">)</span><span class="op">}</span></span>
-<span><span class="op">}</span></span>
-<span><span class="co">#&gt; Loading required package: SpaDES.project</span></span></code></pre></div>
+<span><span class="op">}</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="understanding-spades-projects-main-function-setupproject">Understanding <code>SpaDES.project</code>’s Main Function:
@@ -273,12 +272,114 @@ pointers to remote and/or local paths that, themselves, have values.</p>
 read the cloud-hosted
 <code>PredictiveEcology/SpaDES.project@transition/inst/options.R</code>
 file.</p>
-<pre><code><span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>   options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>                  <span class="st">"inst/options.R"</span>,</span>
 <span>                  <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
 <span>                 <span class="op">)</span></span>
-<span>   <span class="op">)</span></span></code></pre>
+<span>   <span class="op">)</span></span>
+<span><span class="co">#&gt; $modules</span></span>
+<span><span class="co">#&gt; named character(0)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths</span></span>
+<span><span class="co">#&gt; $paths$cachePath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/cache"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$inputPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/inputs"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$modulePath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/modules"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$outputPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$rasterPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/raster"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$scratchPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $paths$terraPath</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/terra"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $params</span></span>
+<span><span class="co">#&gt; list()</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $times</span></span>
+<span><span class="co">#&gt; $times$start</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $times$end</span></span>
+<span><span class="co">#&gt; [1] 1</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; attr(,"projectOptions")</span></span>
+<span><span class="co">#&gt;                             optionName</span></span>
+<span><span class="co">#&gt;  1:              reproducible.useTerra</span></span>
+<span><span class="co">#&gt;  2:                          fftempdir</span></span>
+<span><span class="co">#&gt;  3:             future.globals.maxSize</span></span>
+<span><span class="co">#&gt;  4:                   LandR.assertions</span></span>
+<span><span class="co">#&gt;  5:                      LandR.verbose</span></span>
+<span><span class="co">#&gt;  6:                       map.dataPath</span></span>
+<span><span class="co">#&gt;  7:                      map.overwrite</span></span>
+<span><span class="co">#&gt;  8:                    map.maxNumCores</span></span>
+<span><span class="co">#&gt;  9:                    rasterMaxMemory</span></span>
+<span><span class="co">#&gt; 10:       reproducible.destinationPath</span></span>
+<span><span class="co">#&gt; 11:               reproducible.useGDAL</span></span>
+<span><span class="co">#&gt; 12: reproducible.useNewDigestAlgorithm</span></span>
+<span><span class="co">#&gt; 13:            reproducible.inputPaths</span></span>
+<span><span class="co">#&gt; 14:               reproducible.devMode</span></span>
+<span><span class="co">#&gt; 15:             reproducible.overwrite</span></span>
+<span><span class="co">#&gt; 16:              reproducible.useCloud</span></span>
+<span><span class="co">#&gt; 17:                   spades.inputPath</span></span>
+<span><span class="co">#&gt; 18:            spades.moduleCodeChecks</span></span>
+<span><span class="co">#&gt; 19:                spades.recoveryMode</span></span>
+<span><span class="co">#&gt; 20:                  spades.useRequire</span></span>
+<span><span class="co">#&gt;                                                           newValue</span></span>
+<span><span class="co">#&gt;  1:                                                           TRUE</span></span>
+<span><span class="co">#&gt;  2: C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project</span></span>
+<span><span class="co">#&gt;  3:                                                     1048576000</span></span>
+<span><span class="co">#&gt;  4:                                                          FALSE</span></span>
+<span><span class="co">#&gt;  5:                                                              1</span></span>
+<span><span class="co">#&gt;  6:                          C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
+<span><span class="co">#&gt;  7:                                                          FALSE</span></span>
+<span><span class="co">#&gt;  8:                                                              2</span></span>
+<span><span class="co">#&gt;  9:                                                          5e+09</span></span>
+<span><span class="co">#&gt; 10:                          C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
+<span><span class="co">#&gt; 11:                                                          FALSE</span></span>
+<span><span class="co">#&gt; 12:                                                           TRUE</span></span>
+<span><span class="co">#&gt; 13:                 C:/Eliot/OneDrive - NRCan RNCan/Documents/data</span></span>
+<span><span class="co">#&gt; 14:                                                           TRUE</span></span>
+<span><span class="co">#&gt; 15:                                                           TRUE</span></span>
+<span><span class="co">#&gt; 16:                                                           TRUE</span></span>
+<span><span class="co">#&gt; 17:                         C:/Eliot/GitHub/SpaDES.project/outputs</span></span>
+<span><span class="co">#&gt; 18:                                                          FALSE</span></span>
+<span><span class="co">#&gt; 19:                                                          FALSE</span></span>
+<span><span class="co">#&gt; 20:                                                          FALSE</span></span>
+<span><span class="co">#&gt;                                  oldValue</span></span>
+<span><span class="co">#&gt;  1:                                      </span></span>
+<span><span class="co">#&gt;  2:                                      </span></span>
+<span><span class="co">#&gt;  3:                                      </span></span>
+<span><span class="co">#&gt;  4:                                      </span></span>
+<span><span class="co">#&gt;  5:                                      </span></span>
+<span><span class="co">#&gt;  6:                                      </span></span>
+<span><span class="co">#&gt;  7:                                      </span></span>
+<span><span class="co">#&gt;  8:                                      </span></span>
+<span><span class="co">#&gt;  9:                                      </span></span>
+<span><span class="co">#&gt; 10:                                      </span></span>
+<span><span class="co">#&gt; 11:                                      </span></span>
+<span><span class="co">#&gt; 12:                                      </span></span>
+<span><span class="co">#&gt; 13:                                      </span></span>
+<span><span class="co">#&gt; 14:                                      </span></span>
+<span><span class="co">#&gt; 15:                                 FALSE</span></span>
+<span><span class="co">#&gt; 16:                                 FALSE</span></span>
+<span><span class="co">#&gt; 17: C:/Eliot/GitHub/SpaDES.project/inputs</span></span>
+<span><span class="co">#&gt; 18:                             &lt;list[5]&gt;</span></span>
+<span><span class="co">#&gt; 19:                                     1</span></span>
+<span><span class="co">#&gt; 20:                                  TRUE</span></span></code></pre></div>
 <p>This approach allows for an organic growth of complexity, e.g., a
 user begins with only named lists of values, but then as the number of
 values increases, it may be helpful for clarity to put some in an
@@ -300,8 +401,10 @@ configuration. For instance, consider the following example, where
 <code>projectPath</code> is included as part of the list assigned to the
 <code>paths</code> argument. This value is then utilized in the
 subsequent list element:</p>
-<pre><code><span><span class="fu"><a href="../reference/setup.html">setupPaths</a></span><span class="op">(</span>paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="st">"here"</span>,</span>
-<span>                        modulePath <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">paths</span><span class="op">[[</span><span class="st">"projectPath"</span><span class="op">]</span><span class="op">]</span>, <span class="st">"modules"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="co"># Note how 'modulePaths' is passed based on the previous argument 'projectPath' in the same function call.</span></span></code></pre>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 'modulePaths' is defined based on the previous argument 'projectPath' in the same function call.</span></span>
+<span><span class="fu"><a href="../reference/setup.html">setupPaths</a></span><span class="op">(</span>paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="st">"here"</span>,</span>
+<span>                        modulePath <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">paths</span><span class="op">[[</span><span class="st">"projectPath"</span><span class="op">]</span><span class="op">]</span>, <span class="st">"modules"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> </span></code></pre></div>
 <p>Because of such sequential evaluation, the content with R scripts can
 be sequential lists, and also the arguments can themselves be
 sequential. This creates a hierarchy specified by the order. In this
@@ -312,13 +415,13 @@ an ⁠if
 list(maxMemory =
 6e+10))<code>, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the</code>opts<code>list. Finally, because this is</code>setupOptions<code>, it will call</code>options(opts)`
 with the new list values:</p>
-<pre><code><span><span class="va">a</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setup.html">setupOptions</a></span><span class="op">(</span>options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    <span class="st">"inst/options.R"</span>,                  <span class="co"># many items set because this is a file</span></span>
-<span>    maxMemory <span class="op">=</span> <span class="fl">6e+9</span>,                  <span class="co"># if only 1 item, doesn't need to be in a list</span></span>
-<span>    <span class="kw">if</span><span class="op">(</span><span class="fu"><a href="../reference/helpers.html">user</a></span><span class="op">(</span><span class="st">"emcintir"</span><span class="op">)</span><span class="op">)</span>               <span class="co"># an "if" statement is OK</span></span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>map.overwrite <span class="op">=</span> <span class="cn">TRUE</span>,     <span class="co"># two items, so in a list</span></span>
-<span>             map.runAgain <span class="op">=</span> <span class="cn">T</span><span class="op">)</span></span>
-<span><span class="op">)</span><span class="op">)</span></span></code></pre>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">a</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setup.html">setupOptions</a></span><span class="op">(</span>options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    <span class="st">"inst/options.R"</span>,                        <span class="co"># many items set because this is a file; has "future.globals.maxSize" = 5.24288e8</span></span>
+<span>    future.globals.maxSize <span class="op">=</span> <span class="fl">4e8</span>,          <span class="co"># this value overrides first, because it is 2nd</span></span>
+<span>    <span class="kw">if</span><span class="op">(</span><span class="fu"><a href="../reference/helpers.html">user</a></span><span class="op">(</span><span class="st">"emcintir"</span><span class="op">)</span><span class="op">)</span>                     <span class="co"># an "if" statement is OK --&gt; but must use list after</span></span>
+<span>      <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>future.globals.maxSize <span class="op">=</span> <span class="fl">6e8</span><span class="op">)</span>     <span class="co"># conditional on user, value is overridden again</span></span>
+<span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="handling-missing-values">
@@ -340,11 +443,16 @@ Additionally, we include <code>.nodes</code> as an example of passing a
 value that does exist. In the output, the non-existent
 <code>.mode</code> will be returned as an unevaluated, captured list
 element:</p>
-<pre><code><span><span class="va">.nodes</span> <span class="op">&lt;-</span> <span class="fl">2</span></span>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">.nodes</span> <span class="op">&lt;-</span> <span class="fl">2</span></span>
 <span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>.mode <span class="op">=</span> <span class="va">.mode</span>,</span>
-<span>                    .nodes <span class="op">=</span> <span class="va">.nodes</span>,</span>
-<span>                    options <span class="op">=</span> <span class="st">"https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/inst/options.R"</span></span>
-<span>                    <span class="op">)</span></span></code></pre>
+<span>                    .nodes <span class="op">=</span> <span class="va">.nodes</span><span class="op">)</span></span>
+<span><span class="va">out</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">".mode"</span>, <span class="st">".nodes"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; $.mode</span></span>
+<span><span class="co">#&gt; .mode</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $.nodes</span></span>
+<span><span class="co">#&gt; [1] 2</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
@@ -379,43 +487,30 @@ default values for <code>paths</code>.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://spades-project.predictiveecology.org/" class="external-link">SpaDES.project</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
-<span><span class="co">#&gt; Setting:</span></span>
-<span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/modules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes'</span></span>
-<span><span class="co">#&gt;   )</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
-<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
-<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
 <span><span class="co">#&gt; $modules</span></span>
 <span><span class="co">#&gt; named character(0)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths</span></span>
 <span><span class="co">#&gt; $paths$cachePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/cache"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/cache"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$inputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/inputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/inputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$modulePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/modules"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/modules"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$outputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/outputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -436,7 +531,7 @@ sequentially. This means that a previous value can be utilized by a
 subsequent one.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Use the newValue in `secondValue`</span></span>
-<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"test"</span>,</span>
+<span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>             newValue <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>             secondValue <span class="op">=</span> <span class="va">newValue</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">out</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"newValue"</span>, <span class="st">"secondValue"</span><span class="op">)</span><span class="op">]</span></span>
@@ -462,7 +557,10 @@ spelled correctly.</p>
 <span>             gitHubRepo <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_core@main"</span>, <span class="co"># The correct one --&gt; not used</span></span>
 <span>             modules <span class="op">=</span> <span class="va">githubRepo</span>,</span>
 <span>             packages <span class="op">=</span> <span class="cn">NULL</span> <span class="co"># no packages for this demonstration</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="va">out</span><span class="op">$</span><span class="va">modules</span> <span class="co"># shows @development, which is unexpected</span></span>
+<span><span class="co">#&gt; PredictiveEcology/Biomass_core@development </span></span>
+<span><span class="co">#&gt;                             "Biomass_core"</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="paths">Paths<a class="anchor" aria-label="anchor" href="#paths"></a>
@@ -484,43 +582,30 @@ assumes the current directory is the desired root of the project.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://spades-project.predictiveecology.org/" class="external-link">SpaDES.project</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span>paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"myModules"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">setting up paths ...</span></span></span>
-<span><span class="co">#&gt; Setting:</span></span>
-<span><span class="co">#&gt;   options(</span></span>
-<span><span class="co">#&gt;     reproducible.cachePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/cache'</span></span>
-<span><span class="co">#&gt;     spades.inputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/inputs'</span></span>
-<span><span class="co">#&gt;     spades.outputPath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/outputs'</span></span>
-<span><span class="co">#&gt;     spades.modulePath = 'C:/Eliot/GitHub/SpaDES.project/vignettes/myModules'</span></span>
-<span><span class="co">#&gt;     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes'</span></span>
-<span><span class="co">#&gt;   )</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">  done setting up paths</span></span></span>
-<span><span class="co">#&gt; Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">  no packages to set up</span></span></span>
-<span><span class="co">#&gt; .libPaths() are: C:/Users/emcintir/AppData/Roaming/R/data/R/vignettes/packages/x86_64-w64-mingw32/4.3, C:/Program Files/R/R-4.3.1/library</span></span>
 <span><span class="co">#&gt; $modules</span></span>
 <span><span class="co">#&gt; named character(0)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths</span></span>
 <span><span class="co">#&gt; $paths$cachePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/cache"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/cache"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$inputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/inputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/inputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$modulePath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/myModules"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/myModules"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$outputPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/vignettes/outputs"</span></span>
+<span><span class="co">#&gt; [1] "C:/Eliot/GitHub/SpaDES.project/outputs"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$rasterPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes/raster"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/raster"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$scratchPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $paths$terraPath</span></span>
-<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpkJeGYT/vignettes/terra"</span></span>
+<span><span class="co">#&gt; [1] "C:/Users/emcintir/AppData/Local/Temp/RtmpqMu5cX/SpaDES.project/terra"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $params</span></span>
@@ -561,7 +646,8 @@ package installation step by specifying <code>package = NULL</code>.</p>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"m"</span>,</span>
 <span>               projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
 <div class="section level4">
 <h4 id="arguments-as-values-or-urls">Arguments as values or urls<a class="anchor" aria-label="anchor" href="#arguments-as-values-or-urls"></a>
 </h4>
@@ -585,7 +671,8 @@ scale.</p>
 <span>  paths <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>modulePath <span class="op">=</span> <span class="st">"m"</span>,</span>
 <span>               projectPath <span class="op">=</span> <span class="st">"."</span><span class="op">)</span>, <span class="co"># within vignette, project dir cannot be changed; user likely will</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level4">
@@ -603,7 +690,8 @@ scale.</p>
 <span>  mode <span class="op">=</span> <span class="va">mode</span>, <span class="co"># may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above</span></span>
 <span>  studyAreaName <span class="op">=</span> <span class="va">studyAreaName</span><span class="co">#, # same as previous argument.</span></span>
 <span>  <span class="co"># params = list("Biomass_borealDataPrep" = list(.useCache = mode))</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level3">
@@ -618,7 +706,8 @@ scale.</p>
 <span>                     studyAreaName <span class="op">=</span> <span class="st">"MB"</span><span class="op">)</span>,</span>
 <span>  mode <span class="op">=</span> <span class="st">"development"</span>,</span>
 <span>  studyAreaName <span class="op">=</span> <span class="va">studyAreaName</span>  <span class="co"># &lt;----- pass it here, naming it</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: package 'SpaDES.project' is in use and will not be installed</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="mixing-argument-a-named-list-a-github-file-and-local-file">Mixing argument: a named list, a github file and local file<a class="anchor" aria-label="anchor" href="#mixing-argument-a-named-list-a-github-file-and-local-file"></a>
