@@ -84,30 +84,40 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         modNameShort <- Require::extractPkgName(modToDL)
         Require::checkPath(dd, create = TRUE)
         messageVerbose(modToDL, " ...", verbose = verbose)
+        isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
 
-        mess <- capture.output(type = "message",
-                       out <- withCallingHandlers({
-                         downloadRepo(modToDL, subFolder = NA,
-                               destDir = dd, overwrite = overwrite,
-                               verbose = verbose + 1)},
-                            warning = function(w) {
-                              warns <- grep("No such file or directory|extracting from zip file", w$message,
-                                            value = TRUE, invert = TRUE)
-                              if (length(warns))
-                                warning(warns)
-                              invokeRestart("muffleWarning")
-                            }
-        ))
-        files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-        if (length(files)) {
-          newFiles <- file.path(modulePath, modNameShort, files)
-          out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-          file.copy(file.path(dd, modNameShort, files),
-                    file.path(modulePath, modNameShort, files), overwrite = TRUE)
-          messageVerbose("\b Done!", verbose = verbose)
+        if (isGH) {
 
+          mess <- capture.output(type = "message",
+                                 out <- withCallingHandlers({
+                                   downloadRepo(modToDL, subFolder = NA,
+                                                destDir = dd, overwrite = overwrite,
+                                                verbose = verbose + 1)},
+                                   warning = function(w) {
+                                     warns <- grep("No such file or directory|extracting from zip file", w$message,
+                                                   value = TRUE, invert = TRUE)
+                                     if (length(warns))
+                                       warning(warns)
+                                     invokeRestart("muffleWarning")
+                                   }
+                                 ))
+          files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+          if (length(files)) {
+            newFiles <- file.path(modulePath, modNameShort, files)
+            out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+            file.copy(file.path(dd, modNameShort, files),
+                      file.path(modulePath, modNameShort, files), overwrite = TRUE)
+            messageVerbose("\b Done!", verbose = verbose)
+
+          } else {
+            messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
+                           verbose = verbose)
+          }
         } else {
-          messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
+          messageVerbose(modToDL, " could not be found locally (in ",
+                         file.path(modulePath, modToDL),
+                         ", nor as a remote module located on GitHub.com, ",
+                         "using format: GitAccount/GitRepo@Branch", "\n --> does it exist on GitHub.com? and are permissions correct?",
                          verbose = verbose)
         }
 
