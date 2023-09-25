@@ -24,7 +24,7 @@ it should be unnecessary to call them directly."><!-- mathjax --><script src="ht
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9004</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9006</span>
       </span>
     </div>
 
@@ -125,7 +125,7 @@ it should be unnecessary to call them directly.</p>
 <span>  <span class="va">name</span>,</span>
 <span>  <span class="va">paths</span>,</span>
 <span>  <span class="va">modules</span>,</span>
-<span>  useGit <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  useGit <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"SpaDES.project.useGit"</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
 <span>  overwrite <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  envir <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/environment.html" class="external-link">environment</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"Require.verbose"</span>, <span class="fl">1L</span><span class="op">)</span>,</span>
@@ -320,7 +320,8 @@ to get and change branch for each module, according to its specification in
 <code>modules</code>. Otherwise it will download modules with <code>getModules</code>. NOTE: <em>CREATING</em> A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
-A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.</p></dd>
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
+be set with the <code>option(SpaDES.project.useGit = xxx)</code>.</p></dd>
 
 
 <dt>packages</dt>

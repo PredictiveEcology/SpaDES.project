@@ -71,15 +71,15 @@ For more details, see `?setupProject`, especially for argument-specific descript
 
 The primary five objectives of this function are:
 
-**1. Preparation for simInit:** These functions are designed to set the stage for a smooth transition into the simInit phase. 
+**1. Preparation for `SpaDES.core::simInit`:** This functions is designed to set the stage for a smooth transition into `SpaDES.core::simInit`, i.e., the initiation of a collection of SpaDES modules. After a `out <- setupProject()` call, the return can be passed directly to `do.call(SpaDES.core::simInitAndSpades, out)`.
 
-**2. Minimizing .GlobalEnv Assignments:** An important goal is to encourage best practices by reducing the need for assignments to the .GlobalEnv. This practice fosters clean, maintainable code that remains reproducible even as project complexity grows. 
+**2. Simplicity for Beginners, Versatility for Experts:** The functions are crafted to be approachable for beginners, offering simplicity, while at the same time, providing the power and flexibility needed to address the demands of highly intricate projects, all within the same structural framework. 
 
-**3. Simplicity for Beginners, Versatility for Experts:** The functions are crafted to be approachable for beginners, offering simplicity, while at the same time, providing the power and flexibility needed to address the demands of highly intricate projects, all within the same structural framework. 
+**3. Handling Package Complexity:** These functions address the complexities associated with R package installation and loading, especially when working with modules created by various users. 
 
-**4. Handling Package Complexity:** These functions address the complexities associated with R package installation and loading, especially when working with modules created by various users. 
+**4. Creating a Standardized Project Structure:** They facilitate the establishment of a consistent SpaDES project structure. This uniformity eases the transition from one project to another, regardless of project complexity, promoting a seamless and efficient workflow.  
 
-**5. Creating a Standardized Project Structure:** They facilitate the establishment of a consistent SpaDES project structure. This uniformity eases the transition from one project to another, regardless of project complexity, promoting a seamless and efficient workflow.  
+**5. Minimizing .GlobalEnv Assignments:** An important goal is to encourage best practices by reducing the need for assignments to the .GlobalEnv. This practice fosters clean, maintainable code that remains reproducible even as project complexity grows. 
 
 ## Function Tasks
 
@@ -164,7 +164,16 @@ out[c(".mode", ".nodes")]
 
 # Relationship between `setupProject()` and `SpaDES.core::simInit` Call
 
-The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call.   
+The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call. Every `setupProject` call can be used with `do.call` to pass arguments to a `simInit` or `simInitAndSpades` call.
+
+```
+sim <- setupProject() |> do.call(what = SpaDES.core::simInitAndSpades)
+
+## or
+out <- setupProject() 
+sim = do.call(SpaDES.core::simInitAndSpades, out)
+
+```
 
 # See Also  
 
@@ -179,6 +188,30 @@ Other helpful functions that are worse going though are `?user`, `?machine`, and
 
 
 # Examples of usage of `setupProject()`
+
+## Get modules from GitHub
+
+This will retrieve the module as specified, and place it in `modulePath`, which is unspecified here, thus taking the default. This specification will not re-download the file if it exists locally, with a message indicating this each time. This specification will also automatically install all missing packages that are in `reqdPkgs` metadata of the module(s). NOTE: we can omit this package installation step by specifying `package = NULL`.
+
+```{r example2}
+out <- setupProject(
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  packages = NULL # for this example, skip installation of packages; normally don't do this
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+## Paths 
+
+All paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders, are place in a subfolder of `tempdir()`. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
+
+In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
+
+```{r simplest2,eval=TRUE}
+library(SpaDES.project)
+setupProject(paths = list(modulePath = "myModules"))
+```
 
 ## Default values
 
@@ -218,30 +251,10 @@ out <- setupProject(
 )
 out$modules # shows @development, which is unexpected
 
-
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
-## Paths 
-
-All paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders, are place in a subfolder of `tempdir()`. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
-
-In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
-
-```{r simplest2,eval=TRUE}
-library(SpaDES.project)
-setupProject(paths = list(modulePath = "myModules"))
-```
-
-## Get modules from GitHub
-
-This will retrieve the module as specified, and place it in `modulePath`, which is unspecified here, thus taking the default. This specification will not re-download the file if it exists locally, with a message indicating this each time. This specification will also automatically install all missing packages that are in `reqdPkgs` metadata of the module(s). NOTE: we can omit this package installation step by specifying `package = NULL`.
-
-```{r example2}
-out <- setupProject(
-  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  package = NULL # for this example, skip installation
-)
-```
 
 ## With options and params set
 
@@ -254,6 +267,8 @@ out <- setupProject(
                projectPath = "."), # within vignette, project dir cannot be changed; user likely will
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
 ```{r clean3,echo=FALSE}
@@ -280,6 +295,8 @@ out <- setupProject(
                projectPath = "."), # within vignette, project dir cannot be changed; user likely will
   modules = "PredictiveEcology/Biomass_borealDataPrep@development"
 )
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
 ```{r clean4,echo=FALSE}
@@ -303,6 +320,8 @@ out <- setupProject(
   studyAreaName = studyAreaName#, # same as previous argument.
   # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
 )
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
 ```{r clean5,echo=FALSE}
@@ -323,6 +342,8 @@ out <- setupProject(
   mode = "development",
   studyAreaName = studyAreaName  # <----- pass it here, naming it
 )
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
 ```{r clean7,echo=FALSE}
@@ -433,6 +454,8 @@ out <- setupProject(
     )
   )
 )
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
 ## Passing named arguments as part of the `...`
@@ -463,6 +486,8 @@ out <- setupProject(
     crs = terra::crs("epsg:3978")
   )
 )
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
 ## Make project-level change to .libPaths() that is persistent
@@ -470,7 +495,7 @@ out <- setupProject(
 ```{r example13,eval=FALSE}
 out <- setupProject(
   name = "example_13",
-  package = "terra",
+  packages = "terra",
   updateRprofile = TRUE
 )
 ```

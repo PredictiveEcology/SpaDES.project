@@ -56,7 +56,7 @@ setupModules(
   name,
   paths,
   modules,
-  useGit = FALSE,
+  useGit = getOption("SpaDES.project.useGit", FALSE),
   overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
@@ -216,7 +216,8 @@ to get and change branch for each module, according to its specification in
 \code{modules}. Otherwise it will download modules with \code{getModules}. NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
-A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.}
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
+be set with the \code{option(SpaDES.project.useGit = xxx)}.}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but

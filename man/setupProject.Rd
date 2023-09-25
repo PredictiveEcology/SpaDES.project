@@ -17,7 +17,7 @@ setupProject(
   require = NULL,
   studyArea = NULL,
   Restart = getOption("SpaDES.project.Restart", FALSE),
-  useGit = FALSE,
+  useGit = getOption("SpaDES.project.useGit", FALSE),
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
   libPaths = NULL,
@@ -114,7 +114,8 @@ to get and change branch for each module, according to its specification in
 \code{modules}. Otherwise it will download modules with \code{getModules}. NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
-A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.}
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
+be set with the \code{option(SpaDES.project.useGit = xxx)}.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
 on Linux (ignored if Windows)}

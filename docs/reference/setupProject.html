@@ -39,7 +39,7 @@ or set times and use the times list for certain entries in params."><!-- mathjax
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9004</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.8.9006</span>
       </span>
     </div>
 
@@ -123,7 +123,7 @@ or set <code>times</code> and use the <code>times</code> list for certain entrie
 <span>  require <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  studyArea <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Restart <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"SpaDES.project.Restart"</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
-<span>  useGit <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  useGit <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"SpaDES.project.useGit"</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
 <span>  setLinuxBinaryRepo <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  standAlone <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  libPaths <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -247,7 +247,8 @@ to get and change branch for each module, according to its specification in
 <code>modules</code>. Otherwise it will download modules with <code>getModules</code>. NOTE: <em>CREATING</em> A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
-A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS.</p></dd>
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
+be set with the <code>option(SpaDES.project.useGit = xxx)</code>.</p></dd>
 
 
 <dt>setLinuxBinaryRepo</dt>
@@ -510,11 +511,11 @@ but as an unevaluated, captured list element.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">setting up paths ...</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Setting:</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   options(</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpSSYntb/Require/cache'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpSSYntb/Require/inputs'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpSSYntb/Require/outputs'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpSSYntb/Require/modules'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpSSYntb/Require'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     reproducible.cachePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpUF1p1c/Require/cache'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.inputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpUF1p1c/Require/inputs'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.outputPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpUF1p1c/Require/outputs'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.modulePath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpUF1p1c/Require/modules'</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>     spades.scratchPath = 'C:/Users/emcintir/AppData/Local/Temp/RtmpUF1p1c/Require'</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   )</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">  done setting up paths</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Copying SpaDES.project, data.table, Require, rprojroot packages to paths$packagePath (C:/Users/emcintir/AppData/Roaming/R/data/R/Require/packages/x86_64-w64-mingw32/4.3)</span>
