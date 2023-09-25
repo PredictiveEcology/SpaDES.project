@@ -962,7 +962,11 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
       modules <- anyfailed
     }
 
-    if (isTRUE(useGit) || length(anyfailed)) {
+    isGH <- isGitHub(modules) & grepl("@", modules) # the default isGitHub allows no branch
+    anyFailedGH <- intersect(anyfailed, modules[isGH])
+
+
+    if (isTRUE(useGit) || ( length(anyFailedGH) ) ) {
       gitSplit <- splitGitRepo(modules)
       gitSplit <- Require::invertList(gitSplit)
 
