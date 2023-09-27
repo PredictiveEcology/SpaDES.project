@@ -358,6 +358,7 @@ setupProject <- function(name, paths, modules, packages,
     argsAreInFormals <- origArgOrder %in% formalArgs(setupProject)
     firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
   }
+
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
   if (firstNamedArg > 2) { # there is always an empty one at first slot
@@ -1669,7 +1670,8 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-                d1 <- try(eval(d, envir = localEnv), silent = TRUE)
+                d1 <- evalSUB(d, envir = localEnv)
+                # d1 <- try(eval(d, envir = localEnv), silent = TRUE)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
                     d1 <- defaultDots[[nam]]
