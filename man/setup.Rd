@@ -211,7 +211,11 @@ then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.
 See \link{setup}.}
 
-\item{useGit}{A logical. If \code{TRUE}, it will use \verb{git clone} and \verb{git checkout}
+\item{useGit}{A logical or \code{"sub"} for \emph{submodule}. If \code{"sub"}, then this function
+will attempt to clone the identified \code{modules} \emph{as git submodules}. This will only
+work if the \code{projectPath} is a git repository. If the project is already a git
+repository because the user has set that up externally to this function call, then
+this function will add the \code{modules} as git submodules. If it is not alrea, it will use \verb{git clone} and \verb{git checkout}
 to get and change branch for each module, according to its specification in
 \code{modules}. Otherwise it will download modules with \code{getModules}. NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
