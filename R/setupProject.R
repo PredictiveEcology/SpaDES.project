@@ -81,7 +81,11 @@ utils::globalVariables(c(
 #'   but nothing is returned (i.e., any assigned objects are not returned). This is intended
 #'   to be used for operations like cloud authentication or configuration functions
 #'   that are run for their side effects only.
-#' @param useGit A logical. If `TRUE`, it will use `git clone` and `git checkout`
+#' @param useGit A logical or `"sub"` for *submodule*. If `"sub"`, then this function
+#'   will attempt to clone the identified `modules` *as git submodules*. This will only
+#'   work if the `projectPath` is a git repository. If the project is already a git
+#'   repository because the user has set that up externally to this function call, then
+#'   this function will add the `modules` as git submodules. If it is not alrea, it will use `git clone` and `git checkout`
 #'   to get and change branch for each module, according to its specification in
 #'   `modules`. Otherwise it will download modules with `getModules`. NOTE: *CREATING* A
 #'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
@@ -458,6 +462,7 @@ setupProject <- function(name, paths, modules, packages,
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
     dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame())
+    studyArea <- dotsSUB$studyArea
   }
 
   if (length(dotsLater)) {
@@ -950,7 +955,7 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
     anyfailed <- character()
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
-    if (!useGit) {
+    if (useGit %in% FALSE) {
       offlineMode <- getOption("Require.offlineMode")
       if (isTRUE(offlineMode)) {
         opt <- options(Require.offlineMode = FALSE)
@@ -967,21 +972,59 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
     anyFailedGH <- intersect(anyfailed, modules[isGH])
 
 
-    if (isTRUE(useGit) || ( length(anyFailedGH) ) ) {
-      gitSplit <- splitGitRepo(modules)
-      gitSplit <- Require::invertList(gitSplit)
+    if (isTRUE(!(useGit %in% FALSE)) || ( length(anyFailedGH) ) ) {
 
+      isGitRepoAlready <- isProjectGitRepo(paths$projectPath)
       origDir <- getwd()
       on.exit({
         setwd(origDir)
       }
-        )
+      )
+
+      # This will create a new Git Repo at the top level
+      if (isGitRepoAlready %in% FALSE && is.character(useGit)) {
+        system("git init -b main")
+        dir1 <- dir(".", all.files = TRUE)
+        onlyFiles <- dir1[!dir.exists(dir1)]
+        theFiles <- paste(onlyFiles, collapse = " ")
+        system(paste("git add ", theFiles))
+
+        ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$cachePath, paths$projectPath)
+        ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$inputPath, paths$projectPath)
+
+        cachePathGrep <- paste0("^", cp, "$")
+        if (!any(grepl(cachePathGrep, gi))) {
+          cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
+        }
+        system(paste(""))
+        system(paste("git commit ."))
+        rl <- readline("Update git config --global --edit ? (Y or N): ")
+        if (startsWith(tolower(rl), "y") ) {
+          system(paste0("git config --global --edit "))
+
+          rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
+          if (startsWith(tolower(rl), "y") ) {
+            system(paste0("git commit --amend --reset-author"))
+          }
+        }
+      }
+
+      gitSplit <- splitGitRepo(modules)
+      gitSplit <- Require::invertList(gitSplit)
+
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
         if (!dir.exists(localPath)) {
+
           prev <- setwd(file.path(paths[["modulePath"]]))
-          cmd <- paste0("git clone https://github.com/", modPath)
+          cloneOrSubmodule <- if (isTRUE(isGitRepoAlready)) {
+            "submodule add"
+          } else {
+            "clone"
+          }
+
+          cmd <- paste0("git ", cloneOrSubmodule," https://github.com/", modPath)
           system(cmd)
         } else {
           messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
@@ -1003,6 +1046,13 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
       })
+    }
+    if (is.character(useGit) && isGitRepoAlready %in% FALSE) {
+      res1 <- system(paste("git remote add", name, useGit), intern = TRUE)
+      res2 <- system(paste("git push", name), intern = TRUE)
+      if (grepl("error|fatal", res1))
+        stop("git push failed; perhaps no rights to push; perhaps open a Git GUI to complete this step")
+
     }
 
     modulePackages <- packagesInModules(modulePath = paths[["modulePath"]], modules = modulesOrigPkgName)
@@ -2056,4 +2106,17 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
 
   opts$updates <- a
   opts
+}
+
+isProjectGitRepo <- function(projectPath) {
+  length(dir(pattern = "^\\.git$", path = projectPath, all.files = TRUE)) == 1L
+}
+
+ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
+  gi <- readLines(gitIgnoreFile)
+  cp <- reproducible:::makeRelative(folder, projectPath)
+  cachePathGrep <- paste0("^", cp, "(\\/)*", "$")
+  if (!any(grepl(cachePathGrep, gi))) {
+    cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
+  }
 }

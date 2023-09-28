@@ -48,8 +48,8 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
     }
     if (feMP) {
       pp <- parse(file = modPath)
-      wh <- unlist(lapply(pp, grep, pattern = "defineModule"))
-      wh2 <- which(unlist(lapply(pp[[1]], function(x)
+      wh <- grep("^defineModule", pp)
+      wh2 <- which(unlist(lapply(pp[[wh]], function(x)
         any(grepl(pattern = metadataItem, format(x))))))
       if (length(wh2)) {
         val <- eval(pp[[wh]][[wh2]][[metadataItem]])
