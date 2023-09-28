@@ -1720,7 +1720,7 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-                d1 <- evalSUB(d, envir = localEnv)
+                d1 <- evalSUB(d, valObjName = nam, envir = localEnv)
                 # d1 <- try(eval(d, envir = localEnv), silent = TRUE)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
