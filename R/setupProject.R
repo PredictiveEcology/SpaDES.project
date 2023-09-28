@@ -409,7 +409,7 @@ setupProject <- function(name, paths, modules, packages,
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
                       updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
 
-  setupSpaDES.ProjectDeps(paths, verbose = verbose)
+  # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   modulePackages <- setupModules(name, paths, modulesSUB, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
@@ -651,6 +651,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
 
+  setupSpaDES.ProjectDeps(paths, verbose = verbose)
   Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                        updateRprofile = updateRprofile,
                        exact = FALSE, verbose = verbose)
