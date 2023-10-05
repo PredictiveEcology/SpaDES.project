@@ -105,8 +105,11 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
           if (length(files)) {
             newFiles <- file.path(modulePath, modNameShort, files)
             out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-            file.copy(file.path(dd, modNameShort, files),
-                      file.path(modulePath, modNameShort, files), overwrite = TRUE)
+            fromFiles <- file.path(dd, modNameShort, files)
+            toFiles <- file.path(modulePath, modNameShort, files)
+            if (isTRUE(any(overwrite %in% TRUE)))
+              unlink(toFiles)
+            out <- linkOrCopy(fromFiles, toFiles)
             messageVerbose("\b Done!", verbose = verbose)
 
           } else {
