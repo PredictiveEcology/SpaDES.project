@@ -322,3 +322,45 @@ extractRepoFromGitApi <- function(pattern, repos) {
   lines <- lines:(lines+103)
   repos[lines]
 }
+
+listModules2 <- function(keywords, accounts, subfolder = TRUE, includeForks = FALSE,
+                         includeArchived = FALSE, excludeStale = TRUE, omit = c("fireSense_dataPrepFitRas"),
+                         purge = FALSE, returnList = FALSE,
+                         verbose = getOption("Require.verbose", 1L)) {
+
+  # names(accounts) <- accounts
+  if (missing(keywords))
+    keywords <- ""
+  outs <- lapply(accounts, function(account) {
+    out <- lapply(keywords, function(kw) {
+
+      url <- file.path("https://api.github.com/repos",account, kw, "git/trees/main?recursive=1")
+      names(url) <- account
+
+      tf <- tempfile()
+      out <- try(.downloadFileMasterMainAuth(url, destfile = tf, need = "master"))
+      modNames <- list()
+      if (!is(out, "try-error")) {
+        repos <- readLines(tf)
+        repos <- unlist(strsplit(repos, ","))
+        NROW(repos)
+        onlySpaDES <- grep(kw, ignore.case = TRUE, repos, value = TRUE)
+        onlyRFiles <- grep("\\.R\\>", onlySpaDES, value = TRUE)
+        onlySpaDESsplit <- strsplit(onlyRFiles, "/")
+        onlySpaDESsplit <- lapply(onlySpaDESsplit, function(x) gsub("\\.R\\>\"", "", x))
+        whMod <- vapply(onlySpaDESsplit, function(x) {any(duplicated(x) )}, FUN.VALUE = logical(1))
+        modFiles <- onlyRFiles[which(whMod)]
+        onlyModPaths <- onlySpaDESsplit[whMod]
+        modNames <- vapply(onlyModPaths, FUN = tail, FUN.VALUE = character(1), 1)
+        modPaths <- vapply(onlyModPaths, function(x) Reduce(file.path, gsub("^.+\\:\"", "", x)), FUN.VALUE = character(1))
+        names(modNames) <- dirname(dirname(modPaths))
+        modNames <- list(modNames)
+        names(modNames) <- file.path(account, kw)
+      }
+      modNames
+
+    })
+    unlist(out, recursive = FALSE)
+  })
+  unlist(outs, recursive = FALSE)
+}
