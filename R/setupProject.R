@@ -1427,6 +1427,8 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     if (missing(envir2))
       break
   }
+  if (is(val2, "try-error"))
+    warning(val2)
   if (is(val2, "list") && !is.null(names(val2))) {
     env <- environment()
     # Sequential evaluation
