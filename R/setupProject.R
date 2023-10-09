@@ -1947,6 +1947,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
 
   if (interactive() && (isTRUE(Restart) || is.character(Restart))) {# getOption("SpaDES.project.Restart", TRUE))
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](paths$projectPath)
+    isRstudioProj <- isRstudioProj && basename(rstudioapi::getActiveProject()) %in% basename(paths$projectPath)
+    inProject <- isInProject(name)
 
     if (!inProject || !isRstudioProj) {
       if (requireNamespace("rstudioapi")) {
