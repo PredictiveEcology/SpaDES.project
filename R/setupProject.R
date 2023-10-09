@@ -95,8 +95,14 @@ utils::globalVariables(c(
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
 #'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
-#' @param Restart If the `projectPath` is not the current path, and the session is in
-#'   RStudio, and interactive, it will create an RStudio Project file (and .Rproj.user
+#' @param Restart Logical or character. If either `TRUE` or a character,
+#'   and if the `projectPath` is not the current path, and the session is in
+#'   RStudio and interactive, it will try to restart Rstudio in the projectPath with
+#'   a new Rstudio project. If character, it should represent the filename
+#'   of the script that contains the `setupProject` call that should be copied to
+#'   the new folder and opened. If `TRUE`, it will use the active file as the one
+#'   that should be copied to the new projectPath and opened in the Rstudio project.
+#'   If successful, this will create an RStudio Project file (and .Rproj.user
 #'   folder), restart with a new Rstudio session with that new project and with a root
 #'   path (i.e. working directory) set to `projectPath`. Default is `FALSE`, and no
 #'   RStudio Project is created.
@@ -353,6 +359,8 @@ setupProject <- function(name, paths, modules, packages,
                          defaultDots,
                          dots, ...) {
 
+  origGetWd <- getwd()
+
   envir = environment()
 
   origArgOrder <- names(tail(sys.calls(), 1)[[1]])
@@ -392,14 +400,7 @@ setupProject <- function(name, paths, modules, packages,
   } else {
     name <- checkNameProjectPathConflict(name, pathsSUB)
   }
-  gtwd <- getwd()
-  weird <- 0
-  while (is.null(gtwd)) { # unknown why this returns NULL sometimes
-    gtwd <- getwd()
-    if (weird > 10)
-      browser()
-    weird <- weird + 1
-  }
+
   inProject <- isInProject(name)
 
   # setupOptions is run twice -- because package startup often changes options
@@ -472,7 +473,7 @@ setupProject <- function(name, paths, modules, packages,
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
-  setupRestart(updateRprofile, paths, name, inProject, Restart, verbose) # This may restart
+  setupRestart(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
 
   out <- append(list(
     modules = modules,
@@ -1882,7 +1883,7 @@ setupStudyArea <- function(studyArea, paths, envir) {
 }
 
 
-setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbose) {
+setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) {
   if (isTRUE(updateRprofile)) {
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
@@ -1904,18 +1905,105 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, verbos
     }
   }
 
-  if (!inProject) {
-    if (interactive() && isTRUE(Restart)) # getOption("SpaDES.project.Restart", TRUE))
+  if (interactive() && (isTRUE(Restart) || is.character(Restart))) {# getOption("SpaDES.project.Restart", TRUE))
+    isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](paths$projectPath)
+
+    if (!inProject || !isRstudioProj) {
       if (requireNamespace("rstudioapi")) {
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
-        # browser()
-        fe <- file.exists("~/.active-rstudio-document")
+        wasUnsaved <- FALSE
+        wasLastActive <- FALSE
+        if (!is.character(Restart)) {
+          rstudioUnsavedFile <- "~/.active-rstudio-document"
 
-        rstudioapi::openProject(path = paths[["projectPath"]])
+          activeFile <- rstudioapi::getSourceEditorContext()$path
+          if (!nzchar(activeFile))
+            activeFile <- rstudioUnsavedFile
+          fe <- file.exists(activeFile)
+          wasUnsaved <- identical(activeFile, rstudioUnsavedFile)
+          if (isFALSE(fe) || wasUnsaved) {
+            if (isTRUE(fe)) {
+              newRestart <- file.path(paths[["projectPath"]], "global.R")
+              Restart <- activeFile # is absolute
+              basenameRestartFile <- basename(newRestart)
+
+              message("Renaming the active, unsaved file: global.R in the new projectPath root")
+              wasLastActive <- TRUE
+            } else {
+              message("User has requested to restart in a new Rproject; please ")
+              message("specify path to the 'global' script (the one that has this setupProject call).")
+              message("Please save it if necessary. Do you use quotes (e.g., global.R ): ")
+              Restart <- readline(" ")
+              if (!file.exists(Restart))
+                stop("That file does not exist. Please rerun, specifying the global file. This",
+                     " will be copied to the new project folder.")
+              basenameRestartFile <- basename(Restart)
+              # wasLastActive <- FALSE
+            }
+          } else {
+            Restart <- activeFile
+            basenameRestartFile <- basename(Restart)
+            wasLastActive <- TRUE
+          }
+
+        } else {
+          basenameRestartFile <- basename(Restart)
+
+        }
+
+        if (!reproducible:::isAbsolutePath(Restart))
+          Restart <- file.path(origGetWd, Restart)
+        newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
+        copied <- file.copy(Restart, newRestart, overwrite = FALSE)
+        if (all(copied))
+          message(Require:::green("copied ", Restart, " to ", newRestart))
+        else
+          message(Require:::blue("Did not copy ", Restart, " to ", newRestart, "; it already exists."))
+        RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
+        RestartTmpFileStart <- ".Restart_"
+        tempfileInOther <- file.path(paths[["projectPath"]], paste0(RestartTmpFileStart, basename(tempfile())))
+        addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
+                     "if (newSession) {",
+                     "# message('Welcome to RStudio ', rstudioapi::getVersion())",
+                     "}",
+                     "ap <- rstudioapi::getActiveProject()",
+                     "if (is.null(ap)) ap <- 'No active project'",
+                     "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
+                     paste0("message('re-opened ", "last active"[wasLastActive],
+                            " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
+                            "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
+                     paste0("rstudioapi::navigateToFile('", newRestart, "')")
+                     )
+
+        newRprofile <- paste0("source('", tempfileInOther, "')")
+        if (file.exists(RprofileInOther)) {
+          rl <- readLines(RprofileInOther)
+          newRprofile <- c(rl, newRprofile)
+          lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
+          lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")
+          nextLine <- paste0("readLns <- readLns[-lineToDel]") # remove source line
+          nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
+          addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
+
+        } else {
+          addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
+
+        }
+        addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
+
+        addToTempFile <- c(addToTempFile,
+                           "}, action = 'append'",
+                           ")")
+        cat(addToTempFile, file = tempfileInOther, sep = "\n")
+        cat(newRprofile, file = RprofileInOther, sep = "\n")
+
+        on.exit(rstudioapi::openProject(path = paths[["projectPath"]]))
+        stop("Restarting Rstudio in projectPath", call. = FALSE)
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
       }
+    }
   }
 }
 

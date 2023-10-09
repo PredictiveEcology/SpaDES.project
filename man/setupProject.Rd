@@ -103,8 +103,14 @@ convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
 reproject the \code{studyArea}. See examples.}
 
-\item{Restart}{If the \code{projectPath} is not the current path, and the session is in
-RStudio, and interactive, it will create an RStudio Project file (and .Rproj.user
+\item{Restart}{Logical or character. If either \code{TRUE} or a character,
+and if the \code{projectPath} is not the current path, and the session is in
+RStudio and interactive, it will try to restart Rstudio in the projectPath with
+a new Rstudio project. If character, it should represent the filename
+of the script that contains the \code{setupProject} call that should be copied to
+the new folder and opened. If \code{TRUE}, it will use the active file as the one
+that should be copied to the new projectPath and opened in the Rstudio project.
+If successful, this will create an RStudio Project file (and .Rproj.user
 folder), restart with a new Rstudio session with that new project and with a root
 path (i.e. working directory) set to \code{projectPath}. Default is \code{FALSE}, and no
 RStudio Project is created.}
