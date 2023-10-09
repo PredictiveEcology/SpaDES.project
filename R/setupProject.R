@@ -985,9 +985,21 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
 
       # This will create a new Git Repo at the top level
       if (isGitRepoAlready %in% FALSE && is.character(useGit)) {
+        message("Please provide your github username (without quotes): ")
+        gitUserName <- readline()
+        rl4 <- readline(paste0("Please go to github.com, create a new repository for: ",
+                        gitUserName, " repo name: ", name, "; return here to continue"))
+        file.create("README.md")
+
+
         system("git init -b main")
         dir1 <- dir(".", all.files = TRUE)
         onlyFiles <- dir1[!dir.exists(dir1)]
+        if (length(onlyFiles) == 0) {
+          file.create("README.md")
+          dir1 <- dir(".", all.files = TRUE)
+          onlyFiles <- dir1[!dir.exists(dir1)]
+        }
         theFiles <- paste(onlyFiles, collapse = " ")
         system(paste("git add ", theFiles))
 
@@ -1001,7 +1013,7 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
         #   cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
         # }
         # system(paste(""))
-        system(paste("git commit ."))
+        system(paste("git commit -a -m \"first commit\""))
         rl <- readline("Update git config --global --edit ? (Y or N): ")
         if (startsWith(tolower(rl), "y") ) {
           system(paste0("git config --global --edit "))
@@ -1011,7 +1023,31 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
             system(paste0("git commit --amend --reset-author"))
           }
         }
+        system("git branch -M main")
+        # rl <- readline("Type remote ssh url after git@github.com:")
+        addOrigin <- paste0('git remote add origin git@github.com:',gitUserName,'/', name ,'.git')
+        system(addOrigin)
+        # system(paste0("git remote add origin git@github.com:", rl))
+        system("git push -u origin main")
+        isGitRepoAlready <- TRUE
+
       }
+
+      # lala <- unlist(strsplit(
+      #   split = " {4,}",
+      #   c(
+      #     #     'git init -b main
+      #     # git add .
+      #     # git commit -m "first commit"
+      #     'git branch -M main',
+      #     paste0('git remote add origin git@github.com:',gitUserName,'/', name ,'.git'),
+      #     'git push --set-upstream origin main
+      #   git push -u origin main
+      #   ')))
+      #
+      # lala <- gsub("\n", "", lala)
+      # lala2 <- lapply(lala, system, intern = TRUE)
+
 
       gitSplit <- splitGitRepo(modules)
       gitSplit <- Require::invertList(gitSplit)
@@ -1050,8 +1086,10 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
       })
+      messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
     }
     if (is.character(useGit) && isGitRepoAlready %in% FALSE) {
+
       res1 <- system(paste("git remote add", name, useGit), intern = TRUE)
       res2 <- system(paste("git push", name), intern = TRUE)
       if (grepl("error|fatal", res1))
