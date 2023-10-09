@@ -1996,7 +1996,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
 
         }
 
-        if (!reproducible:::isAbsolutePath(Restart))
+        if (!fs::is_absolute_path(Restart))
           Restart <- file.path(origGetWd, Restart)
         newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
 
@@ -2006,6 +2006,14 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         # id2 <- rstudioapi::navigateToFile(activeFile)
 
         copied <- file.copy(Restart, newRestart, overwrite = FALSE)
+
+        # Copy .Rhistory if it exists
+        RHistBase <- ".Rhistory"
+        RHist <- file.path(origGetWd, RHistBase)
+        if (isTRUE(file.exists(RHist)))
+          file.copy(RHist, file.path(paths$projectPath, RHistBase))
+
+
         if (all(copied))
           message(Require:::green("copied ", Restart, " to ", newRestart))
         else
@@ -2261,7 +2269,7 @@ ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
   if (!file.exists(gitIgnoreFile))
     file.create(gitIgnoreFile)
   gi <- readLines(gitIgnoreFile)
-  cp <- reproducible:::makeRelative(folder, projectPath)
+  cp <- a <- fs::path_rel(folder, projectPath)
   cachePathGrep <- paste0("^", cp, "(\\/)*", "$")
   if (!any(grepl(cachePathGrep, gi))) {
     cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
