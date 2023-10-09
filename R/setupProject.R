@@ -410,6 +410,9 @@ setupProject <- function(name, paths, modules, packages,
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
                       updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
 
+  setupRestart(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
+
+
   # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   modulePackages <- setupModules(name, paths, modulesSUB, useGit = useGit,
@@ -472,8 +475,6 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
-
-  setupRestart(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
 
   out <- append(list(
     modules = modules,
@@ -1947,7 +1948,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
 
   if (interactive() && (isTRUE(Restart) || is.character(Restart))) {# getOption("SpaDES.project.Restart", TRUE))
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](paths$projectPath)
-    isRstudioProj <- isRstudioProj && basename(rstudioapi::getActiveProject()) %in% basename(paths$projectPath)
+    curRstudioProj <- rstudioapi::getActiveProject()
+    isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(paths$projectPath))
     inProject <- isInProject(name)
 
     if (!inProject || !isRstudioProj) {
