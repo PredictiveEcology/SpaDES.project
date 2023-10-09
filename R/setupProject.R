@@ -994,11 +994,13 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
         ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$cachePath, paths$projectPath)
         ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$inputPath, paths$projectPath)
 
-        cachePathGrep <- paste0("^", cp, "$")
-        if (!any(grepl(cachePathGrep, gi))) {
-          cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
-        }
-        system(paste(""))
+        # cp <- reproducible:::makeRelative(paths$cachePath, absoluteBase = paths$projectPath)
+        #
+        # cachePathGrep <- paste0("^", cp, "$")
+        # if (!any(grepl(cachePathGrep, gi))) {
+        #   cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
+        # }
+        # system(paste(""))
         system(paste("git commit ."))
         rl <- readline("Update git config --global --edit ? (Y or N): ")
         if (startsWith(tolower(rl), "y") ) {
@@ -2214,6 +2216,8 @@ isProjectGitRepo <- function(projectPath) {
 }
 
 ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
+  if (!file.exists(gitIgnoreFile))
+    file.create(gitIgnoreFile)
   gi <- readLines(gitIgnoreFile)
   cp <- reproducible:::makeRelative(folder, projectPath)
   cachePathGrep <- paste0("^", cp, "(\\/)*", "$")
