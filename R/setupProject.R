@@ -1914,10 +1914,10 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
                        verbose = verbose)
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
+        activeFile <- rstudioapi::getSourceEditorContext()$path
         if (!is.character(Restart)) {
           rstudioUnsavedFile <- "~/.active-rstudio-document"
 
-          activeFile <- rstudioapi::getSourceEditorContext()$path
           if (!nzchar(activeFile))
             activeFile <- rstudioUnsavedFile
           fe <- file.exists(activeFile)
@@ -1955,6 +1955,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         if (!reproducible:::isAbsolutePath(Restart))
           Restart <- file.path(origGetWd, Restart)
         newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
+
+        # Switch to file to save it
+        id <- rstudioapi::navigateToFile(activeFile)
+        rstudioapi::documentSave(id)
+        # id2 <- rstudioapi::navigateToFile(activeFile)
+
         copied <- file.copy(Restart, newRestart, overwrite = FALSE)
         if (all(copied))
           message(Require:::green("copied ", Restart, " to ", newRestart))
@@ -1998,8 +2004,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
 
-        on.exit(rstudioapi::openProject(path = paths[["projectPath"]]))
-        stop("Restarting Rstudio in projectPath", call. = FALSE)
+        on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
+        message("Starting a new Rstudio session with projectPath as its root")
+        stop_quietly()
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
       }
@@ -2213,4 +2220,10 @@ ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
   if (!any(grepl(cachePathGrep, gi))) {
     cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
   }
+}
+
+stop_quietly <- function(mess) {
+  opt <- options(show.error.messages = FALSE)
+  on.exit(options(opt))
+  stop(mess)
 }
