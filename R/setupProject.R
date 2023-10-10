@@ -1833,6 +1833,7 @@ stopMessForRequireFail <- function(pkg) {
 #' @rdname setup
 #' @export
 #' @inheritParams setupProject
+#' @importFrom rstudioapi getActiveProject getSourceEditorContext
 #'
 #' @details
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
