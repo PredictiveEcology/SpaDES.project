@@ -875,7 +875,13 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
   }
   if (!missing(parsed)) {
     envs2 <- parseExpressionSequentially(parsed, envs, namedList, verbose)
-    if (isTRUE(namedList)) {
+
+    # check for functions -- functions aren't in lists, but they behave a bit like lists internally
+    isFuns <- any(vapply(envs2, FUN.VALUE = logical(1), function(env) {
+      any(vapply(mget(ls(env), envir = env), is.function, FUN.VALUE = logical(1)))
+    }))
+
+    if (isTRUE(namedList) && !isFuns) {
       os <- parseEnvsWithNamedListsSequentially(envs2)
     } else {
       os <- as.list(tail(envs2, 1)[[1]])
@@ -888,6 +894,11 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
         obj <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
                                       verbose = verbose)
       }})
+
+    # basically, the optFiles may not be a namedList, but the objects in the file may be
+    #   need reassess
+    hasName <- lapply(llOuter, function(x) !is.null(names(x)))
+    if (all(unlist(hasName))) namedList <- TRUE
     if (isTRUE(namedList))
       os <- Reduce(modifyList, llOuter)
     else
@@ -2252,9 +2263,10 @@ stripDuplicateFolder <- function(relativeFilePath, paths) {
 
 
 parseExpressionSequentially <- function(pp, envs, namedList, verbose) {
+  isFun <- FALSE
   envs2 <- lapply(pp, function(p) {
     env <- new.env(parent = tail(envs, 1)[[1]])
-    if (isUnevaluatedList(p) || isFALSE(namedList)) {
+    if (isUnevaluatedList(p) || isFALSE(namedList) || is(p, "<-")) {
       # robust to code failures
       # Try whole list first; if fails, then do individual list elements
       withCallingHandlers(for (i in 1:2) {
