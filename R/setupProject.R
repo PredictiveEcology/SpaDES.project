@@ -1441,7 +1441,7 @@ inTempProject <- function(paths) {
 
 evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
-  while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{")) {
+  while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
     else {
