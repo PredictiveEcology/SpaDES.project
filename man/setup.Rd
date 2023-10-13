@@ -2,6 +2,7 @@
 % Please edit documentation in R/setupProject.R
 \name{setupPaths}
 \alias{setupPaths}
+\alias{setupFunctions}
 \alias{setupSideEffects}
 \alias{setupOptions}
 \alias{setupModules}
@@ -18,6 +19,19 @@ setupPaths(
   standAlone = TRUE,
   libPaths = NULL,
   updateRprofile = getOption("Require.updateRprofile", FALSE),
+  overwrite = FALSE,
+  envir = environment(),
+  verbose = getOption("Require.verbose", 1L),
+  dots,
+  defaultDots,
+  ...
+)
+
+setupFunctions(
+  functions,
+  name,
+  sideEffects,
+  paths,
   overwrite = FALSE,
   envir = environment(),
   verbose = getOption("Require.verbose", 1L),
@@ -175,6 +189,10 @@ i.e., "at the start" of the \code{setupProject}.
 If placed after the first named argument, then they will be evaluated at the
 end of the \code{setupProject}, so can access all the packages, objects, etc.}
 
+\item{functions}{A set of function definitions to be used within \code{setupProject}.
+These will be returned as a list element. If function definitions require non-base
+packages, prefix the function call with the package e.g., \code{terra::rast}.}
+
 \item{sideEffects}{Optional. This can be an expression or one or more file names or
 a code chunk surrounded by \code{{...}}.
 If a non-text file name is specified (e.g., \emph{not .txt or .R} currently),
@@ -265,6 +283,8 @@ be returned as is. It is also called for its
 side effect which is to call \code{setPaths}, with each of these paths as an argument.
 See table for details.
 
+\code{setupFunctions} returns NULL. All functions will be placed in \code{envir}.
+
 \code{setupSideEffects} is run for its side effects (e.g., web authentication, custom package
 options that cannot use \code{base::options}), with deliberately nothing returned to user.
 This, like other parts of this function, attempts to prevent unwanted outcomes
@@ -312,6 +332,10 @@ These are grouped thematically into three groups of paths:
 of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code{outputPath} and
 \code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
 \code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
+
+\code{setupFunnctions} will source the functions supplied, with a parent environment being
+the internal temporary environment of the \code{setupProject}, i.e., they will have
+access to all the objects
 
 Most arguments in the family of \verb{setup*} functions are run \emph{sequentially}, even within
 the argument. Since most arguments take lists, the user can set values at a first
@@ -380,3 +404,18 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 }
 }
 
+\examples{
+
+# specifying functions argument, with a local file and a definition here
+tf <- tempfile(fileext = ".R")
+fnDefs <- c("fn <- function(x) x\n",
+            "fn2 <- function(x) x\n",
+            "fn3 <- function(x) terra::rast(x)")
+cat(text = fnDefs, file = tf)
+out <- setupProject(functions = list(a = function(x) return(x),
+                                     tf),
+                    # now use the functions when creating objects
+                    drr = 1,
+                    b = a(drr),
+                    ddd = fn3(terra::ext(0,b,0,b)))
+}

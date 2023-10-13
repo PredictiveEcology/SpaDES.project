@@ -6,9 +6,9 @@ utils::globalVariables(c(
 #' Sets up a new or existing SpaDES project
 #'
 #' @description `setupProject` calls a sequence of functions in this order:
-#' `setupOptions` (first time), `setupPaths`, `setupModules`, `setupPackages`,
-#' `setupSideEffects`, `setupOptions` (second time), `setupParams`,
-#' `setupGitIgnore`, and `setupRestart`.
+#' `setupOptions` (first time), `setupPaths`, `setupRestart`,
+#' `setupFunctions`, `setupModules`, `setupPackages`, `setupSideEffects`,
+#' `setupOptions` (second time), `setupParams`, and `setupGitIgnore`.
 #'
 #' This sequence will create folder structures, install missing packages from those
 #' listed in either the `packages`, `require` arguments or in the modules `reqdPkgs` fields,
@@ -81,6 +81,11 @@ utils::globalVariables(c(
 #'   but nothing is returned (i.e., any assigned objects are not returned). This is intended
 #'   to be used for operations like cloud authentication or configuration functions
 #'   that are run for their side effects only.
+#' @param functions A set of function definitions to be used within `setupProject`.
+#'   These will be returned as a list element. If function definitions require non-base
+#'   packages, prefix the function call with the package e.g., `terra::rast`. When
+#'   using `setupProject`, the `functions` argument is evaluated after `paths`, so
+#'   it cannot be used to define functions that help specify `paths`.
 #' @param useGit A logical or `"sub"` for *submodule*. If `"sub"`, then this function
 #'   will attempt to clone the identified `modules` *as git submodules*. This will only
 #'   work if the `projectPath` is a git repository. If the project is already a git
@@ -347,7 +352,7 @@ utils::globalVariables(c(
 #' )
 #' \dontshow{setwd(origDir)}
 setupProject <- function(name, paths, modules, packages,
-                         times, options, params, sideEffects, config,
+                         times, options, params, sideEffects, functions, config,
                          require = NULL, studyArea = NULL,
                          Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = getOption("SpaDES.project.useGit", FALSE),
@@ -380,6 +385,7 @@ setupProject <- function(name, paths, modules, packages,
     dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
   }
 
+  functionsSUB <- substitute(functions)
   timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   if (!missing(timesSUB))
     times <- evalSUB(val = timesSUB, envir = envir, valObjName = "times", envir2 = parent.frame())
@@ -412,6 +418,8 @@ setupProject <- function(name, paths, modules, packages,
 
   setupRestart(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
 
+  # this next puts them in this environment, returns NULL
+  functions <- setupFunctions(functionsSUB, paths = paths, envir = envir)
 
   # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
@@ -665,6 +673,63 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths[order(names(paths))]
 }
+
+
+#' @export
+#' @rdname setup
+#'
+#' @details
+#' `setupFunnctions` will source the functions supplied, with a parent environment being
+#' the internal temporary environment of the `setupProject`, i.e., they will have
+#' access to all the objects
+#'
+#' @return
+#' `setupFunctions` returns NULL. All functions will be placed in `envir`.
+#'
+#' @importFrom data.table data.table
+#' @examples
+#'
+#' # specifying functions argument, with a local file and a definition here
+#' tf <- tempfile(fileext = ".R")
+#' fnDefs <- c("fn <- function(x) x\n",
+#'             "fn2 <- function(x) x\n",
+#'             "fn3 <- function(x) terra::rast(x)")
+#' cat(text = fnDefs, file = tf)
+#' out <- setupProject(functions = list(a = function(x) return(x),
+#'                                      tf),
+#'                     # now use the functions when creating objects
+#'                     drr = 1,
+#'                     b = a(drr),
+#'                     ddd = fn3(terra::ext(0,b,0,b)))
+setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
+                             envir = environment(), verbose = getOption("Require.verbose", 1L),
+                             dots, defaultDots, ...) {
+
+  dotsSUB <- as.list(substitute(list(...)))[-1]
+  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+
+  if (!missing(functions)) {
+    messageVerbose(yellow("setting up functions..."), verbose = verbose, verboseLevel = 0)
+
+    functionsSUB <- substitute(functions) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    functions <- evalSUB(functionsSUB, valObjName = "functions", envir = parent.frame(), envir2 = parent.frame())
+
+    functions <- parseFileLists(functions, paths = paths, namedList = TRUE,
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+    isFuns <- vapply(functions, is.function, FUN.VALUE = logical(1))
+    if (any(isFuns))
+      list2env(functions[isFuns], envir = envir)
+    messageVerbose(yellow("  done setting up functions"), verbose = verbose, verboseLevel = 0)
+  }
+
+}
+
+
+
+
+
+
+
 
 #' @export
 #' @rdname setup
@@ -2209,6 +2274,7 @@ parseExpressionSequentially <- function(pp, envs, namedList, verbose) {
           invokeRestart("muffleMessage")
         }
       })
+      isFun <<- isFun || is.function(out) # in case there are some functions, some not; keep status as isFun = TRUE
       if (length(ls(env)) == 0) # the previous line will evaluated assignments e.g., mode <- "development",
         # putting the object `mode` into the env; but if there is no assignment
         # then we need to put the object into the environment
@@ -2218,6 +2284,13 @@ parseExpressionSequentially <- function(pp, envs, namedList, verbose) {
     }
     env
   })
+  if (isTRUE(isFun)) {
+    lapply(envs2[-1], function(env) {
+      list2env(mget(ls(envir = env), envir = env), envir = envs2[[1]]
+      )})
+    envs2 <- list(envs2[[1]])
+  }
+  envs2
 }
 
 

@@ -13,6 +13,7 @@ setupProject(
   options,
   params,
   sideEffects,
+  functions,
   config,
   require = NULL,
   studyArea = NULL,
@@ -86,6 +87,10 @@ If these file names represent scripts (*.txt or .R), this/these will be parsed a
 but nothing is returned (i.e., any assigned objects are not returned). This is intended
 to be used for operations like cloud authentication or configuration functions
 that are run for their side effects only.}
+
+\item{functions}{A set of function definitions to be used within \code{setupProject}.
+These will be returned as a list element. If function definitions require non-base
+packages, prefix the function call with the package e.g., \code{terra::rast}.}
 
 \item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
 not working.}
