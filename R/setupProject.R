@@ -1976,10 +1976,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
               message("Renaming the active, unsaved file: global.R in the new projectPath root")
               wasLastActive <- TRUE
             } else {
+              message("There was no 'active-source' file or named Restart file.")
               message("User has requested to restart in a new Rproject; please ")
               message("specify path to the 'global' script (the one that has this setupProject call).")
-              message("Please save it if necessary. Do you use quotes (e.g., global.R ): ")
-              Restart <- readline(" ")
+              message("Please provide name here of that file (e.g., global.R )")
+              message("(If it isn't saved, please save it now):")
+              Restart <- readline("")
               if (!file.exists(Restart))
                 stop("That file does not exist. Please rerun, specifying the global file. This",
                      " will be copied to the new project folder.")
