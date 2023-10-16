@@ -1240,12 +1240,12 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
       requirePkgNames <- Require::extractPkgName(require)
       # packagesToTry <- unique(c(packages, mp, requireToTry))
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
-      out <- try(
+      out <- try({
         Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
                          standAlone = standAlone,
                          libPaths = libPaths,
                          verbose = verbose)
-      )
+      })
       if (is(out, "try-error")) {
         deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
         miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
@@ -2152,43 +2152,43 @@ setupSpaDES.ProjectDeps <- function(paths,
     depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
     diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
       if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
-      pvLoaded <- packageVersion(dai)
-      pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
-      pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
-      loadedFrom <- if (identical(pvPathsPackagePath, pvLoaded)) {
-        "packagePath"
-      } else {
-        "libPaths"
-      }
+        pvLoaded <- packageVersion(dai)
+        pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
+        pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
+        loadedFrom <- if (identical(pvPathsPackagePath, pvLoaded)) {
+          "packagePath"
+        } else {
+          "libPaths"
+        }
 
-      if (pvLibLoc < pvPathsPackagePath) {# test whether lib loc is lt; so, need to unload; then move from to packagePath; reload
-        out <- dai
-      } else if (pvLibLoc > pvPathsPackagePath) { #test whether lib loc is gt; so, need to move to packagePath
-        out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
+        if (pvLibLoc < pvPathsPackagePath) {# test whether lib loc is lt; so, need to unload; then move from to packagePath; reload
+          out <- dai
+        } else if (pvLibLoc > pvPathsPackagePath) { #test whether lib loc is gt; so, need to move to packagePath
+          out <- list(Package = dai, pvLibLoc, pvPathsPackagePath)
+        } else {
+          out <- NULL
+        }
       } else {
         out <- NULL
       }
-    } else {
-      out <- NULL
-    }
-    out
-  })
-  # First check for loaded old version; needs user intervention
-  needStop <- vapply(diffVersion, function(x) is.character(x), FUN.VALUE = logical(1))
-  if (any(needStop)) {
-    pkgsToUpdate <- names(needStop)[needStop]
-    pkgs <- paste(pkgsToUpdate, collapse = "', '")
+      out
+    })
+    # First check for loaded old version; needs user intervention
+    needStop <- vapply(diffVersion, function(x) is.character(x), FUN.VALUE = logical(1))
+    if (any(needStop)) {
+      pkgsToUpdate <- names(needStop)[needStop]
+      pkgs <- paste(pkgsToUpdate, collapse = "', '")
 
-    stop("\nThe version of ", pkgs, " need updating in the personal library.\n",
-         "Please restart R and update ", pkgs, ", e.g., using: ",
-         "\ninstall.packages(c('", pkgs, "'), lib = '", .libPaths()[1],"')")
-  }
-  diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
-  deps <- setdiff(deps, depsAlreadyInstalled)
-  if (length(diffVersionNames)) {
-    messageVerbose("Updating ", paste0(diffVersionNames, collapse = ", "), " in paths$packagePath ",
-                   "because it has been updated in .libPaths()[1]. To turn this updating off, set\n",
-                   "options(SpaDES.project.updateSelf = FALSE)")
+      stop("\nThe version of ", pkgs, " need updating in the personal library.\n",
+           "Please restart R and update ", pkgs, ", e.g., using: ",
+           "\ninstall.packages(c('", pkgs, "'), lib = '", .libPaths()[1],"')")
+    }
+    diffVersionNames <- names(diffVersion[!vapply(diffVersion, is.null, FUN.VALUE = logical(1))])
+    deps <- setdiff(deps, depsAlreadyInstalled)
+    if (length(diffVersionNames)) {
+      messageVerbose("Updating ", paste0(diffVersionNames, collapse = ", "), " in paths$packagePath ",
+                     "because it has been updated in .libPaths()[1]. To turn this updating off, set\n",
+                     "options(SpaDES.project.updateSelf = FALSE)")
       if (!isFALSE(getOption("SpaDES.project.updateSelf")))
         deps <- c(deps, diffVersionNames)
     }

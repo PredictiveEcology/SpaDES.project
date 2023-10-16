@@ -191,7 +191,9 @@ end of the \code{setupProject}, so can access all the packages, objects, etc.}
 
 \item{functions}{A set of function definitions to be used within \code{setupProject}.
 These will be returned as a list element. If function definitions require non-base
-packages, prefix the function call with the package e.g., \code{terra::rast}.}
+packages, prefix the function call with the package e.g., \code{terra::rast}. When
+using \code{setupProject}, the \code{functions} argument is evaluated after \code{paths}, so
+it cannot be used to define functions that help specify \code{paths}.}
 
 \item{sideEffects}{Optional. This can be an expression or one or more file names or
 a code chunk surrounded by \code{{...}}.

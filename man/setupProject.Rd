@@ -90,7 +90,9 @@ that are run for their side effects only.}
 
 \item{functions}{A set of function definitions to be used within \code{setupProject}.
 These will be returned as a list element. If function definitions require non-base
-packages, prefix the function call with the package e.g., \code{terra::rast}.}
+packages, prefix the function call with the package e.g., \code{terra::rast}. When
+using \code{setupProject}, the \code{functions} argument is evaluated after \code{paths}, so
+it cannot be used to define functions that help specify \code{paths}.}
 
 \item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
 not working.}
@@ -203,9 +205,9 @@ outputs are not expected to be passed directly to \code{simInit} (unlike \code{s
 }
 \description{
 \code{setupProject} calls a sequence of functions in this order:
-\code{setupOptions} (first time), \code{setupPaths}, \code{setupModules}, \code{setupPackages},
-\code{setupSideEffects}, \code{setupOptions} (second time), \code{setupParams},
-\code{setupGitIgnore}, and \code{setupRestart}.
+\code{setupOptions} (first time), \code{setupPaths}, \code{setupRestart},
+\code{setupFunctions}, \code{setupModules}, \code{setupPackages}, \code{setupSideEffects},
+\code{setupOptions} (second time), \code{setupParams}, and \code{setupGitIgnore}.
 
 This sequence will create folder structures, install missing packages from those
 listed in either the \code{packages}, \code{require} arguments or in the modules \code{reqdPkgs} fields,
