@@ -1071,14 +1071,25 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
 
       # This will create a new Git Repo at the top level
       if (isGitRepoAlready %in% FALSE && is.character(useGit)) {
-        message("Please provide your github username (without quotes): ")
+        message("Please provide the github account for the repository (without quotes): ")
         gitUserName <- readline()
-        rl4 <- readline(paste0("Please go to github.com, create a new repository for: ",
-                        gitUserName, " repo name: ", name, "; return here to continue"))
-        file.create("README.md")
+        if (!nzchar(gitUserName))
+          stop("Need to supply the account name for the repository (not the repository name)")
 
+        tf <- tempfile()
+        urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
+        out <- capture.output(type = "message",
+                              outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
+        if (isTRUE(any(grepl("cannot open URL", out)))) {
+          message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
+                         gitUserName, " repo name: ", name, "; return here, press enter to continue"))
+          readline()
 
-        system("git init -b main")
+          system("git init -b main")
+        } else {
+          stop("It looks like the remote Git repo exists; please clone it manually (delete the local ",
+               paths$projectPath,"), then rerun this")
+        }
         dir1 <- dir(".", all.files = TRUE)
         onlyFiles <- dir1[!dir.exists(dir1)]
         if (length(onlyFiles) == 0) {
