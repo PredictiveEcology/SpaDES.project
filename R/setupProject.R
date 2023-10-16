@@ -428,6 +428,15 @@ setupProject <- function(name, paths, modules, packages,
 
   inProject <- isInProject(name)
 
+  # Need to assess if this is a new project locally, but the remote exists
+  usingGit <- checkUseGit(useGit)
+  if (isTRUE(usingGit)) {
+    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath)
+    if (isFALSE(isLocalGitRepoAlready)) {
+      checkGitRemote(name, pathsSUB, gitAccount)
+    }
+  }
+
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                             envir = envir, verbose = verbose - 1)
@@ -514,7 +523,7 @@ setupProject <- function(name, paths, modules, packages,
   out <- append(list(
     modules = modules,
     paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
-                            # we also lose projectPath --> but this is getwd()
+    # we also lose projectPath --> but this is getwd()
     params = params,
     times = times), dotsSUB)
   if (!is.null(options)) {
@@ -732,8 +741,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'                     q = funHere(22),
 #'                     ddd = fn3(terra::ext(0,b,0,b)))
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
-                             envir = environment(), verbose = getOption("Require.verbose", 1L),
-                             dots, defaultDots, ...) {
+                           envir = environment(), verbose = getOption("Require.verbose", 1L),
+                           dots, defaultDots, ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -745,7 +754,7 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
     functions <- evalSUB(functionsSUB, valObjName = "functions", envir = parent.frame(), envir2 = parent.frame())
 
     functions <- parseFileLists(functions, paths = paths, namedList = TRUE,
-                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                                overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
     isFuns <- vapply(functions, is.function, FUN.VALUE = logical(1))
     if (any(isFuns))
       list2env(functions[isFuns], envir = envir)
@@ -1080,10 +1089,11 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
     isGH <- isGitHub(modules) & grepl("@", modules) # the default isGitHub allows no branch
     anyFailedGH <- intersect(anyfailed, modules[isGH])
 
+    usingGit <- checkUseGit(useGit)
 
-    if (isTRUE(!(useGit %in% FALSE)) || ( length(anyFailedGH) ) ) {
+    if (usingGit || ( length(anyFailedGH) ) ) {
 
-      isGitRepoAlready <- isProjectGitRepo(paths$projectPath)
+      isLocalGitRepoAlready <- isProjectGitRepo(paths$projectPath)
       origDir <- getwd()
       on.exit({
         setwd(origDir)
@@ -1091,26 +1101,27 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
       )
 
       # This will create a new Git Repo at the top level
-      if (isGitRepoAlready %in% FALSE && is.character(useGit)) {
-        message("Please provide the github account for the repository (without quotes): ")
-        gitUserName <- readline()
-        if (!nzchar(gitUserName))
-          stop("Need to supply the account name for the repository (not the repository name)")
-
-        tf <- tempfile()
-        urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
-        out <- capture.output(type = "message",
-                              outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
-        if (isTRUE(any(grepl("cannot open URL", out)))) {
-          message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
-                         gitUserName, " repo name: ", name, "; return here, press enter to continue"))
-          readline()
-
-          system("git init -b main")
-        } else {
-          stop("It looks like the remote Git repo exists; please clone it manually (delete the local ",
-               paths$projectPath,"), then rerun this")
-        }
+      if (isLocalGitRepoAlready %in% FALSE && is.character(useGit)) {
+        # message("Please provide the github account for the repository (without quotes): ")
+        # gitUserName <- readline()
+        # if (!nzchar(gitUserName))
+        #   stop("Need to supply the account name for the repository (not the repository name)")
+        #
+        # tf <- tempfile()
+        # urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
+        # out <- capture.output(type = "message",
+        #                       outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
+        # if (isTRUE(any(grepl("cannot open URL", out)))) {
+        #   message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
+        #                  gitUserName, " repo name: ", name, "; return here, press enter to continue"))
+        #   readline()
+        #
+        #   system("git init -b main")
+        # } else {
+        #   stop("It looks like the remote Git repo exists; please clone it manually (delete the local ",
+        #        paths$projectPath,"), then rerun this")
+        # }
+        checkGitRemote(name, pathsSUB, gitAccount)
         dir1 <- dir(".", all.files = TRUE)
         onlyFiles <- dir1[!dir.exists(dir1)]
         if (length(onlyFiles) == 0) {
@@ -1147,7 +1158,7 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
         system(addOrigin)
         # system(paste0("git remote add origin git@github.com:", rl))
         system("git push -u origin main")
-        isGitRepoAlready <- TRUE
+        isLocalGitRepoAlready <- TRUE
 
       }
 
@@ -1176,7 +1187,7 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
         if (!dir.exists(localPath)) {
 
           prev <- setwd(file.path(paths[["modulePath"]]))
-          cloneOrSubmodule <- if (isTRUE(isGitRepoAlready)) {
+          cloneOrSubmodule <- if (isTRUE(isLocalGitRepoAlready)) {
             "submodule add"
           } else {
             "clone"
@@ -1209,7 +1220,7 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
       })
       messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
     }
-    if (is.character(useGit) && isGitRepoAlready %in% FALSE) {
+    if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
 
       res1 <- system(paste("git remote add", name, useGit), intern = TRUE)
       res2 <- system(paste("git push", name), intern = TRUE)
@@ -1258,7 +1269,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
   if (
     (length(packages) || length(unlist(modulePackages)) || length(require)) &&
     !is.null(packages)
-    ){
+  ){
 
     messageVerbose(yellow("setting up packages..."), verbose = verbose, verboseLevel = 0)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
@@ -1409,9 +1420,9 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       if (any(named))
         namedElements <- obj[which(named)]
       obj[notNamed] <- Map(objInner = obj[notNamed],
-                 function(objInner)
-                   parseFileLists(objInner, paths, namedList, overwrite,
-                                  envir, verbose, dots, ...))
+                           function(objInner)
+                             parseFileLists(objInner, paths, namedList, overwrite,
+                                            envir, verbose, dots, ...))
       if (any(named))
         obj[named] <- Map(x = obj[named], nam = names(namedElements), function(x, nam) {
           y <- list(x)
@@ -2085,17 +2096,17 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         RestartTmpFileStart <- ".Restart_"
         tempfileInOther <- file.path(paths[["projectPath"]], paste0(RestartTmpFileStart, basename(tempfile())))
         addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
-                     "if (newSession) {",
-                     "# message('Welcome to RStudio ', rstudioapi::getVersion())",
-                     "}",
-                     "ap <- rstudioapi::getActiveProject()",
-                     "if (is.null(ap)) ap <- 'No active project'",
-                     "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
-                     paste0("message('re-opened ", "last active"[wasLastActive],
-                            " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
-                            "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
-                     paste0("rstudioapi::navigateToFile('", newRestart, "')")
-                     )
+                           "if (newSession) {",
+                           "# message('Welcome to RStudio ', rstudioapi::getVersion())",
+                           "}",
+                           "ap <- rstudioapi::getActiveProject()",
+                           "if (is.null(ap)) ap <- 'No active project'",
+                           "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
+                           paste0("message('re-opened ", "last active"[wasLastActive],
+                                  " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
+                                  "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
+                           paste0("rstudioapi::navigateToFile('", newRestart, "')")
+        )
 
         newRprofile <- paste0("source('", tempfileInOther, "')")
         if (file.exists(RprofileInOther)) {
@@ -2167,7 +2178,7 @@ setupSpaDES.ProjectDeps <- function(paths,
   notNAs <-
     Map(dps = depsAlreadyInstalled, function(dps) {
       ret <- as.list(as.numeric_version(dps[!theNAs]))
-      })
+    })
 
   notNAs <- Require::invertList(notNAs)
   needUpdate <- unlist(Map(pkg = notNAs, function(pkg) pkg[[1]] > pkg[[2]]), recursive = FALSE)
@@ -2356,7 +2367,7 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
   b <- opts$updates
   a <- optsFirst$updates
   if (!is.null(b))
-  a <- b[a, on = "optionName"]
+    a <- b[a, on = "optionName"]
   if (!is.null(a)) {
     messageVerbose(yellow("  options changed:"), verbose = verbose, verboseLevel = 0)
     if (!is.null(b)) {
@@ -2485,3 +2496,44 @@ getStudyArea <- function(studyArea, paths) {
     }
   studyArea
 }
+
+checkUseGit <- function(useGit) {
+  isTRUE(!(useGit %in% FALSE))
+}
+
+
+checkGitRemote <- function(name, paths, gitAccount) {
+  message("Please provide the github account for the repository (without quotes): ")
+  gitUserName <- readline()
+  if (!nzchar(gitUserName))
+    stop("Need to supply the account name for the repository (not the repository name)")
+
+  tf <- tempfile()
+  urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
+  out <- capture.output(type = "message",
+                        outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
+  if (isTRUE(any(grepl("cannot open URL", out)))) {
+    message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
+                   gitUserName, " repo name: ", name, "; return here, press enter to continue"))
+    readline()
+
+    system("git init -b main")
+  } else {
+    message("It looks like the remote Git repo exists (",file.path(gitUserName, name),
+            "). Would you like to clone it now to ", paths$projectPath, "?")
+    cloneNow <- readline("Y or N (if N, this will stop)")
+    if (startsWith(tolower(cloneNow), "y")) {
+      od <- getwd()
+      projectBase <- dirname(paths$projectPath)
+      dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
+      setwd(projectBase)
+      on.exit(setwd(od))
+      cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
+      system(cmd)
+    } else {
+      stop("Please clone the project manually, or choose another account and repository")
+    }
+
+  }
+}
+
