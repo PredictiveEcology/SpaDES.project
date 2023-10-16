@@ -122,15 +122,22 @@ folder), restart with a new Rstudio session with that new project and with a roo
 path (i.e. working directory) set to \code{projectPath}. Default is \code{FALSE}, and no
 RStudio Project is created.}
 
-\item{useGit}{A logical or \code{"sub"} for \emph{submodule}. If \code{"sub"}, then this function
+\item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
+can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
+project can have one or the other, or both of these under git control. If "both",
+then this function will assume that git submodules will be used for the \code{modules}.
+A logical or \code{"sub"} for \emph{submodule}. If \code{"sub"}, then this function
 will attempt to clone the identified \code{modules} \emph{as git submodules}. This will only
 work if the \code{projectPath} is a git repository. If the project is already a git
 repository because the user has set that up externally to this function call, then
-this function will add the \code{modules} as git submodules. If it is not alrea, it will use \verb{git clone} and \verb{git checkout}
+this function will add the \code{modules} as git submodules. If it is not already,
+it will use \verb{git clone} for each module. After git clone or submodule add are run,
+it will run \verb{git checkout} for the named branch and then \verb{git pull}
 to get and change branch for each module, according to its specification in
-\code{modules}. Otherwise it will download modules with \code{getModules}. NOTE: \emph{CREATING} A
+\code{modules}. If \code{FALSE}, this function  will download modules with \code{getModules}.
+NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
-NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
 be set with the \code{option(SpaDES.project.useGit = xxx)}.}
 

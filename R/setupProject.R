@@ -86,15 +86,22 @@ utils::globalVariables(c(
 #'   packages, prefix the function call with the package e.g., `terra::rast`. When
 #'   using `setupProject`, the `functions` argument is evaluated after `paths`, so
 #'   it cannot be used to define functions that help specify `paths`.
-#' @param useGit A logical or `"sub"` for *submodule*. If `"sub"`, then this function
+#' @param useGit (if not FALSE, then experimental still). There are two levels at which a project
+#'   can use GitHub, either the `projectPath` and/or the `modules`. Any given
+#'   project can have one or the other, or both of these under git control. If "both",
+#'   then this function will assume that git submodules will be used for the `modules`.
+#'   A logical or `"sub"` for *submodule*. If `"sub"`, then this function
 #'   will attempt to clone the identified `modules` *as git submodules*. This will only
 #'   work if the `projectPath` is a git repository. If the project is already a git
 #'   repository because the user has set that up externally to this function call, then
-#'   this function will add the `modules` as git submodules. If it is not alrea, it will use `git clone` and `git checkout`
+#'   this function will add the `modules` as git submodules. If it is not already,
+#'   it will use `git clone` for each module. After git clone or submodule add are run,
+#'   it will run `git checkout` for the named branch and then `git pull`
 #'   to get and change branch for each module, according to its specification in
-#'   `modules`. Otherwise it will download modules with `getModules`. NOTE: *CREATING* A
+#'   `modules`. If `FALSE`, this function  will download modules with `getModules`.
+#'   NOTE: *CREATING* A
 #'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
-#'   NOT YET IMPLEMENTED. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+#'   EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 #'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
 #'   be set with the `option(SpaDES.project.useGit = xxx)`.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
@@ -431,7 +438,7 @@ setupProject <- function(name, paths, modules, packages,
   # Need to assess if this is a new project locally, but the remote exists
   usingGit <- checkUseGit(useGit)
   if (isTRUE(usingGit)) {
-    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath)
+    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
     if (isFALSE(isLocalGitRepoAlready)) {
       checkGitRemote(name, pathsSUB, gitAccount)
     }
@@ -451,7 +458,7 @@ setupProject <- function(name, paths, modules, packages,
 
   # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
-  modulePackages <- setupModules(name, paths, modulesSUB, useGit = useGit,
+  modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
@@ -520,6 +527,9 @@ setupProject <- function(name, paths, modules, packages,
 
   setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
+  # Put Dots in order
+  if (length(dotsSUB) > 1)
+    dotsSUB <- dotsSUB[na.omit(match(origArgOrder, names(dotsSUB)))]
   out <- append(list(
     modules = modules,
     paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
@@ -1042,7 +1052,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' depends on (`reqsPkgs`)
 #'
 #' @importFrom tools file_ext
-setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.project.useGit", FALSE),
+setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = environment(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -1057,6 +1067,8 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
       paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
+    if (missing(inProject))
+      inProject <- isInProject(name)
 
     messageVerbose(yellow("setting up modules..."), verbose = verbose, verboseLevel = 0)
 
@@ -1093,7 +1105,7 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
 
     if (usingGit || ( length(anyFailedGH) ) ) {
 
-      isLocalGitRepoAlready <- isProjectGitRepo(paths$projectPath)
+      isLocalGitRepoAlready <- isProjectGitRepo(paths$projectPath, inProject)
       origDir <- getwd()
       on.exit({
         setwd(origDir)
@@ -2384,7 +2396,9 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
   opts
 }
 
-isProjectGitRepo <- function(projectPath) {
+isProjectGitRepo <- function(projectPath, inProject) {
+  if (isTRUE(inProject))
+    projectPath <- "."
   length(dir(pattern = "^\\.git$", path = projectPath, all.files = TRUE)) == 1L
 }
 
@@ -2503,6 +2517,7 @@ checkUseGit <- function(useGit) {
 
 
 checkGitRemote <- function(name, paths, gitAccount) {
+  # If this function is run, it means that local is not yet a git repo
   message("Please provide the github account for the repository (without quotes): ")
   gitUserName <- readline()
   if (!nzchar(gitUserName))
@@ -2512,18 +2527,22 @@ checkGitRemote <- function(name, paths, gitAccount) {
   urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
   out <- capture.output(type = "message",
                         outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
+  od <- getwd()
+
   if (isTRUE(any(grepl("cannot open URL", out)))) {
     message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
                    gitUserName, " repo name: ", name, "; return here, press enter to continue"))
     readline()
 
+    setwd(paths[["projectPath"]])
+    on.exit(setwd(od))
+
     system("git init -b main")
   } else {
     message("It looks like the remote Git repo exists (",file.path(gitUserName, name),
             "). Would you like to clone it now to ", paths$projectPath, "?")
-    cloneNow <- readline("Y or N (if N, this will stop)")
+    cloneNow <- readline("Y or N (if N, this will stop): ")
     if (startsWith(tolower(cloneNow), "y")) {
-      od <- getwd()
       projectBase <- dirname(paths$projectPath)
       dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
       setwd(projectBase)
