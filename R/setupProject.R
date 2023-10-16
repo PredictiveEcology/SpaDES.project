@@ -444,7 +444,6 @@ setupProject <- function(name, paths, modules, packages,
     terra::terraOptions(tempdir = paths$terraPath)
   }
 
-
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
                                      envir = envir, verbose = verbose)
 
@@ -688,9 +687,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #' @rdname setup
 #'
 #' @details
-#' `setupFunnctions` will source the functions supplied, with a parent environment being
+#' `setupFunctions` will source the functions supplied, with a parent environment being
 #' the internal temporary environment of the `setupProject`, i.e., they will have
-#' access to all the objects
+#' access to all the objects in the call.
 #'
 #' @return
 #' `setupFunctions` returns NULL. All functions will be placed in `envir`.
@@ -704,11 +703,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'             "fn2 <- function(x) x\n",
 #'             "fn3 <- function(x) terra::rast(x)")
 #' cat(text = fnDefs, file = tf)
+#' funHere <- function(y) y
 #' out <- setupProject(functions = list(a = function(x) return(x),
-#'                                      tf),
+#'                                      tf,
+#'                                      funHere = funHere), # have to name it
 #'                     # now use the functions when creating objects
 #'                     drr = 1,
 #'                     b = a(drr),
+#'                     q = funHere(22),
 #'                     ddd = fn3(terra::ext(0,b,0,b)))
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
                              envir = environment(), verbose = getOption("Require.verbose", 1L),

@@ -335,9 +335,9 @@ of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code
 \code{modulePath} are all used by SpaDES within module contexts. \code{scratchPath},
 \code{rasterPath} and \code{terraPath} are all "temporary" or "scratch" directories.
 
-\code{setupFunnctions} will source the functions supplied, with a parent environment being
+\code{setupFunctions} will source the functions supplied, with a parent environment being
 the internal temporary environment of the \code{setupProject}, i.e., they will have
-access to all the objects
+access to all the objects in the call.
 
 Most arguments in the family of \verb{setup*} functions are run \emph{sequentially}, even within
 the argument. Since most arguments take lists, the user can set values at a first
@@ -414,10 +414,13 @@ fnDefs <- c("fn <- function(x) x\n",
             "fn2 <- function(x) x\n",
             "fn3 <- function(x) terra::rast(x)")
 cat(text = fnDefs, file = tf)
+funHere <- function(y) y
 out <- setupProject(functions = list(a = function(x) return(x),
-                                     tf),
+                                     tf,
+                                     funHere = funHere), # have to name it
                     # now use the functions when creating objects
                     drr = 1,
                     b = a(drr),
+                    q = funHere(22),
                     ddd = fn3(terra::ext(0,b,0,b)))
 }
