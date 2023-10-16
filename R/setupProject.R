@@ -1943,71 +1943,11 @@ setupStudyArea <- function(studyArea, paths, envir) {
   studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = parent.frame(), envir2 = envir)
 
   if (is(studyArea, "list")) {
-    needRep <- !requireNamespace("reproducible", quietly = TRUE)
-    needGeo <- !requireNamespace("geodata", quietly = TRUE)
-    if (needRep || needGeo) {
-      needs <- c("reproducible"[needRep], "geodata"[needGeo])
-      message("Installing ", paste0(needs, collapse = " and "))
-      Require::Install(needs)
-    }
-
-    studyAreaOrig <- studyArea
-    if (is.null(studyArea[["country"]]))
-      studyArea[["country"]] <- "CAN"
-    unnamed <- !nzchar(names(studyArea))
-    if (any(unnamed))
-      names(studyArea)[unnamed] <- "subregion"
-
-    subregion <- studyArea[["subregion"]]
-
-    studyArea <- append(studyArea, list(path = paths$inputPath))
-
-    geodatCall <- as.call(append(list(geodata::gadm), studyArea))
-    geodatCall <- match.call(geodata::gadm, geodatCall)
-    geodatCall <- as.call(append(list(geodata::gadm), as.list(geodatCall)[names(geodatCall) %in% formalArgs(geodata::gadm)]))
-
-    studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
-    epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
-
-    studyArea[["epsg"]] <- NULL
-
-    studyAreaOrig <- studyArea
-    studyArea <- withCallingHandlers(do.call(geodata::gadm, as.list(geodatCall[-1])),
-                                     message = function(m)
-                                       if (grepl("geodata server seems", m$message))
-                                         stop(m)
-    )
-    hasSubregion <- grep("subregion", names(studyAreaOrig))
-    names(studyAreaOrig)[hasSubregion] <- "NAME_1"
-    poss <- setdiff(names(studyAreaOrig), c("country", "level", "path"))
-    for (col in poss) {
-      greppedNames <- grep(studyArea[[col]][[1]], pattern = studyAreaOrig[[col]], value = TRUE)
-      colInSA <- studyArea[[col]][[1]]
-      if (is.null(colInSA)) {
-        warning("There is no column ", col, "; ",
-                "\nDid you mean one or more of:\n  ", paste(names(studyArea), collapse = "\n  "),
-                "\nSkipping subsetting of studyArea by ", col
-        )
-
-      } else {
-        keep <- which(tolower(colInSA) %in% tolower(greppedNames))
-        if (length(keep) == 0) {
-          warning(studyAreaOrig[[col]], " does not match any values in ", col,". ",
-                  "\nDid you mean one or more of:\n  ", paste(colInSA, collapse = "\n  "),
-                  "\nReturning empty studyArea")
-        }
-        studyArea <- studyArea[keep, ]
-      }
-    }
-    if (requireNamespace("terra")) {
-      studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
-    }
-    if (!is.null(epsg))
-      if (requireNamespace("terra")) {
-         studyArea <- studyArea |> terra::project(epsg)
-      } else {
-        warning("Could not reproject; need ")
-      }
+    theCall <- quote(getStudyArea(studyArea, paths))
+    if (requireNamespace("reproducible", quietly = TRUE))
+      studyArea <- reproducible::Cache(eval(theCall), cachePath = paths$cachePath, .functionName = "getStudyArea")
+    else
+      studyArea <- eval(theCall)
   }
   studyArea
 }
