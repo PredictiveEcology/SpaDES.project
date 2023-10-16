@@ -158,6 +158,25 @@ utils::globalVariables(c(
 #'
 #' @export
 #'
+#' @section Faster runtime after project is set up:
+#'
+#' There are a number of checks that occur during `setupProject`. These take time, particularly
+#' after an R restart (there is some caching in RAM that occurs, but this will only speed
+#' things up if there is no restart of R). To get the "fastest", these options or settings
+#' will speed things up, at the expense of not being completely re-runnable.
+#' You can add one or more of these to the arguments. These will only be useful after a project
+#' is set up, i.e., `setupProject` and `SpaDES.core::simInit` has/have been run at least once
+#' to completion (so packages are installed).
+#'
+#' ```
+#' options = c(reproducible.useMemoise = TRUE,                 # For caching
+#'             Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
+#'             spades.useRequire = FALSE),                     # For SpaDES.core installs
+#' packages = NULL,                                            # Prevents any packages installs
+#' useGit = FALSE                                              # Prevents checks using git
+#' ```
+#' The remining causes of `setupProject` being "slow" will be loading the required packages.
+#'
 #' @section Objective:
 #'
 #' The overarching objectives for these functions are:

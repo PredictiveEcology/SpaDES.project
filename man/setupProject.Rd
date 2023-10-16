@@ -224,6 +224,27 @@ that happen (are created) before others. For example, users can set \code{paths}
 then use the \code{paths} list to set \code{options} that will can update/change \code{paths},
 or set \code{times} and use the \code{times} list for certain entries in \code{params}.
 }
+\section{Faster runtime after project is set up}{
+
+
+There are a number of checks that occur during \code{setupProject}. These take time, particularly
+after an R restart (there is some caching in RAM that occurs, but this will only speed
+things up if there is no restart of R). To get the "fastest", these options or settings
+will speed things up, at the expense of not being completely re-runnable.
+You can add one or more of these to the arguments. These will only be useful after a project
+is set up, i.e., \code{setupProject} and \code{SpaDES.core::simInit} has/have been run at least once
+to completion (so packages are installed).
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{options = c(reproducible.useMemoise = TRUE,                 # For caching
+            Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
+            spades.useRequire = FALSE),                     # For SpaDES.core installs
+packages = NULL,                                            # Prevents any packages installs
+useGit = FALSE                                              # Prevents checks using git
+}\if{html}{\out{</div>}}
+
+The remining causes of \code{setupProject} being "slow" will be loading the required packages.
+}
+
 \section{Objective}{
 
 
