@@ -2145,12 +2145,61 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
   }
 }
 
-setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.table", "Require", "rprojroot"),
+setupSpaDES.ProjectDeps <- function(paths,
+                                    deps = c("SpaDES.project", "data.table", "Require", "rprojroot", "rstudioapi", "fs"),
                                     verbose = getOption("Require.verbose")) {
 
-  depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
-  diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
-    if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
+  libs <- c(.libPaths()[1], paths[["packagePath"]])
+  nsPaths <- vapply(deps, FUN.VALUE = character(1), function(pkg) dirname(getNamespaceInfo(pkg, "path")))
+  isLoadedLocally <- !nsPaths %in% libs
+  loadedFrom <- match(nsPaths, libs)
+
+  depsAlreadyInstalled <- Map(lib = libs, function(lib) {
+    pths <- file.path(lib, deps)
+    exist <- file.exists(pths)
+    ver <- character(length(pths))
+    if (any(exist))
+      ver[exist] <- Require:::DESCRIPTIONFileVersionV(file.path(pths[exist], "DESCRIPTION"))
+    if (any(!exist))
+      ver[!exist] <- NA
+    names(ver) <- deps
+    ver
+  })
+  if (any(isLoadedLocally)) {
+    depsAlreadyInstalled
+  }
+
+  # Need to deal with NA, also version differences
+  diffVersion <- Require::setdiffNamed(depsAlreadyInstalled[[1]], depsAlreadyInstalled[[2]])
+  diffs <- names(diffVersion)
+
+  theNAs <- is.na(depsAlreadyInstalled[[2]])
+  toInstall <- character()
+  toRevInstall <- character()
+  if (any(theNAs)) {
+    toInstall <- names(theNAs[theNAs])
+  }
+
+  notNAs <-
+    Map(dps = depsAlreadyInstalled, function(dps) {
+      ret <- as.list(as.numeric_version(dps[!theNAs]))
+      })
+
+  notNAs <- Require::invertList(notNAs)
+  needUpdate <- unlist(Map(pkg = notNAs, function(pkg) pkg[[1]] > pkg[[2]]), recursive = FALSE)
+  if (any(needUpdate))
+    toInstall <- unique(c(toInstall, names(needUpdate[needUpdate])))
+
+
+  needRevUpdate <- unlist(Map(pkg = notNAs, function(pkg) pkg[[1]] < pkg[[2]]), recursive = FALSE)
+  if (any(needRevUpdate))
+    toRevInstall <- unique(c(toRevInstall, names(needRevUpdate[needRevUpdate])))
+
+
+  if (FALSE) { # This is the older, slower way
+    depsAlreadyInstalled <- dir(paths[["packagePath"]], pattern = paste0(paste0("^", deps, "$"), collapse = "|"))
+    diffVersion <- Map(dai = depsAlreadyInstalled, function(dai) {
+      if (file.exists(file.path(paths[["packagePath"]], dai, "DESCRIPTION"))) {
       pvLoaded <- packageVersion(dai)
       pvLibLoc <- packageVersion(dai, lib.loc = .libPaths()[1])
       pvPathsPackagePath <- packageVersion(dai, lib.loc = paths[["packagePath"]])
@@ -2188,28 +2237,19 @@ setupSpaDES.ProjectDeps <- function(paths, deps = c("SpaDES.project", "data.tabl
     messageVerbose("Updating ", paste0(diffVersionNames, collapse = ", "), " in paths$packagePath ",
                    "because it has been updated in .libPaths()[1]. To turn this updating off, set\n",
                    "options(SpaDES.project.updateSelf = FALSE)")
-    if (!isFALSE(getOption("SpaDES.project.updateSelf")))
-      deps <- c(deps, diffVersionNames)
+      if (!isFALSE(getOption("SpaDES.project.updateSelf")))
+        deps <- c(deps, diffVersionNames)
+    }
   }
 
-  if (length(deps)) {
-    messageVerbose("Copying ", paste(deps, collapse = ", "), " packages to paths$packagePath (",
-                   paths$packagePath, ")", verbose = verbose)
-
-    if (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
-        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
-      for (pkg in deps) {
-        pkgDir <- file.path(.libPaths(), pkg)
-        de <- dir.exists(pkgDir)
-        pkgDir <- pkgDir[de][1]
-        files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
-        newFiles <- file.path(paths[["packagePath"]], pkg, files1)
-        lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-        oldFiles <- file.path(pkgDir, files1)
-
-        file.copy(oldFiles, newFiles, overwrite = TRUE)
-      }
+  if (length(toInstall)) {
+    copyPackages(toInstall, from = .libPaths()[1], to = paths[["packagePath"]], verbose = verbose)
   }
+  if (length(toRevInstall)) {
+    copyPackages(toRevInstall, to = .libPaths()[1], from = paths[["packagePath"]], verbose = verbose)
+    messageVerbose("If you have difficulties, please restart R")
+  }
+
 }
 
 checkNameProjectPathConflict <- function(name, paths) {
@@ -2368,4 +2408,96 @@ stop_quietly <- function(mess) {
   opt <- options(show.error.messages = FALSE)
   on.exit(options(opt))
   stop(mess)
+}
+
+
+copyPackages <- function(pkgs, from = .libPaths()[1], to, verbose) {
+  messageVerbose("Copying ", paste(pkgs, collapse = ", "), " packages to ",
+                 to, "", verbose = verbose)
+
+  if (!identical(normPath(from), to) &&
+      (!identical(dirname(normPath(from)), to)))
+    for (pkg in pkgs) {
+      pkgDir <- file.path(from, pkg)
+      de <- dir.exists(pkgDir)
+      pkgDir <- pkgDir[de][1]
+      files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
+      newFiles <- file.path(to, pkg, files1)
+      lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+      oldFiles <- file.path(pkgDir, files1)
+
+      file.copy(oldFiles, newFiles, overwrite = TRUE)
+    }
+}
+
+
+
+getStudyArea <- function(studyArea, paths) {
+  needRep <- !requireNamespace("reproducible", quietly = TRUE)
+  needGeo <- !requireNamespace("geodata", quietly = TRUE)
+  if (needRep || needGeo) {
+    needs <- c("reproducible"[needRep], "geodata"[needGeo])
+    message("Installing ", paste0(needs, collapse = " and "))
+    Require::Install(needs)
+  }
+
+  studyAreaOrig <- studyArea
+  if (is.null(studyArea[["country"]]))
+    studyArea[["country"]] <- "CAN"
+  unnamed <- !nzchar(names(studyArea))
+  if (any(unnamed))
+    names(studyArea)[unnamed] <- "subregion"
+
+  subregion <- studyArea[["subregion"]]
+
+  studyArea <- append(studyArea, list(path = paths$inputPath))
+
+  geodatCall <- as.call(append(list(geodata::gadm), studyArea))
+  geodatCall <- match.call(geodata::gadm, geodatCall)
+  geodatCall <- as.call(append(list(geodata::gadm), as.list(geodatCall)[names(geodatCall) %in% formalArgs(geodata::gadm)]))
+
+  studyAreaNoPath <- studyArea[-which(names(studyArea) %in% "path")]
+  epsg <- if (!is.null(studyArea$epsg)) paste0("epsg:", studyArea$epsg) else NULL
+
+  studyArea[["epsg"]] <- NULL
+
+  studyAreaOrig <- studyArea
+  studyArea <- withCallingHandlers(
+    do.call(geodata::gadm, as.list(geodatCall[-1])),
+    message = function(m)
+      if (grepl("geodata server seems", m$message))
+        stop(m)
+  )
+  hasSubregion <- grep("subregion", names(studyAreaOrig))
+  names(studyAreaOrig)[hasSubregion] <- "NAME_1"
+  poss <- setdiff(names(studyAreaOrig), c("country", "level", "path"))
+  for (col in poss) {
+    greppedNames <- grep(studyArea[[col]][[1]], pattern = studyAreaOrig[[col]], value = TRUE)
+    colInSA <- studyArea[[col]][[1]]
+    if (is.null(colInSA)) {
+      warning("There is no column ", col, "; ",
+              "\nDid you mean one or more of:\n  ", paste(names(studyArea), collapse = "\n  "),
+              "\nSkipping subsetting of studyArea by ", col
+      )
+
+    } else {
+      keep <- which(tolower(colInSA) %in% tolower(greppedNames))
+      if (length(keep) == 0) {
+        warning(studyAreaOrig[[col]], " does not match any values in ", col,". ",
+                "\nDid you mean one or more of:\n  ", paste(colInSA, collapse = "\n  "),
+                "\nReturning empty studyArea")
+      }
+      studyArea <- studyArea[keep, ]
+    }
+  }
+  if (requireNamespace("terra")) {
+    studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
+  }
+  if (!is.null(epsg))
+    if (requireNamespace("terra")) {
+      studyArea <- studyArea |> terra::project(epsg)
+    } else {
+      warning("Could not reproject; need ")
+    }
+  studyArea
 }
