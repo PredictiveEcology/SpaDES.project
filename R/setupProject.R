@@ -436,6 +436,15 @@ setupProject <- function(name, paths, modules, packages,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
 
+  # This next is to set the terra tempdir; don't do it in the cases where terra is not used
+  # The longer unique(...) commented next is much slower; they are identical results
+  # allPkgs <- unique(Require::extractPkgName(c(packages, unname(unlist(modulePackages)))))
+  allPkgs <- c(packages, unname(unlist(modulePackages)))
+  if (any(grepl("\\<terra\\>", allPkgs))) {
+    terra::terraOptions(tempdir = paths$terraPath)
+  }
+
+
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
                                      envir = envir, verbose = verbose)
 
@@ -1692,9 +1701,9 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
     spades.scratchPath = scratchPath
   )
 
-  if (requireNamespace("terra", quietly = TRUE)) {
-    terra::terraOptions(tempdir = terraPath)
-  }
+  # if (requireNamespace("terra", quietly = TRUE)) {
+  #   terra::terraOptions(tempdir = terraPath)
+  # }
 
   ## message the user
   modPaths <- if (length(modulePath) > 1) {
