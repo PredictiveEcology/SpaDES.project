@@ -1160,6 +1160,9 @@ setupModules <- function(name, paths, modules, useGit = getOption("SpaDES.projec
             reportBranch <- FALSE
           }
         }
+        cmd <- paste0("git pull")
+        system(cmd)
+
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
       })
