@@ -242,14 +242,24 @@ You can add one or more of these to the arguments. These will only be useful aft
 is set up, i.e., \code{setupProject} and \code{SpaDES.core::simInit} has/have been run at least once
 to completion (so packages are installed).
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{options = c(reproducible.useMemoise = TRUE,                 # For caching
-            Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
-            spades.useRequire = FALSE),                     # For SpaDES.core installs
-packages = NULL,                                            # Prevents any packages installs
-useGit = FALSE                                              # Prevents checks using git
+\if{html}{\out{<div class="sourceCode">}}\preformatted{options = c(
+  reproducible.useMemoise = TRUE,               # For caching, use memory objects
+  Require.cloneFrom = Sys.getenv("R_LIBS_USER"),# Use personal library as possible source of packages
+  spades.useRequire = FALSE,                    # Won't install packages/update versions
+  spades.moduleCodeChecks = FALSE,              # moduleCodeChecks checks for metadata mismatches
+  reproducible.inputPaths = "~/allData"),       # For sharing data files across projects
+packages = NULL,                                # Prevents any packages installs with setupProject
+useGit = FALSE                                  # Prevents checks using git
 }\if{html}{\out{</div>}}
 
+These will be set early in \code{setupProject}, so will affect the running of \code{setupProject}.
+If the user manually sets one of these in addition to setting these, the user options will
+override these.
 The remining causes of \code{setupProject} being "slow" will be loading the required packages.
+
+These options/arguments can now be set all at once
+(with caution as these changes will affect how your
+script will be run) with \code{options(SpaDES.project.fast = TRUE)} or in the \code{options} argument.
 }
 
 \section{Objective}{
