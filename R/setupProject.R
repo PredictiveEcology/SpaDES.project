@@ -872,7 +872,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
                               envir = envir, verbose = verbose)
 
-    postOptions <- options()
+    postOptions <- base::options()
     newValues <- oldValues <- list()
     if (length(options)) {
       newValuesComplete <- options
@@ -881,7 +881,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       whNULL <- which(lengths(oldValuesComplete) == 0)
       names(oldValuesComplete[unname(whNULL)]) <- names(options)[whNULL]
       newValues <- Require::setdiffNamed(options, preOptions)
-      oldValues <- options(newValues)
+      oldValues <- base::options(newValues)
       if (length(newValues)) {
         messageVerbose("The following options have been changed", verbose = verbose)
         updates <- data.table::data.table(optionName = names(newValues), newValue = newValues,
@@ -1088,12 +1088,12 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     if (useGit %in% FALSE) {
       offlineMode <- getOption("Require.offlineMode")
       if (isTRUE(offlineMode)) {
-        opt <- options(Require.offlineMode = FALSE)
-        on.exit(try(options(opt), silent = TRUE))
+        opt <- base::options(Require.offlineMode = FALSE)
+        on.exit(try(base::options(opt), silent = TRUE))
       }
       out <- getModule(modules, paths[["modulePath"]], overwrite = overwrite, verbose = verbose)
       if (isTRUE(offlineMode))
-        options(opt)
+        base::options(opt)
       anyfailed <- out$failed
       modules <- anyfailed
     }
@@ -1747,7 +1747,7 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
   ), checkPath, create = TRUE)
 
   ## set the new paths via options
-  options(
+  base::options(
     rasterTmpDir = newPaths$rasterPath,
     reproducible.cachePath = cachePath,
     spades.inputPath = inputPath,
@@ -1822,7 +1822,7 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
 }
 
 .getOption <- function(x, default = NULL) {
-  optionDefault <- options(x)[[1]]
+  optionDefault <- base::options(x)[[1]]
   if (is.null(optionDefault)) optionDefault <- default
   if (is.function(optionDefault)) {
     optionDefault()
@@ -2414,8 +2414,8 @@ ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
 }
 
 stop_quietly <- function(mess) {
-  opt <- options(show.error.messages = FALSE)
-  on.exit(options(opt))
+  opt <- base::options(show.error.messages = FALSE)
+  on.exit(base::options(opt))
   stop(mess)
 }
 
