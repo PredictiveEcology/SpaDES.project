@@ -176,13 +176,24 @@ utils::globalVariables(c(
 #' to completion (so packages are installed).
 #'
 #' ```
-#' options = c(reproducible.useMemoise = TRUE,                 # For caching
-#'             Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
-#'             spades.useRequire = FALSE),                     # For SpaDES.core installs
-#' packages = NULL,                                            # Prevents any packages installs
-#' useGit = FALSE                                              # Prevents checks using git
+#' options = c(
+#'   reproducible.useMemoise = TRUE,               # For caching, use memory objects
+#'   Require.cloneFrom = Sys.getenv("R_LIBS_USER"),# Use personal library as possible source of packages
+#'   spades.useRequire = FALSE,                    # Won't install packages/update versions
+#'   spades.moduleCodeChecks = FALSE,              # moduleCodeChecks checks for metadata mismatches
+#'   reproducible.inputPaths = "~/allData"),       # For sharing data files across projects
+#' packages = NULL,                                # Prevents any packages installs with setupProject
+#' useGit = FALSE                                  # Prevents checks using git
 #' ```
+#' These will be set early in `setupProject`, so will affect the running of `setupProject`.
+#' If the user manually sets one of these in addition to setting these, the user options will
+#' override these.
 #' The remining causes of `setupProject` being "slow" will be loading the required packages.
+#'
+#' These options/arguments can now be set all at once
+#' (with caution as these changes will affect how your
+#' script will be run) with `options(SpaDES.project.fast = TRUE)` or in the `options` argument.
+#'
 #'
 #' @section Objective:
 #'
@@ -447,6 +458,20 @@ setupProject <- function(name, paths, modules, packages,
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                             envir = envir, verbose = verbose - 1)
+
+  if (isTRUE(getOption("SpaDES.project.fast"))) {
+    possInputPaths <- "~/inputPaths"
+    rip <- if (dir.exists(possInputPaths)) possInputPaths else getOption("reproducible.inputPaths")
+    fastOptions <- list(reproducible.useMemoise = TRUE,                 # For caching
+                        Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
+                        spades.useRequire = FALSE,
+                        spades.moduleCodeChecks = FALSE,
+                        reproducible.inputPaths = rip)
+    base::options(fastOptions)
+    packages <- NULL
+    useGit <- FALSE
+  }
+
 
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
                       updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
