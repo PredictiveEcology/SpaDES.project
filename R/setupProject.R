@@ -2527,7 +2527,7 @@ getStudyArea <- function(studyArea, paths) {
     }
   }
   if (requireNamespace("terra")) {
-    studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
+    # studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
   }
   if (!is.null(epsg))
     if (requireNamespace("terra")) {
