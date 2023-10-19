@@ -2559,6 +2559,7 @@ checkGitRemote <- function(name, paths, gitAccount) {
   if (isTRUE(any(grepl("cannot open URL", out)))) {
     message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
                    gitUserName, " repo name: ", name, "; return here, press enter to continue"))
+    browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))
     readline()
 
     setwd(paths[["projectPath"]])
