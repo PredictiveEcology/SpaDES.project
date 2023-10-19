@@ -1346,6 +1346,10 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     messageVerbose(yellow("no packages to set up"), verbose = verbose, verboseLevel = 0)
   }
 
+  if (is.null(packages)) {
+    if (!is.null(require))
+      lapply(Require::extractPkgName(require), base::require, character.only = TRUE)
+  }
   messageVerbose(".libPaths() are: ", paste(.libPaths(), collapse = ", "), verbose = verbose)
 
   invisible(NULL)
