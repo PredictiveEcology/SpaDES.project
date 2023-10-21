@@ -2582,6 +2582,13 @@ checkGitRemote <- function(name, paths, gitAccount) {
       on.exit(setwd(od))
       cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
       system(cmd)
+      setwd(name)
+      if (length(dir(pattern = ".gitmodules", all.files = T))) {
+        cmd <- paste0("git submodule init")
+        a <- system(cmd, intern = TRUE)
+        cmd <- paste0("git submodule update --recursive")
+        b <- system(cmd, intern = TRUE)
+      }
     } else {
       stop("Please clone the project manually, or choose another account and repository")
     }
