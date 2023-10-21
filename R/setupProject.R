@@ -1158,7 +1158,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         #   stop("It looks like the remote Git repo exists; please clone it manually (delete the local ",
         #        paths$projectPath,"), then rerun this")
         # }
-        checkGitRemote(name, pathsSUB, gitAccount)
+        # checkGitRemote(name, paths, gitAccount)
         dir1 <- dir(".", all.files = TRUE)
         onlyFiles <- dir1[!dir.exists(dir1)]
         if (length(onlyFiles) == 0) {
