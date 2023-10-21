@@ -32,6 +32,8 @@ pkgload2 <- function(depsPaths = file.path("~/GitHub", c("reproducible", "SpaDES
     depsPaths <- list(depsPaths)
   }
   depsAll <- depsPaths
+  if (!requireNamespace("digest")) stop("Please install digest")
+
   for (dpOuter in depsAll) {
     depsPaths <- dpOuter
     for (dp in depsPaths) {
