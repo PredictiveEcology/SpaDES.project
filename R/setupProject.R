@@ -1216,7 +1216,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
 
       gitSplit <- splitGitRepo(modules)
-      gitSplit <- Require::invertList(gitSplit)
+      gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
+      if (is(gitSplit, "try-error"))
+        stop("Did you specify the modules correctly? Is this correct:\n",
+             paste(modules, collapse = "\n"))
 
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
@@ -2413,13 +2416,15 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
   if (!is.null(b))
     a <- b[a, on = "optionName"]
   if (!is.null(a)) {
-    messageVerbose(yellow("  options changed:"), verbose = verbose, verboseLevel = 0)
-    if (!is.null(b)) {
-      a[unlist(lapply(newValue, is.null)), newValue := i.newValue]
-      a[, oldValue := i.oldValue]
-      a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+    if (NROW(a)) {
+      messageVerbose(yellow("  options changed:"), verbose = verbose, verboseLevel = 0)
+      if (!is.null(b)) {
+        a[unlist(lapply(newValue, is.null)), newValue := i.newValue]
+        a[, oldValue := i.oldValue]
+        a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+      }
+      messageDF(a, verbose = verbose)
     }
-    messageDF(a, verbose = verbose)
   } else {
     messageVerbose(yellow("  no options changed"), verbose = verbose, verboseLevel = 0)
   }
