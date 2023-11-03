@@ -463,10 +463,15 @@ setupProject <- function(name, paths, modules, packages,
     possInputPaths <- "~/inputPaths"
     rip <- if (dir.exists(possInputPaths)) possInputPaths else getOption("reproducible.inputPaths")
     fastOptions <- list(reproducible.useMemoise = TRUE,                 # For caching
+                        reproducible.inputPaths = rip,
+                        reproducible.objSize = FALSE,
                         Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
-                        spades.useRequire = FALSE,
+                        spades.recoveryMode = FALSE,
                         spades.moduleCodeChecks = FALSE,
-                        reproducible.inputPaths = rip)
+                        spades.sessionInfo = FALSE,
+                        spades.testMemoryLeaks = FALSE,
+                        spades.useRequire = FALSE
+    )
     base::options(fastOptions)
     packages <- NULL
     useGit <- FALSE
