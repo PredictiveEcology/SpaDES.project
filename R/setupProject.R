@@ -2568,7 +2568,7 @@ checkGitRemote <- function(name, paths, gitAccount) {
   tf <- tempfile()
   urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
   out <- capture.output(type = "message",
-                        outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
+                        outSkip <- try(Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
   od <- getwd()
 
   if (isTRUE(any(grepl("cannot open URL", out)))) {
@@ -2577,6 +2577,7 @@ checkGitRemote <- function(name, paths, gitAccount) {
     browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))
     readline()
 
+    checkPath(paths[["projectPath"]], create = TRUE)
     setwd(paths[["projectPath"]])
     on.exit(setwd(od))
 
