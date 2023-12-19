@@ -737,11 +737,11 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
 
-  setupSpaDES.ProjectDeps(paths, verbose = verbose)
   Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                        updateRprofile = updateRprofile,
                        exact = FALSE, verbose = verbose)
   paths[["packagePath"]] <- .libPaths()[1]
+  setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   do.call(setPaths, append(paths[spPaths], list(verbose = verbose)))
 
