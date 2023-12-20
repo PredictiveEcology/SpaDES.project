@@ -460,19 +460,7 @@ setupProject <- function(name, paths, modules, packages,
                             envir = envir, verbose = verbose - 1)
 
   if (isTRUE(getOption("SpaDES.project.fast"))) {
-    possInputPaths <- "~/inputPaths"
-    rip <- if (dir.exists(possInputPaths)) possInputPaths else getOption("reproducible.inputPaths")
-    fastOptions <- list(reproducible.useMemoise = TRUE,                 # For caching
-                        reproducible.inputPaths = rip,
-                        reproducible.objSize = FALSE,
-                        Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
-                        spades.recoveryMode = FALSE,
-                        spades.moduleCodeChecks = FALSE,
-                        spades.sessionInfo = FALSE,
-                        spades.testMemoryLeaks = FALSE,
-                        spades.useRequire = FALSE
-    )
-    base::options(fastOptions)
+    base::options(fastOptions())
     packages <- NULL
     useGit <- FALSE
   }
@@ -517,6 +505,13 @@ setupProject <- function(name, paths, modules, packages,
                        verbose = verbose - 1)
   if (!is.null(opts$newOptions))
     opts <- mergeOpts(opts, optsFirst, verbose)
+
+  if (getOption("SpaDES.project.fast")) {
+    message("Using fast options:")
+    df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
+    df <- df[!sapply(df, is.null)]
+    reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
+  }
 
   options <- opts[["newOptions"]] # put into this environment so parsing can access
 
@@ -1451,6 +1446,8 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
       messageVerbose(yellow("  done setting up params"), verbose = verbose, verboseLevel = 0)
     }
   }
+  params <- Require::modifyList2(list(.globals = list(.studyAreaName = basename(paths$projectPath))),
+                        params)
   return(params)
 }
 
@@ -2607,3 +2604,23 @@ checkGitRemote <- function(name, paths, gitAccount) {
   }
 }
 
+
+fastOptions <- function() {
+  list(reproducible.useMemoise = TRUE,                 # For caching
+       reproducible.inputPaths = getOption("reproducible.inputPaths"),
+       reproducible.objSize = FALSE,
+       Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
+       spades.recoveryMode = FALSE,
+       spades.moduleCodeChecks = FALSE,
+       spades.sessionInfo = FALSE,
+       spades.testMemoryLeaks = FALSE,
+       spades.useRequire = FALSE,
+       spades.allowSequentialCaching = FALSE,
+       reproducible.memoisePersist = TRUE,
+       reproducible.cacheSaveFormat = "qs",
+       LandR.assertions = FALSE,
+       reproducible.cacheSpeed = "fast",
+       reproducible.gdalwarp = TRUE,
+       spades.recoveryMode = 1
+  )
+}
