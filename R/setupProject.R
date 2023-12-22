@@ -506,7 +506,7 @@ setupProject <- function(name, paths, modules, packages,
   if (!is.null(opts$newOptions))
     opts <- mergeOpts(opts, optsFirst, verbose)
 
-  if (getOption("SpaDES.project.fast")) {
+  if (isTRUE(getOption("SpaDES.project.fast"))) {
     message("Using fast options:")
     df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
     df <- df[!sapply(df, is.null)]
@@ -2067,7 +2067,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
     }
   }
 
-  if (interactive() && (isTRUE(Restart) || is.character(Restart))) {# getOption("SpaDES.project.Restart", TRUE))
+  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio()) {# getOption("SpaDES.project.Restart", TRUE))
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](paths$projectPath)
     curRstudioProj <- rstudioapi::getActiveProject()
     isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(paths$projectPath))
@@ -2186,6 +2186,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
       }
     }
+  } else {
+    message("Restart is not FALSE, but this session is not Rstudio, ignoring...")
   }
 }
 
