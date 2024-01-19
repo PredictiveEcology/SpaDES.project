@@ -1709,13 +1709,25 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
       gif[insertLine] <- file.path(pkgP, "*")
     }
 
-    if (isTRUE(gitignore) && !file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
-      updatedMP <- TRUE
-      lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
-      insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
-      gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
+    if (isTRUE(gitignore)) {
+      if (!file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
+        updatedMP <- TRUE
+        lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
+        insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
+        gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
 
+      }
+
+      # ignore cache folder
+      cpRel <- makeRelative(paths[["cachePath"]], paths[["projectPath"]])
+      if (!isAbsolutePath(cpRel)) { # if cachePath is inside projectPath, then add to .gitignore
+        if (!any(identical(gif, cpRel))) { #
+          insertLine <- length(gif)
+          gif[insertLine + 1] <- cpRel
+        }
+      }
     }
+
 
     if (length(setdiff(gif, gifOrig))) {
       writeLines(con = gitIgnoreFile, unique(gif))
