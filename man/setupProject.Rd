@@ -22,7 +22,7 @@ setupProject(
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
   libPaths = NULL,
-  updateRprofile = getOption("Require.updateRprofile", FALSE),
+  updateRprofile = getOption("Require.updateRprofile", TRUE),
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
   defaultDots,
