@@ -1718,17 +1718,28 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
 
       }
 
-      # ignore cache folder
-      cpRel <- makeRelative(paths[["cachePath"]], paths[["projectPath"]])
-      if (!isAbsolutePath(cpRel)) { # if cachePath is inside projectPath, then add to .gitignore
-        if (!any(identical(gif, cpRel))) { #
-          insertLine <- length(gif)
-          gif[insertLine + 1] <- cpRel
+      # ignore these folders/files
+      igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory")
+      rproj <- paste0(makeRelative(prjP, dirname(prjP)), ".Rproj")
+      igs <- c(igs, rproj)
+
+      for (ig in igs) {
+        igRel <- if (!is.null(paths[[ig]])) {
+          makeRelative(paths[[ig]], prjP)
+        } else {
+          ig
+        }
+
+        if (!isAbsolutePath(igRel)) { # if igRel is inside projectPath, then add to .gitignore
+          if (!any(grepl(igRel, gif))) { # only add if not already there
+            insertLine <- length(gif)
+            gif[insertLine + 1] <- igRel
+          }
         }
       }
     }
 
-
+    # Write the file
     if (length(setdiff(gif, gifOrig))) {
       writeLines(con = gitIgnoreFile, unique(gif))
       mess <- paste(c("packagePath"[updatedPP], "modulePath"[updatedMP]), collapse = " and ")
