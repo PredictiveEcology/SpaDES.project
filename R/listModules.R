@@ -85,7 +85,7 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
   if (missing(keywords))
     keywords <- ""
   outs <- lapply(accounts, function(account) {
-    url <- paste0("https://api.github.com/users/", account, "/repos?per_page=200")
+    url <- paste0("https://api.github.com/users/", account, "/repos?per_page=500")
     names(url) <- account
 
     tf <- tempfile()
@@ -108,12 +108,17 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
         messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
       else
         messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
-      if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
+      # if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
 
       patt <- if (hasKeyword) mg else account
 
       # Potential removals
       staleRepos <- identifyRepos(before = excludeStale, repos = repos, remove = !excludeStale %in% FALSE)
+      if (length(staleRepos)) {
+        message("There were many stale repositories: ", paste(staleRepos, collapse = ", "))
+        message("\n\nIf these are needed, set `excludeStale = FALSE`")
+      }
+
       archivedRepos <- identifyRepos("archived.*true", repos = repos, remove = includeArchived %in% FALSE)
       forkedRepos <- identifyRepos("fork\\>.*true", repos = repos, remove = includeForks %in% FALSE)
 
