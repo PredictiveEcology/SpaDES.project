@@ -1684,9 +1684,10 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE),
                            verbose) {
 
-  gitIgnoreFile <- ".gitignore"
-  gitFile <- file.path(paths$projectPath, ".git")
-  if (dir.exists(gitFile)) { # this is a git repository
+  if (isTRUE(gitignore)) {
+    gitIgnoreFile <- ".gitignore"
+    gitFile <- file.path(paths$projectPath, ".git")
+    if (dir.exists(gitFile)) { # this is a git repository
     if (file.exists(gitIgnoreFile))
       gif <- readLines(gitIgnoreFile, warn = FALSE)
     else
@@ -1706,10 +1707,9 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
         pkgP <- gsub("^/", "", pkgP)
       lineWithPkgPath <- grep(paste0("^", pkgP,"$"), gif)
       insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
-      gif[insertLine] <- file.path(pkgP, "*")
-    }
+        gif[insertLine] <- file.path(pkgP, "*")
+      }
 
-    if (isTRUE(gitignore)) {
       if (!file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
         updatedMP <- TRUE
         lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
@@ -1719,13 +1719,14 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
       }
 
       # ignore these folders/files
-      igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory")
-      rproj <- paste0(makeRelative(prjP, dirname(prjP)), ".Rproj")
-      igs <- c(igs, rproj)
+      igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory",
+               ".Rdata", ".RData", ".secret", ".secrets")
+      # rproj <- paste0(basename(prjP), ".Rproj")
+      # igs <- c(igs, rproj)
 
       for (ig in igs) {
         igRel <- if (!is.null(paths[[ig]])) {
-          makeRelative(paths[[ig]], prjP)
+          fs::path_rel(paths[[ig]], prjP)
         } else {
           ig
         }
@@ -1737,15 +1738,15 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
           }
         }
       }
-    }
 
-    # Write the file
-    if (length(setdiff(gif, gifOrig))) {
+      # Write the file
+      if (length(setdiff(gif, gifOrig))) {
       writeLines(con = gitIgnoreFile, unique(gif))
       mess <- paste(c("packagePath"[updatedPP], "modulePath"[updatedMP]), collapse = " and ")
       messageVerbose(verboseLevel = 1, verbose = verbose,
                      ".gitignore file updated with ", mess,"; ",
                      "this may need to be confirmed manually")
+      }
     }
   }
 }
