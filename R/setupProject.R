@@ -2561,9 +2561,11 @@ getStudyArea <- function(studyArea, paths) {
   hasSubregion <- grep("subregion", names(studyAreaOrig))
   names(studyAreaOrig)[hasSubregion] <- "NAME_1"
   poss <- setdiff(names(studyAreaOrig), c("country", "level", "path"))
+  tos <- c("projectTo", "maskTo", "cropTo", "to")
+  poss <- setdiff(poss, tos)
   for (col in poss) {
-    greppedNames <- grep(studyArea[[col]][[1]], pattern = studyAreaOrig[[col]], value = TRUE)
-    colInSA <- studyArea[[col]][[1]]
+    greppedNames <- grep(studyArea[[col]], pattern = studyAreaOrig[[col]], value = TRUE)
+    colInSA <- studyArea[[col]]
     if (is.null(colInSA)) {
       warning("There is no column ", col, "; ",
               "\nDid you mean one or more of:\n  ", paste(names(studyArea), collapse = "\n  "),
@@ -2580,9 +2582,18 @@ getStudyArea <- function(studyArea, paths) {
       studyArea <- studyArea[keep, ]
     }
   }
-  if (requireNamespace("terra")) {
-    # studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
+
+  if (any(names(studyAreaOrig) %in% tos)) {
+    if (requireNamespace("reproducible")) {
+      tos <- intersect(tos, names(studyAreaOrig))
+      studyArea <- do.call(postProcessTo, append(list(studyArea), studyAreaOrig[tos]))
+    } else {
+      message("Cannot project/mask/crop without `reproducible` package")
+    }
   }
+  # if (requireNamespace("terra")) {
+    # studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
+  # }
   if (!is.null(epsg))
     if (requireNamespace("terra")) {
       studyArea <- studyArea |> terra::project(epsg)
