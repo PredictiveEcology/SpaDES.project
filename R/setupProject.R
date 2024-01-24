@@ -2540,15 +2540,16 @@ getStudyArea <- function(studyArea, paths) {
     do.call(geodata::gadm, as.list(geodatCall[-1])),
     message = function(m)
       if (grepl("geodata server seems|The geodata server is down for maintenance", m$message)) {
+        message("Trying a Google Drive stashed copy")
 
       }
   )
   if (is.null(studyArea)) {
-    if ( isTRUE(studyArea[["country"]] %in% "CAN")) {
+    if (isTRUE(studyAreaOrig[["country"]] %in% "CAN")) {
       "https://drive.google.com/file/d/1OhYZymGc9VlLg-X0ZlBalBNjDrzT9XtP/view?usp=sharing"
       message("Because the country is Canada, will try manually hosted file that represents level 2 ")
-      studyArea <- reproducible::prepInputs(url = "https://drive.google.com/file/d/1DdtWeFYEhSRxXcAaJ_J6i8hP8YbfoC1q/view?usp=drive_link") |>
-        sf::st_as_sf()
+      studyArea <- reproducible::prepInputs(url = "https://drive.google.com/file/d/1DdtWeFYEhSRxXcAaJ_J6i8hP8YbfoC1q/view?usp=drive_link",
+                                            destinationPath = paths$inputPath)
 
       # otherURL <- "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lpr_000a21a_e.zip"
       # message(otherURL)
