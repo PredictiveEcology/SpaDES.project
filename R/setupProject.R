@@ -1234,7 +1234,20 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           }
 
           cmd <- paste0("git ", cloneOrSubmodule," https://github.com/", modPath)
-          system(cmd)
+
+          for (i in 1:2) {
+            system(cmd)
+            if (dir.exists(file.path(paths[["modulePath"]], split$repo)))
+              break
+            if (getOption("SpaDES.project.forceGit", TRUE)) {
+              messageVerbose("It looks like the submodule was deleted; restoring it.\n",
+                      "Set options('SpaDES.project.forceGit' = FALSE) to prevent this", verbose = verbose)
+              verbose <<- max(0, verbose - 1)
+              cmd2 <- strsplit(cmd, cloneOrSubmodule)[[1]]
+              cmd <- paste0(cmd2[1], cloneOrSubmodule, " --force", tail(cmd2, 1))
+            }
+          }
+
         } else {
           messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
         }
@@ -1688,25 +1701,25 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
     gitIgnoreFile <- ".gitignore"
     gitFile <- file.path(paths$projectPath, ".git")
     if (dir.exists(gitFile)) { # this is a git repository
-    if (file.exists(gitIgnoreFile))
-      gif <- readLines(gitIgnoreFile, warn = FALSE)
-    else
-      gif <- character()
-    gifOrig <- gif
+      if (file.exists(gitIgnoreFile))
+        gif <- readLines(gitIgnoreFile, warn = FALSE)
+      else
+        gif <- character()
+      gifOrig <- gif
 
-    prjP <- normPath(paths[["projectPath"]])
-    pkgP <- normPath(paths[["packagePath"]])
-    updatedPP <- updatedMP <- FALSE
+      prjP <- normPath(paths[["projectPath"]])
+      pkgP <- normPath(paths[["packagePath"]])
+      updatedPP <- updatedMP <- FALSE
 
-    # if the R package folder is inside
-    isPackagePathInside <- grepl(prjP, pkgP)
-    if (isTRUE(isPackagePathInside)) {
-      updatedPP <- TRUE
-      pkgP <- gsub(prjP, "", pkgP)
-      if (startsWith(pkgP, "/"))
-        pkgP <- gsub("^/", "", pkgP)
-      lineWithPkgPath <- grep(paste0("^", pkgP,"$"), gif)
-      insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
+      # if the R package folder is inside
+      isPackagePathInside <- grepl(prjP, pkgP)
+      if (isTRUE(isPackagePathInside)) {
+        updatedPP <- TRUE
+        pkgP <- gsub(prjP, "", pkgP)
+        if (startsWith(pkgP, "/"))
+          pkgP <- gsub("^/", "", pkgP)
+        lineWithPkgPath <- grep(paste0("^", pkgP,"$"), gif)
+        insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
         gif[insertLine] <- file.path(pkgP, "*")
       }
 
@@ -1741,11 +1754,11 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
 
       # Write the file
       if (length(setdiff(gif, gifOrig))) {
-      writeLines(con = gitIgnoreFile, unique(gif))
-      mess <- paste(c("packagePath"[updatedPP], "modulePath"[updatedMP]), collapse = " and ")
-      messageVerbose(verboseLevel = 1, verbose = verbose,
-                     ".gitignore file updated with ", mess,"; ",
-                     "this may need to be confirmed manually")
+        writeLines(con = gitIgnoreFile, unique(gif))
+        mess <- paste(c("packagePath"[updatedPP], "modulePath"[updatedMP]), collapse = " and ")
+        messageVerbose(verboseLevel = 1, verbose = verbose,
+                       ".gitignore file updated with ", mess,"; ",
+                       "this may need to be confirmed manually")
       }
     }
   }
