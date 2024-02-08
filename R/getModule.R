@@ -119,7 +119,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         } else {
           messageVerbose(modToDL, " could not be found locally (in ",
                          file.path(modulePath, modToDL),
-                         ", nor as a remote module located on GitHub.com, ",
+                         "; if this is a GitHub module, please specify @Branch ",
                          "using format: GitAccount/GitRepo@Branch", "\n --> does it exist on GitHub.com? and are permissions correct?",
                          verbose = verbose)
         }
