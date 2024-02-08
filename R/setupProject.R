@@ -1328,11 +1328,15 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
     while (continue) {
-      mp <- unname(unlist(modulePackages))
+      mp <- unlist(unname(modulePackages))
+      if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
+        mp <- substitutePackages(mp, envir = environment())
+      }
       if (!any(grepl("SpaDES.core", extractPkgName(mp))))
         mp <- c(mp, "SpaDES.core")
       # requireToTry <- unique(c(mp, require))
-      packagesToTry <- unique(c(packages, mp, require))
+      packagesToTry <- c(packages, mp, require)
+      packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
       requirePkgNames <- Require::extractPkgName(require)
       # packagesToTry <- unique(c(packages, mp, requireToTry))
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER

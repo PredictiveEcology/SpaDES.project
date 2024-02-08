@@ -52,7 +52,15 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
       wh2 <- which(unlist(lapply(pp[[wh]], function(x)
         any(grepl(pattern = metadataItem, format(x))))))
       if (length(wh2)) {
-        val <- eval(pp[[wh]][[wh2]][[metadataItem]])
+        val <- try(eval(pp[[wh]][[wh2]][[metadataItem]]), silent = TRUE)
+        for (ii in 1:2)
+          if (is(val, "try-error")) {
+            if (identical(metadataItem, "reqdPkgs") && ii == 1) {
+              val <- substitutePackages(pp[[wh]][[wh2]][[metadataItem]])
+              next
+            }
+            val <- pp[[wh]][[wh2]][[metadataItem]]
+          }
         if (identical(metadataItem, "version")) {
           val <- lapply(val, as.character)
           hasSpaDES.core <- names(val) == "SpaDES.core"
