@@ -1084,7 +1084,6 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = environment(), gitUserName,
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
-  browser()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
