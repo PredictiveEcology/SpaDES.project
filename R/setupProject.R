@@ -2200,7 +2200,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
                            paste0("message('attempting to re-open ", "last active"[wasLastActive],
                                   " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
                                   "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
+                           paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
                            paste0("rstudioapi::navigateToFile('", newRestart, "')")
+
         )
 
         newRprofile <- paste0("source('", tempfileInOther, "')")
