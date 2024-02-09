@@ -1254,7 +1254,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           }
 
         } else {
-          messageVerbose("module exists at ", modPath, "; not cloning", verbose = verbose)
+          messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
         }
         reportBranch <- TRUE
         if (!grepl("master|main|HEAD", split$br)) {
