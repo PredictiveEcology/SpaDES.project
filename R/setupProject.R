@@ -402,6 +402,8 @@ setupProject <- function(name, paths, modules, packages,
                          dots, ...) {
 
   origGetWd <- getwd()
+  if (isTRUE(Restart))
+    on.exit(setwd(origGetWd), add = TRUE)
 
   envir = environment()
 
