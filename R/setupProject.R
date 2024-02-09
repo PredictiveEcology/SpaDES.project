@@ -450,10 +450,11 @@ setupProject <- function(name, paths, modules, packages,
 
   # Need to assess if this is a new project locally, but the remote exists
   usingGit <- checkUseGit(useGit)
+  gitUserName <- NULL
   if (isTRUE(usingGit)) {
     isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
     if (isFALSE(isLocalGitRepoAlready)) {
-      checkGitRemote(name, pathsSUB, gitAccount)
+      gitUserName <- checkGitRemote(name, pathsSUB, gitAccount)
     }
   }
 
@@ -479,6 +480,7 @@ setupProject <- function(name, paths, modules, packages,
   # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
+                                 gitUserName = gitUserName,
                                  overwrite = overwrite, envir = envir, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
@@ -1080,8 +1082,9 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #'
 #' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
-                         overwrite = FALSE, envir = environment(),
+                         overwrite = FALSE, envir = environment(), gitUserName,
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
+  browser()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -1193,7 +1196,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         }
         system("git branch -M main")
         # rl <- readline("Type remote ssh url after git@github.com:")
-        addOrigin <- paste0('git remote add origin git@github.com:',gitUserName,'/', name ,'.git')
+        addOrigin <- paste0('git remote add origin git@github.com:', gitUserName,'/', name ,'.git')
         system(addOrigin)
         # system(paste0("git remote add origin git@github.com:", rl))
         system("git push -u origin main")
@@ -2224,6 +2227,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
 
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath as its root")
+        on.exit(setwd(origGetWd), add = TRUE)
         stop_quietly()
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
@@ -2674,6 +2678,7 @@ checkGitRemote <- function(name, paths, gitAccount) {
     }
 
   }
+  return(gitUserName)
 }
 
 
