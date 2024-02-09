@@ -2662,6 +2662,9 @@ checkGitRemote <- function(name, paths, gitAccount) {
             "). Would you like to clone it now to ", paths$projectPath, "?")
     cloneNow <- readline("Y or N (if N, this will stop): ")
     if (startsWith(tolower(cloneNow), "y")) {
+      if (normalizePath(getwd()) == normalizePath(paths$projectPath, mustWork = FALSE)) {
+        stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")
+      }
       projectBase <- dirname(paths$projectPath)
       dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
       setwd(projectBase)
