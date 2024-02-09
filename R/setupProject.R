@@ -2197,7 +2197,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
                            "ap <- rstudioapi::getActiveProject()",
                            "if (is.null(ap)) ap <- 'No active project'",
                            "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
-                           paste0("message('re-opened ", "last active"[wasLastActive],
+                           paste0("message('attempting to re-open ", "last active"[wasLastActive],
                                   " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
                                   "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
                            paste0("rstudioapi::navigateToFile('", newRestart, "')")
