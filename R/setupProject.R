@@ -1334,7 +1334,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     while (continue) {
       mp <- unlist(unname(modulePackages))
       if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
-        mp <- substitutePackages(mp, envir = environment())
+        mp <- Require:::substitutePackages(mp, envir = environment())
       }
       if (!any(grepl("SpaDES.core", extractPkgName(mp))))
         mp <- c(mp, "SpaDES.core")
