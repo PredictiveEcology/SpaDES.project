@@ -56,7 +56,7 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
         for (ii in 1:2)
           if (is(val, "try-error")) {
             if (identical(metadataItem, "reqdPkgs") && ii == 1) {
-              val <- substitutePackages(pp[[wh]][[wh2]][[metadataItem]])
+              val <- Require:::substitutePackages(pp[[wh]][[wh2]][[metadataItem]])
               next
             }
             val <- pp[[wh]][[wh2]][[metadataItem]]
