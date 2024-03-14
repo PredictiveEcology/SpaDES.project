@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2024-03-12
-Version: 0.0.8.9031
+Date: 2024-03-14
+Version: 0.0.8.9032
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -55,6 +55,6 @@ License: GPL-3
 VignetteBuilder: knitr, rmarkdown
 BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.1
 Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3

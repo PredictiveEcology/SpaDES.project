@@ -12,3 +12,9 @@ m/*
 SpaDES.project/*
 LandR-tutorials
 myModules/*
+cache
+inputs
+outputs
+.Rdata
+.secret
+.secrets

@@ -59,9 +59,8 @@ by setting \code{returnList = TRUE}}
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
 then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
-\code{Require} function, when \code{verbose >= 2}, the return object will have an
-attribute: \code{attr(.., "Require")} which has lots of information about the
-processes of the installs.}
+\code{Require} function, when \code{verbose >= 2}, also returns details as if
+\code{returnDetails = TRUE} (for backwards compatibility).}
 
 \item{modules}{Either a character vector of local module names, or a named list
 of character strings of short module names (i.e., the folder paths in \code{modulePath}).}

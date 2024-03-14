@@ -18,9 +18,9 @@ setupPaths(
   inProject,
   standAlone = TRUE,
   libPaths = NULL,
-  updateRprofile = getOption("Require.updateRprofile", FALSE),
+  updateRprofile = TRUE,
   overwrite = FALSE,
-  envir = environment(),
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -33,7 +33,7 @@ setupFunctions(
   sideEffects,
   paths,
   overwrite = FALSE,
-  envir = environment(),
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -46,7 +46,7 @@ setupSideEffects(
   paths,
   times,
   overwrite = FALSE,
-  envir = environment(),
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -59,10 +59,11 @@ setupOptions(
   paths,
   times,
   overwrite = FALSE,
-  envir = environment(),
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
+  updateRprofile,
   ...
 )
 
@@ -73,10 +74,12 @@ setupModules(
   inProject,
   useGit = getOption("SpaDES.project.useGit", FALSE),
   overwrite = FALSE,
-  envir = environment(),
+  envir = parent.frame(),
+  gitUserName,
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
+  updateRprofile = TRUE,
   ...
 )
 
@@ -87,7 +90,7 @@ setupPackages(
   libPaths,
   setLinuxBinaryRepo = TRUE,
   standAlone,
-  envir = environment(),
+  envir = parent.frame(),
   verbose,
   dots,
   defaultDots,
@@ -102,7 +105,7 @@ setupParams(
   times,
   options,
   overwrite = FALSE,
-  envir = environment(),
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -163,9 +166,8 @@ transient environment of that function.}
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
 then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
-\code{Require} function, when \code{verbose >= 2}, the return object will have an
-attribute: \code{attr(.., "Require")} which has lots of information about the
-processes of the installs.}
+\code{Require} function, when \code{verbose >= 2}, also returns details as if
+\code{returnDetails = TRUE} (for backwards compatibility).}
 
 \item{dots}{Any other named objects passed as a list a user might want for other elements.}
 

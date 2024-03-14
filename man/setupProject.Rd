@@ -22,10 +22,11 @@ setupProject(
   setLinuxBinaryRepo = TRUE,
   standAlone = TRUE,
   libPaths = NULL,
-  updateRprofile = getOption("Require.updateRprofile", TRUE),
+  updateRprofile = TRUE,
   overwrite = FALSE,
   verbose = getOption("Require.verbose", 1L),
   defaultDots,
+  envir = parent.frame(),
   dots,
   ...
 )
@@ -169,9 +170,8 @@ a user can just manually delete a file, then rerun.}
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
 then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
-\code{Require} function, when \code{verbose >= 2}, the return object will have an
-attribute: \code{attr(.., "Require")} which has lots of information about the
-processes of the installs.}
+\code{Require} function, when \code{verbose >= 2}, also returns details as if
+\code{returnDetails = TRUE} (for backwards compatibility).}
 
 \item{defaultDots}{A named list of any arbitrary R objects.
 These can be supplied to give default values to objects that
@@ -180,6 +180,10 @@ are otherwise passed in with the \code{...}, i.e., not specifically named for th
 the \code{defaultDots} will be overridden. This can be particularly useful if the
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
 processing to optionally fill them. See examples.}
+
+\item{envir}{The environment where \code{setupProject} is called from. Defaults to
+\code{parent.frame()} which should be fine in most cases and user shouldn't need
+to set this}
 
 \item{dots}{Any other named objects passed as a list a user might want for other elements.}
 
