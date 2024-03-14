@@ -150,6 +150,9 @@ utils::globalVariables(c(
 #'   the `defaultDots` will be overridden. This can be particularly useful if the
 #'   arguments passed to `...` do not always exist, but rely on external e.g., batch
 #'   processing to optionally fill them. See examples.
+#' @param envir The environment where `setupProject` is called from. Defaults to
+#'   `parent.frame()` which should be fine in most cases and user shouldn't need
+#'   to set this
 #' @param ... further named arguments that acts like `objects`, but a different
 #'   way to specify them. These can be anything. The general use case
 #'   is to create the `objects` that are would be passed to
@@ -398,14 +401,14 @@ setupProject <- function(name, paths, modules, packages,
                          updateRprofile = getOption("Require.updateRprofile", TRUE),
                          overwrite = FALSE, # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
-                         defaultDots,
+                         defaultDots, envir = parent.frame(),
                          dots, ...) {
 
   origGetWd <- getwd()
   if (isTRUE(Restart))
     on.exit(setwd(origGetWd), add = TRUE)
 
-  envir = environment()
+  envirCur = environment()
 
   origArgOrder <- names(tail(sys.calls(), 1)[[1]])
   if (is.null(origArgOrder)) {
@@ -427,7 +430,7 @@ setupProject <- function(name, paths, modules, packages,
   functionsSUB <- substitute(functions)
   timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   if (!missing(timesSUB))
-    times <- evalSUB(val = timesSUB, envir = envir, valObjName = "times", envir2 = parent.frame())
+    times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -438,8 +441,7 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(times))
     times <- list(start = 0, end = 1)
 
-  pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
-
+  pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
   if (missing(name)) {
     name <- basename(normPath(pathsSUB[["projectPath"]]))
   } else {
@@ -460,7 +462,8 @@ setupProject <- function(name, paths, modules, packages,
 
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
-                            envir = envir, verbose = verbose - 1)
+                            envir = envirCur,
+                            verbose = verbose - 1)
 
   if (isTRUE(getOption("SpaDES.project.fast"))) {
     base::options(fastOptions())
@@ -475,13 +478,13 @@ setupProject <- function(name, paths, modules, packages,
   setupRestart(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
 
   # this next puts them in this environment, returns NULL
-  functions <- setupFunctions(functionsSUB, paths = paths, envir = envir)
+  functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
 
   # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                  gitUserName = gitUserName,
-                                 overwrite = overwrite, envir = envir, verbose = verbose)
+                                 overwrite = overwrite, envir = envirCur, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
 
@@ -491,7 +494,7 @@ setupProject <- function(name, paths, modules, packages,
   setupPackages(packages, modulePackages, require = require,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
-                libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
+                libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
 
   # This next is to set the terra tempdir; don't do it in the cases where terra is not used
   # The longer unique(...) commented next is much slower; they are identical results
@@ -502,11 +505,11 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
-                                     envir = envir, verbose = verbose)
+                                     envir = envirCur, verbose = verbose)
 
   # 2nd time
-  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envir,
-                       verbose = verbose - 1)
+  opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
+                       updateRprofile = updateRprofile, verbose = verbose - 1)
   if (!is.null(opts$newOptions))
     opts <- mergeOpts(opts, optsFirst, verbose)
 
@@ -523,7 +526,7 @@ setupProject <- function(name, paths, modules, packages,
   # setupPackages(packages, modulePackages, require = require,
   #               setLinuxBinaryRepo = setLinuxBinaryRepo,
   #               standAlone = standAlone,
-  #               libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
+  #               libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
 
   if (!missing(config)) {
     messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
@@ -541,7 +544,7 @@ setupProject <- function(name, paths, modules, packages,
 
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
-                        overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                        overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
@@ -643,9 +646,10 @@ setupProject <- function(name, paths, modules, packages,
 #' @importFrom utils packageVersion
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
                        updateRprofile = getOption("Require.updateRprofile", FALSE),
-                       overwrite = FALSE, envir = environment(),
+                       overwrite = FALSE, envir = parent.frame(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
+  envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -654,9 +658,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths[["projectPath"]]))`
   pathsSUB <- checkProjectPath(pathsSUB, name, envir, parent.frame())
 
-  paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envir, envir2 = parent.frame())
+  paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envirCur, envir2 = envir)
   paths <- parseFileLists(paths, paths, overwrite = isTRUE(overwrite),
-                          envir = envir, verbose = verbose)
+                          envir = envirCur, verbose = verbose)
 
   if (!missing(name))
     name <- checkNameProjectPathConflict(name, paths)
@@ -780,9 +784,10 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'                     q = funHere(22),
 #'                     ddd = fn3(terra::ext(0,b,0,b)))
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
-                           envir = environment(), verbose = getOption("Require.verbose", 1L),
+                           envir = parent.frame(), verbose = getOption("Require.verbose", 1L),
                            dots, defaultDots, ...) {
 
+  envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -790,13 +795,13 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
     messageVerbose(yellow("setting up functions..."), verbose = verbose, verboseLevel = 0)
 
     functionsSUB <- substitute(functions) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    functions <- evalSUB(functionsSUB, valObjName = "functions", envir = parent.frame(), envir2 = parent.frame())
+    functions <- evalSUB(functionsSUB, valObjName = "functions", envir = envir, envir2 = envir)
 
     functions <- parseFileLists(functions, paths = paths, namedList = TRUE,
-                                overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                                overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
     isFuns <- vapply(functions, is.function, FUN.VALUE = logical(1))
     if (any(isFuns))
-      list2env(functions[isFuns], envir = envir)
+      list2env(functions[isFuns], envir = envirCur)
     messageVerbose(yellow("  done setting up functions"), verbose = verbose, verboseLevel = 0)
   }
 
@@ -833,9 +838,10 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 #'
 #' @importFrom data.table data.table
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
-                             envir = environment(), verbose = getOption("Require.verbose", 1L),
+                             envir = parent.frame(), verbose = getOption("Require.verbose", 1L),
                              dots, defaultDots, ...) {
 
+  envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -843,7 +849,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     messageVerbose(yellow("setting up sideEffects..."), verbose = verbose, verboseLevel = 0)
 
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envir, envir2 = parent.frame())
+    sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envirCur, envir2 = envir)
 
     if (!is.character(sideEffects)) { # this is because I wrote this second;
       tf <- tempfile()
@@ -852,7 +858,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     }
 
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
-                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                                  overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
   }
 
@@ -875,8 +881,9 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #'
 #'
 #' @importFrom data.table data.table
-setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = environment(),
-                         verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
+setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = parent.frame(),
+                         verbose = getOption("Require.verbose", 1L), dots, defaultDots,
+                         ...) {
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -890,16 +897,17 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     preOptions <- base::options() # need prefix or else greedy evaluation occurs on the `options()` as if it is the arg
 
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    options <- evalSUB(optionsSUB, valObjName = "options", envir = envir, envir2 = parent.frame())
+    envirCur <- environment()
+    options <- evalSUB(optionsSUB, valObjName = "options", envir = envirCur, envir2 = envir)
 
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
-      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
+      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
       paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
     options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
-                              envir = envir, verbose = verbose)
+                              envir = envirCur, verbose = verbose)
 
     postOptions <- base::options()
     newValues <- oldValues <- list()
@@ -1082,8 +1090,11 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #'
 #' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
-                         overwrite = FALSE, envir = environment(), gitUserName,
-                         verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
+                         overwrite = FALSE, envir = parent.frame(), gitUserName,
+                         verbose = getOption("Require.verbose", 1L), dots, defaultDots,
+                         ...) {
+
+  envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -1093,7 +1104,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
   } else {
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
-      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envir, envir2 = parent.frame())
+      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
       paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
     if (missing(inProject))
@@ -1102,13 +1113,13 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     messageVerbose(yellow("setting up modules..."), verbose = verbose, verboseLevel = 0)
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envir, envir2 = parent.frame())
+    modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envirCur, envir2 = envir)
     exts <- tools::file_ext(modules)
     isRepo <- nzchar(exts) & exts %in% ".R"
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
       modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
-                                envir = envir, verbose = verbose)
+                                envir = envirCur, verbose = verbose)
     }
 
     anyfailed <- character()
@@ -1312,8 +1323,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 #' `paths[["packagePath"]]`.
 #'
 setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo = TRUE,
-                          standAlone, envir = environment(), verbose, dots, defaultDots, ...) {
+                          standAlone, envir = parent.frame(), verbose, dots, defaultDots, ...) {
 
+  envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -1334,7 +1346,7 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
     while (continue) {
       mp <- unlist(unname(modulePackages))
       if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
-        mp <- Require:::substitutePackages(mp, envir = environment())
+        mp <- Require:::substitutePackages(mp, envir = envirCur)
       }
       if (!any(grepl("SpaDES.core", extractPkgName(mp))))
         mp <- c(mp, "SpaDES.core")
@@ -1388,10 +1400,11 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
 #'
 #'
 #' @importFrom data.table data.table
-setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE, envir = environment(),
+setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE, envir = parent.frame(),
                         verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                         ...) {
 
+  envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -1402,9 +1415,9 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
     messageVerbose(yellow("setting up params..."), verbose = verbose, verboseLevel = 0)
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envir, envir2 = parent.frame())
+    params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envirCur, envir2 = envir)
     params <- parseFileLists(params, paths, overwrite = isTRUE(overwrite),
-                             envir = envir, verbose = verbose)
+                             envir = envirCur, verbose = verbose)
 
     if (length(params)) {
 
