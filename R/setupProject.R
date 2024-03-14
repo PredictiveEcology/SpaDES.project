@@ -398,11 +398,13 @@ setupProject <- function(name, paths, modules, packages,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          setLinuxBinaryRepo = TRUE,
                          standAlone = TRUE, libPaths = NULL,
-                         updateRprofile = getOption("Require.updateRprofile", TRUE),
+                         updateRprofile = TRUE,
                          overwrite = FALSE, # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
+
+  makeUpdateRprofileSticky(updateRprofile)
 
   origGetWd <- getwd()
   if (isTRUE(Restart))
@@ -463,6 +465,7 @@ setupProject <- function(name, paths, modules, packages,
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                             envir = envirCur,
+                            updateRprofile = updateRprofile,
                             verbose = verbose - 1)
 
   if (isTRUE(getOption("SpaDES.project.fast"))) {
@@ -473,9 +476,9 @@ setupProject <- function(name, paths, modules, packages,
 
 
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
-                      updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
+                      updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
 
-  setupRestart(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
+  setupRestart(updateRprofile = updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
 
   # this next puts them in this environment, returns NULL
   functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
@@ -483,7 +486,7 @@ setupProject <- function(name, paths, modules, packages,
   # setupSpaDES.ProjectDeps(paths, verbose = verbose)
 
   modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
-                                 gitUserName = gitUserName,
+                                 gitUserName = gitUserName, updateRprofile = updateRprofile,
                                  overwrite = overwrite, envir = envirCur, verbose = verbose)
   modules <- Require::extractPkgName(names(modulePackages))
   names(modules) <- names(modulePackages)
@@ -645,11 +648,13 @@ setupProject <- function(name, paths, modules, packages,
 #' @importFrom Require normPath checkPath
 #' @importFrom utils packageVersion
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
-                       updateRprofile = getOption("Require.updateRprofile", FALSE),
+                       updateRprofile = TRUE,
                        overwrite = FALSE, envir = parent.frame(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   envirCur <- environment()
+  makeUpdateRprofileSticky(updateRprofile)
+
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -883,7 +888,12 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' @importFrom data.table data.table
 setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = parent.frame(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
+                         updateRprofile,
                          ...) {
+
+  makeUpdateRprofileSticky(updateRprofile)
+
+  # Require:::fillDefaults(SpaDES.project:::setupProject)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -903,7 +913,8 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
-      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots,
+                          updateRprofile = updateRprofile, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
     options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
@@ -1092,9 +1103,12 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = parent.frame(), gitUserName,
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
+                         updateRprofile = TRUE,
                          ...) {
 
   envirCur <- environment()
+  makeUpdateRprofileSticky(updateRprofile)
+
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
 
@@ -1105,7 +1119,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
-      paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, updateRprofile = updateRprofile, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
     if (missing(inProject))
       inProject <- isInProject(name)
@@ -2104,7 +2118,9 @@ setupStudyArea <- function(studyArea, paths, envir) {
 
 
 setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) {
+
   if (isTRUE(updateRprofile)) {
+
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
       warning("updateRprofile is TRUE, but the projectPath is the tempdir(), which means ",
@@ -2717,4 +2733,9 @@ fastOptions <- function() {
        reproducible.gdalwarp = TRUE,
        spades.recoveryMode = 1
   )
+}
+
+makeUpdateRprofileSticky <- function(updateRprofile) {
+  if (isTRUE(updateRprofile) && !getOption("Require.updateRprofile") %in% TRUE)
+    options(Require.updateRprofile = updateRprofile)
 }
