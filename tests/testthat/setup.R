@@ -1,6 +1,3 @@
-withr::local_package("waldo", .local_envir = teardown_env())
-withr::local_package("rematch2", .local_envir = teardown_env())
-withr::local_package("diffobj", .local_envir = teardown_env())
 # withr::local_options(list(repos = c(CRAN = "https://cloud.r-project.org")),
 #                      .local_envir = teardown_env())
 #

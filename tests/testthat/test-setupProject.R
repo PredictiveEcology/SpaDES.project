@@ -99,18 +99,34 @@ test_that("test setupProject - remote options file", {
 })
 
 test_that("test setupProject - arbitrary arguments", {
-  skip("Not completed tests yet")
+  # skip("Not completed tests yet")
   skip_on_cran()
   setupTest() ## setting arbitrary arguments
+  jur <- "MB"
+  mod <- "development"
+  # expect_false(googledrive::drive_has_token())
+
+  module <- "PredictiveEcology/Biomass_borealDataPrep@development"
   mess <- capture_messages({
     out <- setupProject(
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+      modules = module,
       sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
-      defaultDots = list(mode = "development",
-                         studyAreaName = "MB"),
+      defaultDots = list(mode = mod,
+                         studyAreaName = jur),
+      packages = NULL,
+      updateRprofile = FALSE,
       mode = mode, studyAreaName = studyAreaName,
     )
   })
+  expect_identical(out$studyAreaName, jur)
+  expect_identical(out$mode, mod)
+  expect_true(length(dir(out$paths$modulePath, pattern = extractPkgName(module))) == 1)
+  expect_true(length(
+    dir(out$paths$modulePath, recursive = TRUE,
+        pattern = paste0(extractPkgName(module), ".R$"))) == 1)
+
+  if (user("emcintir"))
+    expect_true(sum(grepl("Authenticating as", mess)) == 1)
 })
 
 test_that("test setupProject - args from global envir", {
@@ -188,7 +204,6 @@ test_that("test setupProject - studyArea in lonlat", {
 })
 
 test_that("test setupProject -studyArea using CRS", {
-  # skip("Not completed tests yet")
   skip_on_cran()
   ## example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
   ##    with level 2 administrative boundaries

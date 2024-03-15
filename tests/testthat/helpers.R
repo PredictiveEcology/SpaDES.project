@@ -10,7 +10,24 @@
 }
 
 
-setupTest <- function(envir = parent.frame()) {
+setupTest <- function(pkgs, envir = parent.frame()) {
+
+  withr::local_package("googledrive", .local_envir = envir)
+  withr::local_package("curl", .local_envir = envir)
+  withr::local_package("crayon", .local_envir = envir)
+  withr::local_package("httr", .local_envir = envir)
+  withr::local_package("waldo", .local_envir = envir)
+  withr::local_package("rematch2", .local_envir = envir)
+  withr::local_package("diffobj", .local_envir = envir)
+  withr::local_package("terra", .local_envir = envir)
+
+  if (user("emcintir")) {
+    if (!googledrive::drive_has_token())
+      googledrive::drive_auth(email = "eliotmcintire@gmail.com")
+  }
+
+  if (!missing(pkgs))
+    lapply(pkgs, withr::local_package, .local_envir = envir)
   withr::local_libpaths(Require::tempdir2(.rndstr(1)), .local_envir = envir)
   withr::local_dir(Require::tempdir2(.rndstr(1)), .local_envir = envir)
   withr::local_options(list(repos = c(CRAN = "https://cloud.r-project.org")),
