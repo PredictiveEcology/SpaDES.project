@@ -1,0 +1,170 @@
+---
+title: "Finding other modules"
+author: "Eliot McIntire"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Finding other modules}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options:
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = TRUE
+)
+
+SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra", "raster")
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, require, character.only = TRUE, quietly = TRUE))
+useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
+
+scalls <- sys.calls()
+a <- format(scalls)
+
+# Run everything during `pkgdown::build_*` (which uses rmarkdown::render)
+knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
+                        Sys.info()["user"] == "emcintir" && 
+  any(grepl("rmarkdown::render", a)))# && interactive())
+
+options(Ncpus = 1)
+if (Sys.info()["user"] == "emcintir") {
+  knitr::opts_knit$set(root.dir = Require::checkPath(file.path("c:/Eliot/tmp", "listModules"), create = TRUE ))
+} else { 
+  knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "listModules"), create = TRUE ))
+}
+
+knitr::opts_chunk$set(fig.width=9, fig.height=7) # sets html figure height and width
+
+# options(Require.clonePkgs = TRUE)
+
+```
+
+```{r setCRAN,echo=FALSE}
+## cleanup / restore state
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+```
+
+```{r install-spades-project}
+if (!require("SpaDES.project")) {
+  {install.packages("SpaDES.project", repos = c("predictiveecology.r-universe.dev", getOption("repos")))
+   require("SpaDES.project")}
+}
+```
+
+
+
+## Find other's modules
+
+One powerful aspect of `SpaDES` is the ability to connect to other people's modules. It can be challenging to know where other modules are and what they do. Using the `listModules` function.
+
+The command sequence we will use is:
+
+- `listModule` to identify which modules exist on cloud storage systems,
+- `getModules` to bring them (or a subset) to your local machine,
+- `moduleDependencies` to do the metadata analysis, 
+- `moduleDependenciesToGraph` converts them to a graph, 
+- `moduleDependenciesToGraph` to visualize that graph.
+
+A user can use only some of these steps if they do not want to produce the visuals.
+
+### A small selection of SpaDES modules
+
+#### **Some Biomass_* modules**
+This will search the `PredictiveEcology` github.com repository for any SpaDES module whose name has `Biomass_species`, `Biomass_core`, `Biomass_regen` in it. The search will find any module that contains those keywords, i.e., `Biomass_regen` will find `Biomass_regeneration`
+
+```{r clean13,echo=FALSE}
+## cleanup / restore state
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
+```
+
+```{r listModulesSmall,result='hide',message=FALSE}
+Account <- "PredictiveEcology"
+grepListShort <- "Biomass_species|Biomass_core|Biomass_regen"
+mods <- listModules(grepListShort, accounts = Account)
+
+modPath <- normPath(tempdir2())
+getModule(mods, modulePath = modPath)
+
+DT <- moduleDependencies(mods, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
+```
+
+#### **FireSense modules**
+
+```{r FireSense,result='hide',message=FALSE}
+Account <- "PredictiveEcology"
+grepListShort <- "fireSense"
+mods <- listModules(grepListShort, accounts = Account)
+
+getModule(mods, modulePath = modPath)
+
+DT <- moduleDependencies(mods, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
+```
+
+
+#### **LandR modules**
+
+```{r LandR,result='hide',message=FALSE}
+Account <- "PredictiveEcology"
+grepListShort <- "Biomass_|LandR"
+mods <- listModules(grepListShort, accounts = Account)
+
+getModule(mods, modulePath = modPath)
+
+DT <- moduleDependencies(mods, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
+```
+
+
+
+### A larger selection of "known" SpaDES modules
+
+```{r listModulesAll,result='hide',message=FALSE,error=FALSE,warning=FALSE}
+# Can do same, but with long list -- not done here -- can try
+accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
+                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
+grepListLong <- c("Biomass", "WBI", "LandR", "fireSense", "CBM",
+                  "LandMine", "LandWeb", "NRV", #"scfm",
+                  "priority", "fire",
+                  "dataPrep", "DataPrep", "RoF", "Ontario", "ROF")
+modsLong <- listModules(grepListLong, accounts = accountsListLong)
+
+# pass to listModules for much larger figure
+getModule(modsLong, modulePath = modPath)
+
+DT <- moduleDependencies(modsLong, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
+
+
+```
+
+
+### All SpaDES modules in a set of known accounts
+
+This takes much longer to run as it scans all (open) repositories for each element of `accounts`. It will search for a relatively "lightweight" indicator of a SpaDES module, namely, a file at the top level that has the same name as the repository, but whose file extension is `.R`.
+
+```{r listModulesReallyAll,result='hide',message=FALSE,error=FALSE,warning=FALSE,fig.height=12}
+# Can do same, but with long list -- not done here -- can try
+accountsListLong <- c("PredictiveEcology", "ianmseddy", "achubaty",
+                       "FOR-CAST", "eliotmcintire", "tati-micheletti", "CeresBarros")
+modsLong <- listModules(accounts = accountsListLong)
+
+# pass to listModules for much larger figure
+getModule(modsLong, modulePath = modPath)
+
+DT <- moduleDependencies(modsLong, modulePath = modPath)
+graph <- moduleDependenciesToGraph(DT)
+(vn <- PlotModuleGraph(graph))
+
+
+```

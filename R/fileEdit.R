@@ -15,10 +15,11 @@
 #'
 #' @author Alex Chubaty
 #' @importFrom utils file.edit
+#' @inheritParams Require::Require
 #' @keywords internal
 #' @rdname fileEdit
 #'
-.fileEdit <- function(file) {
+.fileEdit <- function(file, verbose = getOption("Require.verbose", 1L)) {
   if (Sys.getenv("RSTUDIO") == "1") {
     file <- gsub(file, pattern = "\\./", replacement = "")
     if (requireNamespace("rstudioapi")) {

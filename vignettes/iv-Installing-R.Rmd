@@ -1,0 +1,218 @@
+---
+title: "Installing R"
+author: "Alex M. Chubaty"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Installing R}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = TRUE,
+  eval = FALSE
+)
+```
+
+## Installing R
+
+### Traditional installation
+
+#### Windows
+
+1. Download and run the R installer (as administrator!) from <https://cran.r-project.org/bin/windows/base>.
+
+2. (Optional) To build and compile packages, download and install the latest Rtools (as administrator!) from <https://cran.r-project.org/bin/windows/Rtools/>.
+    Be sure to check the "add rtools to PATH" option during installation.
+
+3. (Optional) Install GIS tools by downloading OSGeo4W from <http://download.osgeo.org/osgeo4w/osgeo4w-setup-x86_64.exe> and running the installer (select 'Express Install').
+
+#### macOS
+
+1. Download and run the R installer from <https://cran.r-project.org/bin/macosx>.
+
+2. Install Xcode commandline tools from the terminal:
+
+    ```
+    xcode-select --install
+    ```
+
+3. Install homebrew from the terminal (more info at <https://brew.sh/>):
+
+    ```
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    ```
+
+4. Install GDAL and other spatial packages:
+
+    ```
+    brew install pkg-config
+    brew install gdal
+    ```
+    
+    Then, install spatial R packages from source to pick up the new GDAL and PROJ libraries:
+  
+    ```{r install-spatial}
+    ## (re)install spatial packages from source
+    install.packages("sf", type = "source",
+                     configure.args = "--with-proj-lib=$(brew --prefix)/lib/")
+    
+    install.packages("terra", type = "source")
+    
+    ## legacy spatial packages may still be required until fully retired Oct 2023
+    install.packages("rgdal", type = "source",
+                     configure.args = c("--with-proj-lib=$(brew --prefix)/lib/",
+                                        "--with-proj-include=$(brew --prefix)/include/"))
+    
+    install.packages("rgeos", type = "source")
+    
+    ## confirm the GDAL, GEOS, PROJ versions being used
+    library(sf)
+    library(rgdal)
+    ```
+
+5. Install GLPK (needed for full `igraph` functionality):
+
+    ```
+    brew install glpk
+    ```
+
+    Then, reinstall `igraph` from source so it is compiled with GLPK:
+
+    ```{r install-igraph}
+    install.packages("igraph", type = "source")
+    ```
+
+#### Linux
+
+Install via `apt` or `yum` depending on your distribution.
+Instructions for Ubuntu 20.04 LTS are shown below.
+
+1. Install R and its development libraries following instructions based on <https://cran.r-project.org/bin/linux/ubuntu>:
+
+    ```
+    ## update indices
+    sudo apt update -qq
+    
+    ## install two helper packages we need
+    sudo apt install --no-install-recommends software-properties-common dirmngr
+    
+    ## add the signing key (by Michael Rutter) for these repos
+    ## To verify key, run gpg --show-keys /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc 
+    ## Fingerprint: E298A3A825C0D65DFD57CBB651716619E084DAB9
+    wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
+    
+    ## add the R 4.0 repo from CRAN
+    sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+    
+    ## install R and its development libraries
+    sudo apt install r-base r-base-dev
+    ```
+
+2. Install java and configure R to use it:
+
+    ```
+    sudo apt build-dep -y r-cran-rjava
+    sudo R CMD javareconf
+    ```
+
+3. Install dependencies for spatial and other packages:
+
+    ```
+    sudo apt build-dep -y r-cran-tkrplot
+
+    sudo apt-get install -y \
+      curl \
+      gdal-bin \
+      git \
+      libcairo2-dev \
+      libcurl4-openssl-dev \
+      libgdal-dev \
+      libgeos-dev \
+      libgit2-dev \
+      libglpk-dev \
+      libgmp-dev \
+      libjq-dev \
+      libmagick++-dev \
+      libproj-dev \
+      libprotobuf-dev \
+      libprotoc-dev \
+      libssh2-1-dev \
+      libssl-dev \
+      libudunits2-dev \
+      libv8-dev \
+      libxml2-dev \
+      libxt-dev \
+      pandoc \
+      pandoc-citeproc \
+      protobuf-compiler \
+      python3-gdal \
+      tcl-dev \
+      tk-dev
+    ```
+
+### Alternate installation
+
+For users who require multiple versions of R concurrently, `rig` (<https://github.com/r-lib/rig>) provides the simplest mechanism for managing and running multiple installations.
+
+1. Install `rig` for your system following instructions here:
+    <https://github.com/r-lib/rig#id-installation>
+
+2. Install the versions of R you need:
+
+    ```bash
+    rig add 4.3
+    rig add 4.2
+    rig add 4.1
+    ```
+    
+    You can see the installed versions (and the default, starred) by using `rig list`.
+    
+    Set the default version using the names from `rig list`:
+    
+    ```bash
+    rig default 4.3.1
+    ```
+3. Setup symlinks to allow easy launch of versioned R sessions:
+
+    ```bash
+    rig system make-links
+    ```
+  
+    E.g., to launch R 4.2 on macOS, use `R-4.2-arm64`
+
+4. On macOS, restrict access to system package directories:
+
+    ```bash
+    rig system fix-permissions
+    ```
+
+5. On macOS can also use the menu bar app (<https://github.com/r-lib/rig#id-macos-menu-bar-app>) to manage their R versions:
+
+    ```bash
+    open -a Rig
+    ```
+
+    Be sure to open the Rig app preferences to allow launch at startup.
+
+#### Launching Rstudio using a specific version of R
+
+```bash
+## e.g., on macOS:
+rig rstudio 4.2-arm64
+
+## e.g., for a project using renv on ubuntu:
+cd ~/path/to/project
+rig rstudio renv.lock
+```
+
+## Installing Rstudio
+
+**Recommended.**
+
+Download and run the installer for your operating system from <https://posit.co/download/rstudio-desktop/>.

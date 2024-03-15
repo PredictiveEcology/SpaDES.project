@@ -1,5 +1,0 @@
-## install/load required packages
-if (!require("Require")) {install.packages("Require"); require("Require")}
-Require("PredictiveEcology/SpaDES.install")
-installSpaDES()
-Require("SpaDES.core")
