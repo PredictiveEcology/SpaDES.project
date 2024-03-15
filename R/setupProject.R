@@ -909,6 +909,10 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     envirCur <- environment()
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envirCur, envir2 = envir)
+    # post check
+    if (isTRUE(try(any(grepl("^options$", eval(optionsSUB, envir = envir)[[1]])), silent = TRUE))) {
+      warning("It looks like the options argument is passed options(...); please use list(...)")
+    }
 
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
@@ -2617,8 +2621,9 @@ getStudyArea <- function(studyArea, paths) {
   tos <- c("projectTo", "maskTo", "cropTo", "to")
   poss <- setdiff(poss, tos)
   for (col in poss) {
-    greppedNames <- grep(studyArea[[col]], pattern = studyAreaOrig[[col]], value = TRUE)
-    colInSA <- studyArea[[col]]
+    saCol <- as.data.frame(studyArea)[[col]]
+    greppedNames <- grep(saCol, pattern = studyAreaOrig[[col]], value = TRUE)
+    colInSA <- as.data.frame(studyArea)[[col]]
     if (is.null(colInSA)) {
       warning("There is no column ", col, "; ",
               "\nDid you mean one or more of:\n  ", paste(names(studyArea), collapse = "\n  "),

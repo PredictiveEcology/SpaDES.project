@@ -7,66 +7,31 @@
 
 test_that("test setupProject - simplest", {
   skip_on_cran()
-#  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
+  setupTest() # setwd, sets .libPaths() to a temp
 
   ## simplest case; just creates folders
-  mess <- capture_messages({
-    out <- setupProject(
-      name = paste0("test_SpaDES_project_", .rndstr(1)),
-      # name = "test_SpaDES_project"
-    )
-  })
-
-  ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  utils::install.packages("waldo", lib = head(.libPaths(), 1))
-
+  warns <- capture_warnings( #
+    mess <- capture_messages({
+      out <- setupProject(
+        name = paste0("test_SpaDES_project_", .rndstr(1)),
+      )
+    })
+  )
+  expect_true(all(grepl("won\\'t be read upon restart", warns)))
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })
 
 test_that("test setupProject - relative paths and modules", {
   skip_on_cran()
-#  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
+  setupTest() # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
     mess <- capture_messages({
       out <- setupProject(
         # name = "test_SpaDES_project",
         name = paste0("test_SpaDES_project_", .rndstr(1)),
-        paths = list(projectPath = "test_SpaDES_project",
+        paths = list(projectPath = name,
                      modulePath = "m",
                      scratchPath = tempdir()),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development"
@@ -74,37 +39,15 @@ test_that("test setupProject - relative paths and modules", {
     })
   )
 
-  ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  # utils::install.packages("waldo", lib = head(.libPaths(), 1))
-
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
   expect_true(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules))
-  expect_true(length(out$params) == 0)
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
+  expect_true(length(out$params) == 1) # .globals for .studyAreaName
 })
 
 test_that("test setupProject - options and params", {
   skip_on_cran()
-  # skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
+  setupTest()
   ## With options and params set
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -120,38 +63,15 @@ test_that("test setupProject - options and params", {
       )
     })
   )
-
-  ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  # install.packages("waldo", lib = head(.libPaths(), 1))
-
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
   expect_true(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules))
-  expect_true(length(out$params) == 1)
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
+  expect_true(length(out$params) == 2)
 })
 
 test_that("test setupProject - remote options file", {
   skip_on_cran()
-  # skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
+  setupTest()
   ## using an options file that is remote
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -169,43 +89,19 @@ test_that("test setupProject - remote options file", {
   )
   withr::defer(try(options(attr(out, "projectOptions"))))
 
-  ## TODO: `testthat` dependency `waldo` missing from project's libpath
-  # install.packages("waldo", lib = head(.libPaths(), 1))
-
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
   expect_true(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules))
-  expect_true(length(out$params) == 1)
+  expect_true(length(out$params) == 2)
   expect_true(!is.null(getOption("LandR.assertions"))) # pick one from the file
   expect_true(is.list(attr(out, "projectOptions"))) # pick one from the file
   options(attr(out, "projectOptions"))
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })
 
 test_that("test setupProject - arbitrary arguments", {
   skip("Not completed tests yet")
-
   skip_on_cran()
-  # skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
-  ## setting arbitrary arguments
+  setupTest() ## setting arbitrary arguments
   mess <- capture_messages({
     out <- setupProject(
       modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -213,35 +109,14 @@ test_that("test setupProject - arbitrary arguments", {
       defaultDots = list(mode = "development",
                          studyAreaName = "MB"),
       mode = mode, studyAreaName = studyAreaName,
-      # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
     )
   })
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })
 
 test_that("test setupProject - args from global envir", {
   skip("Not completed tests yet")
-
   skip_on_cran()
-  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
+  setupTest()
   ## Pass args from GlobalEnv
   studyAreaName <- "AB"
   mess <- capture_messages({
@@ -253,32 +128,12 @@ test_that("test setupProject - args from global envir", {
       mode = "development",
       studyAreaName = studyAreaName)
   })
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })
 
 test_that("test setupProject - mixture of named list elements", {
   skip("Not completed tests yet")
-
   skip_on_cran()
-  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
+  setupTest()
   ## mixture of named list element, github file and local file for e.g., options
   mess <- capture_messages({
     out <- setupProject(
@@ -293,32 +148,12 @@ test_that("test setupProject - mixture of named list elements", {
       modules = "PredictiveEcology/Biomass_borealDataPrep@development"
     )
   })
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })
 
 test_that("test setupProject - load packages using require argument", {
   skip("Not completed tests yet")
-
   skip_on_cran()
-  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
+  setupTest()
   ## load packages using `require` argument -- now loads SpaDES.core & reproducible
   mess <- capture_messages({
     out <- setupProject(
@@ -334,108 +169,60 @@ test_that("test setupProject - load packages using require argument", {
     )
   })
 
-  ### cleanup
-  withr::defer(setwd(cwd))
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })
 
 test_that("test setupProject - studyArea in lonlat", {
-  skip("Not completed tests yet")
 
   skip_on_cran()
-  skip_on_os("windows")
-  skip_if_not_installed("withr")
-  ## NOTE: tests/testthat/setup.R is run before each test and uses withr funs
-
+  setupTest()
+  jurs <- "Al|Brit"
   ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
-  mess <- capture_messages({
-    out <- setupProject(studyArea = list("Al|Brit"))
-  })
+    mess <- capture_messages({
+      out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE)
+    })
 
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
+  expect_true(!is.null(out$studyArea))
+  expect_true(is(out$studyArea, "SpatVector"))
+  expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
+  expect_true(terra::is.lonlat(out$studyArea))
 })
 
 test_that("test setupProject -studyArea using CRS", {
-  skip("Not completed tests yet")
-
+  # skip("Not completed tests yet")
   skip_on_cran()
-  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
   ## example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
   ##    with level 2 administrative boundaries
-  mess <- capture_messages({
-    out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005"))
-  })
 
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
+  jurs <- "Al|Brit|Sas"
+  epsg <- "3005"
+
+  mess <- capture_messages({
+    out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = epsg))
+  })
+  expect_true(!is.null(out$studyArea))
+  expect_true(is(out$studyArea, "SpatVector"))
+  expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
+  expect_equal(terra::crs(out$studyArea, describe = TRUE)$code, epsg)
+  expect_false(terra::is.lonlat(out$studyArea))
+
 })
 
 ## Make project-level change to .libPaths() that is persistent
 test_that("projectPath is in a tempdir", {
   skip_on_cran()
-  # skip_on_os("windows")
-  skip_if_not_installed("withr")
+  setupTest()
 
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
+  warns <- capture_warnings(
+    out <- setupProject(package = "terra", updateRprofile = TRUE))
 
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
-
-  expect_warning({
-    out <- setupProject(package = "terra", updateRprofile = TRUE)
-  }, regexp = "but the projectPath is the tempdir")
-
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
+  expect_true(grepl("but the projectPath is the tempdir", warns))
 })
 
 test_that("projectPath is in a tempdir", {
   skip("config not working yet")
 
   skip_on_cran()
-  skip_on_os("windows")
-  skip_if_not_installed("withr")
-
-  origLibPaths <- .libPaths()
-  withr::defer(.libPaths(origLibPaths))
-
-  ## TODO: Error in getCRANrepos(repos) : Please set a CRAN mirror
-  withr::local_options(
-    list(
-      repos = c(CRAN = "https://cloud.r-project.org")
-    )
-  )
-
-  tmpdir <- Require::tempdir2(sub = .rndstr(1))
-  withr::local_dir(tmpdir)
+  setupTest()
 
   err <- capture_error({
     mess <- capture_messages({
@@ -445,12 +232,8 @@ test_that("projectPath is in a tempdir", {
         config = "LandWeb",
         defaultDots = list(mode = "development", studyAreaName = "MB"),
         mode = mode, studyAreaName = studyAreaName#,
-        # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
       )
     })
   })
 
-  ### cleanup
-  withr::defer(.teardownProject(out$paths, origLibPaths))
-  withr::deferred_run()
 })

@@ -8,3 +8,15 @@
       ), collapse = "")
   }))
 }
+
+
+setupTest <- function(envir = parent.frame()) {
+  withr::local_libpaths(Require::tempdir2(.rndstr(1)), .local_envir = envir)
+  withr::local_dir(Require::tempdir2(.rndstr(1)), .local_envir = envir)
+  withr::local_options(list(repos = c(CRAN = "https://cloud.r-project.org")),
+                       .local_envir = envir)
+  withr::local_options(.local_envir = envir,
+    list(repos = c(CRAN = "https://cloud.r-project.org"))
+  )
+
+}
