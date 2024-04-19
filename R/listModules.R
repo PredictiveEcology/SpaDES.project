@@ -175,11 +175,11 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
   obs <- lapply(modsFlat, function(mod) {
     # If modules have errors, let them pass
     # if (mod %in% "mapBins") browser()
-    io <- try(SpaDES.core::inputObjects(module = mod, path = modulePath))
+    io <- try(SpaDES.core::inputObjects(module = mod, path = modulePath), silent = TRUE)
     if (is(io, "try-error")) {
       message(io); io = list(list()); names(io) <- mod
       }
-    oo <- try(SpaDES.core::outputObjects(module = mod, path = modulePath))
+    oo <- try(SpaDES.core::outputObjects(module = mod, path = modulePath), silent = TRUE)
     if (is(oo, "try-error")) {
       message(oo); oo = list(list()); names(oo) <- mod
     }

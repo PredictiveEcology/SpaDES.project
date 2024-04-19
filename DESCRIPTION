@@ -58,3 +58,16 @@ ByteCompile: yes
 RoxygenNote: 7.3.1
 Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3
+Collate: 
+    'environment.R'
+    'fileEdit.R'
+    'imports.R'
+    'getModule.R'
+    'helpers.R'
+    'listModules.R'
+    'packages.R'
+    'paths2.R'
+    'pkgload2.R'
+    'setupProject.R'
+    'spades-project-package.R'
+    'zzz.R'

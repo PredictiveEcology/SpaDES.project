@@ -22,6 +22,7 @@ utils::globalVariables(c(
 #'
 #' @export
 #' @seealso [getGithubFile]
+#' @include imports.R
 #' @inheritParams Require::Require
 #' @importFrom data.table rbindlist set
 #' @importFrom Require checkPath extractPkgGitHub extractInequality extractVersionNumber

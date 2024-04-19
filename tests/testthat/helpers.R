@@ -30,10 +30,13 @@ setupTest <- function(pkgs, envir = parent.frame()) {
     lapply(pkgs, withr::local_package, .local_envir = envir)
   withr::local_libpaths(Require::tempdir2(.rndstr(1)), .local_envir = envir)
   withr::local_dir(Require::tempdir2(.rndstr(1)), .local_envir = envir)
-  withr::local_options(list(repos = c(CRAN = "https://cloud.r-project.org")),
-                       .local_envir = envir)
-  withr::local_options(.local_envir = envir,
-    list(repos = c(CRAN = "https://cloud.r-project.org"))
-  )
+  withr::local_options(
+    list(
+      repos = c(CRAN = "https://cloud.r-project.org"),
+      "Require.verbose" = 5),
+    .local_envir = envir)
+  # withr::local_options(.local_envir = envir,
+  #   list(repos = c(CRAN = "https://cloud.r-project.org"))
+  # )
 
 }

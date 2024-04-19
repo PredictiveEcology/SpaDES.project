@@ -88,6 +88,52 @@ setupProject(paths = list(projectPath = tempdir()),
 
 ### More examples
 
+The following example provides all that is necessary to run all modules, in a very short set of commands, from (almost) any starting condition. We tend to use this approach is many of our projects.
+
+Key features:
+
+1. The project is fully self contained in a folder, with packages being installed to a unique library based on the `projectPath`.
+1. No use of `install.packages` without an `if`
+2. No `library` or `require` calls before any package installations.
+2. All functions are "rerun-capable", meaning they do not "redo" the action when rerun if the action is not necessary. e.g., `remotes::install_github` does not reinstall the package if the SHA has not changed.
+3. No assigning of objects into the `.GlobalEnv`. If projects are small/simple, using the `.GlobalEnv` is OK. As a project gets larger, unexpected behaviours arise because objects can be erroneaously found in the `.GlobalEnv` if they have a common name, like `out`, when functions should instead fail.
+4. Minimum packages installed prior to `setupProject`. After `SpaDES.project` and `Require` updates are on CRAN, this will be further simplified.
+5. Minimal use of `setwd`, to allow user's to easily change it (including comment it out) with simple search image.
+
+It is fully contained as a separate project, separate libraries, which means it doesn't do what it did for me at the start... package collisions.
+I used a setwd("~"), which is the bare minimum ... you can tell a user to change that to a place where this project will live.
+
+
+```
+getOrUpdatePkg <- function(p, minVer = "0") {
+  if (!isFALSE(try(packageVersion(p) < minVer, silent = TRUE) )) {
+    repo <- c("predictiveecology.r-universe.dev", getOption("repos"))
+    install.packages(p, repos = repo)
+  }
+}
+
+getOrUpdatePkg("remotes")
+remotes::install_github("PredictiveEcology/Require", ref = "bda9fa50003981880c06287fea1db9272b62912c", upgrade = FALSE)# getOrUpdatePkg("reproducible", "2.0.9")
+getOrUpdatePkg("SpaDES.project", "0.0.8.9040")
+
+setwd("~")
+out <- SpaDES.project::setupProject(
+  runName = "Example",
+  paths = list(projectPath = "integratingSpaDESmodules",
+               modulePath = "SpaDES_Modules",
+               outputPath = file.path("outputs", runName)),
+  modules = c("tati-micheletti/speciesAbundance@main",
+              "tati-micheletti/temperature@main",
+              "tati-micheletti/speciesAbundTempLM@main"),
+  times = list(start = 2013,
+               end = 2032),
+  updateRprofile = TRUE,
+  Restart = TRUE
+)
+
+snippsim <- do.call(SpaDES.core::simInitAndSpades, out)
+
+```
 See [Getting Started Vignette](articles/i-getting-started.html)
 
 ## Contributions

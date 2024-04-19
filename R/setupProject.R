@@ -166,6 +166,7 @@ utils::globalVariables(c(
 #'   If placed after the first named argument, then they will be evaluated at the
 #'   end of the `setupProject`, so can access all the packages, objects, etc.
 #'
+#' @include imports.R
 #' @export
 #'
 #' @section Faster runtime after project is set up:
