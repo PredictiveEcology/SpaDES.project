@@ -1671,6 +1671,9 @@ inTempProject <- function(paths) {
 
 evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
+  userQuoted <- grepl("quote", val)
+  warns <- character()
+  withCallingHandlers({
   while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
@@ -1699,18 +1702,40 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     if (missing(envir2))
       break
   }
-  if (is(val2, "try-error"))
-    warning(val2)
+  },
+  warning = function(w) {
+    warns <<- c(warns, w$message)
+    invokeRestart("muffleWarning")
+  })
+  if (length(warns)) {
+    warns <- unique(warns)
+    if (any(userQuoted))
+      message(warns)
+    else
+      warnings(warns)
+  }
+  if (is(val2, "try-error")) {
+    if (any(userQuoted))
+      message(val2)
+    else
+      warning(val2)
+  }
   if (is(val2, "list") && !is.null(names(val2))) {
     env <- environment()
-    # Sequential evaluation
-    Map(nam = names(val2), function(nam) {
-      val2[[nam]] <<- evalSUB(val2[[nam]], valObjName = valObjName,
-                              envir = env, envir2 = envir)
-      assign(valObjName, val2, envir = env)
+    namesToEval <- names(val2)
+    if (any(userQuoted[-1])) {
+      namesToEval <- namesToEval[userQuoted[-1] %in% FALSE]
     }
-    )
-    assign("val2", get(valObjName), envir = env)
+    # Sequential evaluation
+    if (length(namesToEval)) {
+      Map(nam = namesToEval, function(nam) {
+        val2[[nam]] <<- evalSUB(val2[[nam]], valObjName = valObjName,
+                                envir = env, envir2 = envir)
+        assign(valObjName, val2, envir = env)
+      }
+      )
+      assign("val2", get(valObjName), envir = env)
+    }
   }
   val2
 }
@@ -2019,7 +2044,7 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   localEnv <- new.env(parent = envir)
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-                d1 <- evalSUB(d, valObjName = nam, envir = localEnv)
+                d1 <- evalSUB(d, valObjName = nam, envir = localEnv, envir2 = localEnv)
                 # d1 <- try(eval(d, envir = localEnv), silent = TRUE)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
