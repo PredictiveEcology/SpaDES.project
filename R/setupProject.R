@@ -807,7 +807,7 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
                                 overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
     isFuns <- vapply(functions, is.function, FUN.VALUE = logical(1))
     if (any(isFuns))
-      list2env(functions[isFuns], envir = envirCur)
+      list2env(functions[isFuns], envir = envir)
     messageVerbose(yellow("  done setting up functions"), verbose = verbose, verboseLevel = 0)
   }
 
