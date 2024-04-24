@@ -495,7 +495,7 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(packages))
     packages <- character()
 
-  setupPackages(packages, modulePackages, require = require,
+  setupPackages(packages, modulePackages, require = require, paths = paths,
                 setLinuxBinaryRepo = setLinuxBinaryRepo,
                 standAlone = standAlone,
                 libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
@@ -1341,8 +1341,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 #' `setupPackages` is run for its side effects, i.e., installing packages to
 #' `paths[["packagePath"]]`.
 #'
-setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxBinaryRepo = TRUE,
-                          standAlone, envir = parent.frame(), verbose, dots, defaultDots, ...) {
+setupPackages <- function(packages, modulePackages = list(), require = list(), paths, libPaths,
+                          setLinuxBinaryRepo = TRUE,
+                          standAlone, envir = parent.frame(), verbose = getOption("Require.verbose"),
+                          dots, defaultDots, ...) {
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -1371,6 +1373,13 @@ setupPackages <- function(packages, modulePackages, require, libPaths, setLinuxB
         mp <- c(mp, "SpaDES.core")
       # requireToTry <- unique(c(mp, require))
       packagesToTry <- c(packages, mp, require)
+      remoteFiles <- isGitHub(packagesToTry) & grepl("@", packagesToTry) # the default isGitHub allows no branch
+      if (any(remoteFiles)) {
+        aa <- parseFileLists(packagesToTry[remoteFiles], paths = paths,
+                             envir = envir, namedList = FALSE)
+        packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
+      }
+
       packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
       requirePkgNames <- Require::extractPkgName(require)
       # packagesToTry <- unique(c(packages, mp, requireToTry))
