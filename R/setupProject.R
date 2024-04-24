@@ -1670,8 +1670,9 @@ inTempProject <- function(paths) {
 
 
 evalSUB <- function(val, valObjName, envir, envir2) {
+  valOrig <- val
   val2 <- val
-  userQuoted <- grepl("quote", val)
+  userQuoted <- tryCatch(grepl("quote", val), silent = TRUE, error = function(e) FALSE)
   warns <- character()
   withCallingHandlers({
   while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
@@ -1693,6 +1694,17 @@ evalSUB <- function(val, valObjName, envir, envir2) {
           if (!is(val3, "try-error"))
             break
         }
+        # if here, it means val3 is already an error, so only show val2 warning; val3 will likely
+        #   be misleading
+        if (is(val2, "try-error")) {
+          val2 <- errorMsgCleaning(val2, valOrig)
+          warning(val2, call. = FALSE)
+        } else {
+          if (is(val3, "try-error")) {
+            val3 <- errorMsgCleaning(val3, valOrig)
+            warning(val3)
+          }
+        }
       }
       val <- val3
       val2 <- val3
@@ -1708,18 +1720,24 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     invokeRestart("muffleWarning")
   })
   if (length(warns)) {
-    warns <- unique(warns)
+    warns <- rev(unique(warns))
+    # try to give use more help in debugging
+    spaces <- unlist(Map(space = rep("  ", length(warns)), num = seq(length(warns)),
+               function(space, num) paste(collapse = "", rep(space, num))))
+    warns <- paste0(spaces, warns)
+    warns <- errorMsgCleaning(warns, valOrig)
     if (any(userQuoted))
       message(warns)
     else
-      warnings(warns)
+      warning(warns, call. = FALSE)
+    # val2 <- valOrig
   }
-  if (is(val2, "try-error")) {
-    if (any(userQuoted))
-      message(val2)
-    else
-      warning(val2)
-  }
+  # if (is(val2, "try-error")) {
+  #   if (any(userQuoted))
+  #     message(rev(val2))
+  #   else
+  #     warning(rev(val2))
+  # }
   if (is(val2, "list") && !is.null(names(val2))) {
     env <- environment()
     namesToEval <- names(val2)
@@ -2042,6 +2060,7 @@ dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
     on.exit(rm(list = newInEnv, envir = envir))
   }
   localEnv <- new.env(parent = envir)
+
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
                 d1 <- evalSUB(d, valObjName = nam, envir = localEnv, envir2 = localEnv)
@@ -2769,4 +2788,14 @@ fastOptions <- function() {
 makeUpdateRprofileSticky <- function(updateRprofile) {
   if (isTRUE(updateRprofile) && !getOption("Require.updateRprofile") %in% TRUE)
     options(Require.updateRprofile = updateRprofile)
+}
+
+
+errorMsgCleaning <- function(mess, valOrig) {
+  mess <- c(paste0(format(valOrig), "\n"), mess)
+  mess <- gsub("Error in h.simpleError.msg, call.. : ", "", mess)
+  mess <- gsub("Error in eval.{1,3}FUNcaptured.{1,3}, envir = callingEnv.{1,3} : ", "", mess)
+  mess <- gsub("\n", "", mess)
+  mess <- paste0(mess, "\n")
+  mess
 }
