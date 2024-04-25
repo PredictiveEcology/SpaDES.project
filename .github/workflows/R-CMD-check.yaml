@@ -1,10 +1,12 @@
 on:
   push:
     branches:
+      - main
       - master
       - development
   pull_request:
     branches:
+      - main
       - master
       - development
 
@@ -24,13 +26,13 @@ jobs:
           - {os: macOS-latest,   nosuggests: false, r: 'release'}
           - {os: windows-latest, nosuggests: false, r: 'devel'}
           - {os: windows-latest, nosuggests: false, r: 'release'}
-          - {os: windows-latest, nosuggests: false, r: '4.1'}
-          - {os: windows-latest, nosuggests: false, r: '4.0'}
+          - {os: windows-latest, nosuggests: false, r: 'oldrel/1'}
+          - {os: windows-latest, nosuggests: false, r: 'oldrel/2'}
           - {os: ubuntu-20.04,   nosuggests: false, r: 'devel'}
           - {os: ubuntu-20.04,   nosuggests: false, r: 'release'}
           - {os: ubuntu-20.04,   nosuggests: true,  r: 'release'}
-          - {os: ubuntu-20.04,   nosuggests: false, r: 'oldrel'}
-          - {os: ubuntu-20.04,   nosuggests: false, r: '4.0'}
+          - {os: ubuntu-20.04,   nosuggests: false, r: 'oldrel/1'}
+          - {os: ubuntu-20.04,   nosuggests: false, r: 'oldrel/2'}
 
     env:
       _R_CHECK_DEPENDS_ONLY_: ${{ matrix.config.nosuggests }}
