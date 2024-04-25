@@ -29,6 +29,9 @@ splitGitRepo <- utils::getFromNamespace("splitGitRepo", "Require")
 #' @rdname imports
 isGitHub <- utils::getFromNamespace("isGitHub", "Require")
 
+#' @rdname imports
+fileRenameOrMove <- utils::getFromNamespace("fileRenameOrMove", "Require")
+
 
 #' @rdname imports
 .spatialPkgs <- tryCatch({

@@ -85,13 +85,14 @@ setupModules(
 
 setupPackages(
   packages,
-  modulePackages,
-  require,
+  modulePackages = list(),
+  require = list(),
+  paths,
   libPaths,
   setLinuxBinaryRepo = TRUE,
   standAlone,
   envir = parent.frame(),
-  verbose,
+  verbose = getOption("Require.verbose"),
   dots,
   defaultDots,
   ...

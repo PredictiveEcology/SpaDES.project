@@ -11,6 +11,7 @@
 \alias{downloadRepo}
 \alias{splitGitRepo}
 \alias{isGitHub}
+\alias{fileRenameOrMove}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
 \format{
@@ -40,6 +41,8 @@ downloadRepo(
 splitGitRepo(gitRepo, default = "PredictiveEcology", masterOrMain = NULL)
 
 isGitHub(pkg, filenames)
+
+fileRenameOrMove(from, to)
 
 .spatialPkgs
 }

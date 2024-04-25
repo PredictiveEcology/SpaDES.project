@@ -1373,14 +1373,19 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         mp <- c(mp, "SpaDES.core")
       # requireToTry <- unique(c(mp, require))
       packagesToTry <- c(packages, mp, require)
-      remoteFiles <- isGitHub(packagesToTry) & grepl("@", packagesToTry) # the default isGitHub allows no branch
-      if (any(remoteFiles)) {
-        aa <- parseFileLists(packagesToTry[remoteFiles], paths = paths,
+      packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
+      areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
+      if (any(areFilesWithPackages)) {
+        # fileWithPackages <- packagesToTry[areFilesWithPackages]
+        remoteFiles <- isGitHub(areFilesWithPackages) & grepl("@", packagesToTry) # the default isGitHub allows no branch
+        # hasAt <- grepl("@", packagesToTry)
+        # problems <- !hasAt & remoteFiles
+        # packagesToTry[problems] <- paste0(packagesToTry[problems], "@HEAD")
+        aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
                              envir = envir, namedList = FALSE)
         packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
       }
 
-      packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
       requirePkgNames <- Require::extractPkgName(require)
       # packagesToTry <- unique(c(packages, mp, requireToTry))
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
