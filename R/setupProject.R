@@ -1406,7 +1406,6 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         }
       }
 
-      browser()
       if (useRenv) {
         if (!dir.exists("renv")) renv:init()
         renv::install(prompt = TRUE)

@@ -74,7 +74,7 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
     } else {
       pfnAll <- pkgFullName
     }
-    Require:::trimRedundancies(Require:::toPkgDTFull(pfnAll))
+    Require:::toPkgDTFull(pfnAll)
   })
 
   if (singleDESCRIPTION) {
@@ -83,6 +83,7 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
 
   dFiles <- Map(pfnAll = pfnAllList, function(pfnAll) {
 
+    pfnAll <- Require:::trimRedundancies(pfnAll)
     # if ()
     pfnAll[, hasHEAD := grepl("\\(HEAD\\)", packageFullName)]
     whHEAD <- grep("\\(HEAD\\)", pfnAll$packageFullName)
