@@ -15,7 +15,7 @@ Authors@R: c(
            role = c("ctb"), comment = c(ORCID = "0000-0002-6914-8316"))
     )
 Depends:
-    R (>= 4.0)
+    R (>= 4.2)
 Imports:
     methods,
     Require,
