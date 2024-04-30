@@ -85,7 +85,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
             dd <- .rndstr(1)
             modNameShort <- Require::extractPkgName(modToDL)
             Require::checkPath(dd, create = TRUE)
-        messageVerbose(modToDL, " ...", verbose = verbose)
+            messageVerbose(modToDL, " ...", verbose = verbose)
             isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
 
             if (isGH) {
@@ -103,10 +103,10 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
                                                     destDir = dd, overwrite = overwrite,
                                                     verbose = verbose + 1)},
                                        warning = function(w) {
-                                     warns <- grep("No such file or directory|extracting from zip file", w$message,
-                                                   value = TRUE, invert = TRUE)
-                                     if (length(warns))
-                                       warning(warns)
+                                         warns <- grep("No such file or directory|extracting from zip file", w$message,
+                                                       value = TRUE, invert = TRUE)
+                                         if (length(warns))
+                                           warning(warns)
                                      invokeRestart("muffleWarning")
                                    }
                                  ))
@@ -122,18 +122,18 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
                 messageVerbose("\b Done!", verbose = verbose)
 
               } else {
-            messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
-                           verbose = verbose)
-          }
-        } else {
-          messageVerbose(modToDL, " could not be found locally (in ",
-                         file.path(modulePath, modToDL),
-                         "; if this is a GitHub module, please specify @Branch ",
-                         "using format: GitAccount/GitRepo@Branch", "\n --> does it exist on GitHub.com? and are permissions correct?",
-                         verbose = verbose)
-        }
+                messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
+                               verbose = verbose)
+              }
+            } else {
+              messageVerbose(modToDL, " could not be found locally (in ",
+                             file.path(modulePath, modToDL),
+                             "; if this is a GitHub module, please specify @Branch ",
+                             "using format: GitAccount/GitRepo@Branch", "\n --> does it exist on GitHub.com? and are permissions correct?",
+                             verbose = verbose)
+            }
 
-      })
+          })
 
     stateDT[needDownload %in% TRUE, downloaded :=
               Require::extractPkgName(moduleFullName) %in% dir(modulePath)]
@@ -271,7 +271,7 @@ checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require
             `:=`(version = as.character(metadataInModules(modules = pkg, metadataItem = "version", modulePath = modulePath)))]
     stateDT[hasVersionSpec %in% TRUE,
             sufficient := compareVersion2(as.character(version),
-                            versionSpec = versionSpec[hasVersionSpec], inequality = inequ)]
+                                          versionSpec = versionSpec[hasVersionSpec], inequality = inequ)]
     # versionSpec <- extractVersionNumber(moduleFullName[hasVersionSpec])
     #inequ <- extractInequality(moduleFullName[hasVersionSpec])
     #pkg <- extractPkgGitHub(moduleFullName[hasVersionSpec])
@@ -296,6 +296,11 @@ stripQuestionMark <- function(file) {
 }
 
 extractModName <- function(modules) {
+  modNams <- Vectorize(.extractModName, USE.NAMES = FALSE)(modules)
+  return(modNams)
+}
+
+.extractModName <- function(modules) {
   if (tools::file_ext(modules) != "") {
     stop("Expecting local or GitHub path to the module *folder* not .R file.")
   }
