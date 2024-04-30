@@ -111,17 +111,17 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
                                    }
                                  ))
           files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-          if (length(files)) {
-            newFiles <- file.path(modulePath, modNameShort, files)
-            out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-            fromFiles <- file.path(dd, modNameShort, files)
-            toFiles <- file.path(modulePath, modNameShort, files)
-            if (isTRUE(any(overwrite %in% TRUE)))
-              unlink(toFiles)
-            out <- linkOrCopy(fromFiles, toFiles)
-            messageVerbose("\b Done!", verbose = verbose)
+              if (length(files)) {
+                newFiles <- file.path(modulePath, modNam, files)
+                out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+                fromFiles <- file.path(dd, modNameShort, files)
 
-          } else {
+                if (isTRUE(any(overwrite %in% TRUE)))
+                  unlink(newFiles)
+                out <- linkOrCopy(fromFiles, newFiles)
+                messageVerbose("\b Done!", verbose = verbose)
+
+              } else {
             messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
                            verbose = verbose)
           }
