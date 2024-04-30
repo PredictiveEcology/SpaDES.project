@@ -1598,10 +1598,6 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           #   but getGitHubfile won't know this ... so give it a temporary destdir
           destdir <- Require::tempdir2()
           temp <- getGithubFile(rem, destDir = destdir, overwrite = isTRUE(overwrite))
-          if (what == "modules") {
-            modName <- tools::file_path_sans_ext(basename(opt))
-            opt <- file.path(paths$modulePath, modName, basename(opt))
-          }
           checkPath(dirname(opt), create = TRUE)
           copied <- linkOrCopy(temp, opt)
         }
