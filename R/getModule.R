@@ -86,16 +86,23 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
             modNameShort <- Require::extractPkgName(modToDL)
             Require::checkPath(dd, create = TRUE)
         messageVerbose(modToDL, " ...", verbose = verbose)
-        isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
+            isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
 
-        if (isGH) {
-
-          mess <- capture.output(type = "message",
-                                 out <- withCallingHandlers({
-                                   downloadRepo(modToDL, subFolder = NA,
-                                                destDir = dd, overwrite = overwrite,
-                                                verbose = verbose + 1)},
-                                   warning = function(w) {
+            if (isGH) {
+              if (modNameShort != modNam) {
+                subFolder <- sub(paste0(".*(", modNameShort,")(.*)(", modNam,")"), "\\2\\3", modToDL)
+                if (grepl("@", subFolder)) {
+                  subFolder <- sub("@[^/]*/?", "", subFolder)
+                }
+              } else {
+                subFolder <- NA
+              }
+              mess <- capture.output(type = "message",
+                                     out <- withCallingHandlers({
+                                       downloadRepo(modToDL, subFolder = subFolder,
+                                                    destDir = dd, overwrite = overwrite,
+                                                    verbose = verbose + 1)},
+                                       warning = function(w) {
                                      warns <- grep("No such file or directory|extracting from zip file", w$message,
                                                    value = TRUE, invert = TRUE)
                                      if (length(warns))
