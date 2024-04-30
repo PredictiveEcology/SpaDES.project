@@ -1139,7 +1139,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
       modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
-                                envir = envirCur, verbose = verbose)
+                                envir = envirCur, verbose = verbose, what = "modules")
     }
 
     anyfailed <- character()
@@ -1545,7 +1545,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
 
 parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envir,
-                           verbose = getOption("Require.verbose", 1L), dots, ...) {
+                           verbose = getOption("Require.verbose", 1L), dots, what = "other", ...) {
   if (is(obj, "list")) {
     nams <- names(obj)
     if (is.null(nams)) {
@@ -1598,6 +1598,10 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           #   but getGitHubfile won't know this ... so give it a temporary destdir
           destdir <- Require::tempdir2()
           temp <- getGithubFile(rem, destDir = destdir, overwrite = isTRUE(overwrite))
+          if (what == "modules") {
+            modName <- tools::file_path_sans_ext(basename(opt))
+            opt <- file.path(paths$modulePath, modName, basename(opt))
+          }
           checkPath(dirname(opt), create = TRUE)
           copied <- linkOrCopy(temp, opt)
         }
