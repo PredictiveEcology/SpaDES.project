@@ -40,9 +40,8 @@ utils::globalVariables(c(
 #'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
 #'   in the `paths[["modulePath"]]`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
 #'   `"PredictiveEcology/Biomass_core@development"`); or a character vector that identifies
-#'   one or more (not optional file extension) `.R` file(s) (local or GitHub)
-#'   to parse that will produce a character vector assigned to
-#'   the name "modules". If the entire project is a git repository,
+#'   one or more module folders (local or GitHub) (not the module .R script).
+#'   If the entire project is a git repository,
 #'   then it will not try to re-get these modules; instead it will rely on the user
 #'   managing their git status outside of this function.
 #'   See [setup].
