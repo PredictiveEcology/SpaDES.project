@@ -1144,7 +1144,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     anyfailed <- character()
     modulesOrig <- modules
-    modulesOrigPkgName <- extractPkgName(modulesOrig)
+    modulesOrigPkgName <- extractModName(modulesOrig)
     if (useGit %in% FALSE) {
       offlineMode <- getOption("Require.offlineMode")
       if (isTRUE(offlineMode)) {

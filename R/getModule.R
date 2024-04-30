@@ -35,7 +35,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   modulePath <- normPath(modulePath)
   modulePath <- checkPath(modulePath, create = TRUE)
   modulesOrig <- modules
-  modNam <- extractPkgName(modules)
+  modNam <- extractModName(modules)
   localExists <- dir.exists(file.path(modulePath, modNam))
 
   stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
@@ -285,4 +285,17 @@ checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require
 
 stripQuestionMark <- function(file) {
   gsub("\\?.+$", "", file)
+}
+
+extractModName <- function(modules) {
+  if (tools::file_ext(modules) != "") {
+    stop("Expecting local or GitHub path to the module *folder* not .R file.")
+  }
+
+  modNam <- extractPkgName(modules)
+  modNam2 <- sub("@[^/]*/?", "", basename(modules))   ## is there something after @Branch/?
+  if (modNam != modNam2) {
+    modNam <- modNam2
+  }
+  return(modNam)
 }
