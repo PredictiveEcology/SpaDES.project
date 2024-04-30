@@ -252,3 +252,35 @@ test_that("projectPath is in a tempdir", {
   })
 
 })
+
+test_that("test setupProject - nested GH modules", {
+  skip_on_cran()
+  setupTest() # setwd, sets .libPaths() to a temp
+  ## set relative paths & modules
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = paste0("test_SpaDES_project_", .rndstr(1)),
+        paths = list(projectPath = name,
+                     modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = "bcgov/castor@main/R/SpaDES-modules/dataCastor"
+      )
+    })
+  )
+  expect_true(dir(out$paths$modulePath) %in% "dataCastor")   ## failing -- castor repo and module exist in m/
+
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = paste0("test_SpaDES_project_", .rndstr(1)),
+        paths = list(projectPath = name,
+                     modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+                    "PredictiveEcology/Biomass_borealDataPrep@development")
+      )
+    })
+  )
+  expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))   ## failing -- someother issue.
+})
