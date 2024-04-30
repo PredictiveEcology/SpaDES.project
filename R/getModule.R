@@ -38,7 +38,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   modNam <- extractModName(modules)
   localExists <- dir.exists(file.path(modulePath, modNam))
 
-  stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
+  stateDT <- data.table(moduleFullName = modules, modNam = modNam,
                         versionSpec = extractVersionNumber(modules),
                         modulesNoVersion = Require::trimVersionNumber(modules),
                         sufficient = NA, version = NA_character_,
@@ -80,10 +80,11 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     out <-
       Map(modToDL = stateDT$moduleFullName[stateDT$needDownload %in% TRUE],
           overwrite = stateDT$needDownload[stateDT$needDownload %in% TRUE],
-          function(modToDL, overwrite) {
-        dd <- .rndstr(1)
-        modNameShort <- Require::extractPkgName(modToDL)
-        Require::checkPath(dd, create = TRUE)
+          modNam = stateDT$modNam[stateDT$needDownload %in% TRUE],
+          function(modToDL, overwrite, modNam) {
+            dd <- .rndstr(1)
+            modNameShort <- Require::extractPkgName(modToDL)
+            Require::checkPath(dd, create = TRUE)
         messageVerbose(modToDL, " ...", verbose = verbose)
         isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
 
