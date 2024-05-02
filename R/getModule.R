@@ -77,55 +77,20 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     od <- setwd(tmpdir)
     on.exit(setwd(od))
 
-    out <-
-      Map(modToDL = stateDT$moduleFullName[stateDT$needDownload %in% TRUE],
-          overwrite = stateDT$needDownload[stateDT$needDownload %in% TRUE],
-          function(modToDL, overwrite) {
-        dd <- .rndstr(1)
-        modNameShort <- Require::extractPkgName(modToDL)
-        Require::checkPath(dd, create = TRUE)
-        messageVerbose(modToDL, " ...", verbose = verbose)
-        isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
+    stateDT[needDownload %in% TRUE, c("acct", "repo", "br") := {
+      a <- splitGitRepo(modulesNoVersion)
+      a[["versionSpec"]] <- NULL
+      lapply(a, unlist)
+    }
+    ]
 
-        if (isGH) {
-
-          mess <- capture.output(type = "message",
-                                 out <- withCallingHandlers({
-                                   downloadRepo(modToDL, subFolder = NA,
-                                                destDir = dd, overwrite = overwrite,
-                                                verbose = verbose + 1)},
-                                   warning = function(w) {
-                                     warns <- grep("No such file or directory|extracting from zip file", w$message,
-                                                   value = TRUE, invert = TRUE)
-                                     if (length(warns))
-                                       warning(warns)
-                                     invokeRestart("muffleWarning")
-                                   }
-                                 ))
-          files <- dir(file.path(dd, modNameShort), recursive = TRUE)
-          if (length(files)) {
-            newFiles <- file.path(modulePath, modNameShort, files)
-            out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-            fromFiles <- file.path(dd, modNameShort, files)
-            toFiles <- file.path(modulePath, modNameShort, files)
-            if (isTRUE(any(overwrite %in% TRUE)))
-              unlink(toFiles)
-            out <- linkOrCopy(fromFiles, toFiles)
-            messageVerbose("\b Done!", verbose = verbose)
-
-          } else {
-            messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
-                           verbose = verbose)
-          }
-        } else {
-          messageVerbose(modToDL, " could not be found locally (in ",
-                         file.path(modulePath, modToDL),
-                         "; if this is a GitHub module, please specify @Branch ",
-                         "using format: GitAccount/GitRepo@Branch", "\n --> does it exist on GitHub.com? and are permissions correct?",
-                         verbose = verbose)
-        }
-
-      })
+    stateDT[needDownload %in% TRUE, {
+      downloadGHRepoOuter(modToDL = moduleFullName[[1]],
+                          overwrite = needDownload[[1]],
+                          modulePath = modulePath,
+                          verbose = verbose)
+    }
+    , by = c("acct", "repo")] # if there is one large repository with many SpaDES modules, download only once
 
     stateDT[needDownload %in% TRUE, downloaded :=
               Require::extractPkgName(moduleFullName) %in% dir(modulePath)]
@@ -286,3 +251,52 @@ checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require
 stripQuestionMark <- function(file) {
   gsub("\\?.+$", "", file)
 }
+
+
+
+downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
+  dd <- .rndstr(1)
+  modNameShort <- Require::extractPkgName(modToDL)
+  Require::checkPath(dd, create = TRUE)
+  messageVerbose(modToDL, " ...", verbose = verbose)
+  isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
+
+  if (isGH) {
+
+    mess <- capture.output(type = "message",
+                           out <- withCallingHandlers({
+                             downloadRepo(modToDL, subFolder = NA,
+                                          destDir = dd, overwrite = overwrite,
+                                          verbose = verbose + 1)},
+                             warning = function(w) {
+                               warns <- grep("No such file or directory|extracting from zip file", w$message,
+                                             value = TRUE, invert = TRUE)
+                               if (length(warns))
+                                 warning(warns)
+                               invokeRestart("muffleWarning")
+                             }
+                           ))
+    files <- dir(file.path(dd, modNameShort), recursive = TRUE)
+    if (length(files)) {
+      newFiles <- file.path(modulePath, modNameShort, files)
+      out <- lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+      fromFiles <- file.path(dd, modNameShort, files)
+      toFiles <- file.path(modulePath, modNameShort, files)
+      if (isTRUE(any(overwrite %in% TRUE)))
+        unlink(toFiles)
+      out <- linkOrCopy(fromFiles, toFiles)
+      messageVerbose("\b Done!", verbose = verbose)
+
+    } else {
+      messageVerbose("\b could not be downloaded; does it exist? and are permissions correct?",
+                     verbose = verbose)
+    }
+  } else {
+    messageVerbose(modToDL, " could not be found locally (in ",
+                   file.path(modulePath, modToDL),
+                   "; if this is a GitHub module, please specify @Branch ",
+                   "using format: GitAccount/GitRepo@Branch", "\n --> does it exist on GitHub.com? and are permissions correct?",
+                   verbose = verbose)
+  }
+}
+

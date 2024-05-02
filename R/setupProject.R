@@ -1144,6 +1144,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     anyfailed <- character()
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
+    modulesOrigNestedName <- extractModName(modulesOrig)
+
     if (useGit %in% FALSE) {
       offlineMode <- getOption("Require.offlineMode")
       if (isTRUE(offlineMode)) {
@@ -1316,9 +1318,19 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     }
 
-    modulePackages <- packagesInModules(modulePath = paths[["modulePath"]], modules = modulesOrigPkgName)
-    modulesSimple <- Require::extractPkgName(modulesOrigPkgName)
-    packages <- modulePackages[modulesSimple]
+    # Need full path
+    m <- gsub("@[[:alnum:]_-]+$", "", modulesOrig)
+    m <- gsub("@[[:alnum:]_]+/", "/", m)
+    m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
+    m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
+
+    modulePackages <- Map(mo = modulesOrigNestedName, di = m, function(di, mo)
+      modulePackages <-
+        unlist(packagesInModules(modulePath = file.path(paths[["modulePath"]], di),
+                                 modules = mo), use.names = FALSE))
+    # modulePackages <- packagesInModules(modulePath = file.path(paths[["modulePath"]], dirname(m)),
+    #                                     modules = modulesOrigNestedName)
+    packages <- modulePackages[modulesOrigNestedName]
     messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
 
   }
@@ -2836,4 +2848,25 @@ errorMsgCleaning <- function(mess, valOrig) {
   mess <- gsub("\n", "", mess)
   mess <- paste0(mess, "\n")
   mess
+}
+
+
+#' @author Ceres Barros
+extractModName <- function(modules) {
+  modNams <- Vectorize(.extractModName, USE.NAMES = FALSE)(modules)
+  return(modNams)
+}
+
+#' @author Ceres Barros
+.extractModName <- function(modules) {
+  if (tools::file_ext(modules) != "") {
+    stop("Expecting local or GitHub path to the module *folder* not .R file.")
+  }
+
+  modNam <- extractPkgName(modules)
+  modNam2 <- sub("@[^/]*/?", "", basename(modules))   ## is there something after @Branch/?
+  if (modNam != modNam2) {
+    modNam <- modNam2
+  }
+  return(modNam)
 }
