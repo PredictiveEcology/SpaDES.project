@@ -475,7 +475,8 @@ setupProject <- function(name, paths, modules, packages,
   }
 
 
-  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths, defaultDots = defaultDots,
+  paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
+                      Restart = Restart, defaultDots = defaultDots,
                       updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
 
   setupRestart(updateRprofile = updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
@@ -648,7 +649,7 @@ setupProject <- function(name, paths, modules, packages,
 #' @importFrom Require normPath checkPath
 #' @importFrom utils packageVersion
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
-                       updateRprofile = TRUE,
+                       updateRprofile = TRUE, Restart,
                        overwrite = FALSE, envir = parent.frame(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
@@ -744,12 +745,25 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
+  if (isTRUE(changedLibPaths)) {
 
-  Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
-                       updateRprofile = updateRprofile,
-                       exact = FALSE, verbose = verbose)
-  paths[["packagePath"]] <- .libPaths()[1]
-  setupSpaDES.ProjectDeps(paths, verbose = verbose)
+    deps1 <- Require:::DESCRIPTIONFileDeps(file.path(.libPaths()[1], "SpaDES.project", "DESCRIPTION"))
+    deps2 <- Require:::DESCRIPTIONFileDeps(file.path(.libPaths()[1], "Require", "DESCRIPTION"))
+    deps <- unique(c("SpaDES.project", Require::extractPkgName(c(deps1, deps2))))
+    setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
+    # cp <- Map(dep = deps,
+    #           function(dep) {
+    #             if (!dir.exists(file.path(paths[["packagePath"]], dep)))
+    #               Require:::linkOrCopyPackageFilesInner(dep, fromLib = .libPaths()[1], paths[["packagePath"]])
+    #           })
+  }
+
+  if (!Restart %in% TRUE || inProject %in% TRUE) {
+    Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
+                         updateRprofile = updateRprofile,
+                         exact = FALSE, verbose = verbose)
+    paths[["packagePath"]] <- .libPaths()[1]
+  }
 
   do.call(setPaths, append(paths[spPaths], list(verbose = verbose)))
 
@@ -2412,10 +2426,13 @@ setupSpaDES.ProjectDeps <- function(paths,
   if (any(needUpdate))
     toInstall <- unique(c(toInstall, names(needUpdate[needUpdate])))
 
+  toInstall <- setdiff(toInstall, Require:::.basePkgs)
 
   needRevUpdate <- unlist(Map(pkg = notNAs, function(pkg) pkg[[1]] < pkg[[2]]), recursive = FALSE)
   if (any(needRevUpdate))
     toRevInstall <- unique(c(toRevInstall, names(needRevUpdate[needRevUpdate])))
+
+  toRevInstall <- setdiff(toRevInstall, Require:::.basePkgs)
 
 
   if (FALSE) { # This is the older, slower way
@@ -2774,7 +2791,7 @@ checkGitRemote <- function(name, paths, gitAccount) {
                         outSkip <- try(Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
   od <- getwd()
 
-  if (isTRUE(any(grepl("cannot open URL", out)))) {
+  if (isTRUE(any(grepl("cannot open URL", out)) || identical(out, character(0)))) {
     message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
                    gitUserName, " repo name: ", name, "; return here, press enter to continue"))
     browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))

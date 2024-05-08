@@ -23,7 +23,7 @@ Imports:
     data.table,
     fs,
     methods,
-    Require (>= 0.3.1.9021),
+    Require (>= 0.3.1.9041),
     rprojroot,
     rstudioapi,
     tools,
@@ -49,7 +49,7 @@ Suggests:
     withr
 Remotes: 
     PredictiveEcology/SpaDES.config@development,
-    PredictiveEcology/Require@simplify2,
+    PredictiveEcology/Require@simplify4,
     PredictiveEcology/SpaDES.core@useCache2
 Encoding: UTF-8
 Language: en-CA

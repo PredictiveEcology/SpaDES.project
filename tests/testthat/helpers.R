@@ -12,6 +12,7 @@
 
 setupTest <- function(pkgs, envir = parent.frame()) {
 
+  warns <- capture_warnings({
   withr::local_package("googledrive", .local_envir = envir)
   withr::local_package("curl", .local_envir = envir)
   withr::local_package("crayon", .local_envir = envir)
@@ -20,6 +21,7 @@ setupTest <- function(pkgs, envir = parent.frame()) {
   withr::local_package("rematch2", .local_envir = envir)
   withr::local_package("diffobj", .local_envir = envir)
   withr::local_package("terra", .local_envir = envir)
+  })
 
   if (user("emcintir")) {
     if (!googledrive::drive_has_token())
