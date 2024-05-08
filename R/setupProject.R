@@ -452,15 +452,8 @@ setupProject <- function(name, paths, modules, packages,
 
   inProject <- isInProject(name)
 
-  # Need to assess if this is a new project locally, but the remote exists
-  usingGit <- checkUseGit(useGit)
-  gitUserName <- NULL
-  if (isTRUE(usingGit)) {
-    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
-    if (isFALSE(isLocalGitRepoAlready)) {
-      gitUserName <- checkGitRemote(name, pathsSUB, gitAccount)
-    }
-  }
+  # setupRestart(updateRprofile = updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
+
 
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
@@ -479,7 +472,18 @@ setupProject <- function(name, paths, modules, packages,
                       Restart = Restart, defaultDots = defaultDots,
                       updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
 
-  setupRestart(updateRprofile = updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
+  setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
+               Restart, origGetWd, verbose) # This may restart
+
+  # Need to assess if this is a new project locally, but the remote exists
+  usingGit <- checkUseGit(useGit)
+  gitUserName <- NULL
+  if (isTRUE(usingGit)) {
+    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
+    if (isFALSE(isLocalGitRepoAlready)) {
+      gitUserName <- checkGitRemote(name, pathsSUB, gitAccount)
+    }
+  }
 
   # this next puts them in this environment, returns NULL
   functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
@@ -2230,7 +2234,8 @@ setupStudyArea <- function(studyArea, paths, envir) {
 }
 
 
-setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) {
+setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
+                         useGit = getOption("SpaDES.project.useGit", FALSE), origGetWd, verbose) {
 
   if (isTRUE(updateRprofile)) {
 
@@ -2255,9 +2260,10 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
   }
 
   if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio()) {# getOption("SpaDES.project.Restart", TRUE))
-    isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](paths$projectPath)
+    pp <- path.expand(paths$projectPath)
+    isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
     curRstudioProj <- rstudioapi::getActiveProject()
-    isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(paths$projectPath))
+    isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
     inProject <- isInProject(name)
 
     if (!inProject || !isRstudioProj) {
@@ -2321,9 +2327,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         RHistBase <- ".Rhistory"
         RHist <- file.path(origGetWd, RHistBase)
         if (isTRUE(file.exists(RHist)))
-          file.copy(RHist, file.path(paths$projectPath, RHistBase))
-
-
+          file.copy(RHist, file.path(pp, RHistBase))
         if (all(copied))
           message(Require:::green("copied ", Restart, " to ", newRestart))
         else
@@ -2368,9 +2372,25 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart, origGe
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
 
+        usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
+        if ((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
+            requireNamespace("gitcreds")) {
+          bbb <- usethis::use_git()
+          browser()
+          if (isTRUE(bbb)) {
+            message("Please provide the github account for the repository (without quotes): ")
+            gitUserName <- readline()
+            if (!nzchar(gitUserName))
+              stop("Need to supply the account name for the repository (not the repository name)")
+
+            usethis::use_github(gitUserName)
+            # stop_quietly()
+          }
+        }
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath as its root")
         on.exit(setwd(origGetWd), add = TRUE)
+        browser()
         stop_quietly()
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
@@ -2800,8 +2820,15 @@ checkGitRemote <- function(name, paths, gitAccount) {
     checkPath(paths[["projectPath"]], create = TRUE)
     setwd(paths[["projectPath"]])
     on.exit(setwd(od))
-
-    system("git init -b main")
+    pp <- path.expand(paths$projectPath)
+    bbb <- usethis::use_git()
+    browser()
+    if (isTRUE(bbb)) {
+      usethis::use_github(gitUserName)
+      stop_quietly()
+    }
+    # usethis::use_github(gitUserName, private = FALSE)
+    # system("git init -b main")
   } else {
     message("It looks like the remote Git repo exists (",file.path(gitUserName, name),
             "). Would you like to clone it now to ", paths$projectPath, "?")
