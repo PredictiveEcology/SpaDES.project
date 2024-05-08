@@ -749,6 +749,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
+  needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
   if (isTRUE(changedLibPaths)) {
 
     deps1 <- Require:::DESCRIPTIONFileDeps(file.path(.libPaths()[1], "SpaDES.project", "DESCRIPTION"))
@@ -760,12 +761,17 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     #             if (!dir.exists(file.path(paths[["packagePath"]], dep)))
     #               Require:::linkOrCopyPackageFilesInner(dep, fromLib = .libPaths()[1], paths[["packagePath"]])
     #           })
+    needSetLibPaths <- TRUE
+  } else {
+    needSetLibPaths <- needSetLibPathsNow
   }
 
-  if (!Restart %in% TRUE || inProject %in% TRUE) {
-    Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
+  if (needSetLibPaths) {
+    prevLibPaths <- Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                          updateRprofile = updateRprofile,
                          exact = FALSE, verbose = verbose)
+    if (needSetLibPathsNow %in% FALSE)
+      on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
   }
 
@@ -1306,7 +1312,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
         }
         reportBranch <- TRUE
-        if (!grepl("master|main|HEAD", split$br)) {
+        # if (!grepl("master|main|HEAD", split$br)) {
           prev <- setwd(file.path(paths[["modulePath"]], split$repo))
           cmd <- "git rev-parse --abbrev-ref HEAD"
           # next line -- cd doesn't work on my windows; no idea why
@@ -1318,7 +1324,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
             system(cmd)
             reportBranch <- FALSE
           }
-        }
+        # }
         cmd <- paste0("git pull")
         system(cmd)
 
@@ -2371,27 +2377,24 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
                            ")")
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
-
-        browser()
         usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
         if ((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
             requireNamespace("gitcreds")) {
           bbb <- usethis::use_git()
-          browser()
           if (isTRUE(bbb)) {
-            message("Please provide the github account for the repository (without quotes): ")
+            message("Please provide the github account if an organization, or press enter ",
+                    "to use your personal account for the repository (without quotes): ")
             gitUserName <- readline()
             if (!nzchar(gitUserName))
-              stop("Need to supply the account name for the repository (not the repository name)")
+              gitUserName <- NULL
+              # stop("Need to supply the account name for the repository (not the repository name)")
 
-            usethis::use_github(gitUserName)
-            # stop_quietly()
+            usethis::use_github(gitUserName, protocol = "ssh")
           }
         }
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath as its root")
         on.exit(setwd(origGetWd), add = TRUE)
-        browser()
         stop_quietly()
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
@@ -2807,6 +2810,7 @@ checkGitRemote <- function(name, paths, gitAccount) {
     stop("Need to supply the account name for the repository (not the repository name)")
 
   tf <- tempfile()
+  browser()
   urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
   out <- capture.output(type = "message",
                         outSkip <- try(Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
@@ -2823,7 +2827,6 @@ checkGitRemote <- function(name, paths, gitAccount) {
     on.exit(setwd(od))
     pp <- path.expand(paths$projectPath)
     bbb <- usethis::use_git()
-    browser()
     if (isTRUE(bbb)) {
       usethis::use_github(gitUserName)
       stop_quietly()
