@@ -2372,6 +2372,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
 
+        browser()
         usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
         if ((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
             requireNamespace("gitcreds")) {

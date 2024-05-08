@@ -32,6 +32,7 @@ Suggests:
     covr,
     ellipsis,
     geodata,
+    gh,
     googledrive,
     httr,
     igraph,
@@ -44,6 +45,7 @@ Suggests:
     SpaDES.core,
     terra,
     testthat (>= 3.0.0),
+    usethis,
     visNetwork,
     waldo,
     withr
