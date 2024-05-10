@@ -2384,46 +2384,51 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
         cloned <- FALSE
-        if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
+        if (((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
+             requireNamespace("gitcreds")) && cloned %in% FALSE ) {
+          if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
 
-          message("Please provide the github account if an organization, or press enter ",
-                  "to use your personal account for the repository (without quotes): ")
-          gitUserName <- readline()
-          if (!nzchar(gitUserName))
-            gitUserName <- NULL
-          if (is.null(gitUserName))
-            gitUserName <- gh::gh_whoami()$login
-
-          host <- "https://github.com"
-
-
-          tf <- Require:::tempfile2();
-          Require:::.downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, name), destfile = tf)
-          checkExists <- readLines(tf)
-
-          if (any(grepl("Not Found", checkExists))) {
-            usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
-          } else {
-            repo <- file.path(host, gitUserName, name)
-            messageVerbose(paste0("The github repository already exists: ", repo),
-                           " Would you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-            out <- readline()
-            if (grepl("y|yes", tolower(out))) {
-              setwd(dirname(getwd()))
-              unlink(name, recursive = TRUE)
-              gert::git_clone(repo, path = basename(name))
-              cloned <- TRUE
-              setwd(paths[["projectPath"]])
-            } else {
-              stop("Can't proceed: either delete existing github repo, change the ",
-                   "project name, or change the Github account and try again")
+            mess <- capture.output(
+              type = "message",
+              gitUserNamePoss <- gh::gh_whoami()$login)
+            if (is.null(gitUserNamePoss)) {
+              stop(paste(c(mess, "or try gitcreds::gitcreds_set()"), collapse = "\n"))
             }
+            browser()
+            message("Please provide the github account if an organization, or press enter ",
+                    "to use your personal account (",gitUserNamePoss , ") for the repository (without quotes): ")
+            gitUserName <- if (interactive()) readline() else gitUserNamePoss
+            if (!nzchar(gitUserName))
+              gitUserName <- gitUserNamePoss
+
+            host <- "https://github.com"
+
+
+            tf <- Require:::tempfile2();
+            Require:::.downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, name), destfile = tf)
+            checkExists <- readLines(tf)
+
+            if (any(grepl("Not Found", checkExists))) {
+              usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
+            } else {
+              repo <- file.path(host, gitUserName, name)
+              messageVerbose(paste0("The github repository already exists: ", repo),
+                             " Would you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+              out <- if (interactive()) readline() else "yes"
+              if (grepl("y|yes", tolower(out))) {
+                setwd(dirname(getwd()))
+                unlink(name, recursive = TRUE)
+                gert::git_clone(repo, path = basename(name))
+                cloned <- TRUE
+                setwd(paths[["projectPath"]])
+              } else {
+                stop("Can't proceed: either delete existing github repo, change the ",
+                     "project name, or change the Github account and try again")
+              }
+            }
+
           }
 
-        }
-
-        if (((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
-            requireNamespace("gitcreds")) && cloned %in% FALSE ) {
           message("Please provide the github account if an organization, or press enter ",
                   "to use your personal account for the repository (without quotes): ")
           if (!rprojroot::is_git_root$testfun[[1]](pp)) {
