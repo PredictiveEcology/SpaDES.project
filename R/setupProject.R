@@ -934,9 +934,9 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     envirCur <- environment()
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envirCur, envir2 = envir)
     # post check
-    if (isTRUE(try(any(grepl("^options$", eval(optionsSUB, envir = envir)[[1]])), silent = TRUE))) {
-      warning("It looks like the options argument is passed options(...); please use list(...)")
-    }
+    # if (isTRUE(try(any(grepl("^options$", eval(optionsSUB, envir = envir)[[1]])), silent = TRUE))) {
+    #   warning("It looks like the options argument is passed options(...); please use list(...)")
+    # }
 
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
@@ -1313,17 +1313,17 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         }
         reportBranch <- TRUE
         # if (!grepl("master|main|HEAD", split$br)) {
+        prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+        cmd <- "git rev-parse --abbrev-ref HEAD"
+        # next line -- cd doesn't work on my windows; no idea why
+        # cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
+        curBr <- system(cmd, intern = TRUE)
+        if (!identical(split$br, curBr)) {
           prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          cmd <- "git rev-parse --abbrev-ref HEAD"
-          # next line -- cd doesn't work on my windows; no idea why
-          # cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
-          curBr <- system(cmd, intern = TRUE)
-          if (!identical(split$br, curBr)) {
-            prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-            cmd <- paste0("git checkout ", split$br)
-            system(cmd)
-            reportBranch <- FALSE
-          }
+          cmd <- paste0("git checkout ", split$br)
+          system(cmd)
+          reportBranch <- FALSE
+        }
         # }
         cmd <- paste0("git pull")
         system(cmd)
@@ -1750,6 +1750,12 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   warns <- character()
   withCallingHandlers({
   while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
+    if (identical(valObjName, "options")) {
+      optionsGrepStart <- "^options\\>"
+      if (any(grepl(optionsGrepStart, val))) {
+        val[[1]] <- as.name(gsub(optionsGrepStart, "list", val[[1]]))
+      }
+    }
     if (inherits(val, "name"))
       val2 <- get0(val, envir = envir)
     else {
@@ -2810,7 +2816,6 @@ checkGitRemote <- function(name, paths, gitAccount) {
     stop("Need to supply the account name for the repository (not the repository name)")
 
   tf <- tempfile()
-  browser()
   urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
   out <- capture.output(type = "message",
                         outSkip <- try(Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))

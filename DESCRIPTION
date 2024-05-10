@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2024-05-02
-Version: 0.0.8.9049
+Version: 0.0.8.9050
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -32,6 +32,7 @@ Suggests:
     covr,
     ellipsis,
     geodata,
+    gert,
     gh,
     googledrive,
     httr,

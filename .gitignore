@@ -18,6 +18,3 @@ outputs
 .Rdata
 .secret
 .secrets
-.httr-oauth
-.DS_Store
-.quarto
