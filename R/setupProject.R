@@ -2383,19 +2383,18 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
                            ")")
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
-        usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
+        if (!rprojroot::is_rstudio_project$testfun[[1]](pp))
+          usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
         if ((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
             requireNamespace("gitcreds")) {
-          bbb <- usethis::use_git()
-          if (isTRUE(bbb)) {
-            message("Please provide the github account if an organization, or press enter ",
-                    "to use your personal account for the repository (without quotes): ")
+          message("Please provide the github account if an organization, or press enter ",
+                  "to use your personal account for the repository (without quotes): ")
+          if (!rprojroot::is_git_root$testfun[[1]](pp)) {
             gitUserName <- readline()
             if (!nzchar(gitUserName))
               gitUserName <- NULL
-              # stop("Need to supply the account name for the repository (not the repository name)")
-
-            usethis::use_github(gitUserName, protocol = "ssh")
+            bbb <- try(usethis::use_git()      )
+            githubRepoExists <- try(usethis::use_github(gitUserName))#, protocol = "ssh"))
           }
         }
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
