@@ -2416,8 +2416,13 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
                 setwd(dirname(getwd()))
                 unlink(name, recursive = TRUE)
                 gert::git_clone(repo, path = basename(name))
+
                 cloned <- TRUE
                 setwd(paths[["projectPath"]])
+                subs <- try(gert::git_submodule_list())
+                if (!is(subs, "try-error")) {
+                  by(subs, seq(NROW(subs)), function(a) gert::git_submodule_fetch(a$name))
+                }
               } else {
                 stop("Can't proceed: either delete existing github repo, change the ",
                      "project name, or change the Github account and try again")
@@ -2436,7 +2441,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
             }
             if (identical(gitUserName, gitUserNamePoss))
               gitUserName <- NULL
+            # browser()
             bbb <- try(usethis::use_git())
+            # Qusethis::git_default_branch_configure()
             githubRepoExists <- try(usethis::use_github(gitUserName))#, protocol = "ssh"))
           }
         }
