@@ -2384,28 +2384,25 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
         cloned <- FALSE
-        if (((isTRUE(useGit) || useGit %in% "sub") && requireNamespace("usethis") && requireNamespace("gh") &&
+        if ((checkUseGit(useGit) && requireNamespace("usethis") && requireNamespace("gh") &&
              requireNamespace("gitcreds")) && cloned %in% FALSE ) {
           if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
 
-            mess <- capture.output(
-              type = "message",
-              gitUserNamePoss <- gh::gh_whoami()$login)
-            if (is.null(gitUserNamePoss)) {
-              stop(paste(c(mess, "or try gitcreds::gitcreds_set()"), collapse = "\n"))
+            gitUserNamePoss <- checkHaveGitUserName()
+            if (is.character(useGit) && (!identical(useGit, "sub"))) {
+               gitUserName <- useGit
+            } else {
+              messageProvideGitAccount(gitUserNamePoss)
+              gitUserName <- if (interactive()) readline() else gitUserNamePoss
+              if (!nzchar(gitUserName))
+                gitUserName <- gitUserNamePoss
             }
-            browser()
-            message("Please provide the github account if an organization, or press enter ",
-                    "to use your personal account (",gitUserNamePoss , ") for the repository (without quotes): ")
-            gitUserName <- if (interactive()) readline() else gitUserNamePoss
-            if (!nzchar(gitUserName))
-              gitUserName <- gitUserNamePoss
-
             host <- "https://github.com"
+            apiHost <- gsub("//", "//api.", host)
 
-
+            # gert::git_remote_add(url = "https://github.com/eliotmcintire/MPB2")
             tf <- Require:::tempfile2();
-            Require:::.downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, name), destfile = tf)
+            Require:::.downloadFileMasterMainAuth(file.path(apiHost, "repos", gitUserName, name), destfile = tf)
             checkExists <- readLines(tf)
 
             if (any(grepl("Not Found", checkExists))) {
@@ -2429,13 +2426,17 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
 
           }
 
-          message("Please provide the github account if an organization, or press enter ",
-                  "to use your personal account for the repository (without quotes): ")
           if (!rprojroot::is_git_root$testfun[[1]](pp)) {
-            gitUserName <- readline()
-            if (!nzchar(gitUserName))
+            if (!exists("gitUserName", inherits = FALSE)) {
+              gitUserNamePoss <- checkHaveGitUserName()
+              messageProvideGitAccount(gitUserNamePoss)
+              gitUserName <- readline()
+              if (!nzchar(gitUserName))
+                gitUserName <- NULL
+            }
+            if (identical(gitUserName, gitUserNamePoss))
               gitUserName <- NULL
-            bbb <- try(usethis::use_git()      )
+            bbb <- try(usethis::use_git())
             githubRepoExists <- try(usethis::use_github(gitUserName))#, protocol = "ssh"))
           }
         }
@@ -2963,4 +2964,20 @@ extractModName <- function(modules) {
     modNam <- modNam2
   }
   return(modNam)
+}
+
+
+messageProvideGitAccount <- function(gitUserNamePoss) {
+  message("Please provide the github account if an organization, or press enter ",
+          "to use your personal account (",gitUserNamePoss , ") for the repository (without quotes): ")
+}
+
+checkHaveGitUserName <- function() {
+  mess <- capture.output(
+    type = "message",
+    gitUserNamePoss <- gh::gh_whoami()$login)
+  if (is.null(gitUserNamePoss)) {
+    stop(paste(c(mess, "or try gitcreds::gitcreds_set()"), collapse = "\n"))
+  }
+  gitUserNamePoss
 }
