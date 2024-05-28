@@ -670,7 +670,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envirCur, envir2 = envir)
   paths <- parseFileLists(paths, paths, overwrite = isTRUE(overwrite),
-                          envir = envirCur, verbose = verbose)
+                          envir = envir, verbose = verbose)
 
   if (!missing(name))
     name <- checkNameProjectPathConflict(name, paths)
@@ -827,7 +827,7 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
     functions <- evalSUB(functionsSUB, valObjName = "functions", envir = envir, envir2 = envir)
 
     functions <- parseFileLists(functions, paths = paths, namedList = TRUE,
-                                overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
+                                overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
     isFuns <- vapply(functions, is.function, FUN.VALUE = logical(1))
     if (any(isFuns))
       list2env(functions[isFuns], envir = envir)
@@ -887,7 +887,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     }
 
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
-                                  overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
   }
 
@@ -946,7 +946,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
     }
 
     options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
-                              envir = envirCur, verbose = verbose)
+                              envir = envir, verbose = verbose)
 
     postOptions <- base::options()
     newValues <- oldValues <- list()
@@ -1162,7 +1162,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     if (any(isRepo)) {
       messageVerbose("modules arg supplied as file(s); parsing ... ", verbose = verbose)
       modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
-                                envir = envirCur, verbose = verbose)
+                                envir = envir, verbose = verbose)
     }
 
     anyfailed <- character()
@@ -1510,7 +1510,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envirCur, envir2 = envir)
     params <- parseFileLists(params, paths, overwrite = isTRUE(overwrite),
-                             envir = envirCur, verbose = verbose)
+                             envir = envir, verbose = verbose)
 
     if (length(params)) {
 
