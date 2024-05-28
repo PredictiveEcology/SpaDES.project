@@ -24,10 +24,10 @@ test_that("test setupProject - simplest", {
 
 test_that("test setupProject - relative paths and modules", {
   skip_on_cran()
-  # setupTest() # setwd, sets .libPaths() to a temp
+  setupTest() # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
-  #warn <- capture_warnings(
-  #  mess <- capture_messages({
+  warn <- capture_warnings(
+    mess <- capture_messages({
       out <- setupProject(
         # name = "test_SpaDES_project",
         name = paste0("test_SpaDES_project_", .rndstr(1)),
@@ -36,8 +36,8 @@ test_that("test setupProject - relative paths and modules", {
                      scratchPath = tempdir()),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development"
       )
-  #  })
-  #)
+    })
+  )
 
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
@@ -46,7 +46,6 @@ test_that("test setupProject - relative paths and modules", {
 })
 
 test_that("test setupProject - options and params", {
-  browser()
   skip_on_cran()
   setupTest()
   ## With options and params set
