@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2024-05-28
-Version: 0.0.8.9051
+Version: 0.0.8.9052
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -23,7 +23,7 @@ Imports:
     data.table,
     fs,
     methods,
-    Require (>= 0.3.1.9041),
+    Require (>= 0.3.1.9081),
     rprojroot,
     rstudioapi,
     tools,
