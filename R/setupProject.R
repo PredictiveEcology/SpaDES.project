@@ -473,7 +473,7 @@ setupProject <- function(name, paths, modules, packages,
                       updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
 
   setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
-               Restart, origGetWd, verbose) # This may restart
+               Restart = Restart, origGetWd, verbose) # This may restart
 
   # Need to assess if this is a new project locally, but the remote exists
   usingGit <- checkUseGit(useGit)
@@ -653,7 +653,7 @@ setupProject <- function(name, paths, modules, packages,
 #' @importFrom Require normPath checkPath
 #' @importFrom utils packageVersion
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
-                       updateRprofile = TRUE, Restart,
+                       updateRprofile = TRUE, Restart = getOption("SpaDES.project.Restart", FALSE),
                        overwrite = FALSE, envir = parent.frame(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
@@ -2246,7 +2246,7 @@ setupStudyArea <- function(studyArea, paths, envir) {
 }
 
 
-setupRestart <- function(updateRprofile, paths, name, inProject, Restart,
+setupRestart <- function(updateRprofile, paths, name, inProject, Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = getOption("SpaDES.project.useGit", FALSE), origGetWd, verbose) {
 
   if (isTRUE(updateRprofile)) {
