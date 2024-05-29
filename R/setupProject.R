@@ -488,8 +488,6 @@ setupProject <- function(name, paths, modules, packages,
   # this next puts them in this environment, returns NULL
   functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
 
-  # setupSpaDES.ProjectDeps(paths, verbose = verbose)
-
   modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                  gitUserName = gitUserName, updateRprofile = updateRprofile,
                                  overwrite = overwrite, envir = envirCur, verbose = verbose)
@@ -690,10 +688,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
   #if (is.null(libPaths) || is.call(libPaths)) {
   if (is.null(paths[["packagePath"]])) {
-    pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
-    paths[["packagePath"]] <- normalizePath(
-      file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3)),
-      mustWork = FALSE, winslash = "/")
+    paths[["packagePath"]] <- .libPathDefault(name)
   }
 
   if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- "modules"
@@ -770,9 +765,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
 
   if (needSetLibPaths) {
-    prevLibPaths <- Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
-                         updateRprofile = updateRprofile,
-                         exact = FALSE, verbose = verbose)
+    setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
+                                            updateRprofile = updateRprofile,
+                                            exact = FALSE, verbose = verbose))
+    prevLibPaths <- if (verbose < 0) {
+      out <- capture.output(type = "message", ret <- eval(setLPCall))
+      ret
+      } else {
+        eval(setLPCall)
+      }
     if (needSetLibPathsNow %in% FALSE)
       on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
@@ -1622,7 +1623,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         # } else {
         #   opt <- file.path(paths[["projectPath"]], relativeFilePath)
         # }
-        opt <- stripDuplicateFolder(relativeFilePath, paths)
+        opt <- stripDuplicateFolder(relativeFilePath, paths[["projectPath"]])
 
         fe <- file.exists(opt)
         if (fe && isFALSE(overwrite)) {
@@ -1637,7 +1638,19 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           destdir <- Require::tempdir2()
           temp <- getGithubFile(rem, destDir = destdir, overwrite = isTRUE(overwrite))
           checkPath(dirname(opt), create = TRUE)
-          copied <- linkOrCopy(temp, opt)
+          same <- temp == opt
+          notSame <- same %in% FALSE
+          optOrig <- opt
+          if (any(same)) {
+            temp <- temp[notSame]
+            opt <- opt[notSame]
+          }
+
+          if (length(temp)) {
+            copied <- linkOrCopy(temp, opt)
+          }
+          opt <- optOrig
+
         }
 
       } else {
@@ -1675,7 +1688,8 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
+      obj[areAbs %in% FALSE] <- stripDuplicateFolder(path = paths[["projectPath"]],
+                                                     obj[areAbs %in% FALSE])
     }
 
   }
@@ -2249,8 +2263,10 @@ setupStudyArea <- function(studyArea, paths, envir) {
 }
 
 
-setupRestart <- function(updateRprofile, paths, name, inProject, Restart = getOption("SpaDES.project.Restart", FALSE),
-                         useGit = getOption("SpaDES.project.useGit", FALSE), origGetWd, verbose) {
+setupRestart <- function(updateRprofile, paths, name, inProject,
+                         Restart = getOption("SpaDES.project.Restart", FALSE),
+                         useGit = getOption("SpaDES.project.useGit", FALSE),
+                         origGetWd, verbose = getOption("Require.verbose")) {
 
   if (isTRUE(updateRprofile)) {
 
@@ -2450,7 +2466,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject, Restart = getOp
       }
     }
   } else {
-    message("Restart is not FALSE, but this session is not Rstudio, ignoring...")
+    messageVerbose("Restart is not FALSE, but this session is not Rstudio, ignoring...",
+                   verbose = verbose)
   }
 }
 
@@ -2489,7 +2506,7 @@ setupSpaDES.ProjectDeps <- function(paths,
       if (isInstalled)
         copyPackages(pkg, from = from, to = paths[["packagePath"]], verbose = 0)
     })
-    messageVerbose("If you have difficulties, please restart R")
+    messageVerbose("If you have difficulties, please restart R", verbose = verbose)
   }
 
   return(invisible())
@@ -2620,13 +2637,11 @@ dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) 
   dotsSUB
 }
 
-stripDuplicateFolder <- function(relativeFilePath, paths) {
-  if (startsWith(relativeFilePath, basename(paths[["projectPath"]]))) {
-    # This is a projectPath that is one level into a GitHub repository
-    opt <- file.path(dirname(paths[["projectPath"]]), relativeFilePath)
-  } else {
-    opt <- file.path(paths[["projectPath"]], relativeFilePath)
+stripDuplicateFolder <- function(relativeFilePath, path) {
+  if (fs::path_has_parent(relativeFilePath, path) %in% TRUE) {
+    path <- dirname(path)
   }
+  fs::path_norm(file.path(path, relativeFilePath))
 }
 
 
@@ -2743,7 +2758,6 @@ stop_quietly <- function(mess) {
 }
 
 
-#' @importFrom Require linkOrCopy
 copyPackages <- function(pkgs, from = .libPaths()[1], to, verbose) {
   messageVerbose("Copying ", paste(pkgs, collapse = ", "), " packages to ",
                  to, "", verbose = verbose)
@@ -2982,4 +2996,19 @@ extractModName <- function(modules) {
     modNam <- modNam2
   }
   return(modNam)
+}
+
+#' SpaDES.project default .libPaths() directory
+#'
+#' For a given `name`, this will return the default library for packages.
+#'
+#' @param name A text string. When used in `setupProject`, this is the `projectName`
+#' @export
+#' @return
+#' A path where the packages will be installed.
+.libPathDefault <- function(name) {
+  pkgPth <- tools::R_user_dir(package = basename(name), which = "data")
+  normalizePath(
+    file.path(pkgPth, "packages", version$platform, substr(getRversion(), 1, 3)),
+    mustWork = FALSE, winslash = "/")
 }

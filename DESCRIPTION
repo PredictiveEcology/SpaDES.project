@@ -31,6 +31,7 @@ Imports:
 Suggests:
     covr,
     ellipsis,
+    filelock,
     geodata,
     gert,
     gh,

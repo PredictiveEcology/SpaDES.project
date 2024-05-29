@@ -12,4 +12,3 @@
 "_PACKAGE"
 
 
-linkOrCopy <- getFromNamespace("linkOrCopy", ns = "Require")

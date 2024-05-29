@@ -32,6 +32,9 @@ isGitHub <- utils::getFromNamespace("isGitHub", "Require")
 #' @rdname imports
 fileRenameOrMove <- utils::getFromNamespace("fileRenameOrMove", "Require")
 
+#' @rdname imports
+linkOrCopy <- getFromNamespace("linkOrCopy", ns = "Require")
+
 
 #' @rdname imports
 .spatialPkgs <- tryCatch({
