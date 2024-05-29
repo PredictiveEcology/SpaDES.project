@@ -453,9 +453,6 @@ setupProject <- function(name, paths, modules, packages,
 
   inProject <- isInProject(name)
 
-  # setupRestart(updateRprofile = updateRprofile, paths, name, inProject, Restart, origGetWd, verbose) # This may restart
-
-
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                             envir = envirCur,
@@ -468,10 +465,12 @@ setupProject <- function(name, paths, modules, packages,
     useGit <- FALSE
   }
 
-
   paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
                       Restart = Restart, defaultDots = defaultDots,
+                      useGit = useGit,
                       updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
+
+  inProject <- isInProject(name)
 
   setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
                Restart = Restart, origGetWd, verbose) # This may restart
@@ -655,6 +654,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
                        updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                        Restart = getOption("SpaDES.project.Restart", FALSE),
                        overwrite = FALSE, envir = parent.frame(),
+                       useGit = getOption("SpaDES.project.useGit"),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   envirCur <- environment()
@@ -745,7 +745,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
-  # changedLibPaths <- !identical(normPath(.libPaths()[1]), paths[["packagePath"]])
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
   if (isTRUE(changedLibPaths)) {
     deps <- lapply(c("SpaDES.project", "Require"), function(pkg) {
@@ -756,11 +755,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
     deps <- unique(c("SpaDES.project", Require::extractPkgName(unlist(deps))))
     setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
-    # cp <- Map(dep = deps,
-    #           function(dep) {
-    #             if (!dir.exists(file.path(paths[["packagePath"]], dep)))
-    #               Require:::linkOrCopyPackageFilesInner(dep, fromLib = .libPaths()[1], paths[["packagePath"]])
-    #           })
     needSetLibPaths <- TRUE
   } else {
     needSetLibPaths <- needSetLibPathsNow
@@ -948,7 +942,8 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
       paths <- setupPaths(paths = pathsSUB, defaultDots = defaultDots,
-                          updateRprofile = updateRprofile, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
+                          updateRprofile = updateRprofile,
+                          useGit = useGit, verbose = verbose - 2)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
 
     options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
@@ -1154,7 +1149,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     if (missing(paths)) {
       pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
-      paths <- setupPaths(paths = pathsSUB, updateRprofile = updateRprofile, defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
+      paths <- setupPaths(paths = pathsSUB, updateRprofile = updateRprofile, useGit = useGit,
+                          defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
     if (missing(inProject))
       inProject <- isInProject(name)
@@ -2287,15 +2283,29 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
   }
 
-  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio()) {# getOption("SpaDES.project.Restart", TRUE))
+  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio()
+       || !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
+    if (!(useGit %in% FALSE) && isRstudio() && !inProject) {
+      messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
+      Restart = TRUE
+    }
     pp <- path.expand(paths$projectPath)
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
     curRstudioProj <- rstudioapi::getActiveProject()
     isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
-    inProject <- isInProject(name)
+    # inProject <- isInProject(name)
 
     if (!inProject || !isRstudioProj) {
-      if (requireNamespace("rstudioapi")) {
+      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]])) {
+
+        # requireNamespace will find usethis in memory when devtools is used, but it fails because other
+        #   deps of usethis are not in the deps of devtools --> need `require`
+        hasUsethis <- require("usethis", lib.loc = paths[["packagePath"]], quietly = TRUE)
+
+        if (!hasUsethis) {
+          Require::Install(c("gh", "usethis"), libPaths = paths[["packagePath"]], verbose = verbose)
+        }
+
         messageVerbose("... restarting Rstudio inside the project",
                        verbose = verbose)
         wasUnsaved <- FALSE
@@ -2450,7 +2460,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             gitUserName <- readline()
             if (!nzchar(gitUserName))
               gitUserName <- NULL
-            bbb <- try(usethis::use_git()      )
+            bbb <- try(usethis::use_git())
             githubRepoExists <- try(usethis::use_github(gitUserName))#, protocol = "ssh"))
           }
         }
@@ -2463,8 +2473,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       }
     }
   } else {
-    messageVerbose("Restart is not FALSE, but this session is not Rstudio, ignoring...",
-                   verbose = verbose)
+    if (!Restart %in% FALSE) {
+      if (isRstudio())
+        messageVerbose("Restart is not FALSE, but this session is not Rstudio, ignoring...",
+                       verbose = verbose)
+    }
   }
 }
 
@@ -2475,7 +2488,6 @@ setupSpaDES.ProjectDeps <- function(paths,
   libs <- c(.libPaths()[1], paths[["packagePath"]])
   nsPaths <- vapply(deps, FUN.VALUE = character(1), function(pkg) dirname(getNamespaceInfo(pkg, "path")))
   isLoadedLocally <- !names(nsPaths) %in% libs
-  # loadedFrom <- match(nsPaths, libs)
   nsPaths <- nsPaths[!names(nsPaths) %in% Require:::.basePkgs]
 
   depsAlreadyInstalled <- Map(lib = nsPaths, pkg = names(nsPaths), function(lib, pkg) {
@@ -2778,7 +2790,6 @@ copyPackages <- function(pkgs, from = .libPaths()[1], to, verbose) {
       newFiles <- file.path(to, pkg, files1)
       lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
       oldFiles <- file.path(pkgDir, files1)
-
       linkOrCopy(oldFiles, newFiles)
     }
 }
@@ -2912,6 +2923,9 @@ checkGitRemote <- function(name, paths) {
     setwd(paths[["projectPath"]])
     on.exit(setwd(od))
     pp <- path.expand(paths$projectPath)
+
+    if (!requireNamespace("usethis")) stop("Please install usethis")
+
     bbb <- usethis::use_git()
     if (isTRUE(bbb)) {
       usethis::use_github(gitUserName)
