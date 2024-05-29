@@ -750,7 +750,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     deps <- lapply(c("SpaDES.project", "Require"), function(pkg) {
       PackagePath <- getNamespaceInfo(pkg, "path")
       DESCinLibPaths <- file.path(PackagePath, "DESCRIPTION")
-      Require:::DESCRIPTIONFileDeps(DESCinLibPaths)
+      DESCRIPTIONFileDeps(DESCinLibPaths)
     })
 
     deps <- unique(c("SpaDES.project", Require::extractPkgName(unlist(deps))))
@@ -916,8 +916,6 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
                          ...) {
 
   makeUpdateRprofileSticky(updateRprofile)
-
-  # Require:::fillDefaults(SpaDES.project:::setupProject)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
@@ -1215,13 +1213,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$cachePath, paths$projectPath)
         ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$inputPath, paths$projectPath)
 
-        # cp <- reproducible:::makeRelative(paths$cachePath, absoluteBase = paths$projectPath)
-        #
-        # cachePathGrep <- paste0("^", cp, "$")
-        # if (!any(grepl(cachePathGrep, gi))) {
-        #   cat(cp, file = ".gitIgnore", sep = "\n", append = TRUE)
-        # }
-        # system(paste(""))
         system(paste("git commit -a -m \"first commit\""))
         rl <- readline("Update git config --global --edit ? (Y or N): ")
         if (startsWith(tolower(rl), "y") ) {
@@ -1386,7 +1377,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
     while (continue) {
       mp <- unlist(unname(modulePackages))
       if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
-        mp <- Require:::substitutePackages(mp, envir = envirCur)
+        mp <- substitutePackages(mp, envir = envirCur)
       }
       if (!any(grepl("SpaDES.core", extractPkgName(mp))))
         mp <- c(mp, "SpaDES.core")
@@ -2367,9 +2358,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         if (isTRUE(file.exists(RHist)))
           file.copy(RHist, file.path(pp, RHistBase))
         if (all(copied))
-          message(Require:::green("copied ", Restart, " to ", newRestart))
+          message(green("copied ", Restart, " to ", newRestart))
         else
-          message(Require:::blue("Did not copy ", Restart, " to ", newRestart, "; it already exists."))
+          message(blue("Did not copy ", Restart, " to ", newRestart, "; it already exists."))
         RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
         RestartTmpFileStart <- ".Restart_"
         tempfileInOther <- file.path(paths[["projectPath"]], paste0(RestartTmpFileStart, basename(tempfile())))
@@ -2429,8 +2420,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             host <- "https://github.com"
 
 
-            tf <- Require:::tempfile2();
-            Require:::.downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, name), destfile = tf)
+            tf <- tempfile2();
+            .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, name), destfile = tf)
             checkExists <- readLines(tf)
 
             if (any(grepl("Not Found", checkExists))) {
@@ -2495,7 +2486,7 @@ setupSpaDES.ProjectDeps <- function(paths,
     exist <- file.exists(pths)
     ver <- character(length(pths))
     if (any(exist))
-      ver[exist] <- Require:::DESCRIPTIONFileVersionV(file.path(pths[exist], "DESCRIPTION"))
+      ver[exist] <- DESCRIPTIONFileVersionV(file.path(pths[exist], "DESCRIPTION"))
     if (any(!exist))
       ver[!exist] <- NA
     names(ver) <- pkg
@@ -2541,13 +2532,13 @@ setupSpaDES.ProjectDeps <- function(paths,
   # if (any(needUpdate))
   #   toInstall <- unique(c(toInstall, names(needUpdate[needUpdate])))
   #
-  # toInstall <- setdiff(toInstall, Require:::.basePkgs)
+  # toInstall <- setdiff(toInstall, .basePkgs)
   #
   # needRevUpdate <- unlist(Map(pkg = notNAs, function(pkg) pkg[[1]] < pkg[[2]]), recursive = FALSE)
   # if (any(needRevUpdate))
   #   toRevInstall <- unique(c(toRevInstall, names(needRevUpdate[needRevUpdate])))
   #
-  # toRevInstall <- setdiff(toRevInstall, Require:::.basePkgs)
+  # toRevInstall <- setdiff(toRevInstall, .basePkgs)
   #
   #
   # if (FALSE) { # This is the older, slower way
@@ -2910,7 +2901,7 @@ checkGitRemote <- function(name, paths) {
   tf <- tempfile()
   urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
   out <- capture.output(type = "message",
-                        outSkip <- try(Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
+                        outSkip <- try(.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
   od <- getwd()
 
   if (isTRUE(any(grepl("cannot open URL", out)) || identical(out, character(0)))) {

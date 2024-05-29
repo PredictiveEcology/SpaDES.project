@@ -87,7 +87,7 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
     } else {
       pfnAll <- pkgFullName
     }
-    Require:::toPkgDTFull(pfnAll)
+    toPkgDTFull(pfnAll)
   })
 
   if (singleDESCRIPTION) {
@@ -96,12 +96,12 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
 
   dFiles <- Map(pfnAll = pfnAllList, function(pfnAll) {
 
-    pfnAll <- Require:::trimRedundancies(pfnAll)
+    pfnAll <- trimRedundancies(pfnAll)
     # if ()
     pfnAll[, hasHEAD := grepl("\\(HEAD\\)", packageFullName)]
     whHEAD <- grep("\\(HEAD\\)", pfnAll$packageFullName)
     if (length(whHEAD)) {
-      pkgDT <- Require:::getVersionOnRepos(pfnAll[whHEAD], repos = getOption("repos"), purge = FALSE)
+      pkgDT <- getVersionOnRepos(pfnAll[whHEAD], repos = getOption("repos"), purge = FALSE)
       pkgDT[which(hasHEAD), packageFullName := gsub("HEAD", paste0(">=", VersionOnRepos), packageFullName)]
       pfnAll[pkgDT[, c("Package", "packageFullName")], packageFullName := i.packageFullName, on = "Package"]
     }
