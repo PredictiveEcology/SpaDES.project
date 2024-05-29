@@ -482,7 +482,7 @@ setupProject <- function(name, paths, modules, packages,
   if (isTRUE(usingGit)) {
     isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
     if (isFALSE(isLocalGitRepoAlready)) {
-      gitUserName <- checkGitRemote(name, pathsSUB, gitAccount)
+      gitUserName <- checkGitRemote(name, pathsSUB)
     }
   }
 
@@ -1206,26 +1206,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       # This will create a new Git Repo at the top level
       if (isLocalGitRepoAlready %in% FALSE && is.character(useGit)) {
-        # message("Please provide the github account for the repository (without quotes): ")
-        # gitUserName <- readline()
-        # if (!nzchar(gitUserName))
-        #   stop("Need to supply the account name for the repository (not the repository name)")
-        #
-        # tf <- tempfile()
-        # urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
-        # out <- capture.output(type = "message",
-        #                       outSkip <- Require:::.downloadFileMasterMainAuth(urlCheckGit, destfile = tf))
-        # if (isTRUE(any(grepl("cannot open URL", out)))) {
-        #   message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
-        #                  gitUserName, " repo name: ", name, "; return here, press enter to continue"))
-        #   readline()
-        #
-        #   system("git init -b main")
-        # } else {
-        #   stop("It looks like the remote Git repo exists; please clone it manually (delete the local ",
-        #        paths$projectPath,"), then rerun this")
-        # }
-        # checkGitRemote(name, paths, gitAccount)
         dir1 <- dir(".", all.files = TRUE)
         onlyFiles <- dir1[!dir.exists(dir1)]
         if (length(onlyFiles) == 0) {
@@ -1432,34 +1412,34 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
       requirePkgNames <- Require::extractPkgName(require)
       # packagesToTry <- unique(c(packages, mp, requireToTry))
       # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
-      useRenv <- getOption("SpaDES.project.useRenv", FALSE)
-      if (useRenv) {
-        DESCFile <- makeDESCRIPTIONproject(modulePath = paths$modulePath, projectPath = paths$projectPath,
-                               modules = extractPkgName(names(modulePackages)),
-                               package = basename(paths$projectPath),
-                               write = FALSE,
-                               verbose = verbose - 2)
-        New <- readLines(DESCFile)
-        Prev <- readLines("DESCRIPTION")
-        diffs <- setdiff(New, Prev)
-        if (length(diffs)) {
-          messageVerbose("Updating DESCRIPTION file with these changes: ",
-                         paste(diffs, collapse = "\n"), verbose = verbose)
-          fileRenameOrMove(DESCFile, file.path(paths$projectPath, "DESCRIPTION"))
-        }
-      }
+      # useRenv <- getOption("SpaDES.project.useRenv", FALSE)
+      # if (useRenv) {
+      #   DESCFile <- makeDESCRIPTIONproject(modulePath = paths$modulePath, projectPath = paths$projectPath,
+      #                          modules = extractPkgName(names(modulePackages)),
+      #                          package = basename(paths$projectPath),
+      #                          write = FALSE,
+      #                          verbose = verbose - 2)
+      #   New <- readLines(DESCFile)
+      #   Prev <- readLines("DESCRIPTION")
+      #   diffs <- setdiff(New, Prev)
+      #   if (length(diffs)) {
+      #     messageVerbose("Updating DESCRIPTION file with these changes: ",
+      #                    paste(diffs, collapse = "\n"), verbose = verbose)
+      #     fileRenameOrMove(DESCFile, file.path(paths$projectPath, "DESCRIPTION"))
+      #   }
+      # }
 
-      if (useRenv) {
-        if (!dir.exists("renv")) renv:init()
-        renv::install(prompt = TRUE)
-      } else {
+      # if (useRenv) {
+      #   if (!dir.exists("renv")) renv:init()
+      #   renv::install(prompt = TRUE)
+      # } else {
         out <- try({
           Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
                            standAlone = standAlone,
                            libPaths = libPaths,
                            verbose = verbose)
         })
-      }
+      # }
 
 
       if (is(out, "try-error")) {
@@ -2683,9 +2663,14 @@ parseExpressionSequentially <- function(pp, envs, namedList, verbose) {
         missingPkgs <- grepl("there is no package called", m)
         if (any(missingPkgs)) {
           pkgs <- gsub("^.+called \u2018(.+)\u2019.*$", "\\1", m$message)
+          pkgs <- gsub("^.+called '(.+)'.*$", "\\1", pkgs)
           messageVerbose(pkgs, " is missing; attempting to install it. ",
-                         "\nIf this fails, please add it manually to the `packages` argument")
-          Require::Install(pkgs)
+                         "\nIf this fails, please add it manually to the `packages` argument",
+                         verbose = verbose)
+          Require::getCRANrepos(ind = 1)
+          repos <- getOption("repos")
+          repos <- repos[!duplicated(repos)]
+          Require::Install(pkgs, repos = repos)
           safe <<- FALSE
           invokeRestart("muffleMessage")
         }
@@ -2904,7 +2889,7 @@ checkUseGit <- function(useGit) {
 
 
 #' @importFrom utils browseURL
-checkGitRemote <- function(name, paths, gitAccount) {
+checkGitRemote <- function(name, paths) {
   # If this function is run, it means that local is not yet a git repo
   message("Please provide the github account for the repository (without quotes): ")
   gitUserName <- readline()
