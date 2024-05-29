@@ -18,7 +18,7 @@ setupPaths(
   inProject,
   standAlone = TRUE,
   libPaths = NULL,
-  updateRprofile = TRUE,
+  updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
   Restart = getOption("SpaDES.project.Restart", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
@@ -64,7 +64,7 @@ setupOptions(
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
-  updateRprofile,
+  updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
   ...
 )
 
@@ -80,7 +80,7 @@ setupModules(
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
-  updateRprofile = TRUE,
+  updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
   ...
 )
 

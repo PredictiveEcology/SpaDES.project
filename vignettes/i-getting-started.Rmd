@@ -134,9 +134,10 @@ This approach allows for an organic growth of complexity, e.g., a user begins wi
 The second important advantage of `setupProject()`, briefly mentioned above, is that argument values within each of the function arguments are sourced in a sequential manner. This implies that a prior value can be leveraged by a subsequent one _within the same function call_. For example, users can set paths, and subsequently, employ the paths list to configure options that can update or modify paths as needed. Similarly, users can set times and apply the times list for specific entries in the parameters (`params`) configuration. For instance, consider the following example, where `projectPath` is included as part of the list assigned to the `paths` argument. This value is then utilized in the subsequent list element:
 
 ```{r sequentialPaths,eval=FALSE}
-# 'modulePaths' is defined based on the previous argument 'projectPath' in the same function call.
+# 'dataPath' is defined based on the previous argument 'outputPath' in the same function call.
 setupPaths(paths = list(projectPath = "here",
-                        modulePath = file.path(paths[["projectPath"]], "modules"))) 
+                        outputPath = "outs",
+                        dataPath = file.path(paths[["outputPath"]], "data"))) 
 ```  
 
 Because of such sequential evaluation, the content with R scripts can be sequential lists, and also the arguments can themselves be sequential. This creates a hierarchy specified by the order. In this fairly rich example, a user can first create a set of default options in a file, then custom elements, then a list of more changes protected by an ⁠if `(user("userNamer")). In the following example, `setupOptions` will first parse the file (`inst/options.R`), maintaining an active named list of options that will be set (lets call that `opts`), then it will `modifyList(opts, list(maxMemory = 6e+10))`, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the `opts` list. Finally, because this is `setupOptions`, it will call `options(opts)` with the new list values:

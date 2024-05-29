@@ -194,7 +194,6 @@ test_that("test setupProject - studyArea in lonlat", {
     out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2)
   )
 
-  cat(mess, file = "/home/emcintir/tmp.txt")
   expect_true(length(mess) == 0)
   expect_true(!is.null(out$studyArea))
   expect_true(is(out$studyArea, "SpatVector"))

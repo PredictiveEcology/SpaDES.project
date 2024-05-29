@@ -652,7 +652,8 @@ setupProject <- function(name, paths, modules, packages,
 #' @importFrom Require normPath checkPath
 #' @importFrom utils packageVersion
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
-                       updateRprofile = TRUE, Restart = getOption("SpaDES.project.Restart", FALSE),
+                       updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
+                       Restart = getOption("SpaDES.project.Restart", FALSE),
                        overwrite = FALSE, envir = parent.frame(),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
@@ -917,7 +918,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' @importFrom data.table data.table
 setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = parent.frame(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
-                         updateRprofile,
+                         updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                          ...) {
 
   makeUpdateRprofileSticky(updateRprofile)
@@ -1137,7 +1138,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = parent.frame(), gitUserName,
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
-                         updateRprofile = TRUE,
+                         updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                          ...) {
 
   envirCur <- environment()
@@ -1796,15 +1797,16 @@ evalSUB <- function(val, valObjName, envir, envir2) {
         }
         # if here, it means val3 is already an error, so only show val2 warning; val3 will likely
         #   be misleading
-        if (is(val2, "try-error")) {
-          val2 <- errorMsgCleaning(val2, valOrig)
-          warning(val2, call. = FALSE)
-        } else {
-          if (is(val3, "try-error")) {
-            val3 <- errorMsgCleaning(val3, valOrig)
-            warning(val3)
-          }
-        }
+        # if (is(val2, "try-error")) {
+        #   browser()
+        #   val2 <- errorMsgCleaning(val2, valOrig)
+        #   warning(val2, call. = FALSE)
+        # } else {
+        #   if (is(val3, "try-error")) {
+        #     val3 <- errorMsgCleaning(val3, valOrig)
+        #     warning(val3)
+        #   }
+        # }
       }
       val <- val3
       val2 <- val3
@@ -1855,6 +1857,18 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       assign("val2", get(valObjName), envir = env)
     }
   }
+
+  if (is(val2, "try-error")) {
+    val2 <- errorMsgCleaning(val2, valOrig)
+    warning(val2, call. = FALSE)
+  } else {
+    if (exists("val3", inherits = FALSE))
+      if (is(val3, "try-error")) {
+        val3 <- errorMsgCleaning(val3, valOrig)
+        warning(val3)
+      }
+  }
+
   val2
 }
 
