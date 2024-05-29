@@ -1,6 +1,6 @@
 utils::globalVariables(c(
   ".", "i.module", "i.objectClass", "objectClass", "objectName",
-  "i.newValue", "i.oldValue", "newValue", "oldValue"
+  "i.newValue", "i.oldValue", "newValue", "oldValue", "modulesNoVersion"
 ))
 
 #' Sets up a new or existing SpaDES project
@@ -364,6 +364,7 @@ utils::globalVariables(c(
 #' outputs are not expected to be passed directly to `simInit` (unlike `setupProject` outputs).
 #'
 #' @importFrom Require extractPkgName
+#' @importFrom stats na.omit
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
 #' @rdname setupProject
@@ -554,7 +555,7 @@ setupProject <- function(name, paths, modules, packages,
 
   studyAreaSUB <- substitute(studyArea)
   if (!is.null(studyAreaSUB)) {
-    dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame())
+    dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
     studyArea <- dotsSUB$studyArea
   }
 
@@ -1131,6 +1132,7 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' full module names and the list elemen.ts are the R packages that the module
 #' depends on (`reqsPkgs`)
 #'
+#' @param gitUserName The GitHub account name. Used with git clone git@github.com:*gitHuserName*/name
 #' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = parent.frame(), gitUserName,
@@ -1688,8 +1690,9 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      obj[areAbs %in% FALSE] <- stripDuplicateFolder(path = paths[["projectPath"]],
-                                                     obj[areAbs %in% FALSE])
+      if (!startsWith(fs::path_norm(obj[areAbs %in% FALSE]), fs::path_norm(paths[["projectPath"]]))) {
+        obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
+      }
     }
 
   }
@@ -2243,14 +2246,14 @@ stopMessForRequireFail <- function(pkg) {
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
 #' with subregion specification as described in the `studyArea` argument.fsu
-setupStudyArea <- function(studyArea, paths, envir) {
+setupStudyArea <- function(studyArea, paths, envir, verbose = getOption("Require.verbose", 1L)) {
 
   if (missing(paths))
     paths <- list(inputPaths = ".")
   studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = parent.frame(), envir2 = envir)
 
   if (is(studyArea, "list")) {
-    theCall <- quote(getStudyArea(studyArea, paths))
+    theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
     if (requireNamespace("reproducible", quietly = TRUE))
       # Cache doesn't evaluate the `theCall` inside eval, so need .cacheExtra to identify the actual contents
       studyArea <- reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
@@ -2638,8 +2641,12 @@ dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) 
 }
 
 stripDuplicateFolder <- function(relativeFilePath, path) {
-  if (fs::path_has_parent(relativeFilePath, path) %in% TRUE) {
+  relativeFilePath <- fs::path_norm(relativeFilePath) # don't want absolute, just consisten /
+  path <- fs::path_norm(path) # don't want absolute, just consisten /
+  if (startsWith(relativeFilePath, path) %in% TRUE) {
     path <- dirname(path)
+    #comm <- fs::path_common(c(relativeFilePath, path))
+    #relativeFilePath <- fs::path_rel(relativeFilePath, comm)
   }
   fs::path_norm(file.path(path, relativeFilePath))
 }
@@ -2779,13 +2786,13 @@ copyPackages <- function(pkgs, from = .libPaths()[1], to, verbose) {
 
 
 
-getStudyArea <- function(studyArea, paths) {
+getStudyArea <- function(studyArea, paths, verbose = verbose) {
   needRep <- !requireNamespace("reproducible", quietly = TRUE)
   needGeo <- !requireNamespace("geodata", quietly = TRUE)
   if (needRep || needGeo) {
     needs <- c("reproducible"[needRep], "geodata"[needGeo])
-    message("Installing ", paste0(needs, collapse = " and "))
-    Require::Install(needs)
+    messageVerbose("Installing ", paste0(needs, collapse = " and "), verbose = verbose)
+    Require::Install(needs, verbose = verbose)
   }
 
   studyAreaOrig <- studyArea
@@ -2860,7 +2867,7 @@ getStudyArea <- function(studyArea, paths) {
   if (any(names(studyAreaOrig) %in% tos)) {
     if (requireNamespace("reproducible")) {
       tos <- intersect(tos, names(studyAreaOrig))
-      studyArea <- do.call(postProcessTo, append(list(studyArea), studyAreaOrig[tos]))
+      studyArea <- do.call(reproducible::postProcessTo, append(list(studyArea), studyAreaOrig[tos]))
     } else {
       message("Cannot project/mask/crop without `reproducible` package")
     }
@@ -2882,6 +2889,7 @@ checkUseGit <- function(useGit) {
 }
 
 
+#' @importFrom utils browseURL
 checkGitRemote <- function(name, paths, gitAccount) {
   # If this function is run, it means that local is not yet a git repo
   message("Please provide the github account for the repository (without quotes): ")

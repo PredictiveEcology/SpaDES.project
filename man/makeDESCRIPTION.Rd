@@ -60,6 +60,18 @@ single project-level DESCRIPTION file.}
 \item{write}{Logical. If \code{TRUE}, then it will write the DESCRIPTION file either in
 the \code{modulePath} (if \code{singleDESCRIPTION = FALSE}) or \code{projectPath}
 (if \code{singleDESCRIPTION = TRUE})}
+
+\item{verbose}{Numeric or logical indicating how verbose should the function
+be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
+then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
+\code{Require} function, when \code{verbose >= 2}, also returns details as if
+\code{returnDetails = TRUE} (for backwards compatibility).}
+
+\item{date}{Date to enter into DESCRIPTION file. Defaults to \code{Sys.Date()}}
+
+\item{metadataList}{The parsed source code from a module. Must include \code{defineModule} metadata.}
+
+\item{...}{Currently not used.}
 }
 \description{
 Make DESCRIPTION file(s) from SpaDES module metadata

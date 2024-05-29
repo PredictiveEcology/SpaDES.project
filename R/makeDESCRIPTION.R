@@ -1,3 +1,11 @@
+utils::globalVariables(c(
+  ".moduleNameNoUnderscore", "VersionOnRepos", "i.packageFullName",
+  "packageFullName", "hasHEAD"
+  ))
+#filenameFromFunction
+#gitAccount init modulesNoVersion
+# renv
+
 #' Make DESCRIPTION file(s) from SpaDES module metadata
 #'
 #' @param modules A character vector of module names
@@ -14,6 +22,7 @@
 #' @param write Logical. If `TRUE`, then it will write the DESCRIPTION file either in
 #'   the `modulePath` (if `singleDESCRIPTION = FALSE`) or `projectPath`
 #'   (if `singleDESCRIPTION = TRUE`)
+#' @inheritParams Require::Require
 #' @rdname makeDESCRIPTION
 makeDESCRIPTIONproject <- function(modules, modulePath, projectPath = ".", singleDESCRIPTION = TRUE,
                                    package = "Project",
@@ -27,7 +36,11 @@ makeDESCRIPTIONproject <- function(modules, modulePath, projectPath = ".", singl
 }
 
 #' @rdname makeDESCRIPTION
-makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRIPTION = FALSE, package, title, date, description,
+#' @param metadataList The parsed source code from a module. Must include `defineModule` metadata.
+#' @param date Date to enter into DESCRIPTION file. Defaults to `Sys.Date()`
+#' @param ... Currently not used.
+makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRIPTION = FALSE,
+                            package, title, date, description,
                             version, authors, write = TRUE, verbose, metadataList, ...) {
 
   if (missing(metadataList)) {

@@ -23,7 +23,7 @@ Imports:
     data.table,
     fs,
     methods,
-    Require (>= 0.3.1.9081),
+    Require (>= 0.3.1.9082),
     rprojroot,
     rstudioapi,
     tools,

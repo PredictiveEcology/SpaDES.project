@@ -16,6 +16,7 @@
 #' @param envir An environment where an object called .prevDigs that will be placed
 #'   and used as a cache comparison.
 #' @export
+#' @importFrom utils tar
 #' @return
 #' This is called for its side effects, which are 2: pkgload::load_all on the
 #' packages that need it, and an object, `.prevDigs` that is assigned to `envir`.

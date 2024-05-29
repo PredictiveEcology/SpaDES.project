@@ -187,11 +187,11 @@ test_that("test setupProject - load packages using require argument", {
 test_that("test setupProject - studyArea in lonlat", {
 
   skip_on_cran()
-  setupTest("geodata")
+  setupTest(c("geodata", "filelock")) # filelock is unnecessary "first time", but errors if run again
   jurs <- "Al|Brit"
   ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
   mess <- capture_messages(
-    out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -1)
+    out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2)
   )
 
   cat(mess, file = "/home/emcintir/tmp.txt")

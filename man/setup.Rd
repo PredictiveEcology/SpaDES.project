@@ -120,7 +120,12 @@ setupGitIgnore(
   verbose
 )
 
-setupStudyArea(studyArea, paths, envir)
+setupStudyArea(
+  studyArea,
+  paths,
+  envir,
+  verbose = getOption("Require.verbose", 1L)
+)
 }
 \arguments{
 \item{name}{Optional. If supplied, the name of the project. If not supplied, an
@@ -265,6 +270,8 @@ GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
 be set with the \code{option(SpaDES.project.useGit = xxx)}.}
+
+\item{gitUserName}{The GitHub account name. Used with git clone git@github.com:\emph{gitHuserName}/name}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
