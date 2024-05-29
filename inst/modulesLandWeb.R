@@ -15,7 +15,7 @@ modules <- c(
 )
 
 
-hasAcct <- mapply(m = modules, function(m) tryCatch(Require:::splitGitRepo(m, default = "")$acct,
+hasAcct <- mapply(m = modules, function(m) tryCatch(splitGitRepo(m, default = "")$acct,
                                                     error = function(e) ""))
 hasAcct <- nzchar(hasAcct)
 

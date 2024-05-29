@@ -9,10 +9,13 @@ messageDF <- utils::getFromNamespace("messageDF", "Require")
 yellow <- utils::getFromNamespace("yellow", "Require")
 
 #' @rdname imports
-whereInStack <- utils::getFromNamespace("whereInStack", "Require")
+blue <- utils::getFromNamespace("blue", "Require")
 
 #' @rdname imports
-blue <- utils::getFromNamespace("blue", "Require")
+green <- utils::getFromNamespace("green", "Require")
+
+#' @rdname imports
+whereInStack <- utils::getFromNamespace("whereInStack", "Require")
 
 #' @rdname imports
 messageVerbose <- utils::getFromNamespace("messageVerbose", "Require")
@@ -34,6 +37,29 @@ fileRenameOrMove <- utils::getFromNamespace("fileRenameOrMove", "Require")
 
 #' @rdname imports
 linkOrCopy <- getFromNamespace("linkOrCopy", ns = "Require")
+
+#' @rdname imports
+.basePkgs <- getFromNamespace(".basePkgs", ns = "Require")
+
+#' @rdname imports
+DESCRIPTIONFileDeps <- getFromNamespace("DESCRIPTIONFileDeps", ns = "Require")
+
+#' @rdname imports
+getVersionOnRepos <- getFromNamespace("getVersionOnRepos", ns = "Require")
+
+#' @rdname imports
+substitutePackages <- getFromNamespace("substitutePackages", ns = "Require")
+
+#' @rdname imports
+toPkgDTFull <- getFromNamespace("toPkgDTFull", ns = "Require")
+
+#' @rdname imports
+#' @importFrom Require tempfile2 .downloadFileMasterMainAuth
+trimRedundancies <- getFromNamespace("trimRedundancies", ns = "Require")
+
+#' @rdname imports
+DESCRIPTIONFileVersionV <- getFromNamespace("DESCRIPTIONFileVersionV", ns = "Require")
+
 
 
 #' @rdname imports

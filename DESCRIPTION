@@ -30,15 +30,18 @@ Imports:
     utils
 Suggests:
     covr,
+    digest,
     ellipsis,
     filelock,
     geodata,
     gert,
     gh,
+    gitcreds,
     googledrive,
     httr,
     igraph,
     knitr,
+    pkgload,
     raster,
     reproducible,
     rmarkdown,
