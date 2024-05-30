@@ -438,6 +438,18 @@ it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 
 \examples{
 
+\dontshow{origDir <- getwd()
+          tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+\dontshow{
+if (is.null(getOption("repos"))) {
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
+  }
+  setwd(tmpdir)
+}
+ ## simplest case; just creates folders
+out <- setupProject(
+  paths = list(projectPath = ".") #
+)
 # specifying functions argument, with a local file and a definition here
 tf <- tempfile(fileext = ".R")
 fnDefs <- c("fn <- function(x) x\n",
@@ -453,4 +465,5 @@ out <- setupProject(functions = list(a = function(x) return(x),
                     b = a(drr),
                     q = funHere(22),
                     ddd = fn3(terra::ext(0,b,0,b)))
+\dontshow{setwd(origDir)}
 }

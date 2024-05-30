@@ -709,6 +709,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["projectPath"]] <- normPath(".") # checkPaths will make an absolute
   }
   # on linux, `normPath` doesn't expand if path doesn't exist -- so create first
+  browser()
   paths[["projectPath"]] <- checkPath(paths[["projectPath"]], create = TRUE)
   paths[["projectPath"]] <- normPath(paths[["projectPath"]]) # expands
 
@@ -803,6 +804,18 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #' @importFrom data.table data.table
 #' @examples
 #'
+#' \dontshow{origDir <- getwd()
+#'           tmpdir <- Require::tempdir2() # for testing tempdir2 is better}
+#' \dontshow{
+#' if (is.null(getOption("repos"))) {
+#'   options(repos = c(CRAN = "https://cloud.r-project.org"))
+#'   }
+#'   setwd(tmpdir)
+#' }
+#'  ## simplest case; just creates folders
+#' out <- setupProject(
+#'   paths = list(projectPath = ".") #
+#' )
 #' # specifying functions argument, with a local file and a definition here
 #' tf <- tempfile(fileext = ".R")
 #' fnDefs <- c("fn <- function(x) x\n",
@@ -818,6 +831,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'                     b = a(drr),
 #'                     q = funHere(22),
 #'                     ddd = fn3(terra::ext(0,b,0,b)))
+#' \dontshow{setwd(origDir)}
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
                            envir = parent.frame(), verbose = getOption("Require.verbose", 1L),
                            dots, defaultDots, ...) {
