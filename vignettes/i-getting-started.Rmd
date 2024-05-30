@@ -30,8 +30,8 @@ knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
 knitr::opts_knit$set(root.dir = ifelse(basename(getwd()) == "vignettes", "..", "."))
 knitr::opts_chunk$set(message=FALSE)
 
-options(Ncpus = 1,
-        SpaDES.project.projectPath = Require::tempdir2(paste0("SpaDES.project_" , paste0(sample(LETTERS, 8), collapse = ""))))
+options(Ncpus = 1)#,
+#        SpaDES.project.projectPath = Require::tempdir2(paste0("SpaDES.project_" , paste0(sample(LETTERS, 8), collapse = ""))))
 
 # options(Require.clonePkgs = TRUE)
 origLibPath = .libPaths()[1]
@@ -505,9 +505,9 @@ out <- setupProject(
 ```
 
 
-```{r cleanup, include = FALSE}
+```{r cleanup, include = FALSE, eval=TRUE}
 Require::setLibPaths(origLibPath)
-for (fold in c("cache", "modules", "inputs", "outputs", "m"))
+for (fold in c("cache", "modules", "inputs", "outputs", "m", "here", "myModules"))
   unlink(fold, recursive = TRUE)
 
 ```
