@@ -66,6 +66,10 @@ trimRedundancies <- getFromNamespace("trimRedundancies", ns = "Require")
 #' @rdname imports
 DESCRIPTIONFileVersionV <- getFromNamespace("DESCRIPTIONFileVersionV", ns = "Require")
 
+#' @rdname imports
+.rndstr <- getFromNamespace(".rndstr", ns = "Require")
+
+
 
 
 #' @rdname imports

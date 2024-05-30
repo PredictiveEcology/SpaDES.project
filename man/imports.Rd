@@ -21,6 +21,7 @@
 \alias{toPkgDTFull}
 \alias{trimRedundancies}
 \alias{DESCRIPTIONFileVersionV}
+\alias{.rndstr}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
 \format{
@@ -91,6 +92,8 @@ trimRedundancies(
 )
 
 DESCRIPTIONFileVersionV(file, purge = getOption("Require.purge", FALSE))
+
+.rndstr(n = 1, len = 8)
 
 .spatialPkgs
 }

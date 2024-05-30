@@ -455,7 +455,7 @@ setupProject <- function(name, paths, modules, packages,
 
   # setupOptions is run twice -- because package startup often changes options
   optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
-                            envir = envirCur,
+                            envir = envirCur, useGit = useGit,
                             updateRprofile = updateRprofile,
                             verbose = verbose - 1)
 
@@ -515,7 +515,7 @@ setupProject <- function(name, paths, modules, packages,
 
   # 2nd time
   opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
-                       updateRprofile = updateRprofile, verbose = verbose - 1)
+                       useGit = useGit, updateRprofile = updateRprofile, verbose = verbose - 1)
   if (!is.null(opts$newOptions))
     opts <- mergeOpts(opts, optsFirst, verbose)
 
@@ -925,6 +925,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' @importFrom data.table data.table
 setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = parent.frame(),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
+                         useGit = getOption("SpaDES.project.useGit", FALSE),
                          updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                          ...) {
 
@@ -1204,7 +1205,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     if (usingGit || ( length(anyFailedGH) ) ) {
 
-      isLocalGitRepoAlready <- isProjectGitRepo(paths$projectPath, inProject)
+      isLocalGitRepoAlready <- isProjectGitRepo(paths[["projectPath"]], inProject)
       origDir <- getwd()
       on.exit({
         setwd(origDir)
@@ -1223,8 +1224,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         theFiles <- paste(onlyFiles, collapse = " ")
         system(paste("git add ", theFiles))
 
-        ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$cachePath, paths$projectPath)
-        ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$inputPath, paths$projectPath)
+        ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$cachePath, paths[["projectPath"]])
+        ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$inputPath, paths[["projectPath"]])
 
         system(paste("git commit -a -m \"first commit\""))
         rl <- readline("Update git config --global --edit ? (Y or N): ")
@@ -1560,7 +1561,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
       messageVerbose(yellow("  done setting up params"), verbose = verbose, verboseLevel = 0)
     }
   }
-  params <- Require::modifyList2(list(.globals = list(.studyAreaName = basename(paths$projectPath))),
+  params <- Require::modifyList2(list(.globals = list(.studyAreaName = basename(paths[["projectPath"]]))),
                         params)
   return(params)
 }
@@ -1699,7 +1700,7 @@ checkProjectPath <- function(paths, name, envir, envir2) {
   }
   if (is.null(paths[["projectPath"]])) {
     prjPth <- if (missing(name))
-      normPath(".")
+      getOption("SpaDES.project.projectPath", normPath("."))
     else {
       if (isInProject(name)) {
         normPath(".")
@@ -1876,7 +1877,7 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
 
   if (isTRUE(gitignore)) {
     gitIgnoreFile <- ".gitignore"
-    gitFile <- file.path(paths$projectPath, ".git")
+    gitFile <- file.path(paths[["projectPath"]], ".git")
     if (dir.exists(gitFile)) { # this is a git repository
       if (file.exists(gitIgnoreFile))
         gif <- readLines(gitIgnoreFile, warn = FALSE)
@@ -2293,7 +2294,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
       Restart = TRUE
     }
-    pp <- path.expand(paths$projectPath)
+    pp <- path.expand(paths[["projectPath"]])
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
     curRstudioProj <- rstudioapi::getActiveProject()
     isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
@@ -2492,7 +2493,7 @@ setupSpaDES.ProjectDeps <- function(paths,
   libs <- c(.libPaths()[1], paths[["packagePath"]])
   nsPaths <- vapply(deps, FUN.VALUE = character(1), function(pkg) dirname(getNamespaceInfo(pkg, "path")))
   isLoadedLocally <- !names(nsPaths) %in% libs
-  nsPaths <- nsPaths[!names(nsPaths) %in% Require:::.basePkgs]
+  nsPaths <- nsPaths[!names(nsPaths) %in% .basePkgs]
 
   depsAlreadyInstalled <- Map(lib = nsPaths, pkg = names(nsPaths), function(lib, pkg) {
     pths <- file.path(lib, pkg)
@@ -2926,7 +2927,7 @@ checkGitRemote <- function(name, paths) {
     checkPath(paths[["projectPath"]], create = TRUE)
     setwd(paths[["projectPath"]])
     on.exit(setwd(od))
-    pp <- path.expand(paths$projectPath)
+    pp <- path.expand(paths[["projectPath"]])
 
     if (!requireNamespace("usethis")) stop("Please install usethis")
 
@@ -2939,13 +2940,13 @@ checkGitRemote <- function(name, paths) {
     # system("git init -b main")
   } else {
     message("It looks like the remote Git repo exists (",file.path(gitUserName, name),
-            "). Would you like to clone it now to ", paths$projectPath, "?")
+            "). Would you like to clone it now to ", paths[["projectPath"]], "?")
     cloneNow <- readline("Y or N (if N, this will stop): ")
     if (startsWith(tolower(cloneNow), "y")) {
-      if (normalizePath(getwd()) == normalizePath(paths$projectPath, mustWork = FALSE)) {
+      if (normalizePath(getwd()) == normalizePath(paths[["projectPath"]], mustWork = FALSE)) {
         stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")
       }
-      projectBase <- dirname(paths$projectPath)
+      projectBase <- dirname(paths[["projectPath"]])
       dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
       setwd(projectBase)
       on.exit(setwd(od))

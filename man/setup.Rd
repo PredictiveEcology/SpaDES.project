@@ -65,6 +65,7 @@ setupOptions(
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
+  useGit = getOption("SpaDES.project.useGit", FALSE),
   updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
   ...
 )
