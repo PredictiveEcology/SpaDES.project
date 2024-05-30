@@ -1738,7 +1738,9 @@ checkProjectPath <- function(paths, name, envir, envir2) {
 isInProject <- function(name) {
   if (!missing(name)) {
     gtwd <- getwd()
-    out <- identical(basename(gtwd), extractPkgName(name))
+    out <- identical(fs::path_expand_r(gtwd), fs::path_expand_r(extractPkgName(name)))
+    if (out %in% FALSE)
+      out <- identical(fs::path_expand(gtwd), fs::path_expand(extractPkgName(name)))
   } else {
     out <- TRUE
   }
@@ -2300,6 +2302,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
   if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio()
        || !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
+
+    on.exit(setwd(origGetWd), add = TRUE)
+
     if (!(useGit %in% FALSE) && isRstudio() && !inProject) {
       messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
       Restart = TRUE
@@ -2353,7 +2358,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           basenameRestartFile <- basename(Restart)
         }
 
-        browser()
         if (!fs::is_absolute_path(Restart))
           Restart <- file.path(origGetWd, Restart)
         newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
@@ -2415,10 +2419,10 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         cat(newRprofile, file = RprofileInOther, sep = "\n")
         cloned <- FALSE
 
-        browser()
         if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
              requireNamespace("gitcreds")) && cloned %in% FALSE ) {
 
+          basenameName <- basename(name)
           needGitUserName <- TRUE
           if (is.character(useGit)) {
             if (useGit != "sub") {
@@ -2436,35 +2440,33 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             }
             messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
             gitUserName <- if (interactive()) readline() else gitUserNamePoss
-            if (!nzchar(gitUserName))
+            if (!nzchar(gitUserName)) {
               gitUserName <- gitUserNamePoss
+              needGitUserName <- FALSE
+            }
 
           }
 
+
           if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
-
-
-
             host <- "https://github.com"
-
-
             tf <- tempfile2();
-            out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, name),
+            out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
                                         destfile = tf, verbose = verbose - 10)
-            checkExists <- if (file.exists(tf)) readLines(tf) else "Not Found"
+            # The suppressWarnings is for "incomplete final line"
+            checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
 
-            browser()
             if (any(grepl("Not Found", checkExists))) {
               usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
             } else {
-              repo <- file.path(host, gitUserName, name)
+              repo <- file.path(host, gitUserName, basenameName)
               messageVerbose(paste0("The github repository already exists: ", repo),
-                             " Would you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+                             "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
               out <- if (interactive()) readline() else "yes"
               if (grepl("y|yes", tolower(out))) {
                 setwd(dirname(getwd()))
-                unlink(name, recursive = TRUE)
-                gert::git_clone(repo, path = basename(name))
+                unlink(basenameName, recursive = TRUE)
+                gert::git_clone(repo, path = basenameName)
                 cloned <- TRUE
                 setwd(paths[["projectPath"]])
               } else {
@@ -2482,14 +2484,17 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             }
             if (!nzchar(gitUserName))
               gitUserName <- NULL
-            browser()
             bbb <- try(usethis::use_git())
-            githubRepoExists <- try(usethis::use_github(gitUserName))#, protocol = "ssh"))
+            if (!(exists("gitUserNamePoss", inherits = FALSE)))
+              gitUserNamePoss <- gh::gh_whoami()$login
+            if (identical(gitUserName, gitUserNamePoss))
+              gitUserName <- NULL
+
+            githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
           }
         }
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
-        message("Starting a new Rstudio session with projectPath as its root")
-        on.exit(setwd(origGetWd), add = TRUE)
+        message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
         stop_quietly()
       } else {
         stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
