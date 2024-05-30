@@ -1,3 +1,9 @@
+utils::globalVariables(c(
+  "..apCachedCols", ".N", "N", "Package", "VersionOK", "filenameFromFunction",
+  "i.VersionOnRepos", "inequality", "keepBasedOnRedundantInequalities"
+))
+
+
 #' non-exported objects and functions from other packages
 #'
 #' @importFrom utils getFromNamespace
