@@ -177,8 +177,8 @@ To facilitate batch submission, users can specify arguments in the form of `argu
 
 ```{r missingVals,eval=TRUE}
 .nodes <- 2
-out <- setupProject(.mode = .mode,
-                    .nodes = .nodes)
+out <- SpaDES.project::setupProject(.mode = .mode,
+                                    .nodes = .nodes)
 out[c(".mode", ".nodes")]
 ```
 
