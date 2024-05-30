@@ -22,7 +22,7 @@ setupPaths(
   Restart = getOption("SpaDES.project.Restart", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
-  useGit = getOption("SpaDES.project.useGit"),
+  useGit = getOption("SpaDES.project.useGit", FALSE),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,

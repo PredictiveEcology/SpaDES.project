@@ -535,16 +535,16 @@ setupProject <- function(name, paths, modules, packages,
   #               libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
 
   if (!missing(config)) {
-    messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
-    if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
-      Require::Install("PredictiveEcology/SpaDES.config@development")
-    }
+    # messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
+    # if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
+    #   Require::Install("PredictiveEcology/SpaDES.config@development")
+    # }
     messageWarnStop("config is not yet setup to run with SpaDES.project")
-    if (FALSE)
-      out <- do.call(SpaDES.config::useConfig, append(
-        list(projectName = config,
-             projectPath = paths[["projectPath"]], paths = paths),
-        localVars))
+    # if (FALSE)
+    #   out <- do.call(SpaDES.config::useConfig, append(
+    #     list(projectName = config,
+    #          projectPath = paths[["projectPath"]], paths = paths),
+    #     localVars))
 
   }
 
@@ -654,7 +654,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
                        updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                        Restart = getOption("SpaDES.project.Restart", FALSE),
                        overwrite = FALSE, envir = parent.frame(),
-                       useGit = getOption("SpaDES.project.useGit"),
+                       useGit = getOption("SpaDES.project.useGit", FALSE),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
   envirCur <- environment()

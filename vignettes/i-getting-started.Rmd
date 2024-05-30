@@ -27,6 +27,7 @@ useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 # Keep eval = TRUE on for emcintir because these are also tests
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
                        Sys.info()["user"] == "emcintir")# && interactive())
+origGetWd <- getwd()
 knitr::opts_knit$set(root.dir = ifelse(basename(getwd()) == "vignettes", "..", "."))
 knitr::opts_chunk$set(message=FALSE)
 
@@ -257,6 +258,13 @@ out$modules # shows @development, which is unexpected
 
 # Initiate a simInit and spades call:
 # do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r cleanGlobal,echo=FALSE}
+# cleanup / restore state
+unlink("modules", recursive = TRUE)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_3"), create = TRUE ))
+# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
 
@@ -507,6 +515,7 @@ out <- setupProject(
 
 ```{r cleanup, include = FALSE, eval=TRUE}
 Require::setLibPaths(origLibPath)
+setwd(origGetWd)
 for (fold in c("cache", "modules", "inputs", "outputs", "m", "here", "myModules"))
   unlink(fold, recursive = TRUE)
 
