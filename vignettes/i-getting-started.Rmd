@@ -30,7 +30,8 @@ useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
 knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
                        Sys.info()["user"] == "emcintir")# && interactive())
 origGetWd <- getwd()
-knitr::opts_knit$set(root.dir = ifelse(basename(getwd()) == "vignettes", "..", "."))
+origWorkingDir <- fs::path_real(ifelse(basename(getwd()) == "vignettes", "..", "."))
+knitr::opts_knit$set(root.dir = origWorkingDir)
 knitr::opts_chunk$set(message=FALSE)
 
 options(Ncpus = 1,
@@ -42,6 +43,8 @@ origLibPath = .libPaths()[1]
 # knitr::opts_knit$set(root.dir = Require::tempdir2(paste0("getting_started_", .rndstr(1))))
 
 ```
+
+
 
 ```{r setCRAN,echo=FALSE}
 # cleanup / restore state
@@ -144,7 +147,14 @@ This approach allows for an organic growth of complexity, e.g., a user begins wi
 
 The second important advantage of `setupProject()`, briefly mentioned above, is that argument values within each of the function arguments are sourced in a sequential manner. This implies that a prior value can be leveraged by a subsequent one _within the same function call_. For example, users can set paths, and subsequently, employ the paths list to configure options that can update or modify paths as needed. Similarly, users can set times and apply the times list for specific entries in the parameters (`params`) configuration. For instance, consider the following example, where `projectPath` is included as part of the list assigned to the `paths` argument. This value is then utilized in the subsequent list element:
 
+
+
+```{r,echo=FALSE}
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "here"), create = TRUE ))
+```
+
 ```{r sequentialPaths}
+lalahere <- getwd()
 # 'dataPath' is defined based on the previous argument 'outputPath' in the same function call.
 setupPaths(paths = list(projectPath = "here",
                         outputPath = "outs",
@@ -158,7 +168,13 @@ Require::setLibPaths(origLibPath)
 
 Because of such sequential evaluation, the content with R scripts can be sequential lists, and also the arguments can themselves be sequential. This creates a hierarchy specified by the order. In this fairly rich example, a user can first create a set of default options in a file, then custom elements, then a list of more changes protected by an ⁠if `(user("userNamer")). In the following example, `setupOptions` will first parse the file (`inst/options.R`), maintaining an active named list of options that will be set (lets call that `opts`), then it will `modifyList(opts, list(maxMemory = 6e+10))`, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the `opts` list. Finally, because this is `setupOptions`, it will call `options(opts)` with the new list values:
 
+
+```{r,echo=FALSE}
+knitr::opts_knit$set(root.dir = Require::checkPath(origWorkingDir, create = TRUE ))
+```
+
 ```{r sequentialOptions}
+save(origWorkingDir, lalahere, origLibPath, origGetWd, file = "/home/emcintir/getwd.rda")
 a <- setupOptions(options = list(
     "inst/options.R",                     # many items set because this is a file; has "future.globals.maxSize" = 5.24288e8
     future.globals.maxSize = 4e8,         # this value overrides first, because it is 2nd
@@ -297,7 +313,6 @@ out$modules # shows @development, which is unexpected
 # cleanup / restore state
 unlink("modules", recursive = TRUE)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_3"), create = TRUE ))
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
 ```{r,echo=FALSE}
@@ -323,7 +338,6 @@ out <- setupProject(
 ```{r clean3,echo=FALSE}
 # cleanup / restore state
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_4"), create = TRUE ))
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
 ```{r,echo=FALSE}
@@ -355,7 +369,6 @@ out <- setupProject(
 ```{r clean4,echo=FALSE}
 # cleanup / restore state
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_5"), create = TRUE ))
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
 ```{r,echo=FALSE}
@@ -384,7 +397,6 @@ out <- setupProject(
 ```{r clean5,echo=FALSE}
 # cleanup / restore state
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_7"), create = TRUE ))
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
 ```{r,echo=FALSE}
@@ -409,7 +421,6 @@ out <- setupProject(
 
 ```{r clean7,echo=FALSE}
 # cleanup / restore state
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_8"), create = TRUE ))
 ```
 
@@ -464,7 +475,6 @@ out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = "19|18|17|Peace"))
 
 ```{r clean9,echo=FALSE}
 # cleanup / restore state
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_10"), create = TRUE ))
 ```
 
@@ -490,7 +500,6 @@ out <- setupProject(
 
 ```{r clean10,echo=FALSE}
 # cleanup / restore state
-# SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_11"), create = TRUE ))
 ```
 
@@ -542,6 +551,10 @@ Require::setLibPaths(origLibPath)
 ## Passing named arguments as part of the `...`
 
 Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
+```{r,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_12"), create = TRUE ))
+```
 
 ```{r example12,eval=FALSE}
 out <- setupProject(
@@ -577,6 +590,11 @@ Require::setLibPaths(origLibPath)
 
 ## Make project-level change to .libPaths() that is persistent
 
+```{r,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_13"), create = TRUE ))
+```
+
 ```{r example13,eval=FALSE}
 out <- setupProject(
   name = "example_13",
@@ -589,9 +607,13 @@ out <- setupProject(
 Require::setLibPaths(origLibPath)
 ```
 
+```{r,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = origGetWd)
+```
+
 ```{r cleanup, include = FALSE, eval=TRUE}
 Require::setLibPaths(origLibPath)
-setwd(origGetWd)
 for (fold in c("cache", "modules", "inputs", "outputs", "m", "here", "myModules"))
   unlink(fold, recursive = TRUE)
 

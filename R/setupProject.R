@@ -307,19 +307,21 @@ utils::globalVariables(c(
 #' if they are, the object name can be any name, even if similar to another object's name
 #' used to built the same argument's (i.e. `paths`, `params`, `options`) final list.
 #' Hence, in an file to passed to `options`, instead of incrementing the list as:
-#' {
+#'
+#' ```
 #' a <- list(optA = 1)
 #' b <- append(a, list(optB = 2))
 #' c <- append(b, list(optC = 2.5))
 #' d <- append(c, list(optD = 3))
-#' }
+#' ```
+#'
 #' one can do:
-#' {
+#' ```
 #' a <- list(optA = 1)
 #' a <- list(optB = 2)
 #' c <- list(optC = 2.5)
 #' list(optD = 3)
-#' }
+#' ```
 #'
 #' NOTE: only atomics (i.e., character, numeric, etc.), named lists, or either of these
 #'   that are protected by 1 level of "if" are parsed. This will not work, therefore,
@@ -1758,9 +1760,14 @@ checkProjectPath <- function(paths, name, envir, envir2) {
 isInProject <- function(name) {
   if (!missing(name)) {
     gtwd <- getwd()
-    out <- identical(fs::path_expand_r(gtwd), fs::path_expand_r(extractPkgName(name)))
-    if (out %in% FALSE)
-      out <- identical(fs::path_expand(gtwd), fs::path_expand(extractPkgName(name)))
+    gtwdExp <- basename(fs::path_expand_r(gtwd))
+    nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
+    out <- identical(gtwdExp, nameExp)
+    if (out %in% FALSE) {
+      gtwdExp <- basename(fs::path_expand(gtwd))
+      nameExp <- basename(fs::path_expand(extractPkgName(name)))
+      out <- identical(gtwdExp, nameExp)
+    }
   } else {
     out <- TRUE
   }
