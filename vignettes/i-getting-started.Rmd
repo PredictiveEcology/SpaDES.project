@@ -4,6 +4,8 @@ author: "Eliot McIntire"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Getting Started}
+  %\VignetteDepends{SpaDES.project, igraph, visNetwork, ellipsis, terra}
+  %\VignetteKeyword{newModule, SpaDES.core}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options:
