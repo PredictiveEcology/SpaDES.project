@@ -22,6 +22,7 @@ setupPaths(
   Restart = getOption("SpaDES.project.Restart", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
+  useGit = getOption("SpaDES.project.useGit"),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -182,6 +183,25 @@ the function should use its own internal environment. If called from another
 function, e.g., \code{setupProject}, then the \code{envir} should be the internal
 transient environment of that function.}
 
+\item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
+can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
+project can have one or the other, or both of these under git control. If "both",
+then this function will assume that git submodules will be used for the \code{modules}.
+A logical or \code{"sub"} for \emph{submodule}. If \code{"sub"}, then this function
+will attempt to clone the identified \code{modules} \emph{as git submodules}. This will only
+work if the \code{projectPath} is a git repository. If the project is already a git
+repository because the user has set that up externally to this function call, then
+this function will add the \code{modules} as git submodules. If it is not already,
+it will use \verb{git clone} for each module. After git clone or submodule add are run,
+it will run \verb{git checkout} for the named branch and then \verb{git pull}
+to get and change branch for each module, according to its specification in
+\code{modules}. If \code{FALSE}, this function  will download modules with \code{getModules}.
+NOTE: \emph{CREATING} A
+GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
+EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
+A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
+be set with the \code{option(SpaDES.project.useGit = xxx)}.}
+
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
 then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
@@ -251,25 +271,6 @@ If the entire project is a git repository,
 then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.
 See \link{setup}.}
-
-\item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
-can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
-project can have one or the other, or both of these under git control. If "both",
-then this function will assume that git submodules will be used for the \code{modules}.
-A logical or \code{"sub"} for \emph{submodule}. If \code{"sub"}, then this function
-will attempt to clone the identified \code{modules} \emph{as git submodules}. This will only
-work if the \code{projectPath} is a git repository. If the project is already a git
-repository because the user has set that up externally to this function call, then
-this function will add the \code{modules} as git submodules. If it is not already,
-it will use \verb{git clone} for each module. After git clone or submodule add are run,
-it will run \verb{git checkout} for the named branch and then \verb{git pull}
-to get and change branch for each module, according to its specification in
-\code{modules}. If \code{FALSE}, this function  will download modules with \code{getModules}.
-NOTE: \emph{CREATING} A
-GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
-EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
-A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the \code{option(SpaDES.project.useGit = xxx)}.}
 
 \item{gitUserName}{The GitHub account name. Used with git clone git@github.com:\emph{gitHuserName}/name}
 

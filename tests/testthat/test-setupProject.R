@@ -25,7 +25,6 @@ test_that("test setupProject - simplest", {
 test_that("test setupProject - relative paths and modules", {
   skip_on_cran()
   nam <- "test_SpaDES_project"
-  browser()
   setupTest(first = TRUE, name = nam) # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(

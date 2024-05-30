@@ -709,7 +709,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["projectPath"]] <- normPath(".") # checkPaths will make an absolute
   }
   # on linux, `normPath` doesn't expand if path doesn't exist -- so create first
-  browser()
   paths[["projectPath"]] <- checkPath(paths[["projectPath"]], create = TRUE)
   paths[["projectPath"]] <- normPath(paths[["projectPath"]]) # expands
 
