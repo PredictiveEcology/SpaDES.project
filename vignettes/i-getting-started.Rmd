@@ -168,7 +168,7 @@ a <- setupOptions(options = list(
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+.libPaths(origLibPath)
 ```
 
 ## **3. Handling Missing Values**
