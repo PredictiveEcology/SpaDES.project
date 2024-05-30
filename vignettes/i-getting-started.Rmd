@@ -33,7 +33,8 @@ origGetWd <- getwd()
 knitr::opts_knit$set(root.dir = ifelse(basename(getwd()) == "vignettes", "..", "."))
 knitr::opts_chunk$set(message=FALSE)
 
-options(Ncpus = 1)#,
+options(Ncpus = 1,
+        SpaDES.project.updateRprofile = FALSE)
 #        SpaDES.project.projectPath = Require::tempdir2(paste0("SpaDES.project_" , paste0(sample(LETTERS, 8), collapse = ""))))
 
 # options(Require.clonePkgs = TRUE)
@@ -131,6 +132,10 @@ out <- setupProject(
   )
 )
 attr(out, "projectOptions")
+```
+
+```{r resetLibPaths1,echo=FALSE}
+.libPaths(origLibPath)
 ```
 
 This approach allows for an organic growth of complexity, e.g., a user begins with only named lists of values, but then as the number of values increases, it may be helpful for clarity to put some in an external file.

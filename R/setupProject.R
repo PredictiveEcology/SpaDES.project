@@ -469,7 +469,6 @@ setupProject <- function(name, paths, modules, packages,
                       Restart = Restart, defaultDots = defaultDots,
                       useGit = useGit,
                       updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
-
   inProject <- isInProject(name)
 
   setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
@@ -568,9 +567,15 @@ setupProject <- function(name, paths, modules, packages,
   # Put Dots in order
   if (length(dotsSUB) > 1)
     dotsSUB <- dotsSUB[na.omit(match(origArgOrder, names(dotsSUB)))]
+
+  pathsOrig <- paths
+  extras <- setdiff(names(paths), spPaths)
+  paths <- paths[spPaths]
+  attr(paths, "extraPaths") <- pathsOrig[extras]
+
   out <- append(list(
     modules = modules,
-    paths = paths[spPaths], # this means we lose the packagePath --> but it is in .libPaths()[1]
+    paths = paths, # this means we lose the packagePath --> but it is in .libPaths()[1]
     # we also lose projectPath --> but this is getwd()
     params = params,
     times = times), dotsSUB)
@@ -604,7 +609,14 @@ setupProject <- function(name, paths, modules, packages,
 #' to the `projectPath`. If a user chooses to specify absolute paths, then they will
 #' be returned as is. It is also called for its
 #' side effect which is to call `setPaths`, with each of these paths as an argument.
-#' See table for details.
+#' See table for details. If a user supplies extra paths not useable by `SpaDES.core::simInit`,
+#' these will added as an attribute ("extraPaths") to the `paths` element
+#' in the returned object. These will still exist directly in the returned list
+#' if a user uses `setupPaths` directly, but these will not be returned with
+#' `setupProject` because `setupProject` is intended to be used with `SpaDES.core::simInit`.
+#' In addition, three paths will be added to this same attribute automatically:
+#' `projectPath`, `packagePath`, and `.prevLibPaths` which is the previous value for
+#' `.libPaths()` before changing to `packagePath`.
 #'
 #' @section Paths:
 #'   \tabular{lll}{
@@ -760,6 +772,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     needSetLibPaths <- needSetLibPathsNow
   }
 
+  prevLibPaths <- .libPaths()
   if (needSetLibPaths) {
     if (!useGit %in% FALSE) {
       # requireNamespace will find usethis in memory when devtools is used, but it fails because other
@@ -789,7 +802,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   messageVerbose(yellow("  done setting up paths"), verbose = verbose, verboseLevel = 0)
 
-  paths[order(names(paths))]
+  paths <- paths[order(names(paths))]
+  paths[[".previousLibPaths"]] <- prevLibPaths
+
+  pathsOrig <- paths
+  extras <- setdiff(names(paths), spPaths)
+  attr(paths, "extraPaths") <- paths[extras]
+
+  paths
 }
 
 
@@ -1620,10 +1640,10 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         opt <- stripDuplicateFolder(relativeFilePath, paths[["projectPath"]])
 
         fe <- file.exists(opt)
-        if (fe && isFALSE(overwrite)) {
+        if (isTRUE(fe && isFALSE(overwrite))) {
           messageVerbose(opt, " already exists; not downloading", verbose = verbose)
         } else {
-          if (fe) {
+          if (isTRUE(fe)) {
             messageVerbose(opt, " already exists; overwrite = TRUE; downloading again", verbose = verbose)
             unlink(opt)
           }
@@ -2677,7 +2697,7 @@ dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) 
 stripDuplicateFolder <- function(relativeFilePath, path) {
   relativeFilePath <- fs::path_norm(relativeFilePath) # don't want absolute, just consisten /
   path <- fs::path_norm(path) # don't want absolute, just consisten /
-  if (startsWith(relativeFilePath, path) %in% TRUE) {
+  if (isTRUE(startsWith(relativeFilePath, path) %in% TRUE)) {
     path <- dirname(path)
     #comm <- fs::path_common(c(relativeFilePath, path))
     #relativeFilePath <- fs::path_rel(relativeFilePath, comm)
