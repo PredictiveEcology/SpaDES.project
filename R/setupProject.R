@@ -2856,8 +2856,7 @@ getStudyArea <- function(studyArea, paths, verbose = verbose) {
   needGeo <- !requireNamespace("geodata", quietly = TRUE)
   if (needRep || needGeo) {
     needs <- c("reproducible"[needRep], "geodata"[needGeo])
-    messageVerbose("Installing ", paste0(needs, collapse = " and "), verbose = verbose)
-    Require::Install(needs, verbose = verbose)
+    stop("Please install ", paste0(needs, collapse = " and "), verbose = verbose)
   }
 
   studyAreaOrig <- studyArea
