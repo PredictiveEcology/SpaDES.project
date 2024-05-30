@@ -135,7 +135,7 @@ attr(out, "projectOptions")
 ```
 
 ```{r resetLibPaths1,echo=FALSE}
-.libPaths(origLibPath)
+Require::setLibPaths(origLibPath)
 ```
 
 This approach allows for an organic growth of complexity, e.g., a user begins with only named lists of values, but then as the number of values increases, it may be helpful for clarity to put some in an external file.
@@ -151,6 +151,11 @@ setupPaths(paths = list(projectPath = "here",
                         dataPath = file.path(paths[["outputPath"]], "data")))
 ```
 
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 Because of such sequential evaluation, the content with R scripts can be sequential lists, and also the arguments can themselves be sequential. This creates a hierarchy specified by the order. In this fairly rich example, a user can first create a set of default options in a file, then custom elements, then a list of more changes protected by an ⁠if `(user("userNamer")). In the following example, `setupOptions` will first parse the file (`inst/options.R`), maintaining an active named list of options that will be set (lets call that `opts`), then it will `modifyList(opts, list(maxMemory = 6e+10))`, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the `opts` list. Finally, because this is `setupOptions`, it will call `options(opts)` with the new list values:
 
 ```{r sequentialOptions}
@@ -160,6 +165,10 @@ a <- setupOptions(options = list(
     if(user("emcintir"))                  # an "if" statement is OK --> but must use list after
       list(future.globals.maxSize = 6e8)  # conditional on user, value is overridden again
 ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
 ```
 
 ## **3. Handling Missing Values**
@@ -173,6 +182,9 @@ out <- setupProject(.mode = .mode,
 out[c(".mode", ".nodes")]
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
 
 # Relationship between `setupProject()` and `SpaDES.core::simInit` Call
 
@@ -214,6 +226,10 @@ out <- setupProject(
 # do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Paths
 
 All paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders, are place in a subfolder of `tempdir()`. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
@@ -225,6 +241,10 @@ library(SpaDES.project)
 setupProject(paths = list(modulePath = "myModules"))
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Default values
 
 One compelling reason to use `setupProject()` is the availability of numerous default values that can be leveraged, leading to cleaner and more concise code in many instances. This code sets all default values for `paths`.
@@ -234,6 +254,9 @@ library(SpaDES.project)
 setupProject()
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
 
 ## Arguments sourced sequentially
 
@@ -248,6 +271,9 @@ out[c("newValue", "secondValue")]
 
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
 
 ## Arguments not sourced to .GlobalEnv
 
@@ -274,6 +300,10 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 
 ## With options and params set
 
@@ -294,6 +324,10 @@ out <- setupProject(
 # cleanup / restore state
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_4"), create = TRUE ))
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
 ```
 
 ## Arguments as values or urls
@@ -324,6 +358,10 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Setting arbitrary arguments, using defaultDots
 
 ```{r example_5,error=FALSE}
@@ -349,6 +387,10 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Pass args from GlobalEnv
 
 ```{r example7,error=FALSE}
@@ -371,6 +413,10 @@ out <- setupProject(
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_8"), create = TRUE ))
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Mixing argument: a named list, a github file and local file
 
 There are several ways to specifying an argument, as we have seen. We can also mix and match these ways:
@@ -383,6 +429,10 @@ out <- setupProject(
     system.file("authentication.R", package = "SpaDES.project")   # local file -- sets gargle options
   )
 )
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
 ```
 
 ## `studyArea` argument
@@ -418,6 +468,10 @@ out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = "19|18|17|Peace"))
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_10"), create = TRUE ))
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 
 ### Specify an `epsg`
 
@@ -438,6 +492,10 @@ out <- setupProject(
 # cleanup / restore state
 # SpaDES.project::.teardownProject(out$paths, origLibPaths)
 knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_11"), create = TRUE ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
 ```
 
 ## `require` and `objects` arguments
@@ -477,6 +535,10 @@ out <- setupProject(
 # do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Passing named arguments as part of the `...`
 
 Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
@@ -509,6 +571,10 @@ out <- setupProject(
 # do.call(SpaDES.core::simInitAndSpades, out)
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
+
 ## Make project-level change to .libPaths() that is persistent
 
 ```{r example13,eval=FALSE}
@@ -519,6 +585,9 @@ out <- setupProject(
 )
 ```
 
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath)
+```
 
 ```{r cleanup, include = FALSE, eval=TRUE}
 Require::setLibPaths(origLibPath)
