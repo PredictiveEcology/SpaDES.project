@@ -375,19 +375,20 @@ Because each list is parsed separately, they to not need to be assigned objects;
 if they are, the object name can be any name, even if similar to another object's name
 used to built the same argument's (i.e. \code{paths}, \code{params}, \code{options}) final list.
 Hence, in an file to passed to \code{options}, instead of incrementing the list as:
-{
-a <- list(optA = 1)
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{a <- list(optA = 1)
 b <- append(a, list(optB = 2))
 c <- append(b, list(optC = 2.5))
 d <- append(c, list(optD = 3))
-}
+}\if{html}{\out{</div>}}
+
 one can do:
-{
-a <- list(optA = 1)
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{a <- list(optA = 1)
 a <- list(optB = 2)
 c <- list(optC = 2.5)
 list(optD = 3)
-}
+}\if{html}{\out{</div>}}
 
 NOTE: only atomics (i.e., character, numeric, etc.), named lists, or either of these
 that are protected by 1 level of "if" are parsed. This will not work, therefore,

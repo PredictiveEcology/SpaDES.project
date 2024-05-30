@@ -31,6 +31,7 @@ Imports:
 Suggests:
     covr,
     crayon,
+    curl,
     digest,
     ellipsis,
     filelock,

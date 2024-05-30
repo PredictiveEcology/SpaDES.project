@@ -317,7 +317,10 @@ be returned as is. It is also called for its
 side effect which is to call \code{setPaths}, with each of these paths as an argument.
 See table for details. If a user supplies extra paths not useable by \code{SpaDES.core::simInit},
 these will added as an attribute ("extraPaths") to the \code{paths} element
-in the returned object. 3 paths will be added to this same attribute automatically:
+in the returned object. These will still exist directly in the returned list
+if a user uses \code{setupPaths} directly, but these will not be returned with
+\code{setupProject} because \code{setupProject} is intended to be used with \code{SpaDES.core::simInit}.
+In addition, three paths will be added to this same attribute automatically:
 \code{projectPath}, \code{packagePath}, and \code{.prevLibPaths} which is the previous value for
 \code{.libPaths()} before changing to \code{packagePath}.
 
