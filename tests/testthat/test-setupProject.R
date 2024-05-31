@@ -230,7 +230,7 @@ test_that("projectPath is in a tempdir", {
   warns <- capture_warnings(
     out <- setupProject(package = "terra", updateRprofile = TRUE, verbose = -1))
 
-  expect_true(grepl("but the projectPath is the tempdir", warns))
+  expect_true(sum(grepl("but the projectPath is the tempdir", warns)) == 1)
 })
 
 test_that("projectPath is in a tempdir", {
