@@ -1,184 +1,620 @@
 ---
-title: "Installing SpaDES"
-author: "Alex M. Chubaty"
+title: "Getting Started"
+author: "Eliot McIntire"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Installing SpaDES}
+  %\VignetteIndexEntry{Getting Started}
+  %\VignetteDepends{SpaDES.project, igraph, visNetwork, ellipsis, terra}
+  %\VignetteKeyword{newModule, SpaDES.core}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
-editor_options: 
+editor_options:
   chunk_output_type: console
 ---
 
-```{r, include = FALSE}
+
+
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  echo = TRUE,
-  eval = FALSE
+  echo = TRUE
+)
+
+# Most are eval=FALSE within each chunk; but a few are not. Those must be eval=FALSE on GA and CRAN
+SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
+hasSuggests <- all(sapply(SuggestedPkgsNeeded, requireNamespace, quietly = TRUE))
+useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
+
+# Keep eval = TRUE on for emcintir because these are also tests
+knitr::opts_chunk$set(eval = hasSuggests && useSuggests &&
+                       Sys.info()["user"] == "emcintir")# && interactive())
+origGetWd <- getwd()
+origWorkingDir <- fs::path_real(ifelse(basename(getwd()) == "vignettes", "..", "."))
+knitr::opts_knit$set(root.dir = origWorkingDir)
+knitr::opts_chunk$set(message=FALSE)
+
+options(Ncpus = 1,
+        SpaDES.project.updateRprofile = FALSE)
+#        SpaDES.project.projectPath = Require::tempdir2(paste0("SpaDES.project_" , paste0(sample(LETTERS, 8), collapse = ""))))
+
+# options(Require.clonePkgs = TRUE)
+origLibPath = .libPaths()[1]
+# knitr::opts_knit$set(root.dir = Require::tempdir2(paste0("getting_started_", .rndstr(1))))
+
+```
+
+
+
+```{r setCRAN,echo=FALSE}
+# cleanup / restore state
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
+ options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+```
+
+`SpaDES` is a collection of R packages designed to provide a flexible framework for ecological analysis, simulations, forecasting, and other ecological tasks. At its core, a `SpaDES` analysis revolves around the concept of a "module" - a self-contained unit of code that performs a specific function and includes both machine-readable and human-readable metadata. In a typical `SpaDES` project, users often employ multiple modules, whether they've authored them or they've been contributed by others. This scalability introduces several challenges, including managing file paths (e.g., for data inputs, outputs, figures, modules, and packages), handling package dependencies, and coordinating the development of multiple modules simultaneously. While it is possible to develop a `SpaDES` project using methods familiar to the user, the `SpaDES.project` package streamlines this process, facilitating a clean, reproducible and reusable project setup for any project. Default settings ensure that project files and packages are kept isolated, preventing potential conflicts with other projects on the same computer.
+
+In the following section, we present a range of examples showcasing the utilization of the `setupProject()` function. To ensure a smooth understanding of these examples, we will begin by discussing the necessary prerequisites.
+
+# Setting Up Prerequisites: Installing System Dependencies, R, and RStudio
+
+To get started, users should have already installed R, RStudio, and possibly other system-level dependencies.
+[See vignette here](iv-Installing-R.html)
+
+Now that we've established the prerequisites, let's explore various examples of how to use the `setupProject()` function, ranging from simple to moderately complex scenarios. We will start by installing the package.
+
+# Installing `SpaDES.project`
+
+```{r install-spades-project}
+if (!require("SpaDES.project")) {
+  {install.packages("SpaDES.project", repos = c("predictiveecology.r-universe.dev", getOption("repos")))
+   require("SpaDES.project")}
+}
+```
+
+# Understanding `SpaDES.project`'s Main Function: `setupProject()`
+
+For more details, see `?setupProject`, especially for argument-specific descriptions.
+
+## Function objectives
+
+The primary five objectives of this function are:
+
+**1. Preparation for `SpaDES.core::simInit`:** This functions is designed to set the stage for a smooth transition into `SpaDES.core::simInit`, i.e., the initiation of a collection of SpaDES modules. After a `out <- setupProject()` call, the return can be passed directly to `do.call(SpaDES.core::simInitAndSpades, out)`.
+
+**2. Simplicity for Beginners, Versatility for Experts:** The functions are crafted to be approachable for beginners, offering simplicity, while at the same time, providing the power and flexibility needed to address the demands of highly intricate projects, all within the same structural framework.
+
+**3. Handling Package Complexity:** These functions address the complexities associated with R package installation and loading, especially when working with modules created by various users.
+
+**4. Creating a Standardized Project Structure:** They facilitate the establishment of a consistent SpaDES project structure. This uniformity eases the transition from one project to another, regardless of project complexity, promoting a seamless and efficient workflow.
+
+**5. Minimizing .GlobalEnv Assignments:** An important goal is to encourage best practices by reducing the need for assignments to the .GlobalEnv. This practice fosters clean, maintainable code that remains reproducible even as project complexity grows.
+
+## Function Tasks
+
+This function performs a variety of tasks to set up a SpaDES project by assigning values to these arguments:
+
+- `paths` - A standardized set of paths.
+- `modules` - Either downloads them from a cloud repository or user identifies local ones.
+- `packages` - To install and/or load (using the `require` argument) packages not already identified in the metadata of the `modules`.
+- `params` - For setting parameter values for any of the `modules`.
+- `options` - To configure basic `R` `options`.
+
+More specifically, this function orchestrates a series of operations in the following order: `setupPaths`, `setupModules`, `setupPackages`, `setupOptions`, `setupSideEffects`, `setupParams`, and `setupGitIgnore`. This sequence accomplishes several tasks, including the creation of folder structures, installation of missing packages listed in either the `packages` or `require` arguments, loading of packages (limited to those specified in the `require` argument), configuration of options, and the download or validation of modules. Additionally, it returns elements that can be directly passed to `simInit` or `simInitAndSpades`, specifically modules, params, paths, times, and any named elements passed to ... (`Dots`). If desired, this function can also modify the `.Rprofile` file for the project, ensuring that each time the project is opened, it adopts specific `.libPaths()`.
+
+This sequence allows users to leverage settings (i.e., objects) that are established before others. More on this below (section [What Makes this Function so Special]).
+
+For user convenience, there are several auxiliary elements, as described in the help file of the function: `?setupProject()`.
+
+The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call.
+
+
+# What Makes this Function so Special
+
+In addition to its capability to specify paths, options, and parameters for the entire simulation or workflow, regardless of the modules used, this function offers three distinct advantages that enhance its convenience, detailed below:
+
+*1. Versatile Argument Types:* Arguments can be provided as both values and/or URLs, allowing flexibility in how information is sourced and integrated into the setup.
+
+*2. Sequential Argument Processing:* Arguments are sourced in a sequential manner during function evaluation. This sequential processing enables a logical flow and great flexibility in setting up the project.
+
+*3. Handling Missing Values:* The function accommodates missing values gracefully, making it adaptable to various project scenarios where certain parameters or information may not be yet available.
+
+
+## **1. Versatile Argument Types**
+
+The first important advantage of `setupProject()` is the type of inputs for arguments it can take, which can be lists of, and/or paths. For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. More specifically, the function arguments `paths`, `options`, and `params`, can all understand lists of named values, character vectors, or a mixture by using a list where named elements are values and unnamed elements are character strings/vectors. *Any unnamed character string/vector will be treated as a file path.* If that file path has an @ symbol, it will be assumed to be a file that exists on ⁠https://github.com. So a user can pass values, or pointers to remote and/or local paths that, themselves, have values.
+
+The following will set an option as declared (i.e., `reproducible.useTerra = TRUE`), plus read the local `inst/options.R` file (with relative path), plus download and read the cloud-hosted `PredictiveEcology/SpaDES.project@transition/inst/options.R` file.
+
+```{r versatile,message=FALSE}
+out <- setupProject(
+  options = list(reproducible.useTerra = TRUE,
+                 "inst/options.R",
+                 "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+  )
+)
+attr(out, "projectOptions")
+```
+
+```{r resetLibPaths1,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+This approach allows for an organic growth of complexity, e.g., a user begins with only named lists of values, but then as the number of values increases, it may be helpful for clarity to put some in an external file.
+
+## **2. Sequential Argument Processing**
+
+The second important advantage of `setupProject()`, briefly mentioned above, is that argument values within each of the function arguments are sourced in a sequential manner. This implies that a prior value can be leveraged by a subsequent one _within the same function call_. For example, users can set paths, and subsequently, employ the paths list to configure options that can update or modify paths as needed. Similarly, users can set times and apply the times list for specific entries in the parameters (`params`) configuration. For instance, consider the following example, where `projectPath` is included as part of the list assigned to the `paths` argument. This value is then utilized in the subsequent list element:
+
+
+
+```{r,echo=FALSE}
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "here"), create = TRUE ))
+```
+
+```{r sequentialPaths}
+lalahere <- getwd()
+# 'dataPath' is defined based on the previous argument 'outputPath' in the same function call.
+setupPaths(paths = list(projectPath = "here",
+                        outputPath = "outs",
+                        dataPath = file.path(paths[["outputPath"]], "data")))
+```
+
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+Because of such sequential evaluation, the content with R scripts can be sequential lists, and also the arguments can themselves be sequential. This creates a hierarchy specified by the order. In this fairly rich example, a user can first create a set of default options in a file, then custom elements, then a list of more changes protected by an ⁠if `(user("userNamer")). In the following example, `setupOptions` will first parse the file (`inst/options.R`), maintaining an active named list of options that will be set (lets call that `opts`), then it will `modifyList(opts, list(maxMemory = 6e+10))`, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the `opts` list. Finally, because this is `setupOptions`, it will call `options(opts)` with the new list values:
+
+
+```{r,echo=FALSE}
+knitr::opts_knit$set(root.dir = Require::checkPath(origWorkingDir, create = TRUE ))
+```
+
+```{r sequentialOptions}
+save(origWorkingDir, lalahere, origLibPath, origGetWd, file = "/home/emcintir/getwd.rda")
+a <- setupOptions(options = list(
+    "inst/options.R",                     # many items set because this is a file; has "future.globals.maxSize" = 5.24288e8
+    future.globals.maxSize = 4e8,         # this value overrides first, because it is 2nd
+    if(user("emcintir"))                  # an "if" statement is OK --> but must use list after
+      list(future.globals.maxSize = 6e8)  # conditional on user, value is overridden again
+))
+```
+
+```{r,echo=FALSE}
+.libPaths(origLibPath)
+```
+
+## **3. Handling Missing Values**
+
+To facilitate batch submission, users can specify arguments in the form of `argument = value`, even when `value` is missing (i.e., not previously defined in the Environment). This unconventional approach may not typically work with standard argument parsing, but it has been specifically designed to function within this context. For instance, in the following example, you can specify `.mode = .mode`. If R cannot find a valid value for `.mode` on the right-hand side, it will gracefully skip without raising an error. This feature enables users to source a script with the following line from a batch script where `.mode` is specified. When running this line separately, without the batch script specification, `.mode` will have no value assigned to it. Additionally, we include `.nodes` as an example of passing a value that does exist. In the output, the non-existent `.mode` will be returned as an unevaluated, captured list element:
+
+```{r missingVals,eval=TRUE}
+.nodes <- 2
+out <- SpaDES.project::setupProject(.mode = .mode,
+                                    .nodes = .nodes)
+out[c(".mode", ".nodes")]
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+# Relationship between `setupProject()` and `SpaDES.core::simInit` Call
+
+The output from `setupProject()` is a list containing several named elements. These elements are designed to be passed directly to `simInit` to initialize a `simList` and, potentially, a `spades` call. Every `setupProject` call can be used with `do.call` to pass arguments to a `simInit` or `simInitAndSpades` call.
+
+```
+sim <- setupProject() |> do.call(what = SpaDES.core::simInitAndSpades)
+
+## or
+out <- setupProject()
+sim = do.call(SpaDES.core::simInitAndSpades, out)
+
+```
+
+# See Also
+
+In R, checkout the help files for other functions such as:
+`?setupPaths`
+`?setupOptions`
+`?setupPackages`
+`?setupModules`
+`?setupGitIgnore`
+
+Other helpful functions that are worse going though are `?user`, `?machine`, and `?node`.
+
+
+# Examples of usage of `setupProject()`
+
+## Get modules from GitHub
+
+This will retrieve the module as specified, and place it in `modulePath`, which is unspecified here, thus taking the default. This specification will not re-download the file if it exists locally, with a message indicating this each time. This specification will also automatically install all missing packages that are in `reqdPkgs` metadata of the module(s). NOTE: we can omit this package installation step by specifying `package = NULL`.
+
+```{r example2}
+out <- setupProject(
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  packages = NULL # for this example, skip installation of packages; normally don't do this
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Paths
+
+All paths are relative to the `projectPath`, except for 2 specific exceptions: `packagePath` is not placed within the `projectPath` and all "scratch" i.e., "temporary" folders, are place in a subfolder of `tempdir()`. `packagePath` is placed in the `tools::R_user_dir(name)` folder, which is project specific, but does not clutter the `projectPath` with hundreds of folders that can interfere with many user actions especially in Rstudio. For example, "Find in Files" will take much longer (especially on Windows) if all the package files are in the `projectPath` (there are ways around this, but they require custom setups).
+
+In this example, `modulePath` will be set to `file.path(packagePath, modulePath)`; since `packagePath` is unspecified, `setupProject` assumes the current directory is the desired root of the project.
+
+```{r simplest2,eval=TRUE}
+library(SpaDES.project)
+setupProject(paths = list(modulePath = "myModules"))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Default values
+
+One compelling reason to use `setupProject()` is the availability of numerous default values that can be leveraged, leading to cleaner and more concise code in many instances. This code sets all default values for `paths`.
+
+```{r simplest,eval=TRUE}
+library(SpaDES.project)
+setupProject()
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Arguments sourced sequentially
+
+The argument values within each of the arguments are sourced sequentially. This means that a previous value can be utilized by a subsequent one.
+
+```{r sequential,eval=TRUE}
+# Use the newValue in `secondValue`
+out <- setupProject(
+             newValue = 1,
+             secondValue = newValue + 1)
+out[c("newValue", "secondValue")]
+
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Arguments not sourced to .GlobalEnv
+
+The `.GlobalEnv` in `R` is special because it is in the search path of any user-created function. This is very convenient, but also provides the potential for many problems. For example, a variable could be misspelled in a code chunck, but the code doesn't fail because the `.GlobalEnv` has the same variable, spelled correctly.
+
+```{r Global}
+# Gets the wrong version of the module
+githubRepo = "PredictiveEcology/Biomass_core@development" # incorrect one -- used in error
+out <- setupProject(
+             gitHubRepo = "PredictiveEcology/Biomass_core@main", # The correct one --> not used
+             modules = githubRepo,
+             packages = NULL # no packages for this demonstration
+)
+out$modules # shows @development, which is unexpected
+
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r cleanGlobal,echo=FALSE}
+# cleanup / restore state
+unlink("modules", recursive = TRUE)
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_3"), create = TRUE ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+
+## With options and params set
+
+We can start to increase the complexity of the `setupProject` call gradually. Once we have the module.
+```{r example3,error=FALSE}
+out <- setupProject(
+  options = list(reproducible.useTerra = TRUE),
+  params = list(Biomass_borealDataPrep = list(.plots = "screen")),
+  paths = list(modulePath = "m",
+               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r clean3,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_4"), create = TRUE ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Arguments as values or urls
+
+For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. This flexibility enables users to begin with simple argument values and gradually introduce greater complexity as a project expands in scale.
+
+In this first example, `options` is set by parsing a file that is at a remote location. This file will be downloaded first, if it does not exist locally, then parsed from the local location.
+
+```{r example_4,error=FALSE}
+out <- setupProject(
+  options = c(
+    "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+  ),
+  params = list(
+    Biomass_borealDataPrep = list(.plots = "screen")
+  ),
+  paths = list(modulePath = "m",
+               projectPath = "."), # within vignette, project dir cannot be changed; user likely will
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r clean4,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_5"), create = TRUE ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Setting arbitrary arguments, using defaultDots
+
+```{r example_5,error=FALSE}
+out <- setupProject(
+  name = "example_5", # puts in a folder with this name
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
+
+  # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = mode, # may not exist in the .GlobalEnv, so `setup*` will use the defaultDots above
+  studyAreaName = studyAreaName#, # same as previous argument.
+  # params = list("Biomass_borealDataPrep" = list(.useCache = mode))
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r clean5,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_7"), create = TRUE ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Pass args from GlobalEnv
+
+```{r example7,error=FALSE}
+studyAreaName <- "AB"
+out <- setupProject(
+  paths = list(projectPath = "example_7"),
+  modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+  defaultDots = list(mode = "development",
+                     studyAreaName = "MB"),
+  mode = "development",
+  studyAreaName = studyAreaName  # <----- pass it here, naming it
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
+
+```{r clean7,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_8"), create = TRUE ))
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+## Mixing argument: a named list, a github file and local file
+
+There are several ways to specifying an argument, as we have seen. We can also mix and match these ways:
+
+```{r example8}
+out <- setupProject(
+  options = list(
+    reproducible.useTerra = TRUE,                                 # direct argument # sets one option
+    "PredictiveEcology/SpaDES.project@transition/inst/options.R", # remote file -- sets many options
+    system.file("authentication.R", package = "SpaDES.project")   # local file -- sets gargle options
+  )
 )
 ```
 
-# Getting started
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
 
-This guide shows how to install all requisite software to easily get started with a new SpaDES project.
-To run development modules etc., users will need to have installed R, Rstudio and SpaDES.
+## `studyArea` argument
 
-## Installing prerequisites
+`?setupStudyArea` for more details. A user can choose to use the internal `setupStudyArea` function, which will use the `gadm` global database. Setting the `studyArea` argument to a `list` will trigger the use of `setupStudyArea`.
 
-### Installing R
+### Alberta and British Columbia, Canada
 
-#### Windows
+In this example, we will select an area in northwestern Alberta and the adjacent northeastern BC, Canada. We use the internal matching, because we aren't sure of the exact names: for the top level (`NAME_1`), we use either "Al" or "Brit", separated by the "or" symbol, `|`. For the second level, we do the same, but specify using the names in that column. If a user does not know which values exist, they can not specify `NAME_2`, then visualize the resulting map and click on values, such as:
 
-1. Download and run the R installer (as administrator!) from <https://cran.r-project.org/bin/windows/base>.
 
-2. (Optional) To build and compile packages, download and install the latest Rtools (as administrator!) from <https://cran.r-project.org/bin/windows/Rtools/>.
-    Be sure to check the "add rtools to PATH" option during installation.
+```{r example9,eval=FALSE}
+out <- setupStudyArea(list("Al|Brit", level = 2))
 
-3. Install GIS tools by downloading OSGeo4W from <http://download.osgeo.org/osgeo4w/osgeo4w-setup-x86_64.exe> and running the installer (select 'Express Install').
+if (interactive()) {
+  library(quickPlot)
+  dev() # open a non-RStudio window; can't use RStudio for `clickValues` below
+  Plot(out)
+  val <- clickValues()
+  out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = val$NAME_2))
+  Plot(out, new = TRUE) # need "new = TRUE" to clear previous map
+}
 
-#### macOS
+# Can pick multiple parts with partial matching
+out <- setupStudyArea(list("Al|Brit", level = 2, NAME_2 = "19|18|17|Peace"))
 
-1. Download and run the R installer from <https://cran.r-project.org/bin/macosx>.
+```
 
-2. Install Xcode commandline tools from the terminal:
 
-    ```
-    xcode-select --install
-    ```
+```{r clean9,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_10"), create = TRUE ))
+```
 
-3. Install homebrew from the terminal (more info at <https://brew.sh/>):
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
 
-    ```
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    ```
 
-4. Install GDAL and other spatial packages:
+### Specify an `epsg`
 
-    ```
-    brew install pkg-config
-    brew install gdal
-    ```
-    
-    Then, install spatial R packages from source to pick up the new GDAL and PROJ libraries:
-  
-    ```{r install-spatial}
-    ## (re)install spatial packages from source
-    install.packages(c("rgeos", "sf", "sp"), type = "source")
-    
-    ## rgdal requires some additional configuration to build correctly:
-    ##   based on http://stackoverflow.com/a/26836125/1380598
-    install.packages("rgdal", type = "source",
-                     configure.args = c("--with-proj-include=/usr/local/include",
-                                        "--with-proj-lib=/usr/local/lib"))
-    library(rgdal) ## confirm the GDAL version being used
-    ```
+We can get the `studyArea` in a different projection if we specify the `epsg` code.
 
-5. Install OpenMP support for `data.table`:
+```{r explanationForExample10,eval=FALSE,echo=FALSE}
+# example_10 doesn't run behind some firewalls, so fails too frequently; skip evaluation in vignette
+```
 
-    ```
-    brew install llvm
-    ```
+```{r example10,eval=FALSE}
+out <- setupProject(
+  name = "example_10",
+  studyArea = list("Al|Brit|Sas", level = 2, epsg = "3005")
+)
+```
 
-6. Install GLPK (needed for full `igraph` functionality):
+```{r clean10,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_11"), create = TRUE ))
+```
 
-    ```
-    brew install glpk
-    ```
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
 
-    Then, reinstall `igraph` from source so it is compiled with GLPK:
+## `require` and `objects` arguments
 
-    ```{r install-igraph}
-    install.packages("igraph", type = "source")
-    ```
+Using the `require` argument, calls `Require::Require()`, which *installs and loads* packages i.e., equivalent to `install.packages(...)` and `require(...)` on the named packages). `objects` accepts a list of arbitrary objects that will be returned at the end of this function call. Any code that needs executing will run, and they will have access to all the `packages` and `require` packages, plus any other arguments (e.g., `paths` or other named arguments in the `...`) that preceded it in the call.
 
-#### Linux
 
-Install via `apt` or `yum` depending on your distribution.
-Instructions for Ubuntu 20.04 LTS are shown below.
-
-1. Install R and its development libraries:
-
-    ```
-    sudo apt install r-base r-base-dev
-    ```
-
-2. Install java and configure R to use it:
-
-    ```
-    sudo apt build-dep -y r-cran-rjava
-    sudo R CMD javareconf
-    ```
-
-3. Install dependencies for spatial and other packages:
-
-    ```
-    sudo apt build-dep -y r-cran-tkrplot
-
-    sudo apt-get install -y \
-      curl \
-      gdal-bin \
-      git \
-      libcairo2-dev \
-      libcurl4-openssl-dev \
-      libgdal-dev \
-      libgeos-dev \
-      libgit2-dev \
-      libglpk-dev \
-      libgmp-dev \
-      libjq-dev \
-      libmagick++-dev \
-      libproj-dev \
-      libprotobuf-dev \
-      libprotoc-dev \
-      libssh2-1-dev \
-      libssl-dev \
-      libudunits2-dev \
-      libv8-dev \
-      libxml2-dev \
-      libxt-dev \
-      pandoc \
-      pandoc-citeproc \
-      protobuf-compiler \
-      python3-gdal \
-      tcl-dev \
-      tk-dev
-    ```
-
-### Install `SpaDES` and other packages
-
-1. Add <https://predictiveecology.r-universe.dev> to your 'repos' list via `options()`:
-
-    ```{r add-PE-universe}
-    options(
-      repos = c(
-        predictiveecology = "https://predictiveecology.r-universe.dev",
-        CRAN = "https://cloud.r-project.org"
-      )
+```{r example11,eval=FALSE}
+out <- setupProject(
+  paths = list(projectPath = "example_11"), # will deduce name of project from projectPath
+  standAlone = TRUE,
+  require = c(
+    "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+    "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
+  ),
+  modules = c(
+    "PredictiveEcology/Biomass_speciesData@master",
+    "PredictiveEcology/Biomass_borealDataPrep@development",
+    "PredictiveEcology/Biomass_core@master",
+    "PredictiveEcology/Biomass_validationKNN@master",
+    "PredictiveEcology/Biomass_speciesParameters@development"
+  ),
+  objects = list(
+    studyAreaLarge = terra::vect(
+      terra::ext(-598722, -557858,
+                 776827, 837385),
+      crs = terra::crs("epsg:3978")
+    ),
+    studyArea = terra::vect(
+      terra::ext(-598722, -578177,
+                 779252, 809573),
+      crs = terra::crs("epsg:3978")
     )
-    ```
+  )
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
 
-2. Install `Require` to facilitate package installation:
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
 
-    ```{r install-Require}
-    install.packages("Require")
-    library(Require)
-    ```
-    
-3. Install `SpaDES.install` to handle subsequent SpaDES package installation:
+## Passing named arguments as part of the `...`
 
-    ```{r install-SpaDES.install}
-    Require("PredictiveEcology/SpaDES.install")
-    ```
+Sometimes it is just as easy to pass objects directly to named arguments, skipping the use of the `objects` argument. These will be returned at the top level of the list, instead of within the `objects` list element. Recent versions of `SpaDES.core` allow `...` to be passed to `simInit`, so it can handle either using `objects` (the original way to pass arguments to `simInit`) or just arbitrarily named arguments.
+```{r,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_12"), create = TRUE ))
+```
 
-4. Install `SpaDES` and related packages:
+```{r example12,eval=FALSE}
+out <- setupProject(
+  paths = list(projectPath = "example_12"), # will deduce name of project from projectPath
+  standAlone = TRUE,
+  require = c(
+    "PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
+    "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"
+  ),
+  modules = c(
+    "PredictiveEcology/Biomass_speciesData@master",
+    "PredictiveEcology/Biomass_borealDataPrep@development",
+    "PredictiveEcology/Biomass_core@master",
+    "PredictiveEcology/Biomass_validationKNN@master",
+    "PredictiveEcology/Biomass_speciesParameters@development"
+  ),
+  studyAreaLarge = terra::vect(
+    terra::ext(-598722, -557858, 776827, 837385),
+    crs = terra::crs("epsg:3978")
+  ),
+  studyArea = terra::vect(
+    terra::ext(-598722, -578177, 779252, 809573),
+    crs = terra::crs("epsg:3978")
+  )
+)
+# Initiate a simInit and spades call:
+# do.call(SpaDES.core::simInitAndSpades, out)
+```
 
-    ```{r install-SpaDES}
-    installSpaDES()
-    ```
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
 
-### Installing Rstudio
+## Make project-level change to .libPaths() that is persistent
 
-**Recommended.**
+```{r,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example_13"), create = TRUE ))
+```
 
-Download and run the installer for your operating system from <https://www.rstudio.com/products/rstudio/download/#download>.
+```{r example13,eval=FALSE}
+out <- setupProject(
+  name = "example_13",
+  packages = "terra",
+  updateRprofile = TRUE
+)
+```
+
+```{r,echo=FALSE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+```
+
+```{r,echo=FALSE}
+# cleanup / restore state
+knitr::opts_knit$set(root.dir = origGetWd)
+```
+
+```{r cleanup, include = FALSE, eval=TRUE}
+Require::setLibPaths(origLibPath, updateRprofile = FALSE)
+for (fold in c("cache", "modules", "inputs", "outputs", "m", "here", "myModules"))
+  unlink(fold, recursive = TRUE)
+
+```
