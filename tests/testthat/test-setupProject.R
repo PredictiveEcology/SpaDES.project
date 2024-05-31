@@ -98,7 +98,7 @@ test_that("test setupProject - remote options file", {
 test_that("test setupProject - arbitrary arguments", {
   # skip("Not completed tests yet")
   skip_on_cran()
-  setupTest("geodata") ## setting arbitrary arguments
+  setupTest("geodata", "reproducible") ## setting arbitrary arguments
   jur <- "MB"
   mod <- "development"
   # expect_false(googledrive::drive_has_token())
@@ -129,7 +129,7 @@ test_that("test setupProject - arbitrary arguments", {
 test_that("test setupProject - args from global envir", {
   skip("Not completed tests yet")
   skip_on_cran()
-  setupTest("geodata")
+  setupTest("geodata", "reproducible")
   ## Pass args from GlobalEnv
   studyAreaName <- "AB"
   mess <- capture_messages({
@@ -187,7 +187,7 @@ test_that("test setupProject - load packages using require argument", {
 test_that("test setupProject - studyArea in lonlat", {
 
   skip_on_cran()
-  setupTest(c("geodata", "filelock")) # filelock is unnecessary "first time", but errors if run again
+  setupTest(c("geodata", "filelock", "reproducible")) # filelock is unnecessary "first time", but errors if run again
   jurs <- "Al|Brit"
   ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
   mess <- capture_messages(
@@ -205,7 +205,7 @@ test_that("test setupProject -studyArea using CRS", {
   skip_on_cran()
   ## example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
   ##    with level 2 administrative boundaries
-  setupTest("geodata")
+  setupTest("geodata", "reproducible")
   jurs <- "Al|Brit|Sas"
   epsg <- "3005"
 
@@ -237,7 +237,7 @@ test_that("projectPath is in a tempdir", {
   skip("config not working yet")
 
   skip_on_cran()
-  setupTest("geodata")
+  setupTest("geodata", "reproducible")
 
   err <- capture_error({
     mess <- capture_messages({
