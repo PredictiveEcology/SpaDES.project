@@ -27,8 +27,7 @@ Imports:
     rprojroot,
     rstudioapi,
     tools,
-    utils,
-    whisker
+    utils
 Suggests:
     covr,
     crayon,
