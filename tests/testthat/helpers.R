@@ -14,7 +14,7 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
 
   warns <- capture_warnings({
     # withr::local_package("googledrive", .local_envir = envir)
-    withr::local_package("curl", .local_envir = envir)
+    # withr::local_package("curl", .local_envir = envir)
     withr::local_package("crayon", .local_envir = envir)
     withr::local_package("httr", .local_envir = envir)
     withr::local_package("waldo", .local_envir = envir)
@@ -31,8 +31,12 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
   #   }
   # }
 
-  # if (!missing(pkgs))
-  #   lapply(pkgs, withr::local_package, .local_envir = envir)
+  if (!missing(pkgs)) {
+    lapply(pkgs, function(pk) {
+      skip_if_not_installed(pk)
+      withr::local_package(pk, .local_envir = envir)
+    })
+  }
 
   # withr::local_libpaths(Require::tempdir2(.rndstr(1)), .local_envir = envir)
 

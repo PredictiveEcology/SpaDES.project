@@ -2291,7 +2291,7 @@ setupStudyArea <- function(studyArea, paths, envir, verbose = getOption("Require
     if (requireNamespace("reproducible", quietly = TRUE))
       # Cache doesn't evaluate the `theCall` inside eval, so need .cacheExtra to identify the actual contents
       studyArea <- reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
-                                       omitArgs = c("enclos", "envir"),
+                                       omitArgs = c("enclos", "envir"), verbose = verbose,
                                        cachePath = paths$cachePath, .functionName = "getStudyArea")
     else
       studyArea <- eval(theCall)
