@@ -1,39 +1,87 @@
 Package: SpaDES.project
 Type: Package
 Title: Project Templates Using 'SpaDES'
-Description: Quickly setup 'SpaDES' project directories and add modules using templates.
+Description: Quickly setup a 'SpaDES' project directories and add modules using templates.
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Version: 0.0.6
+Date: 2024-05-31
+Version: 0.1.0
 Authors@R: c(
+    person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
+           role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca",
-           role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7146-8135")),
+           role = c("ctb"), comment = c(ORCID = "0000-0001-7146-8135")),
     person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca",
            role = c("ctb"), comment = c(ORCID = "0000-0001-7397-2116")),
-    person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
-           role = c("ctb"), comment = c(ORCID = "0000-0002-6914-8316"))
+    person("Ceres", "Barros", email = "ceres.barros@nrcan-rncan.gc.ca",
+           role = c("ctb"), comment = c(ORCID = ""))
     )
 Depends:
-    R (>= 4.0)
+    R (>= 4.2)
 Imports:
+    data.table,
+    fs,
     methods,
-    Require,
+    Require (>= 0.3.1.9082),
+    rprojroot,
+    rstudioapi,
+    tools,
     utils,
     whisker
 Suggests:
     covr,
+    crayon,
+    digest,
+    ellipsis,
+    filelock,
+    geodata,
+    gert,
+    gh,
+    gitcreds,
+    googledrive,
+    httr,
+    igraph,
     knitr,
+    pkgload,
+    raster,
+    remotes,
+    reproducible,
     rmarkdown,
-    rstudioapi,
-    slackr,
+    sf,
+    SpaDES.config,
     SpaDES.core,
-    testthat (>= 1.0.2)
+    terra,
+    testthat (>= 3.0.0),
+    usethis,
+    visNetwork,
+    waldo,
+    withr
+Remotes: 
+    PredictiveEcology/SpaDES.config@development,
+    PredictiveEcology/Require@simplify4,
+    PredictiveEcology/SpaDES.core@useCache2,
+    rspatial/geodata
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
 VignetteBuilder: knitr, rmarkdown
 BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
-RoxygenNote: 7.2.1
+RoxygenNote: 7.3.1
 Roxygen: list(markdown = TRUE)
+Config/testthat/edition: 3
+Collate: 
+    'environment.R'
+    'fileEdit.R'
+    'imports.R'
+    'getModule.R'
+    'helpers.R'
+    'listModules.R'
+    'makeDESCRIPTION.R'
+    'packages.R'
+    'paths2.R'
+    'pkgload2.R'
+    'setupProject.R'
+    'spades-project-package.R'
+    'zzz.R'

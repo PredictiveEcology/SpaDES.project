@@ -5,7 +5,7 @@
 \alias{.pkgEnv}
 \title{The \code{SpaDES.project} package environment}
 \format{
-An object of class \code{environment} of length 1.
+An object of class \code{environment} of length 0.
 }
 \usage{
 .pkgEnv
