@@ -98,7 +98,7 @@ test_that("test setupProject - remote options file", {
 test_that("test setupProject - arbitrary arguments", {
   # skip("Not completed tests yet")
   skip_on_cran()
-  setupTest("geodata", "reproducible") ## setting arbitrary arguments
+  setupTest("geodata") ## setting arbitrary arguments
   jur <- "MB"
   mod <- "development"
   # expect_false(googledrive::drive_has_token())
@@ -205,7 +205,7 @@ test_that("test setupProject -studyArea using CRS", {
   skip_on_cran()
   ## example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
   ##    with level 2 administrative boundaries
-  setupTest("geodata", "reproducible")
+  setupTest("geodata")
   jurs <- "Al|Brit|Sas"
   epsg <- "3005"
 
