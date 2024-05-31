@@ -12,6 +12,7 @@
 
 setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = FALSE) {
 
+  Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
   warns <- capture_warnings({
     # withr::local_package("googledrive", .local_envir = envir)
     # withr::local_package("curl", .local_envir = envir)

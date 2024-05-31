@@ -138,7 +138,7 @@ attr(out, "projectOptions")
 ```
 
 ```{r resetLibPaths1,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 This approach allows for an organic growth of complexity, e.g., a user begins with only named lists of values, but then as the number of values increases, it may be helpful for clarity to put some in an external file.
@@ -163,7 +163,7 @@ setupPaths(paths = list(projectPath = "here",
 
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 Because of such sequential evaluation, the content with R scripts can be sequential lists, and also the arguments can themselves be sequential. This creates a hierarchy specified by the order. In this fairly rich example, a user can first create a set of default options in a file, then custom elements, then a list of more changes protected by an ⁠if `(user("userNamer")). In the following example, `setupOptions` will first parse the file (`inst/options.R`), maintaining an active named list of options that will be set (lets call that `opts`), then it will `modifyList(opts, list(maxMemory = 6e+10))`, i.e., modify the list with a new value, then if the user is "emcintir", it will further modify the `opts` list. Finally, because this is `setupOptions`, it will call `options(opts)` with the new list values:
@@ -199,7 +199,7 @@ out[c(".mode", ".nodes")]
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 # Relationship between `setupProject()` and `SpaDES.core::simInit` Call
@@ -243,7 +243,7 @@ out <- setupProject(
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Paths
@@ -258,7 +258,7 @@ setupProject(paths = list(modulePath = "myModules"))
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Default values
@@ -271,7 +271,7 @@ setupProject()
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Arguments sourced sequentially
@@ -288,7 +288,7 @@ out[c("newValue", "secondValue")]
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Arguments not sourced to .GlobalEnv
@@ -316,7 +316,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 
@@ -341,7 +341,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Arguments as values or urls
@@ -372,7 +372,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Setting arbitrary arguments, using defaultDots
@@ -400,7 +400,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Pass args from GlobalEnv
@@ -425,7 +425,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Mixing argument: a named list, a github file and local file
@@ -443,7 +443,7 @@ out <- setupProject(
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## `studyArea` argument
@@ -479,7 +479,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 
@@ -504,7 +504,7 @@ knitr::opts_knit$set(root.dir = Require::checkPath(file.path(tempdir(), "example
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## `require` and `objects` arguments
@@ -545,7 +545,7 @@ out <- setupProject(
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Passing named arguments as part of the `...`
@@ -585,7 +585,7 @@ out <- setupProject(
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ## Make project-level change to .libPaths() that is persistent
@@ -604,7 +604,7 @@ out <- setupProject(
 ```
 
 ```{r,echo=FALSE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 ```
 
 ```{r,echo=FALSE}
@@ -613,7 +613,7 @@ knitr::opts_knit$set(root.dir = origGetWd)
 ```
 
 ```{r cleanup, include = FALSE, eval=TRUE}
-Require::setLibPaths(origLibPath)
+Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
 for (fold in c("cache", "modules", "inputs", "outputs", "m", "here", "myModules"))
   unlink(fold, recursive = TRUE)
 

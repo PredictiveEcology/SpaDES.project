@@ -17,3 +17,4 @@
 #
 #
 # # withr::local_options(Require.RPackageCache = RequirePkgCacheDir(), .local_envir = teardown_env())
+origLibPaths <- .libPaths()
