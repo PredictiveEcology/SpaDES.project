@@ -492,7 +492,7 @@ setupProject <- function(name, paths, modules, packages,
   modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                  gitUserName = gitUserName, updateRprofile = updateRprofile,
                                  overwrite = overwrite, envir = envirCur, verbose = verbose)
-  modules <- Require::extractPkgName(names(modulePackages))
+  modules <- Require::extractPkgName(basename(names(modulePackages)))
   names(modules) <- names(modulePackages)
 
   if (missing(packages))
@@ -569,6 +569,12 @@ setupProject <- function(name, paths, modules, packages,
   # Put Dots in order
   if (length(dotsSUB) > 1)
     dotsSUB <- dotsSUB[na.omit(match(origArgOrder, names(dotsSUB)))]
+
+
+  anyInnerModules <- unique(fileRelPathFromFullGHpath(names(modules)))
+  if (any(nzchar(anyInnerModules))) {
+    paths[["modulePath"]] <- c(unique(paths[["modulePath"]]), file.path(paths[["modulePath"]], anyInnerModules))
+  }
 
   pathsOrig <- paths
   extras <- setdiff(names(paths), spPaths)
@@ -1295,6 +1301,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       # lala2 <- lapply(lala, system, intern = TRUE)
 
 
+      browser()
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
@@ -1363,10 +1370,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     }
 
     # Need full path
-    m <- gsub("@[[:alnum:]_-]+$", "", modulesOrig)
-    m <- gsub("@[[:alnum:]_]+/", "/", m)
-    m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
-    m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
+    m <- fileRelPathFromFullGHpath(modulesOrig)
+    # m <- gsub("@[[:alnum:]_-]+$", "", modulesOrig)
+    # m <- gsub("@[[:alnum:]_]+/", "/", m)
+    # m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
+    # m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
 
     modulePackages <- Map(mo = modulesOrigNestedName, di = m, function(di, mo)
       modulePackages <-
@@ -1534,7 +1542,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
     if (length(params)) {
 
-      modulesSimple <- Require::extractPkgName(modules)
+      modulesSimple <- Require::extractPkgName(unname(modules))
 
       paramsForModules <- intersect(modulesSimple, names(params))
       overSupplied <- setdiff(names(params), c(".globals", paramsForModules))
@@ -3093,4 +3101,14 @@ extractModName <- function(modules) {
 msgNeedGitUserName <- function(gitUserNamePoss) {
   paste0("Please provide the github account if an organization, or press enter ",
   "to use your personal account (",gitUserNamePoss , ") for the repository (without quotes): ")
+}
+
+
+
+fileRelPathFromFullGHpath <- function(pathGH) {
+  m <- gsub("@[[:alnum:]_-]+$", "", pathGH)
+  m <- gsub("@[[:alnum:]_]+/", "/", m)
+  m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
+  m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
+  m
 }
