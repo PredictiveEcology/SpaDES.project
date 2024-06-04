@@ -572,8 +572,9 @@ setupProject <- function(name, paths, modules, packages,
 
 
   anyInnerModules <- unique(fileRelPathFromFullGHpath(names(modules)))
+
   if (any(nzchar(anyInnerModules))) {
-    paths[["modulePath"]] <- c(unique(paths[["modulePath"]]), file.path(paths[["modulePath"]], anyInnerModules))
+    paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], anyInnerModules)))
   }
 
   pathsOrig <- paths
@@ -1543,10 +1544,11 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
     if (length(params)) {
 
       # If the path is nested within a repository, the module will already be stripped of the @
-      modulesSimple1 <- Require::extractPkgName(modules)
-      modulesSimple2 <- Require::extractPkgName(unname(modules))
-      take1st <- grepl("@", modulesSimple2)
-      modulesSimple <- ifelse(take1st, modulesSimple1, modulesSimple2)
+      modulesSimple <- simplifyModuleName(modules)
+      # modulesSimple1 <- Require::extractPkgName(modules)
+      # modulesSimple2 <- Require::extractPkgName(unname(modules))
+      # take1st <- grepl("@", modulesSimple2)
+      # modulesSimple <- ifelse(take1st, modulesSimple1, modulesSimple2)
 
       paramsForModules <- intersect(modulesSimple, names(params))
       overSupplied <- setdiff(names(params), c(".globals", paramsForModules))
@@ -3115,4 +3117,13 @@ fileRelPathFromFullGHpath <- function(pathGH) {
   m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
   m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
   m
+}
+
+
+simplifyModuleName <- function(modules) {
+  modulesSimple1 <- Require::extractPkgName(modules)
+  modulesSimple2 <- Require::extractPkgName(unname(modules))
+  take1st <- grepl("@", modulesSimple2)
+  modulesSimple <- ifelse(take1st, modulesSimple1, modulesSimple2)
+  modulesSimple
 }

@@ -284,3 +284,35 @@ test_that("test setupProject - nested GH modules", {
   expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))   ## failing -- someother issue.
 })
 
+
+test_that("test setupProject - nested modulePath scfm B_bDP", {
+  skip_on_cran()
+  nam <- "test_SpaDES_project"
+  setupTest(first = TRUE, name = nam) # setwd, sets .libPaths() to a temp
+  ## set relative paths & modules
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = nam,
+        paths = list(projectPath = name,
+                     modulePath = "m"),
+        modules = c("PredictiveEcology/Biomass_borealDataPrep@development",
+                    file.path("PredictiveEcology/scfm@development/modules",
+                              c("scfmLandcoverInit", "scfmRegime", "scfmDriver",
+                                "scfmIgnition", "scfmEscape", "scfmSpread"))),
+        params = list(scfmRegime = list(a = 1),
+                      Biomass_borealDataPrep = list(b = 2),
+                      scfmEscape = list(e = 3))
+        )
+    })
+  )
+
+  expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
+  expect_true(all(fs::path_has_parent(out$paths$modulePath, getwd())))
+
+  expect_true(all(sapply(extractModName(out$modules), function(mn)
+    any(dir.exists(file.path(out$paths$modulePath, extractModName(out$modules))))
+  )))
+
+  expect_true(length(out$params) == 4) # .globals for .studyAreaName
+})
