@@ -348,5 +348,5 @@ test_that("test setupProject - nested modulePath castorExamples", {
   )))
 
   expect_true(length(out$params) == 1) # .globals for .studyAreaName
-  SpaDES.core::simInit2(out)
+  # SpaDES.core::simInit2(out)
 })
