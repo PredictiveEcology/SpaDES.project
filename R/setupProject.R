@@ -1442,7 +1442,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
       areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
       if (any(areFilesWithPackages)) {
         # fileWithPackages <- packagesToTry[areFilesWithPackages]
-        remoteFiles <- isGitHub(areFilesWithPackages) & grepl("@", packagesToTry) # the default isGitHub allows no branch
+        remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
         # hasAt <- grepl("@", packagesToTry)
         # problems <- !hasAt & remoteFiles
         # packagesToTry[problems] <- paste0(packagesToTry[problems], "@HEAD")
