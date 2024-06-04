@@ -1452,35 +1452,12 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
       }
 
       requirePkgNames <- Require::extractPkgName(require)
-      # packagesToTry <- unique(c(packages, mp, requireToTry))
-      # NOTHING SHOULD LOAD HERE; ONLY THE BARE MINIMUM REQUESTED BY USER
-      # useRenv <- getOption("SpaDES.project.useRenv", FALSE)
-      # if (useRenv) {
-      #   DESCFile <- makeDESCRIPTIONproject(modulePath = paths$modulePath, projectPath = paths$projectPath,
-      #                          modules = extractPkgName(names(modulePackages)),
-      #                          package = basename(paths$projectPath),
-      #                          write = FALSE,
-      #                          verbose = verbose - 2)
-      #   New <- readLines(DESCFile)
-      #   Prev <- readLines("DESCRIPTION")
-      #   diffs <- setdiff(New, Prev)
-      #   if (length(diffs)) {
-      #     messageVerbose("Updating DESCRIPTION file with these changes: ",
-      #                    paste(diffs, collapse = "\n"), verbose = verbose)
-      #     fileRenameOrMove(DESCFile, file.path(paths$projectPath, "DESCRIPTION"))
-      #   }
-      # }
-
-      # if (useRenv) {
-      #   if (!dir.exists("renv")) renv:init()
-      #   renv::install(prompt = TRUE)
-      # } else {
-        out <- try({
-          Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                           standAlone = standAlone,
-                           libPaths = libPaths,
-                           verbose = verbose)
-        })
+      out <- try({
+        Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
+                         standAlone = standAlone,
+                         libPaths = libPaths,
+                         verbose = verbose)
+      })
       # }
 
 
