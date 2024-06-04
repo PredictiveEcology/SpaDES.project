@@ -1542,7 +1542,11 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
     if (length(params)) {
 
-      modulesSimple <- Require::extractPkgName(unname(modules))
+      # If the path is nested within a repository, the module will already be stripped of the @
+      modulesSimple1 <- Require::extractPkgName(modules)
+      modulesSimple2 <- Require::extractPkgName(unname(modules))
+      take1st <- grepl("@", modulesSimple2)
+      modulesSimple <- ifelse(take1st, modulesSimple1, modulesSimple2)
 
       paramsForModules <- intersect(modulesSimple, names(params))
       overSupplied <- setdiff(names(params), c(".globals", paramsForModules))
