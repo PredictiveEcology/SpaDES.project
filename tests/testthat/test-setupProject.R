@@ -316,3 +316,37 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
 
   expect_true(length(out$params) == 4) # .globals for .studyAreaName
 })
+
+
+
+test_that("test setupProject - nested modulePath castorExamples", {
+  skip_on_cran()
+  nam <- "test_SpaDES_project"
+  setupTest(name = nam) # setwd, sets .libPaths() to a temp
+  ## set relative paths & modules
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(modules =
+                            file.path(
+                              "bcgov/castor@main/R/SpaDES-modules",
+                              c("dataCastor",
+                                       "growingStockCastor",
+                                       "blockingCastor",
+                                       "forestryCastor",
+                                       "roadCastor")
+                            ))
+
+
+    })
+  )
+
+  expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
+  expect_true(all(fs::path_has_parent(out$paths$modulePath, getwd())))
+
+  expect_true(all(sapply(extractModName(out$modules), function(mn)
+    any(dir.exists(file.path(out$paths$modulePath, extractModName(out$modules))))
+  )))
+
+  expect_true(length(out$params) == 1) # .globals for .studyAreaName
+  SpaDES.core::simInit2(out)
+})
