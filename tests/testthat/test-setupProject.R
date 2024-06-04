@@ -350,3 +350,23 @@ test_that("test setupProject - nested modulePath castorExamples", {
   expect_true(length(out$params) == 1) # .globals for .studyAreaName
   # SpaDES.core::simInit2(out)
 })
+
+test_that("test setupProject - nested modulePath castorExamples", {
+  skip_on_cran()
+  nam <- "test_SpaDES_project3"
+  setupTest(name = nam) # setwd, sets .libPaths() to a temp
+  ## set relative paths & modules
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = nam,
+        packages = "PredictiveEcology/SpaDES.project@development/inst/pkgListNoInstall.R"
+      )
+    })
+  )
+
+  pkgList <- eval(parse(file = "inst/pkgListNoInstall.R"))
+  ip <- installed.packages(lib.loc = .libPaths()[1]) |> as.data.table()
+  pkgs <- extractPkgName(pkgList)
+  expect_true(all(pkgs %in% ip$Package))
+})
