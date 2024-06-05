@@ -307,6 +307,7 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
     })
   )
 
+  expect_false(any(grepl("@", out$modules)))
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(all(fs::path_has_parent(out$paths$modulePath, getwd())))
 

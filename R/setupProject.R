@@ -492,7 +492,7 @@ setupProject <- function(name, paths, modules, packages,
   modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                  gitUserName = gitUserName, updateRprofile = updateRprofile,
                                  overwrite = overwrite, envir = envirCur, verbose = verbose)
-  modules <- Require::extractPkgName(basename(names(modulePackages)))
+  modules <- extractModName(names(modulePackages))
   names(modules) <- names(modulePackages)
 
   if (missing(packages))
