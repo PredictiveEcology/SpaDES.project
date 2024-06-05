@@ -322,7 +322,7 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
 
 test_that("test setupProject - nested modulePath castorExamples", {
   skip_on_cran()
-  nam <- "test_SpaDES_project"
+  nam <- "test_SpaDES_project4"
   setupTest(name = nam) # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
