@@ -109,7 +109,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
   successes <- stateDT$moduleFullName[stateDT$sufficient %in% TRUE]
   failed <- stateDT$moduleFullName[!stateDT$sufficient %in% TRUE]
-  df <- stateDT[, list(moduleFullName, status)][, modulePath := modulePath]
+  stateDT[, modulePath := file.path(modulePath, fileRelPathFromFullGHpath(stateDT$moduleFullName))]
+  df <- stateDT[, list(moduleFullName, status, modulePath)]
   messageDF(df, verbose = verbose)
 
   return(list(success = successes, failed = failed))

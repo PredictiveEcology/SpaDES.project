@@ -307,6 +307,10 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
     })
   )
 
+  startMess <- tail(grep("modulePath", mess), 1) + 2
+  endMess <- tail(grep("setting up modules", mess), 1) - 1
+  modulePaths <- unlist(lapply(mess[seq(startMess, endMess)], function(x) tail(strsplit(x, split = " ")[[1]], 1)))
+  expect_true(length(unique(modulePaths)) == 2)
   expect_false(any(grepl("@", out$modules)))
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(all(fs::path_has_parent(out$paths$modulePath, getwd())))

@@ -1430,6 +1430,11 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
     continue <- 3L
     while (continue) {
+      if (verbose > 1) {
+        outP <- capture.output(modulePackages)
+        messageVerbose("reqdPkgs by module:")
+        messageVerbose(paste(outP, collapse = "\n"), verbose = verbose)
+      }
       mp <- unlist(unname(modulePackages))
       if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
         mp <- substitutePackages(mp, envir = envirCur)
@@ -1701,7 +1706,6 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     }
 
   }
-
   if (is.character(obj)) {
     obj <- parseListsSequentially(files = obj, namedList = namedList, envir = envir,
                                   verbose = verbose)
