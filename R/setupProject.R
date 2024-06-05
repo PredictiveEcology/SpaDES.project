@@ -1301,8 +1301,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       # lala <- gsub("\n", "", lala)
       # lala2 <- lapply(lala, system, intern = TRUE)
 
-
-      browser()
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
