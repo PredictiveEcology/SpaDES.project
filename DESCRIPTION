@@ -59,7 +59,7 @@ Suggests:
 Remotes: 
     PredictiveEcology/SpaDES.config@development,
     PredictiveEcology/Require@simplify4,
-    PredictiveEcology/SpaDES.core@useCache2,
+    PredictiveEcology/SpaDES.core@development,
     rspatial/geodata
 Encoding: UTF-8
 Language: en-CA
