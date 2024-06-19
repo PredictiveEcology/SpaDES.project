@@ -413,5 +413,22 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
   expect_true(all(dir(out$paths$modulePath) %in%
                     c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
                       "scfmLandcoverInit", "scfmRegime")))
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = projName,
+        paths = list(modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+                    "PredictiveEcology/Biomass_core@development",
+                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit"),
+        overwrite = TRUE
+      )
+    })
+  )
+  ## still all there?
+  expect_true(all(dir(out$paths$modulePath) %in%
+                    c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
+                      "scfmLandcoverInit", "scfmRegime")))
 
 })
