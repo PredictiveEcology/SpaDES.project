@@ -255,7 +255,6 @@ test_that("projectPath is in a tempdir", {
 
 test_that("test setupProject - nested GH modules", {
   skip_on_cran()
-  skip("nested castor GH modules")
   setupTest() # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
