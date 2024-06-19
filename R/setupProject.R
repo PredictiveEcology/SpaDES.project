@@ -1396,17 +1396,20 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       modulesOrigNestedName2 <- modulesOrigNestedName[isNested]
       modulesOrigPkgName2 <- modulesOrigPkgName[isNested]
 
-      moduleSuperFolder <- normPath(file.path(paths$modulePath, modulesOrigPkgName2))
+      moduleSuperFolder <- unique(normPath(file.path(paths$modulePath, modulesOrigPkgName2)))
 
       ## modules were probably nested in a GH repo
       actualModFiles <- sapply(actualModPaths2, list.files, recursive = TRUE, all.files = TRUE, full.names = TRUE, USE.NAMES = FALSE) |>
         unlist()
-      newModFiles <- sapply(dirname(actualModPaths2), sub,
-                            replacement = paths$modulePath, x = actualModFiles, USE.NAMES = FALSE)
+      newModFiles <- actualModFiles
+      for (ddir in dirname(actualModPaths2)) {
+        newModFiles <- sub(ddir, paths$modulePath, newModFiles)
+      }
+
       invisible(sapply(unique(dirname(newModFiles)), dir.create, recursive = TRUE, showWarnings = FALSE))
       out <- suppressWarnings(file.copy(actualModFiles, newModFiles, recursive = TRUE, overwrite = overwrite))
 
-      if (all(out) & all(dir.exists(wantedModPath2))) {
+      if (all(file.exists(newModFiles)) & all(dir.exists(wantedModPath2))) {
         unlink(moduleSuperFolder, recursive = TRUE)
       } else {
         warnings("Could not copy module files to 'modulePath', leaving in original, potentially nested directory")
