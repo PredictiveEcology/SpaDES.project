@@ -1386,17 +1386,27 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     ## check that we keep only the modules needed
     actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
     wantedModPath <- normPath(file.path(paths$modulePath, modulesOrigNestedName))
-    moduleSuperFolder <- normPath(file.path(paths$modulePath, modulesOrigPkgName))
 
-    if (!any(actualModPaths %in% wantedModPath)) {
+    isNested <- which(!actualModPaths %in% wantedModPath)
+
+    if (length(isNested)) {
+      ## subset to nest modules
+      actualModPaths2 <- actualModPaths[isNested]
+      wantedModPath2 <- wantedModPath[isNested]
+      modulesOrigNestedName2 <- modulesOrigNestedName[isNested]
+      modulesOrigPkgName2 <- modulesOrigPkgName[isNested]
+
+      moduleSuperFolder <- normPath(file.path(paths$modulePath, modulesOrigPkgName2))
+
       ## modules were probably nested in a GH repo
-      actualModFiles <- sapply(actualModPaths, list.files, recursive = TRUE, all.files = TRUE, full.names = TRUE, USE.NAMES = FALSE) |>
+      actualModFiles <- sapply(actualModPaths2, list.files, recursive = TRUE, all.files = TRUE, full.names = TRUE, USE.NAMES = FALSE) |>
         unlist()
-      newModFiles <- sapply(dirname(actualModPaths), sub, replacement = paths$modulePath, x = actualModFiles, USE.NAMES = FALSE)
+      newModFiles <- sapply(dirname(actualModPaths2), sub,
+                            replacement = paths$modulePath, x = actualModFiles, USE.NAMES = FALSE)
       invisible(sapply(unique(dirname(newModFiles)), dir.create, recursive = TRUE, showWarnings = FALSE))
       out <- suppressWarnings(file.copy(actualModFiles, newModFiles, recursive = TRUE, overwrite = overwrite))
-      newModPaths <- file.path(paths$modulePath, modulesOrigNestedName)
-      if (all(out) & all(dir.exists(newModPaths))) {
+
+      if (all(out) & all(dir.exists(wantedModPath2))) {
         unlink(moduleSuperFolder, recursive = TRUE)
       } else {
         warnings("Could not copy module files to 'modulePath', leaving in original, potentially nested directory")
