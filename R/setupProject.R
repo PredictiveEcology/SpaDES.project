@@ -570,12 +570,12 @@ setupProject <- function(name, paths, modules, packages,
   if (length(dotsSUB) > 1)
     dotsSUB <- dotsSUB[na.omit(match(origArgOrder, names(dotsSUB)))]
 
+  ## Ceres:  no longer necessary as setupModules now pulls "inner" modules into modulePath
+  # anyInnerModules <- unique(fileRelPathFromFullGHpath(names(modules)))
 
-  anyInnerModules <- unique(fileRelPathFromFullGHpath(names(modules)))
-
-  if (any(nzchar(anyInnerModules))) {
-    paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], anyInnerModules)))
-  }
+  # if (any(nzchar(anyInnerModules))) {
+  #   paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], anyInnerModules)))
+  # }
 
   pathsOrig <- paths
   extras <- setdiff(names(paths), spPaths)
