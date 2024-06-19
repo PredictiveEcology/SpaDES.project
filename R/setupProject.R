@@ -1386,9 +1386,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
 
     ## check that we keep only the modules needed
-    actualModPaths <- file.path(paths$modulePath, m, modulesOrigNestedName)
-    wantedModPath <- file.path(paths$modulePath, modulesOrigNestedName)
-    moduleSuperFolder <- file.path(paths$modulePath, modulesOrigPkgName)
+    actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
+    wantedModPath <- normPath(file.path(paths$modulePath, modulesOrigNestedName))
+    moduleSuperFolder <- normPath(file.path(paths$modulePath, modulesOrigPkgName))
 
     if (!any(actualModPaths %in% wantedModPath)) {
       ## modules were probably nested in a GH repo
