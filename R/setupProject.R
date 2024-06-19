@@ -2909,6 +2909,10 @@ getStudyArea <- function(studyArea, paths, verbose = verbose) {
       studyArea <- reproducible::prepInputs(url = "https://drive.google.com/file/d/1DdtWeFYEhSRxXcAaJ_J6i8hP8YbfoC1q/view?usp=drive_link",
                                             destinationPath = paths$inputPath)
 
+      if (!is(studyArea, "SpatVector")) {
+        studyArea <- terra::vect(studyArea)
+      }
+
       # otherURL <- "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lpr_000a21a_e.zip"
       # message(otherURL)
       # a <- reproducible::prepInputs(url = otherURL)
