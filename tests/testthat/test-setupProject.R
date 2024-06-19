@@ -353,7 +353,7 @@ test_that("test setupProject - nested modulePath castorExamples", {
   # SpaDES.core::simInit2(out)
 })
 
-test_that("test setupProject - nested modulePath castorExamples", {
+test_that("test setupProject - install pkgs from .R script", {
   skip_on_cran()
   nam <- "test_SpaDES_project3"
   setupTest(name = nam) # setwd, sets .libPaths() to a temp
