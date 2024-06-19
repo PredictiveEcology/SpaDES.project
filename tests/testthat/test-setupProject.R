@@ -284,7 +284,6 @@ test_that("test setupProject - nested GH modules", {
   expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))   ## failing -- someother issue.
 })
 
-
 test_that("test setupProject - nested modulePath scfm B_bDP", {
   skip_on_cran()
   nam <- "test_SpaDES_project"
@@ -321,8 +320,6 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
 
   expect_true(length(out$params) == 4) # .globals for .studyAreaName
 })
-
-
 
 test_that("test setupProject - nested modulePath castorExamples", {
   skip_on_cran()
