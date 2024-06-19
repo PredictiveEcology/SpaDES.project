@@ -185,7 +185,6 @@ test_that("test setupProject - load packages using require argument", {
 })
 
 test_that("test setupProject - studyArea in lonlat", {
-
   skip_on_cran()
   setupTest(c("geodata", "filelock", "reproducible")) # filelock is unnecessary "first time", but errors if run again
   jurs <- "Al|Brit"
@@ -194,7 +193,7 @@ test_that("test setupProject - studyArea in lonlat", {
     out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2)
   )
 
-  expect_true(length(mess) == 0)
+  expect_true(length(mess) == 0)   ## failing. verbose = -2 not suppressing messages completely.
   expect_true(!is.null(out$studyArea))
   expect_true(is(out$studyArea, "SpatVector"))
   expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
@@ -218,7 +217,7 @@ test_that("test setupProject -studyArea using CRS", {
   expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
   expect_equal(terra::crs(out$studyArea, describe = TRUE)$code, epsg)
   expect_false(terra::is.lonlat(out$studyArea))
-  expect_true(grepl("but the projectPath is the tempdir", warns))
+  expect_true(grepl("but the projectPath is the tempdir", warns))   # failing. length(warns) >1 so not a single TRUE
 
 })
 
