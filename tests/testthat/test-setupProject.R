@@ -413,6 +413,12 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
   expect_true(all(dir(out$paths$modulePath) %in%
                     c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
                       "scfmLandcoverInit", "scfmRegime")))
+  ## keep times of module files
+  fileRmds <- sapply(dir(out$paths$modulePath, full.names = TRUE), list.files, pattern = ".Rmd",
+         full.names = TRUE, USE.NAMES = FALSE) |>
+    unlist()
+  fileInfo <- file.info(fileRmds)
+
   warn <- capture_warnings(
     mess <- capture_messages({
       out <- setupProject(
@@ -430,5 +436,13 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
   expect_true(all(dir(out$paths$modulePath) %in%
                     c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
                       "scfmLandcoverInit", "scfmRegime")))
+
+  ## have the right module files been updated?
+  fileInfo2 <- file.info(fileRmds)
+  rows <- grep("dataCastor|Biomass_core|scfmLandcoverInit", row.names(fileInfo))
+  expect_true(all(fileInfo[rows, "mtime"] < fileInfo2[rows, "mtime"]))
+
+  rows <- grep("dataCastor|Biomass_core|scfmLandcoverInit", row.names(fileInfo), invert = TRUE)
+  expect_true(all(fileInfo[rows, "mtime"] == fileInfo2[rows, "mtime"]))
 
 })
