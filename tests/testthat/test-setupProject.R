@@ -279,7 +279,7 @@ test_that("test setupProject - nested GH modules", {
       )
     })
   )
-  expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))   ## failing -- someother issue.
+  expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))
 })
 
 test_that("test setupProject - nested modulePath scfm B_bDP", {
