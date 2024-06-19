@@ -1382,8 +1382,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     # modulePackages <- packagesInModules(modulePath = file.path(paths[["modulePath"]], dirname(m)),
     #                                     modules = modulesOrigNestedName)
     packages <- modulePackages[modulesOrigNestedName]
-    messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
-
 
     ## check that we keep only the modules needed
     actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
@@ -1405,6 +1403,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         unlink(dirname(newModFiles), recursive = TRUE)
       }
     }
+
+    messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
   }
   names(packages) <- modulesOrig
   return(packages)
