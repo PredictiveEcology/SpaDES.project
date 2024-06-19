@@ -217,7 +217,7 @@ test_that("test setupProject -studyArea using CRS", {
   expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
   expect_equal(terra::crs(out$studyArea, describe = TRUE)$code, epsg)
   expect_false(terra::is.lonlat(out$studyArea))
-  expect_true(grepl("but the projectPath is the tempdir", warns))   # failing. length(warns) >1 so not a single TRUE
+  expect_true(grepl("but the projectPath is the tempdir", warns))
 
 })
 
@@ -266,7 +266,7 @@ test_that("test setupProject - nested GH modules", {
       )
     })
   )
-  expect_true(dir(out$paths$modulePath) %in% "dataCastor")   ## failing -- castor repo and module exist in m/
+  expect_true(dir(out$paths$modulePath) %in% "dataCastor")
 
   warn <- capture_warnings(
     mess <- capture_messages({
