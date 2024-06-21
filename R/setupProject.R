@@ -1008,7 +1008,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       oldValuesComplete[names(options)] <- preOptions[names(options)]
       whNULL <- which(lengths(oldValuesComplete) == 0)
       names(oldValuesComplete[unname(whNULL)]) <- names(options)[whNULL]
-      newValues <- Require::setdiffNamed(options, preOptions)
+      newValues <- Require:::setdiffNamed(options, preOptions)
       oldValues <- base::options(newValues)
       if (length(newValues)) {
         messageVerbose("The following options have been changed", verbose = verbose)
