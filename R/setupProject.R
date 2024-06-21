@@ -3103,3 +3103,33 @@ simplifyModuleName <- function(modules) {
   modulesSimple <- ifelse(take1st, modulesSimple1, modulesSimple2)
   modulesSimple
 }
+
+#' @rdname setup
+#' @export
+#' @inheritParams setupProject
+#' @param files A vector or list of files to parse. These can be remote github.com files.
+#'
+#' @details
+#' `setupFiles` is a convenience function intended for interactive use to verify the files being parsed.
+#' This is similar to `parse`, but each element must be a named list or a named object, such as a function.
+#' It uses the same specification for \url{https://github.com}
+#' files as `setupProject`, i.e., using `@` for branch.
+#'
+#' ```
+#' setupFiles("PredictiveEcology/PredictiveEcology.org@main/tutos/castorExample/params.R")
+#' ```
+#'
+#' @return
+#' `setupFiles` a named list with each element that was parsed.
+setupFiles <- function(files, paths, envir = parent.frame(), verbose = getOption("Require.verbose", 1L)) {
+  messageVerbose(yellow("setting up and parsing files ..."), verbose = verbose, verboseLevel = 0)
+  envirCur = environment()
+
+  if (missing(paths))
+    paths <- list(projectPath = normalizePath(".", mustWork = FALSE, winslash = "/"))
+
+  pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths[["projectPath"]]))`
+  paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envirCur, envir2 = envir)
+  outs <- parseFileLists(files, paths = paths, envir = envir)
+  outs
+}
