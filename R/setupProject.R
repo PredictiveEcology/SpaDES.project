@@ -2301,9 +2301,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
-      warning("updateRprofile is TRUE, but the projectPath is the tempdir(), which means ",
-              "the .Rprofile won't be read upon restart. ",
-              "Change the paths$projectPath to a non-temporary path")
+      warning(.txtUpdateProfileIsTRUE)
     } else {
       if (isRstudio()) {
         inCorrectRstudioProj <- isInRstudioProj(name)
