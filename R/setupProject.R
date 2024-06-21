@@ -1690,8 +1690,10 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           rem
         }
       }))
-      if (!identical(mess, objLocal))
-        messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
+      if (!identical(mess, objLocal)) {
+        if (file.exists(objLocal))
+          messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
+      }
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
