@@ -1426,7 +1426,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
     messageVerbose(yellow("setting up packages..."), verbose = verbose, verboseLevel = 0)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
-    continue <- 3L
+    continue <- 1L
     while (continue) {
       if (verbose > 1) {
         outP <- capture.output(modulePackages)
@@ -1444,17 +1444,14 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
       packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
       areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
       if (any(areFilesWithPackages)) {
-        # fileWithPackages <- packagesToTry[areFilesWithPackages]
         remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
-        # hasAt <- grepl("@", packagesToTry)
-        # problems <- !hasAt & remoteFiles
-        # packagesToTry[problems] <- paste0(packagesToTry[problems], "@HEAD")
         aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
                              envir = envir, namedList = FALSE)
         packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
       }
 
       requirePkgNames <- Require::extractPkgName(require)
+
       out <- try({
         Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
                          standAlone = standAlone,
