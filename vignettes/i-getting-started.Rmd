@@ -174,7 +174,6 @@ knitr::opts_knit$set(root.dir = Require::checkPath(origWorkingDir, create = TRUE
 ```
 
 ```{r sequentialOptions}
-save(origWorkingDir, lalahere, origLibPath, origGetWd, file = "/home/emcintir/getwd.rda")
 a <- setupOptions(options = list(
     "inst/options.R",                     # many items set because this is a file; has "future.globals.maxSize" = 5.24288e8
     future.globals.maxSize = 4e8,         # this value overrides first, because it is 2nd

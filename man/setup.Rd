@@ -10,6 +10,7 @@
 \alias{setupParams}
 \alias{setupGitIgnore}
 \alias{setupStudyArea}
+\alias{setupFiles}
 \title{Individual \verb{setup*} functions that are contained within \code{setupProject}}
 \usage{
 setupPaths(
@@ -126,6 +127,13 @@ setupStudyArea(
   studyArea,
   paths,
   envir,
+  verbose = getOption("Require.verbose", 1L)
+)
+
+setupFiles(
+  files,
+  paths,
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L)
 )
 }
@@ -307,6 +315,8 @@ will be passed to \code{gadm}. 2 additional named elements can be passed for
 convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
 reproject the \code{studyArea}. See examples.}
+
+\item{files}{A vector or list of files to parse. These can be remote github.com files.}
 }
 \value{
 \code{setupPaths} returns a list of paths that are created. \code{projectPath} will be
@@ -358,6 +368,8 @@ used in a \verb{read only} manner.
 
 \code{setupStudyArea} will return an \code{sf} class object coming from \code{geodata::gadm},
 with subregion specification as described in the \code{studyArea} argument.fsu
+
+\code{setupFiles} a named list with each element that was parsed.
 }
 \description{
 These functions will allow more user control, though in most circumstances,
@@ -410,6 +422,14 @@ that matches the columns in the \code{sf} object, including e.g., \code{NAME_1} 
 is specified, then \code{NAME_2}.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
+}\if{html}{\out{</div>}}
+
+\code{setupFiles} is a convenience function intended for interactive use to verify the files being parsed.
+This is similar to \code{parse}, but each element must be a named list or a named object, such as a function.
+It uses the same specification for \url{https://github.com}
+files as \code{setupProject}, i.e., using \code{@} for branch.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupFiles("PredictiveEcology/PredictiveEcology.org@main/tutos/castorExample/params.R")
 }\if{html}{\out{</div>}}
 }
 \section{Paths}{
