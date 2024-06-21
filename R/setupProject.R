@@ -716,7 +716,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- "modules"
   isAbs <- unlist(lapply(paths, isAbsolutePath))
-  toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
+  toMakeAbsolute <- isAbs %in% FALSE & rep(names(paths), lengths(paths)) != "projectPath"
   if (isTRUE(any(toMakeAbsolute))) {
     firstPart <- paste0("^", paths[["projectPath"]], "(/|\\\\)")
     alreadyHasProjectPath <- unlist(lapply(paths[toMakeAbsolute], grepl, # value = TRUE,
