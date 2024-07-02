@@ -185,6 +185,7 @@ test_that("test setupProject - load packages using require argument", {
 })
 
 test_that("test setupProject - pass modules as a list", {
+  skip("No longer needed - pass modules as vectors")
   skip_on_cran()
   setupTest()
   ## load packages using `require` argument -- now loads SpaDES.core & reproducible
