@@ -184,8 +184,20 @@ test_that("test setupProject - load packages using require argument", {
 
 })
 
-test_that("test setupProject - studyArea in lonlat", {
+test_that("test setupProject - pass modules as a list", {
+  skip_on_cran()
+  setupTest()
+  ## load packages using `require` argument -- now loads SpaDES.core & reproducible
+  mess <- capture_messages({
+    out <- setupProject(
+      paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
+      modules = list("PredictiveEcology/Biomass_speciesData@master",
+                     "PredictiveEcology/Biomass_borealDataPrep@development"))
+  })
+})
 
+
+test_that("test setupProject - studyArea in lonlat", {
   skip_on_cran()
   setupTest(c("geodata", "filelock", "reproducible")) # filelock is unnecessary "first time", but errors if run again
   jurs <- "Al|Brit"
