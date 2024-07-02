@@ -36,7 +36,7 @@ utils::globalVariables(c(
 #'   Each of these has a sensible default, which will be overridden but any user
 #'   supplied values.
 #'   See [setup].
-#' @param modules a character string of modules to pass to `getModule`. These
+#' @param modules a character vector of modules to pass to `getModule`. These
 #'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
 #'   in the `paths[["modulePath"]]`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
 #'   `"PredictiveEcology/Biomass_core@development"`); or a character vector that identifies
@@ -1220,6 +1220,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     }
 
     anyfailed <- character()
+
+    if(!is(modules, "character")) {
+      stop("'modules' must be a character vector.")
+    }
+
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     modulesOrigNestedName <- extractModName(modulesOrig)
