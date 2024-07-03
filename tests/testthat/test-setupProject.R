@@ -184,6 +184,31 @@ test_that("test setupProject - load packages using require argument", {
 
 })
 
+test_that("test setupProject - pass modules as a list", {
+  skip_on_cran()
+  setupTest()
+  ## load packages using `require` argument -- now loads SpaDES.core & reproducible
+  mess <- capture_messages({
+    out <- setupProject(
+      paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
+      modules = c("PredictiveEcology/Biomass_speciesData@master",
+                     "PredictiveEcology/Biomass_borealDataPrep@development"))
+  })
+
+  expect_true(all(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules)))
+
+  errs <- capture_error({
+    out <- setupProject(
+      paths = list(projectPath = paste0("testList2", .rndstr(1))), # will deduce name of project from projectPath
+      modules = list("PredictiveEcology/Biomass_speciesData@master",
+                  "PredictiveEcology/Biomass_borealDataPrep@development"))
+  })
+
+  expect_true(length(errs) > 0)
+  expect_true(grepl("'modules' must be a character vector", errs))
+})
+
+
 test_that("test setupProject - studyArea in lonlat", {
   skip_on_cran()
   setupTest(c("geodata", "filelock", "reproducible")) # filelock is unnecessary "first time", but errors if run again
