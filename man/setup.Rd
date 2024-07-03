@@ -271,7 +271,7 @@ behaviour (need them set before e.g., \code{Require::require} is run; but many p
 also change \code{options} at startup. See details.
 See \link{setup}.}
 
-\item{modules}{a character string of modules to pass to \code{getModule}. These
+\item{modules}{a character vector of modules to pass to \code{getModule}. These
 should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
 in the \code{paths[["modulePath"]]}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
 \code{"PredictiveEcology/Biomass_core@development"}); or a character vector that identifies

@@ -44,7 +44,7 @@ Each of these has a sensible default, which will be overridden but any user
 supplied values.
 See \link{setup}.}
 
-\item{modules}{a character string of modules to pass to \code{getModule}. These
+\item{modules}{a character vector of modules to pass to \code{getModule}. These
 should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
 in the \code{paths[["modulePath"]]}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
 \code{"PredictiveEcology/Biomass_core@development"}); or a character vector that identifies
