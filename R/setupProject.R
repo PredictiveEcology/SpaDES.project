@@ -36,7 +36,7 @@ utils::globalVariables(c(
 #'   Each of these has a sensible default, which will be overridden but any user
 #'   supplied values.
 #'   See [setup].
-#' @param modules a character string of modules to pass to `getModule`. These
+#' @param modules a character vector of modules to pass to `getModule`. These
 #'   should be one of: simple name (e.g., `fireSense`) which will be searched for locally
 #'   in the `paths[["modulePath"]]`; or a GitHub repo with branch (`GitHubAccount/Repo@branch` e.g.,
 #'   `"PredictiveEcology/Biomass_core@development"`); or a character vector that identifies
@@ -570,12 +570,12 @@ setupProject <- function(name, paths, modules, packages,
   if (length(dotsSUB) > 1)
     dotsSUB <- dotsSUB[na.omit(match(origArgOrder, names(dotsSUB)))]
 
+  ## Ceres:  no longer necessary as setupModules now pulls "inner" modules into modulePath
+  # anyInnerModules <- unique(fileRelPathFromFullGHpath(names(modules)))
 
-  anyInnerModules <- unique(fileRelPathFromFullGHpath(names(modules)))
-
-  if (any(nzchar(anyInnerModules))) {
-    paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], anyInnerModules)))
-  }
+  # if (any(nzchar(anyInnerModules))) {
+  #   paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], anyInnerModules)))
+  # }
 
   pathsOrig <- paths
   extras <- setdiff(names(paths), spPaths)
@@ -1231,6 +1231,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     }
 
     anyfailed <- character()
+
+    if(!is(modules, "character")) {
+      stop("'modules' must be a character vector.")
+    }
+
     modulesOrig <- modules
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     modulesOrigNestedName <- extractModName(modulesOrig)
@@ -1393,8 +1398,42 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     # modulePackages <- packagesInModules(modulePath = file.path(paths[["modulePath"]], dirname(m)),
     #                                     modules = modulesOrigNestedName)
     packages <- modulePackages[modulesOrigNestedName]
-    messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
 
+    ## check that we keep only the modules needed
+    actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
+    wantedModPath <- normPath(file.path(paths$modulePath, modulesOrigNestedName))
+
+    isNested <- which(!actualModPaths %in% wantedModPath)
+
+    if (length(isNested)) {
+      ## subset to nest modules
+      actualModPaths2 <- actualModPaths[isNested]
+      wantedModPath2 <- wantedModPath[isNested]
+      modulesOrigNestedName2 <- modulesOrigNestedName[isNested]
+      modulesOrigPkgName2 <- modulesOrigPkgName[isNested]
+
+      moduleSuperFolder <- unique(normPath(file.path(paths$modulePath, modulesOrigPkgName2)))
+
+      ## modules were probably nested in a GH repo
+      actualModFiles <- sapply(actualModPaths2, list.files, recursive = TRUE, all.files = TRUE, full.names = TRUE, USE.NAMES = FALSE) |>
+        unlist()
+      newModFiles <- actualModFiles
+      for (ddir in dirname(actualModPaths2)) {
+        newModFiles <- sub(ddir, paths$modulePath, newModFiles)
+      }
+
+      invisible(sapply(unique(dirname(newModFiles)), dir.create, recursive = TRUE, showWarnings = FALSE))
+      out <- suppressWarnings(file.copy(actualModFiles, newModFiles, recursive = TRUE, overwrite = overwrite))
+
+      if (all(file.exists(newModFiles)) & all(dir.exists(wantedModPath2))) {
+        unlink(moduleSuperFolder, recursive = TRUE)
+      } else {
+        warnings("Could not copy module files to 'modulePath', leaving in original, potentially nested directory")
+        unlink(dirname(newModFiles), recursive = TRUE)
+      }
+    }
+
+    messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
   }
   names(packages) <- modulesOrig
   return(packages)
@@ -2883,6 +2922,10 @@ getStudyArea <- function(studyArea, paths, verbose = verbose) {
       message("Because the country is Canada, will try manually hosted file that represents level 2 ")
       studyArea <- reproducible::prepInputs(url = "https://drive.google.com/file/d/1DdtWeFYEhSRxXcAaJ_J6i8hP8YbfoC1q/view?usp=drive_link",
                                             destinationPath = paths$inputPath)
+
+      if (!is(studyArea, "SpatVector")) {
+        studyArea <- terra::vect(studyArea)
+      }
 
       # otherURL <- "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lpr_000a21a_e.zip"
       # message(otherURL)

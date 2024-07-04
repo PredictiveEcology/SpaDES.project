@@ -184,8 +184,32 @@ test_that("test setupProject - load packages using require argument", {
 
 })
 
-test_that("test setupProject - studyArea in lonlat", {
+test_that("test setupProject - pass modules as a list", {
+  skip_on_cran()
+  setupTest()
+  ## load packages using `require` argument -- now loads SpaDES.core & reproducible
+  mess <- capture_messages({
+    out <- setupProject(
+      paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
+      modules = c("PredictiveEcology/Biomass_speciesData@master",
+                     "PredictiveEcology/Biomass_borealDataPrep@development"))
+  })
 
+  expect_true(all(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules)))
+
+  errs <- capture_error({
+    out <- setupProject(
+      paths = list(projectPath = paste0("testList2", .rndstr(1))), # will deduce name of project from projectPath
+      modules = list("PredictiveEcology/Biomass_speciesData@master",
+                  "PredictiveEcology/Biomass_borealDataPrep@development"))
+  })
+
+  expect_true(length(errs) > 0)
+  expect_true(grepl("'modules' must be a character vector", errs))
+})
+
+
+test_that("test setupProject - studyArea in lonlat", {
   skip_on_cran()
   setupTest(c("geodata", "filelock", "reproducible")) # filelock is unnecessary "first time", but errors if run again
   jurs <- "Al|Brit"
@@ -194,7 +218,7 @@ test_that("test setupProject - studyArea in lonlat", {
     out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2)
   )
 
-  expect_true(length(mess) == 0)
+  expect_true(length(mess) == 0)   ## failing. verbose = -2 not suppressing messages completely.
   expect_true(!is.null(out$studyArea))
   expect_true(is(out$studyArea, "SpatVector"))
   expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
@@ -255,7 +279,6 @@ test_that("projectPath is in a tempdir", {
 
 test_that("test setupProject - nested GH modules", {
   skip_on_cran()
-  skip("nested castor GH modules")
   setupTest() # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
@@ -268,7 +291,7 @@ test_that("test setupProject - nested GH modules", {
       )
     })
   )
-  expect_true(dir(out$paths$modulePath) %in% "dataCastor")   ## failing -- castor repo and module exist in m/
+  expect_true(dir(out$paths$modulePath) %in% "dataCastor")
 
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -281,9 +304,8 @@ test_that("test setupProject - nested GH modules", {
       )
     })
   )
-  expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))   ## failing -- someother issue.
+  expect_true(all(dir(out$paths$modulePath) %in% c("dataCastor", "Biomass_borealDataPrep")))
 })
-
 
 test_that("test setupProject - nested modulePath scfm B_bDP", {
   skip_on_cran()
@@ -322,8 +344,6 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
   expect_true(length(out$params) == 4) # .globals for .studyAreaName
 })
 
-
-
 test_that("test setupProject - nested modulePath castorExamples", {
   skip_on_cran()
   nam <- "test_SpaDES_project4"
@@ -356,7 +376,7 @@ test_that("test setupProject - nested modulePath castorExamples", {
   # SpaDES.core::simInit2(out)
 })
 
-test_that("test setupProject - nested modulePath castorExamples", {
+test_that("test setupProject - install pkgs from .R script", {
   skip_on_cran()
   nam <- "test_SpaDES_project3"
   setupTest(name = nam) # setwd, sets .libPaths() to a temp
@@ -374,4 +394,80 @@ test_that("test setupProject - nested modulePath castorExamples", {
   ip <- installed.packages(lib.loc = .libPaths()[1]) |> as.data.table()
   pkgs <- extractPkgName(pkgList)
   expect_true(all(pkgs %in% ip$Package))
+})
+
+test_that("test setupProject - two types of nested GH modules + non-nested; rerun fewer modules", {
+  skip_on_cran()
+  setupTest() # setwd, sets .libPaths() to a temp
+
+  projName <- paste0("test_SpaDES_project_", .rndstr(1))
+
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = projName,
+        paths = list(modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+                    "bcgov/castor@main/R/SpaDES-modules/blockingCastor",
+                    "PredictiveEcology/Biomass_borealDataPrep@development",
+                    "PredictiveEcology/Biomass_core@development",
+                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit",
+                    "PredictiveEcology/scfm@development/modules/scfmRegime")
+      )
+    })
+  )
+
+  expect_true(all(dir(out$paths$modulePath) %in%
+                    c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
+                      "scfmLandcoverInit", "scfmRegime")))
+
+  ## test if modules previously downloaded disappear
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = projName,
+        paths = list(modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+                    "PredictiveEcology/Biomass_core@development",
+                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit")
+      )
+    })
+  )
+  expect_true(all(dir(out$paths$modulePath) %in%
+                    c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
+                      "scfmLandcoverInit", "scfmRegime")))
+  ## keep times of module files
+  fileRmds <- sapply(dir(out$paths$modulePath, full.names = TRUE), list.files, pattern = ".Rmd",
+         full.names = TRUE, USE.NAMES = FALSE) |>
+    unlist()
+  fileInfo <- file.info(fileRmds)
+
+  warn <- capture_warnings(
+    mess <- capture_messages({
+      out <- setupProject(
+        name = projName,
+        paths = list(modulePath = "m",
+                     scratchPath = tempdir()),
+        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+                    "PredictiveEcology/Biomass_core@development",
+                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit"),
+        overwrite = TRUE
+      )
+    })
+  )
+  ## still all there?
+  expect_true(all(dir(out$paths$modulePath) %in%
+                    c("dataCastor", "blockingCastor", "Biomass_borealDataPrep", "Biomass_core",
+                      "scfmLandcoverInit", "scfmRegime")))
+
+  ## have the right module files been updated?
+  fileInfo2 <- file.info(fileRmds)
+  rows <- grep("dataCastor|Biomass_core|scfmLandcoverInit", row.names(fileInfo))
+  expect_true(all(fileInfo[rows, "mtime"] < fileInfo2[rows, "mtime"]))
+
+  rows <- grep("dataCastor|Biomass_core|scfmLandcoverInit", row.names(fileInfo), invert = TRUE)
+  expect_true(all(fileInfo[rows, "mtime"] == fileInfo2[rows, "mtime"]))
+
 })
