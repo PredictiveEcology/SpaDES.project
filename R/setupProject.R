@@ -789,8 +789,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       #   so need to load before changing .libPaths
       deps <- Require::pkgDep("usethis")
       depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(deps))))
-      loaded <- lapply(depsSimple, function(pkg) {
-        requireNamespace(c(pkg))
+      loaded <- sapply(depsSimple, function(pkg) {
+        requireNamespace(pkg, quietly = TRUE)
       })
     }
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
@@ -817,6 +817,17 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsOrig <- paths
   extras <- setdiff(names(paths), spPaths)
   attr(paths, "extraPaths") <- paths[extras]
+
+  if (needSetLibPaths) {
+    if (!useGit %in% FALSE) {
+      if (any(!loaded)) {
+        rlout <- readline("usethis package must be installed; install now? (y or n)")
+        if (startsWith(tolower(rlout), "y"))
+          Require::Install("usethis")
+        else
+          stop("Setting `useGit = *something*` requires that usethis be installed. Please install it.")
+      }
+  }}
 
   paths
 }
@@ -1807,18 +1818,6 @@ evalSUB <- function(val, valObjName, envir, envir2) {
           if (!is(val3, "try-error"))
             break
         }
-        # if here, it means val3 is already an error, so only show val2 warning; val3 will likely
-        #   be misleading
-        # if (is(val2, "try-error")) {
-        #   browser()
-        #   val2 <- errorMsgCleaning(val2, valOrig)
-        #   warning(val2, call. = FALSE)
-        # } else {
-        #   if (is(val3, "try-error")) {
-        #     val3 <- errorMsgCleaning(val3, valOrig)
-        #     warning(val3)
-        #   }
-        # }
       }
       val <- val3
       val2 <- val3
