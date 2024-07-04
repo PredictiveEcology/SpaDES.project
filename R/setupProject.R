@@ -1463,12 +1463,12 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
       requirePkgNames <- Require::extractPkgName(require)
 
-      out <- try({
+      out <- #try({
         Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
                          standAlone = standAlone,
                          libPaths = libPaths,
                          verbose = verbose)
-      })
+      #})
       # }
 
 
