@@ -397,17 +397,20 @@ utils::globalVariables(c(
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, functions, config,
                          require = NULL, studyArea = NULL,
-                         Restart = getOption("SpaDES.project.Restart", FALSE),
-                         useGit = getOption("SpaDES.project.useGit", FALSE),
-                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
-                         standAlone = getOption("SpaDES.project.standAlone", TRUE), libPaths = NULL,
-                         updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
-                         overwrite = getOption("SpaDES.project.overwrite", FALSE), # envir = environment(),
+                         Restart = getOption("SpaDES.project.Restart"),
+                         useGit = getOption("SpaDES.project.useGit"),
+                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
+                         standAlone = getOption("SpaDES.project.standAlone"),
+                         libPaths = NULL,
+                         updateRprofile = getOption("SpaDES.project.updateRprofile"),
+                         overwrite = getOption("SpaDES.project.overwrite"), # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
 
   makeUpdateRprofileSticky(updateRprofile)
+
+  assignDefaults(env = environment())
 
   origGetWd <- getwd()
   if (isTRUE(Restart))
@@ -714,9 +717,11 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["packagePath"]] <- .libPathDefault(name)
   }
 
-  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- "modules"
+  defaultsSPO <- spadesProjectOptions() # uses projectPath
+  if (is.null(paths[["modulePath"]]))
+    paths[["modulePath"]] <- basename(defaultsSPO$spades.modulePath) # "modules"
   isAbs <- unlist(lapply(paths, isAbsolutePath))
-  toMakeAbsolute <- isAbs %in% FALSE & names(paths) != "projectPath"
+  toMakeAbsolute <- isAbs %in% FALSE & rep(names(paths), lengths(paths)) != "projectPath"
   if (isTRUE(any(toMakeAbsolute))) {
     firstPart <- paste0("^", paths[["projectPath"]], "(/|\\\\)")
     alreadyHasProjectPath <- unlist(lapply(paths[toMakeAbsolute], grepl, # value = TRUE,
@@ -742,8 +747,10 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     setwd(checkPath(paths[["projectPath"]], create = TRUE))
   }
 
+  defaultsSPO <- spadesProjectOptions() # uses projectPath, so need updated
   if (is.null(paths$scratchPath)) {
-    paths$scratchPath <- file.path(tempdir(), name)
+    paths$scratchPath <- getOption("spades.scratchPath",
+                                   defaultsSPO$spades.scratchPath) # file.path(tempdir(), name)
   }
   if (!is.null(paths$scratchPath)) {
     paths <- Require::modifyList2(
@@ -756,9 +763,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
 
   paths <- Require::modifyList2(
-    list(cachePath = file.path(paths[["projectPath"]], "cache"),
-         inputPath = file.path(paths[["projectPath"]], "inputs"),
-         outputPath = file.path(paths[["projectPath"]], "outputs")
+    list(cachePath = getOption("reproducible.cachePath",
+                               defaultsSPO$reproducible.cachePath),
+         inputPath = getOption("spades.inputPath",
+                               defaultsSPO$spades.inputPath),
+         outputPath = getOption("spades.outputPath",
+                                defaultsSPO$spades.outputPath)
+    # list(cachePath = file.path(paths[["projectPath"]], "cache"),
+    #      inputPath = file.path(paths[["projectPath"]], "inputs"),
+    #      outputPath = file.path(paths[["projectPath"]], "outputs")
     ),
     paths)
 
@@ -789,8 +802,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       #   so need to load before changing .libPaths
       deps <- Require::pkgDep("usethis")
       depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(deps))))
-      loaded <- lapply(depsSimple, function(pkg) {
-        requireNamespace(c(pkg))
+      loaded <- sapply(depsSimple, function(pkg) {
+        requireNamespace(pkg, quietly = TRUE)
       })
     }
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
@@ -807,7 +820,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["packagePath"]] <- .libPaths()[1]
   }
 
-  do.call(setPaths, append(paths[spPaths], list(verbose = verbose)))
+  if (any(lengths(paths) == 0)) {
+    paths[lengths(paths) == 0] <- Map(p = names(paths)[lengths(paths) == 0], function(p) {
+      spo <- spadesProjectOptions()
+      spo[[grep(p, names(spo))]]
+    }
+    )
+  }
+  a <- try(do.call(setPaths, append(paths[spPaths], list(verbose = verbose))))
+  if (is(a, "try-error")) browser()
 
   messageVerbose(yellow("  done setting up paths"), verbose = verbose, verboseLevel = 0)
 
@@ -817,6 +838,17 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   pathsOrig <- paths
   extras <- setdiff(names(paths), spPaths)
   attr(paths, "extraPaths") <- paths[extras]
+
+  if (needSetLibPaths) {
+    if (!useGit %in% FALSE) {
+      if (any(!loaded)) {
+        rlout <- readline("usethis package must be installed; install now? (y or n)")
+        if (startsWith(tolower(rlout), "y"))
+          Require::Install("usethis")
+        else
+          stop("Setting `useGit = *something*` requires that usethis be installed. Please install it.")
+      }
+  }}
 
   paths
 }
@@ -1008,7 +1040,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       oldValuesComplete[names(options)] <- preOptions[names(options)]
       whNULL <- which(lengths(oldValuesComplete) == 0)
       names(oldValuesComplete[unname(whNULL)]) <- names(options)[whNULL]
-      newValues <- Require::setdiffNamed(options, preOptions)
+      newValues <- Require:::setdiffNamed(options, preOptions)
       oldValues <- base::options(newValues)
       if (length(newValues)) {
         messageVerbose("The following options have been changed", verbose = verbose)
@@ -1465,7 +1497,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
     messageVerbose(yellow("setting up packages..."), verbose = verbose, verboseLevel = 0)
     messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
-    continue <- 3L
+    continue <- 1L
     while (continue) {
       if (verbose > 1) {
         outP <- capture.output(modulePackages)
@@ -1483,23 +1515,20 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
       packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
       areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
       if (any(areFilesWithPackages)) {
-        # fileWithPackages <- packagesToTry[areFilesWithPackages]
         remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
-        # hasAt <- grepl("@", packagesToTry)
-        # problems <- !hasAt & remoteFiles
-        # packagesToTry[problems] <- paste0(packagesToTry[problems], "@HEAD")
         aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
                              envir = envir, namedList = FALSE)
         packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
       }
 
       requirePkgNames <- Require::extractPkgName(require)
-      out <- try({
+
+      out <- #try({
         Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
                          standAlone = standAlone,
                          libPaths = libPaths,
                          verbose = verbose)
-      })
+      #})
       # }
 
 
@@ -1732,8 +1761,10 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           rem
         }
       }))
-      if (!identical(mess, objLocal))
-        messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
+      if (!identical(mess, objLocal)) {
+        if (file.exists(objLocal))
+          messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
+      }
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
@@ -1756,6 +1787,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
 checkProjectPath <- function(paths, name, envir, envir2) {
 
+  defaults <- spadesProjectOptions()
   if (missing(paths)) {
     paths <- list()
   }
@@ -1763,9 +1795,9 @@ checkProjectPath <- function(paths, name, envir, envir2) {
     paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
   }
   if (is.null(paths[["projectPath"]])) {
-    prjPth <- if (missing(name))
-      getOption("SpaDES.project.projectPath", normPath("."))
-    else {
+    prjPth <- if (missing(name)) {
+      defaults$spades.projectPath
+    } else {
       if (isInProject(name)) {
         normPath(".")
       } else {
@@ -1847,18 +1879,6 @@ evalSUB <- function(val, valObjName, envir, envir2) {
           if (!is(val3, "try-error"))
             break
         }
-        # if here, it means val3 is already an error, so only show val2 warning; val3 will likely
-        #   be misleading
-        # if (is(val2, "try-error")) {
-        #   browser()
-        #   val2 <- errorMsgCleaning(val2, valOrig)
-        #   warning(val2, call. = FALSE)
-        # } else {
-        #   if (is(val3, "try-error")) {
-        #     val3 <- errorMsgCleaning(val3, valOrig)
-        #     warning(val3)
-        #   }
-        # }
       }
       val <- val3
       val2 <- val3
@@ -2024,32 +2044,40 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
     SP = FALSE,
     TP = FALSE
   )
+  defaultSPO <- spadesProjectOptions()
   if (missing(cachePath)) {
-    cachePath <- .getOption("reproducible.cachePath") # nolint
+    cachePath <- .getOption("reproducible.cachePath",
+                            defaultSPO$reproducible.cachePath) # nolint
     defaults$CP <- TRUE
   }
   if (missing(inputPath)) {
-    inputPath <- getOption("spades.inputPath") # nolint
+    inputPath <- .getOption("spades.inputPath",
+                            defaultSPO$spades.inputPath) # nolint
     defaults$IP <- TRUE
   }
   if (missing(modulePath)) {
-    modulePath <- getOption("spades.modulePath") # nolint
+    modulePath <- .getOption("spades.modulePath",
+                             defaultSPO$spades.modulePath) # nolint
     defaults$MP <- TRUE
   }
   if (missing(outputPath)) {
-    outputPath <- getOption("spades.outputPath") # nolint
+    outputPath <- .getOption("spades.outputPath",
+                             defaultSPO$spades.outputPath) # nolint
     defaults$OP <- TRUE
   }
-  if (missing(rasterPath)) { ## TODO: deprecate
-    rasterPath <- file.path(getOption("spades.scratchPath"), "raster") # nolint
-    defaults$RP <- TRUE
-  }
   if (missing(scratchPath)) {
-    scratchPath <- getOption("spades.scratchPath") # nolint
+    scratchPath <- .getOption("spades.scratchPath", defaultSPO$spades.scratchPath)
     defaults$SP <- TRUE
   }
+  if (missing(rasterPath)) { ## TODO: deprecate
+    rasterPath <- normPath(file.path(.getOption("spades.scratchPath",
+                             defaultSPO$spades.scratchPath), "raster")) # nolint
+    defaults$RP <- TRUE
+  }
   if (missing(terraPath)) {
-    terraPath <- file.path(getOption("spades.scratchPath"), "terra") # nolint
+    terraPath <- normPath(file.path(.getOption("spades.scratchPath",
+                                  defaultSPO$spades.scratchPath), "terra"))
+    # terraPath <- file.path(getOption("spades.scratchPath"), "terra") # nolint
     defaults$TP <- TRUE
   }
 
@@ -2132,12 +2160,12 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
 
   list(
     cachePath = .getOption("reproducible.cachePath"), # nolint
-    inputPath = getOption("spades.inputPath"), # nolint
-    modulePath = getOption("spades.modulePath"), # nolint
-    outputPath = getOption("spades.outputPath"), # nolint
-    rasterPath = file.path(getOption("spades.scratchPath"), "raster"), # nolint
-    scratchPath = getOption("spades.scratchPath"), # nolint
-    terraPath = file.path(getOption("spades.scratchPath"), "terra") # nolint
+    inputPath = .getOption("spades.inputPath"), # nolint
+    modulePath = .getOption("spades.modulePath"), # nolint
+    outputPath = .getOption("spades.outputPath"), # nolint
+    rasterPath = file.path(.getOption("spades.scratchPath"), "raster"), # nolint
+    scratchPath = .getOption("spades.scratchPath"), # nolint
+    terraPath = file.path(.getOption("spades.scratchPath"), "terra") # nolint
   )
 }
 
@@ -2341,9 +2369,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
-      warning("updateRprofile is TRUE, but the projectPath is the tempdir(), which means ",
-              "the .Rprofile won't be read upon restart. ",
-              "Change the paths$projectPath to a non-temporary path")
+      warning(.txtUpdateProfileIsTRUE)
     } else {
       if (isRstudio()) {
         inCorrectRstudioProj <- isInRstudioProj(name)
@@ -3148,4 +3174,43 @@ simplifyModuleName <- function(modules) {
   take1st <- grepl("@", modulesSimple2)
   modulesSimple <- ifelse(take1st, modulesSimple1, modulesSimple2)
   modulesSimple
+}
+
+#' @rdname setup
+#' @export
+#' @inheritParams setupProject
+#' @param files A vector or list of files to parse. These can be remote github.com files.
+#'
+#' @details
+#' `setupFiles` is a convenience function intended for interactive use to verify the files being parsed.
+#' This is similar to `parse`, but each element must be a named list or a named object, such as a function.
+#' It uses the same specification for \url{https://github.com}
+#' files as `setupProject`, i.e., using `@` for branch.
+#'
+#' ```
+#' setupFiles("PredictiveEcology/PredictiveEcology.org@main/tutos/castorExample/params.R")
+#' ```
+#'
+#' @return
+#' `setupFiles` a named list with each element that was parsed.
+setupFiles <- function(files, paths, envir = parent.frame(), verbose = getOption("Require.verbose", 1L)) {
+  messageVerbose(yellow("setting up and parsing files ..."), verbose = verbose, verboseLevel = 0)
+  envirCur = environment()
+
+  if (missing(paths))
+    paths <- list(projectPath = normalizePath(".", mustWork = FALSE, winslash = "/"))
+
+  pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = file.path(paths[["projectPath"]]))`
+  paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envirCur, envir2 = envir)
+  outs <- parseFileLists(files, paths = paths, envir = envir)
+  outs
+}
+
+assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinaryRepo", "standAlone", "updateRprofile", "overwrite"),
+                           env = parent.frame()) {
+  defaults <- spadesProjectOptions()
+  lapply(checkDefaults, function(def) {
+    if (is.null(get(def, envir = env, inherits = FALSE)))
+      assign(def, defaults[[paste0("SpaDES.project.", def)]], envir = env)
+  })
 }

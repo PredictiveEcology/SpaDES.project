@@ -12,6 +12,8 @@
 
 setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = FALSE) {
 
+  options(Map(o = names(spadesProjectOptions()), function(o) NULL))
+
   Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
   warns <- capture_warnings({
     # withr::local_package("googledrive", .local_envir = envir)
