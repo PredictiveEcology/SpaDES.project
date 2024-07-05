@@ -5,6 +5,63 @@
 ##   Clear the entire cache using: `Require::clearRequirePackageCache()`
 ##
 
+test_that("test setupProject - actually simplest", {
+  skip_on_cran()
+  setupTest() # setwd, sets .libPaths() to a temp
+
+  ## simplest case; just creates folders
+  defaults <- spadesProjectOptions()
+  optsOrig <- options()
+  warns <- capture_warnings( #
+    mess <- capture_messages({
+      out <- setupProject()
+    })
+  )
+  optsAfter <- options()
+  changedSpaDESoptions <- grep("^spades|^reproducible", names(optsAfter), value = TRUE)
+  options(Map(o = changedSpaDESoptions, function(o) NULL))
+  nams <- sort(intersect(names(out$paths), gsub(".+\\.", "", names(defaults))))
+  nams3 <- sapply(names(out$paths), grep, x = names(defaults), value = TRUE)
+  nams3 <- unlist(unname(nams3[lengths(nams3) > 0]))
+  res <- out$paths[nams]
+  expect_true(identical(unname(res), unname(defaults[nams3])))
+
+
+  expect_true(all(grepl("won\\'t be read upon restart", warns)))
+  expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
+  expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
+
+  # uses spades.projectPath if specified
+  projPth <- Require::tempdir2(.rndstr(1))
+  withr::local_dir(projPth)
+  options("spades.projectPath" = projPth)
+  warns <- capture_warnings( #
+    mess <- capture_messages({
+      out <- setupProject(name = basename(projPth))
+    })
+  )
+
+  expect_identical(attr(out$paths, "extraPaths")$projectPath, projPth)
+  options(Map(o = changedSpaDESoptions, function(o) NULL))
+
+  # Try another path not projectPath
+  projPth <- Require::tempdir2(.rndstr(1))
+  inputPth <- file.path(projPth, "myInputs")
+  withr::local_dir(projPth)
+  options("spades.projectPath" = projPth,
+          "spades.inputPath" = inputPth)
+  warns <- capture_warnings( #
+    mess <- capture_messages({
+      out <- setupProject(name = basename(projPth))
+    })
+  )
+
+  expect_identical(out$paths$inputPath, inputPth)
+  options(Map(o = names(spadesProjectOptions()), function(o) NULL))
+
+})
+
+
 test_that("test setupProject - simplest", {
   skip_on_cran()
   setupTest() # setwd, sets .libPaths() to a temp
@@ -76,7 +133,8 @@ test_that("test setupProject - remote options file", {
     mess <- capture_messages({
       out <- setupProject(
         name = paste0("test_SpaDES_project_", .rndstr(1)),
-        options = c("PredictiveEcology/SpaDES.project@transition/inst/options.R"),
+        # options = "inst/options.R",
+        options = c("PredictiveEcology/SpaDES.project@development/inst/options.R"),
         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
@@ -107,7 +165,7 @@ test_that("test setupProject - arbitrary arguments", {
   mess <- capture_messages({
     out <- setupProject(
       modules = module,
-      sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
+      sideEffects = "PredictiveEcology/SpaDES.project@development/inst/sideEffects.R",
       defaultDots = list(mode = mod,
                          studyAreaName = jur),
       packages = NULL,
@@ -153,7 +211,7 @@ test_that("test setupProject - mixture of named list elements", {
       name = paste0("test_SpaDES_project_", .rndstr(1)),
       # name = "test_SpaDES_project",
       options = list(reproducible.useTerra = TRUE,
-                     "PredictiveEcology/SpaDES.project@transition/inst/options.R",
+                     "PredictiveEcology/SpaDES.project@development/inst/options.R",
                      system.file("authentication.R", package = "SpaDES.project")), # local file
       params = list(Biomass_borealDataPrep = list(.plots = "screen")),
       paths = list(modulePath = "m", # projectPath = "test",
@@ -188,21 +246,24 @@ test_that("test setupProject - pass modules as a list", {
   skip_on_cran()
   setupTest()
   ## load packages using `require` argument -- now loads SpaDES.core & reproducible
-  mess <- capture_messages({
-    out <- setupProject(
-      paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
-      modules = c("PredictiveEcology/Biomass_speciesData@master",
-                     "PredictiveEcology/Biomass_borealDataPrep@development"))
-  })
+  warns <- capture_warnings( # updateRprofile is TRUE, but the projectPath is the tempdir()
+    mess <- capture_messages({
+      out <- setupProject(
+        paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
+        modules = c("PredictiveEcology/Biomass_speciesData@master",
+                    "PredictiveEcology/Biomass_borealDataPrep@development"))
+    }))
 
   expect_true(all(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules)))
 
-  errs <- capture_error({
+  warns <- capture_warnings( # updateRprofile is TRUE, but the projectPath is the tempdir()
+    errs <- capture_error({
     out <- setupProject(
       paths = list(projectPath = paste0("testList2", .rndstr(1))), # will deduce name of project from projectPath
       modules = list("PredictiveEcology/Biomass_speciesData@master",
                   "PredictiveEcology/Biomass_borealDataPrep@development"))
   })
+  )
 
   expect_true(length(errs) > 0)
   expect_true(grepl("'modules' must be a character vector", errs))

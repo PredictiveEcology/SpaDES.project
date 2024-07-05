@@ -1,15 +1,16 @@
 #' `SpaDES.project` options
 #'
-#' These provide top-level, powerful settings for a comprehensive SpaDES workflow.
+#' These demonstrate default values for some options that can be set in
+#' SpaDES.project.
 #' To see defaults, run `spadesProjectOptions()`.
 #' See Details below.
 #'
 #' @export
-#' @return named list of the *default* package options.
+#' @return named list of the *default* options currently available.
 #'
 #' @details
 #'
-#' Below are options that can be set with `options("spadesProject.xxx" = newValue)`,
+#' Below are options that can be set with `options("spades.xxx" = newValue)`,
 #' where `xxx` is one of the values below, and `newValue` is a new value to
 #' give the option. Sometimes these options can be placed in the user's `.Rprofile`
 #' file so they persist between sessions.
@@ -17,28 +18,33 @@
 #' The following options are used, using the prefix: `spades`
 #' \tabular{lcl}{
 #'   *OPTION* \tab *DEFAULT VALUE* \tab *DESCRIPTION* \cr
-#'   `spades.logPath`
-#'      \tab Defaults to a subdirectory (`logs/`) of the simulation output directory.
-#'      \tab The default local directory in which to look for simulation inputs.  \cr
+#'   `reproducible.cachePath`
+#'      \tab NOTE: uses `reproducible`. Defaults is within projectPath, with subfolder "cache"  \cr
 #'
 #'   `spades.inputPath`
-#'      \tab Default is a temporary directory (typically `/tmp/RtmpXXX/SpaDES/inputs`)
-#'      \tab The default local directory in which to look for simulation inputs.  \cr
+#'      \tab Default is within projectPath, with subfolder "inputs"  \cr
 #'
-#'   `spades.modulePath` \tab `file.path(tempdir(), "SpaDES", "modules")`)
-#'     \tab The default local directory where modules and data will be downloaded and stored.
-#'     Default is a temporary directory  \cr
+#'   `spades.modulePath`
+#'      \tab Default is within projectPath, with subfolder "modules"  \cr
 #'
 #'   `spades.outputPath`
-#'     \tab `file.path(tempdir(), "SpaDES", "outputs")`
-#'     \tab The default local directory in which to save simulation outputs.\cr
+#'      \tab Default is within projectPath, with subfolder "outputs"  \cr
 #'
-#'   `spades.useRequire` \tab `!tolower(Sys.getenv("SPADES_USE_REQUIRE")) %in% "false"`
-#'     \tab : The default for that environment variable is unset, so this returns
-#'     `TRUE`. If this is `TRUE`, then during the `simInit` call, when packages are
-#'     identified as being required, these will be installed if missing, only if
-#'     `spades.useRequire` option is `TRUE`, otherwise, `simInit` will fail because
-#'     packages are not available.\cr
+#'   `spades.packagePath`
+#'      \tab Default to `.libPathDefault(<projectPath>)`  \cr
+#'
+#'   `spades.projectPath`
+#'      \tab Default "."  \cr
+#'
+#'   `spades.scratchPath`
+#'      \tab Default is within `tempdir()`, with subfolder <projectPath>  \cr
+#'
+#'   `SpaDES.project.Restart`
+#'      \tab Default is FALSE. Passed to `Restart` argument in `setupProject`  \cr
+#'
+#'   `SpaDES.project.useGit`
+#'      \tab Default is FALSE. Passed to `useGit` argument in `setupProject`  \cr
+#'
 #'
 #' }
 #'
@@ -47,13 +53,28 @@ spadesProjectOptions <- function() {
   if (is.null(pp))
     options("spades.projectPath" = ".")
 
-  ppBasename <- normalizePath(basename(getOption("spades.projectPath")), mustWork = FALSE)
-  list( # nolint
-    spades.projectPath = getOption("spades.projectPath"),
+  ppBasename <- normalizePath(basename(getOption("spades.projectPath")),
+                              mustWork = FALSE, winslash = "/")
+  defaults <- list( # nolint
+    reproducible.cachePath = file.path(ppBasename, "cache"),
+    spades.projectPath = ppBasename,
     spades.packagePath = .libPathDefault(ppBasename),
-    spades.inputPath = file.path(getOption("spades.projectPath"), "inputs"),
-    spades.modulePath = file.path(getOption("spades.projectPath"), "modules"),
-    spades.outputPath = file.path(getOption("spades.projectPath"), "outputs"),
-    spades.scratchPath = file.path(getOption("spades.projectPath"), "scratch")
+    spades.inputPath = file.path(ppBasename, "inputs"),
+    spades.modulePath = file.path(ppBasename, "modules"),
+    spades.outputPath = file.path(ppBasename, "outputs"),
+    spades.scratchPath = file.path(tempdir(), basename(ppBasename))
+    )
+  defaults2 <- list(
+    SpaDES.project.Restart = FALSE,
+    SpaDES.project.useGit = FALSE,
+    SpaDES.project.gitignore = TRUE,
+    SpaDES.project.setLinuxBinaryRepo = TRUE,
+    SpaDES.project.standAlone = TRUE,
+    SpaDES.project.updateRprofile = TRUE,
+    SpaDES.project.overwrite = FALSE,
+    SpaDES.project.fast = FALSE
   )
+  defaults <- Map(def = defaults, function(def) normPath(def))
+  defaults <- append(defaults, defaults2)
+  defaults
 }

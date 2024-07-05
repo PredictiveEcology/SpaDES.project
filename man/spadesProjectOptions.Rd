@@ -7,15 +7,16 @@
 spadesProjectOptions()
 }
 \value{
-named list of the \emph{default} package options.
+named list of the \emph{default} options currently available.
 }
 \description{
-These provide top-level, powerful settings for a comprehensive SpaDES workflow.
+These demonstrate default values for some options that can be set in
+SpaDES.project.
 To see defaults, run \code{spadesProjectOptions()}.
 See Details below.
 }
 \details{
-Below are options that can be set with \code{options("spadesProject.xxx" = newValue)},
+Below are options that can be set with \code{options("spades.xxx" = newValue)},
 where \code{xxx} is one of the values below, and \code{newValue} is a new value to
 give the option. Sometimes these options can be placed in the user's \code{.Rprofile}
 file so they persist between sessions.
@@ -23,28 +24,32 @@ file so they persist between sessions.
 The following options are used, using the prefix: \code{spades}
 \tabular{lcl}{
 \emph{OPTION} \tab \emph{DEFAULT VALUE} \tab \emph{DESCRIPTION} \cr
-\code{spades.logPath}
-\tab Defaults to a subdirectory (\verb{logs/}) of the simulation output directory.
-\tab The default local directory in which to look for simulation inputs.  \cr
+\code{reproducible.cachePath}
+\tab NOTE: uses \code{reproducible}. Defaults is within projectPath, with subfolder "cache"  \cr
 
 \code{spades.inputPath}
-\tab Default is a temporary directory (typically \verb{/tmp/RtmpXXX/SpaDES/inputs})
-\tab The default local directory in which to look for simulation inputs.  \cr
+\tab Default is within projectPath, with subfolder "inputs"  \cr
 
-\code{spades.modulePath} \tab \code{file.path(tempdir(), "SpaDES", "modules")})
-\tab The default local directory where modules and data will be downloaded and stored.
-Default is a temporary directory  \cr
+\code{spades.modulePath}
+\tab Default is within projectPath, with subfolder "modules"  \cr
 
 \code{spades.outputPath}
-\tab \code{file.path(tempdir(), "SpaDES", "outputs")}
-\tab The default local directory in which to save simulation outputs.\cr
+\tab Default is within projectPath, with subfolder "outputs"  \cr
 
-\code{spades.useRequire} \tab \code{!tolower(Sys.getenv("SPADES_USE_REQUIRE")) \%in\% "false"}
-\tab : The default for that environment variable is unset, so this returns
-\code{TRUE}. If this is \code{TRUE}, then during the \code{simInit} call, when packages are
-identified as being required, these will be installed if missing, only if
-\code{spades.useRequire} option is \code{TRUE}, otherwise, \code{simInit} will fail because
-packages are not available.\cr
+\code{spades.packagePath}
+\tab Default to \verb{.libPathDefault(<projectPath>)}  \cr
+
+\code{spades.projectPath}
+\tab Default "."  \cr
+
+\code{spades.scratchPath}
+\tab Default is within \code{tempdir()}, with subfolder \if{html}{\out{<projectPath>}}  \cr
+
+\code{SpaDES.project.Restart}
+\tab Default is FALSE. Passed to \code{Restart} argument in \code{setupProject}  \cr
+
+\code{SpaDES.project.useGit}
+\tab Default is FALSE. Passed to \code{useGit} argument in \code{setupProject}  \cr
 
 }
 }

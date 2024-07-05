@@ -397,17 +397,20 @@ utils::globalVariables(c(
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, functions, config,
                          require = NULL, studyArea = NULL,
-                         Restart = getOption("SpaDES.project.Restart", FALSE),
-                         useGit = getOption("SpaDES.project.useGit", FALSE),
-                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
-                         standAlone = getOption("SpaDES.project.standAlone", TRUE), libPaths = NULL,
-                         updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
-                         overwrite = getOption("SpaDES.project.overwrite", FALSE), # envir = environment(),
+                         Restart = getOption("SpaDES.project.Restart"),
+                         useGit = getOption("SpaDES.project.useGit"),
+                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
+                         standAlone = getOption("SpaDES.project.standAlone"),
+                         libPaths = NULL,
+                         updateRprofile = getOption("SpaDES.project.updateRprofile"),
+                         overwrite = getOption("SpaDES.project.overwrite"), # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
 
   makeUpdateRprofileSticky(updateRprofile)
+
+  assignDefaults(env = environment())
 
   origGetWd <- getwd()
   if (isTRUE(Restart))
@@ -714,7 +717,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["packagePath"]] <- .libPathDefault(name)
   }
 
-  if (is.null(paths[["modulePath"]])) paths[["modulePath"]] <- "modules"
+  defaultsSPO <- spadesProjectOptions() # uses projectPath
+  if (is.null(paths[["modulePath"]]))
+    paths[["modulePath"]] <- basename(defaultsSPO$spades.modulePath) # "modules"
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & rep(names(paths), lengths(paths)) != "projectPath"
   if (isTRUE(any(toMakeAbsolute))) {
@@ -742,8 +747,10 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     setwd(checkPath(paths[["projectPath"]], create = TRUE))
   }
 
+  defaultsSPO <- spadesProjectOptions() # uses projectPath, so need updated
   if (is.null(paths$scratchPath)) {
-    paths$scratchPath <- file.path(tempdir(), name)
+    paths$scratchPath <- getOption("spades.scratchPath",
+                                   defaultsSPO$spades.scratchPath) # file.path(tempdir(), name)
   }
   if (!is.null(paths$scratchPath)) {
     paths <- Require::modifyList2(
@@ -756,9 +763,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
 
   paths <- Require::modifyList2(
-    list(cachePath = file.path(paths[["projectPath"]], "cache"),
-         inputPath = file.path(paths[["projectPath"]], "inputs"),
-         outputPath = file.path(paths[["projectPath"]], "outputs")
+    list(cachePath = getOption("reproducible.cachePath",
+                               defaultsSPO$reproducible.cachePath),
+         inputPath = getOption("spades.inputPath",
+                               defaultsSPO$spades.inputPath),
+         outputPath = getOption("spades.outputPath",
+                                defaultsSPO$spades.outputPath)
+    # list(cachePath = file.path(paths[["projectPath"]], "cache"),
+    #      inputPath = file.path(paths[["projectPath"]], "inputs"),
+    #      outputPath = file.path(paths[["projectPath"]], "outputs")
     ),
     paths)
 
@@ -807,7 +820,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     paths[["packagePath"]] <- .libPaths()[1]
   }
 
-  do.call(setPaths, append(paths[spPaths], list(verbose = verbose)))
+  if (any(lengths(paths) == 0)) {
+    paths[lengths(paths) == 0] <- Map(p = names(paths)[lengths(paths) == 0], function(p) {
+      spo <- spadesProjectOptions()
+      spo[[grep(p, names(spo))]]
+    }
+    )
+  }
+  a <- try(do.call(setPaths, append(paths[spPaths], list(verbose = verbose))))
+  if (is(a, "try-error")) browser()
 
   messageVerbose(yellow("  done setting up paths"), verbose = verbose, verboseLevel = 0)
 
@@ -1766,6 +1787,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
 checkProjectPath <- function(paths, name, envir, envir2) {
 
+  defaults <- spadesProjectOptions()
   if (missing(paths)) {
     paths <- list()
   }
@@ -1773,9 +1795,9 @@ checkProjectPath <- function(paths, name, envir, envir2) {
     paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
   }
   if (is.null(paths[["projectPath"]])) {
-    prjPth <- if (missing(name))
-      getOption("SpaDES.project.projectPath", normPath("."))
-    else {
+    prjPth <- if (missing(name)) {
+      defaults$spades.projectPath
+    } else {
       if (isInProject(name)) {
         normPath(".")
       } else {
@@ -2022,32 +2044,40 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
     SP = FALSE,
     TP = FALSE
   )
+  defaultSPO <- spadesProjectOptions()
   if (missing(cachePath)) {
-    cachePath <- .getOption("reproducible.cachePath") # nolint
+    cachePath <- .getOption("reproducible.cachePath",
+                            defaultSPO$reproducible.cachePath) # nolint
     defaults$CP <- TRUE
   }
   if (missing(inputPath)) {
-    inputPath <- getOption("spades.inputPath") # nolint
+    inputPath <- .getOption("spades.inputPath",
+                            defaultSPO$spades.inputPath) # nolint
     defaults$IP <- TRUE
   }
   if (missing(modulePath)) {
-    modulePath <- getOption("spades.modulePath") # nolint
+    modulePath <- .getOption("spades.modulePath",
+                             defaultSPO$spades.modulePath) # nolint
     defaults$MP <- TRUE
   }
   if (missing(outputPath)) {
-    outputPath <- getOption("spades.outputPath") # nolint
+    outputPath <- .getOption("spades.outputPath",
+                             defaultSPO$spades.outputPath) # nolint
     defaults$OP <- TRUE
   }
-  if (missing(rasterPath)) { ## TODO: deprecate
-    rasterPath <- file.path(getOption("spades.scratchPath"), "raster") # nolint
-    defaults$RP <- TRUE
-  }
   if (missing(scratchPath)) {
-    scratchPath <- getOption("spades.scratchPath") # nolint
+    scratchPath <- .getOption("spades.scratchPath", defaultSPO$spades.scratchPath)
     defaults$SP <- TRUE
   }
+  if (missing(rasterPath)) { ## TODO: deprecate
+    rasterPath <- normPath(file.path(.getOption("spades.scratchPath",
+                             defaultSPO$spades.scratchPath), "raster")) # nolint
+    defaults$RP <- TRUE
+  }
   if (missing(terraPath)) {
-    terraPath <- file.path(getOption("spades.scratchPath"), "terra") # nolint
+    terraPath <- normPath(file.path(.getOption("spades.scratchPath",
+                                  defaultSPO$spades.scratchPath), "terra"))
+    # terraPath <- file.path(getOption("spades.scratchPath"), "terra") # nolint
     defaults$TP <- TRUE
   }
 
@@ -2130,12 +2160,12 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
 
   list(
     cachePath = .getOption("reproducible.cachePath"), # nolint
-    inputPath = getOption("spades.inputPath"), # nolint
-    modulePath = getOption("spades.modulePath"), # nolint
-    outputPath = getOption("spades.outputPath"), # nolint
-    rasterPath = file.path(getOption("spades.scratchPath"), "raster"), # nolint
-    scratchPath = getOption("spades.scratchPath"), # nolint
-    terraPath = file.path(getOption("spades.scratchPath"), "terra") # nolint
+    inputPath = .getOption("spades.inputPath"), # nolint
+    modulePath = .getOption("spades.modulePath"), # nolint
+    outputPath = .getOption("spades.outputPath"), # nolint
+    rasterPath = file.path(.getOption("spades.scratchPath"), "raster"), # nolint
+    scratchPath = .getOption("spades.scratchPath"), # nolint
+    terraPath = file.path(.getOption("spades.scratchPath"), "terra") # nolint
   )
 }
 
@@ -3174,4 +3204,13 @@ setupFiles <- function(files, paths, envir = parent.frame(), verbose = getOption
   paths <- evalSUB(val = pathsSUB, valObjName = "paths", envir = envirCur, envir2 = envir)
   outs <- parseFileLists(files, paths = paths, envir = envir)
   outs
+}
+
+assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinaryRepo", "standAlone", "updateRprofile", "overwrite"),
+                           env = parent.frame()) {
+  defaults <- spadesProjectOptions()
+  lapply(checkDefaults, function(def) {
+    if (is.null(get(def, envir = env, inherits = FALSE)))
+      assign(def, defaults[[paste0("SpaDES.project.", def)]], envir = env)
+  })
 }
