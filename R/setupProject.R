@@ -1382,19 +1382,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
           reportBranch <- TRUE
           # if (!grepl("master|main|HEAD", split$br)) {
-          prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          curBr <- gert::git_branch()
+          # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+          # curBr <- gert::git_branch()
 
           # cmd <- "git rev-parse --abbrev-ref HEAD"
           # curBr <- system(cmd, intern = TRUE)
-          if (!identical(split$br, curBr)) {
-            prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-            gert::git_branch_checkout(split$br)
-            # cmd <- paste0("git checkout ", split$br)
-            # system(cmd)
-            reportBranch <- FALSE
-          }
-          gert::git_pull()
           # }
           # cmd <- paste0("git pull")
           # system(cmd)
@@ -1402,19 +1394,29 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           if (reportBranch)
             messageVerbose("\b ... on ", split$br, " branch")
         } else {
-          if (nzchar(Sys.which("git"))) {
-            cmd <- paste0("git submodule init")
-            system(cmd)
+          submod <- file.path(basename(paths[["modulePath"]]), split$repo)
+          gert::git_submodule_init(submod)#)
+          out <- try(gert::git_submodule_fetch(submodule = submod))
+          if (is(out, 'try-error')) {
             cmd <- paste0("git submodule update --recursive")
             system(cmd)
-          } else {
-            stop("To use git submodules, ", .messages$pleaseInstall())
           }
-          # messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
+
         }
 
-        })
-      messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
+        # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+        # curBr <- gert::git_branch()
+        # if (!identical(split$br, curBr)) {
+        #   prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+        #   gert::git_submodule_set_to(submod, ref = split$br)
+        #   # cmd <- paste0("git checkout ", split$br)
+        #   # system(cmd)
+        #   reportBranch <- FALSE
+        # }
+        gert::git_pull()
+
+      })
+      # messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
     }
     if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
 
