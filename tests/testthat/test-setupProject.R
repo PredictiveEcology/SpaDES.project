@@ -61,7 +61,6 @@ test_that("test setupProject - actually simplest", {
 
 })
 
-
 test_that("test setupProject - simplest", {
   skip_on_cran()
   setupTest() # setwd, sets .libPaths() to a temp
@@ -268,7 +267,6 @@ test_that("test setupProject - pass modules as a list", {
   expect_true(length(errs) > 0)
   expect_true(grepl("'modules' must be a character vector", errs))
 })
-
 
 test_that("test setupProject - studyArea in lonlat", {
   skip_on_cran()

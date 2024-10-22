@@ -567,7 +567,8 @@ setupProject <- function(name, paths, modules, packages,
     dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
   }
 
-  setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
+  # Now this is done with usethis::use_git and usethis::use_github and one more manual
+  # setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
 
   # Put Dots in order
   if (length(dotsSUB) > 1)
@@ -1288,7 +1289,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       }
       )
 
-      # This will create a new Git Repo at the top level
+      # This will create a new Git Repo at the top level - this may be moot because
+      #    usethis::create_project and usethis::useGit are in setupRestart; so already
+      #    done
       if (isLocalGitRepoAlready %in% FALSE && is.character(useGit)) {
         dir1 <- dir(".", all.files = TRUE)
         onlyFiles <- dir1[!dir.exists(dir1)]
@@ -1298,45 +1301,45 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           onlyFiles <- dir1[!dir.exists(dir1)]
         }
         theFiles <- paste(onlyFiles, collapse = " ")
-        system(paste("git add ", theFiles))
+        if (nzchar(Sys.which("git")) && !requireNamespace("gert")) {
+          system(paste("git add ", theFiles))
+        } else {
+          gert::git_add(theFiles)
+        }
+
 
         ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$cachePath, paths[["projectPath"]])
         ignoreAFolder(gitIgnoreFile = ".gitIgnore", paths$inputPath, paths[["projectPath"]])
 
-        system(paste("git commit -a -m \"first commit\""))
-        rl <- readline("Update git config --global --edit ? (Y or N): ")
-        if (startsWith(tolower(rl), "y") ) {
-          system(paste0("git config --global --edit "))
-
-          rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
-          if (startsWith(tolower(rl), "y") ) {
-            system(paste0("git commit --amend --reset-author"))
-          }
+        if (nzchar(Sys.which("git")) && !requireNamespace("gert")) {
+          system(paste("git commit -a -m \"first commit\""))
+        } else {
+          gert::git_commit_all(message = "first commit")
         }
-        system("git branch -M main")
-        # rl <- readline("Type remote ssh url after git@github.com:")
-        addOrigin <- paste0('git remote add origin git@github.com:', gitUserName,'/', name ,'.git')
-        system(addOrigin)
-        # system(paste0("git remote add origin git@github.com:", rl))
-        system("git push -u origin main")
-        isLocalGitRepoAlready <- TRUE
+        rl <- readline("Update git config --global --edit ? (Y or N): ")
+        if (nzchar(Sys.which("git"))) {
+          if (startsWith(tolower(rl), "y") ) {
+            system(paste0("git config --global --edit "))
+
+            rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
+            if (startsWith(tolower(rl), "y") ) {
+              system(paste0("git commit --amend --reset-author"))
+            }
+          }
+          system("git branch -M main")
+          # rl <- readline("Type remote ssh url after git@github.com:")
+          addOrigin <- paste0('git remote add origin git@github.com:', gitUserName,'/', name ,'.git')
+          system(addOrigin)
+          # system(paste0("git remote add origin git@github.com:", rl))
+          system("git push -u origin main")
+          isLocalGitRepoAlready <- TRUE
+        } else {
+          stop("Setting up a new repository is unlikely to work; ", .messages$pleaseInstall())
+          # need to mirror the code above
+          gert::git_config_global_set()
+        }
 
       }
-
-      # lala <- unlist(strsplit(
-      #   split = " {4,}",
-      #   c(
-      #     #     'git init -b main
-      #     # git add .
-      #     # git commit -m "first commit"
-      #     'git branch -M main',
-      #     paste0('git remote add origin git@github.com:',gitUserName,'/', name ,'.git'),
-      #     'git push --set-upstream origin main
-      #   git push -u origin main
-      #   ')))
-      #
-      # lala <- gsub("\n", "", lala)
-      # lala2 <- lapply(lala, system, intern = TRUE)
 
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
@@ -1377,37 +1380,50 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           #   }
           # }
 
-        } else {
-          messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
-        }
-        reportBranch <- TRUE
-        # if (!grepl("master|main|HEAD", split$br)) {
-        prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-        curBr <- gert::git_branch()
-
-        # cmd <- "git rev-parse --abbrev-ref HEAD"
-        # curBr <- system(cmd, intern = TRUE)
-        if (!identical(split$br, curBr)) {
+          reportBranch <- TRUE
+          # if (!grepl("master|main|HEAD", split$br)) {
           prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          gert::git_branch_checkout(split$br)
-          # cmd <- paste0("git checkout ", split$br)
-          # system(cmd)
-          reportBranch <- FALSE
-        }
-        gert::git_pull()
-        # }
-        # cmd <- paste0("git pull")
-        # system(cmd)
+          curBr <- gert::git_branch()
 
-        if (reportBranch)
-          messageVerbose("\b ... on ", split$br, " branch")
-      })
+          # cmd <- "git rev-parse --abbrev-ref HEAD"
+          # curBr <- system(cmd, intern = TRUE)
+          if (!identical(split$br, curBr)) {
+            prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+            gert::git_branch_checkout(split$br)
+            # cmd <- paste0("git checkout ", split$br)
+            # system(cmd)
+            reportBranch <- FALSE
+          }
+          gert::git_pull()
+          # }
+          # cmd <- paste0("git pull")
+          # system(cmd)
+
+          if (reportBranch)
+            messageVerbose("\b ... on ", split$br, " branch")
+        } else {
+          if (nzchar(Sys.which("git"))) {
+            cmd <- paste0("git submodule init")
+            system(cmd)
+            cmd <- paste0("git submodule update --recursive")
+            system(cmd)
+          } else {
+            stop("To use git submodules, ", .messages$pleaseInstall())
+          }
+          # messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
+        }
+
+        })
       messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
     }
     if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
 
-      res1 <- system(paste("git remote add", name, useGit), intern = TRUE)
-      res2 <- system(paste("git push", name), intern = TRUE)
+      if (nzchar(Sys.which("git"))) {
+        res1 <- system(paste("git remote add", name, useGit), intern = TRUE)
+        res2 <- system(paste("git push", name), intern = TRUE)
+      } else {
+        stop(.messages$pleaseInstall())
+      }
       if (grepl("error|fatal", res1))
         stop("git push failed; perhaps no rights to push; perhaps open a Git GUI to complete this step")
 
@@ -2010,9 +2026,7 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
 
       # ignore these folders/files
       igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory",
-               ".Rdata", ".RData", ".secret", ".secrets")
-      # rproj <- paste0(basename(prjP), ".Rproj")
-      # igs <- c(igs, rproj)
+               ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile")
 
       for (ig in igs) {
         igRel <- if (!is.null(paths[[ig]])) {
@@ -2473,7 +2487,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           message(blue("Did not copy ", Restart, " to ", newRestart, "; it already exists."))
         RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
         RestartTmpFileStart <- ".Restart_"
-        tempfileInOther <- file.path(paths[["projectPath"]], paste0(RestartTmpFileStart, basename(tempfile())))
+        tempfileInOther <- file.path(paste0(RestartTmpFileStart, basename(tempfile())))
         addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
                            "if (newSession) {",
                            "# message('Welcome to RStudio ', rstudioapi::getVersion())",
@@ -2567,7 +2581,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                      "project name, or change the Github account and try again")
               }
             }
-
           }
 
           if (!rprojroot::is_git_root$testfun[[1]](pp)) {
@@ -2577,6 +2590,17 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             }
             if (!nzchar(gitUserName))
               gitUserName <- NULL
+            if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
+              if (isTRUE(getOption("SpaDES.project.gitignore", TRUE))) {
+                igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory",
+                         ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile", ".Restart*")
+              } else {
+                igs <- getOption("SpaDES.project.gitignore", TRUE)
+              }
+              usethis::use_git_ignore(igs)
+              # gert::git_add(".gitignore")
+              # gert::git_commit("add more .gitignores")
+            }
             bbb <- try(usethis::use_git())
             if (!(exists("gitUserNamePoss", inherits = FALSE)))
               gitUserNamePoss <- gh::gh_whoami()$login
@@ -3067,14 +3091,21 @@ checkGitRemote <- function(name, paths) {
       dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
       setwd(projectBase)
       on.exit(setwd(od))
-      cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
+      out <- gert::git_clone(url = file.path("https://github.com", gitUserName, name))
+      # cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
       system(cmd)
       setwd(name)
       if (length(dir(pattern = ".gitmodules", all.files = T))) {
-        cmd <- paste0("git submodule init")
-        a <- system(cmd, intern = TRUE)
-        cmd <- paste0("git submodule update --recursive")
-        b <- system(cmd, intern = TRUE)
+        if (nzchar(Sys.which("git2"))) {
+          cmd <- paste0("git submodule init")
+          a <- system(cmd, intern = TRUE)
+          cmd <- paste0("git submodule update --recursive")
+          b <- system(cmd, intern = TRUE)
+        } else {
+          stop("This is not tested; ", .messages$pleaseInstall())
+          gert::git_submodule_init()
+          gert::git_submodule_fetch()
+        }
       }
     } else {
       stop("Please clone the project manually, or choose another account and repository")
@@ -3219,4 +3250,9 @@ assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinar
     if (is.null(get(def, envir = env, inherits = FALSE)))
       assign(def, defaults[[paste0("SpaDES.project.", def)]], envir = env)
   })
+}
+
+.messages <- list()
+.messages$pleaseInstall <- function() {
+  "please install git command line e.g., git for Windows"
 }
