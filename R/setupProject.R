@@ -1351,25 +1351,31 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
           prev <- setwd(file.path(paths[["modulePath"]]))
           cloneOrSubmodule <- if (isTRUE(isLocalGitRepoAlready)) {
-            "submodule add"
+            gert::git_submodule_add
+            # "submodule add"
           } else {
-            "clone"
+            gert::git_clone
+            # "clone"
           }
 
-          cmd <- paste0("git ", cloneOrSubmodule," https://github.com/", modPath)
+          # cmd <- paste0("git ", cloneOrSubmodule," https://github.com/", modPath)
+          # setwd(paths[["modulePath"]])
+          # gert::git_submodule_add("https://github.com/cboisvenue/spadesCBM", path = "modules/spadesCBM")
+          out <- cloneOrSubmodule(paste0("https://github.com/", modPath),
+                                  path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
 
-          for (i in 1:2) {
-            system(cmd)
-            if (dir.exists(file.path(paths[["modulePath"]], split$repo)))
-              break
-            if (getOption("SpaDES.project.forceGit", TRUE)) {
-              messageVerbose("It looks like the submodule was deleted; restoring it.\n",
-                      "Set options('SpaDES.project.forceGit' = FALSE) to prevent this", verbose = verbose)
-              verbose <<- max(0, verbose - 1)
-              cmd2 <- strsplit(cmd, cloneOrSubmodule)[[1]]
-              cmd <- paste0(cmd2[1], cloneOrSubmodule, " --force", tail(cmd2, 1))
-            }
-          }
+          # for (i in 1:2) {
+          #   system(cmd)
+          #   if (dir.exists(file.path(paths[["modulePath"]], split$repo)))
+          #     break
+          #   if (getOption("SpaDES.project.forceGit", TRUE)) {
+          #     messageVerbose("It looks like the submodule was deleted; restoring it.\n",
+          #             "Set options('SpaDES.project.forceGit' = FALSE) to prevent this", verbose = verbose)
+          #     verbose <<- max(0, verbose - 1)
+          #     cmd2 <- strsplit(cmd, cloneOrSubmodule)[[1]]
+          #     cmd <- paste0(cmd2[1], cloneOrSubmodule, " --force", tail(cmd2, 1))
+          #   }
+          # }
 
         } else {
           messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
@@ -1377,19 +1383,21 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         reportBranch <- TRUE
         # if (!grepl("master|main|HEAD", split$br)) {
         prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-        cmd <- "git rev-parse --abbrev-ref HEAD"
-        # next line -- cd doesn't work on my windows; no idea why
-        # cmd <- paste0("cd ", file.path(paths[["modulePath"]], split$repo), " && git rev-parse --abbrev-ref HEAD ")
-        curBr <- system(cmd, intern = TRUE)
+        curBr <- gert::git_branch()
+
+        # cmd <- "git rev-parse --abbrev-ref HEAD"
+        # curBr <- system(cmd, intern = TRUE)
         if (!identical(split$br, curBr)) {
           prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          cmd <- paste0("git checkout ", split$br)
-          system(cmd)
+          gert::git_branch_checkout(split$br)
+          # cmd <- paste0("git checkout ", split$br)
+          # system(cmd)
           reportBranch <- FALSE
         }
+        gert::git_pull()
         # }
-        cmd <- paste0("git pull")
-        system(cmd)
+        # cmd <- paste0("git pull")
+        # system(cmd)
 
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
@@ -3047,8 +3055,6 @@ checkGitRemote <- function(name, paths) {
       usethis::use_github(gitUserName)
       stop_quietly()
     }
-    # usethis::use_github(gitUserName, private = FALSE)
-    # system("git init -b main")
   } else {
     message("It looks like the remote Git repo exists (",file.path(gitUserName, name),
             "). Would you like to clone it now to ", paths[["projectPath"]], "?")
