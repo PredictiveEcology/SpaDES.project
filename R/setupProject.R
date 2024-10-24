@@ -1350,6 +1350,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
+        reportBranch <- TRUE
         if (!dir.exists(localPath)) {
 
           prev <- setwd(file.path(paths[["modulePath"]]))
@@ -1380,7 +1381,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           #   }
           # }
 
-          reportBranch <- TRUE
           # if (!grepl("master|main|HEAD", split$br)) {
           # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
           # curBr <- gert::git_branch()
@@ -1391,31 +1391,48 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # cmd <- paste0("git pull")
           # system(cmd)
 
-          if (reportBranch)
-            messageVerbose("\b ... on ", split$br, " branch")
         } else {
-          submod <- file.path(basename(paths[["modulePath"]]), split$repo)
-          gert::git_submodule_init(submod)#)
-          out <- try(gert::git_submodule_fetch(submodule = submod))
-          if (is(out, 'try-error')) {
-            cmd <- paste0("git submodule update --recursive")
-            system(cmd)
-          }
 
+          if (dir.exists(file.path(localPath, ".git"))) {
+            messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
+          } else {
+            setwd(dirname(paths[["modulePath"]]))
+            submod <- file.path(basename(paths[["modulePath"]]), split$repo)
+            gert::git_submodule_init(submod)#)
+            out <- try(gert::git_submodule_fetch(submodule = submod))
+            if (is(out, 'try-error')) {
+              if (nzchar(Sys.which("git"))) {
+                cmd <- paste0("git submodule update --recursive")
+                system(cmd)
+              } else {
+                stop("This setup requires git; ", .messages$pleaseInstall())
+              }
+            }
+
+          }
         }
 
-        # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-        # curBr <- gert::git_branch()
-        # if (!identical(split$br, curBr)) {
-        #   prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-        #   gert::git_submodule_set_to(submod, ref = split$br)
-        #   # cmd <- paste0("git checkout ", split$br)
-        #   # system(cmd)
-        #   reportBranch <- FALSE
-        # }
+        prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+        curBr <- gert::git_branch()
+        if (!identical(split$br, curBr)) {
+          # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+          # gert::git_submodule_set_to(submod, ref = split$br)
+          gert::git_branch_checkout(split$br)
+          # cmd <- paste0("git checkout ", split$br)
+          # system(cmd)
+          reportBranch <- FALSE
+        }
         gert::git_pull()
 
+        if (reportBranch)
+          messageVerbose("\b ... on ", split$br, " branch")
       })
+      setwd(origDir)
+      gert::git_pull()
+
+      # cmd <- paste0("git submodule update --recursive")
+      # system(cmd)
+
       # messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
     }
     if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
@@ -1879,6 +1896,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   val2 <- val
   userQuoted <- tryCatch(grepl("quote", val), silent = TRUE, error = function(e) FALSE)
   warns <- character()
+
   withCallingHandlers({
   while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
     if (identical(valObjName, "options")) {
