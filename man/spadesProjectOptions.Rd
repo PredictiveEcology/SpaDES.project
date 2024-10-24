@@ -21,7 +21,8 @@ where \code{xxx} is one of the values below, and \code{newValue} is a new value 
 give the option. Sometimes these options can be placed in the user's \code{.Rprofile}
 file so they persist between sessions.
 
-The following options are used, using the prefix: \code{spades}
+The following options are used, and can mostly be specified in the various \verb{setup*}
+functions also.
 \tabular{lcl}{
 \emph{OPTION} \tab \emph{DEFAULT VALUE} \tab \emph{DESCRIPTION} \cr
 \code{reproducible.cachePath}
@@ -52,4 +53,7 @@ The following options are used, using the prefix: \code{spades}
 \tab Default is FALSE. Passed to \code{useGit} argument in \code{setupProject}  \cr
 
 }
+
+\code{SpaDES.project.ask} is currently only used when offering to clone a remote
+github repository. Setting this to \code{FALSE} will prevent asking and just "do it".
 }

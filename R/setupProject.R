@@ -2432,8 +2432,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
   }
 
-  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio()
-       || !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
+  if (!isRstudio()) {
+    Restart <- FALSE
+  }
+
+  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio() ||
+       !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
 
     on.exit(setwd(origGetWd), add = TRUE)
 
@@ -2443,16 +2447,18 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
     pp <- path.expand(paths[["projectPath"]])
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
-    curRstudioProj <- rstudioapi::getActiveProject()
-    isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+    if (isRstudio()) {
+      curRstudioProj <- rstudioapi::getActiveProject()
+      isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+    }
     # inProject <- isInProject(name)
 
-    if (!inProject || !isRstudioProj) {
-      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]])) {
-        messageVerbose("... restarting Rstudio inside the project",
-                       verbose = verbose)
+    if ((!inProject || !isRstudioProj)) {
+      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudio() ) {
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
+        messageVerbose("... restarting Rstudio inside the project",
+                       verbose = verbose)
         activeFile <- rstudioapi::getSourceEditorContext()$path
         if (!is.character(Restart)) {
           rstudioUnsavedFile <- "~/.active-rstudio-document"
@@ -2549,95 +2555,99 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                            ")")
         cat(addToTempFile, file = tempfileInOther, sep = "\n")
         cat(newRprofile, file = RprofileInOther, sep = "\n")
-        cloned <- FALSE
 
-        if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
-             requireNamespace("gitcreds")) && cloned %in% FALSE ) {
+      }
 
-          basenameName <- basename(name)
-          needGitUserName <- TRUE
-          if (is.character(useGit)) {
-            if (useGit != "sub") {
-              needGitUserName <- FALSE
-              gitUserName <- useGit
-            }
-          }
+      cloned <- FALSE
+      if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
+           requireNamespace("gitcreds")) && cloned %in% FALSE ) {
 
-          if (needGitUserName) {
-            mess <- capture.output(
-              type = "message",
-              gitUserNamePoss <- gh::gh_whoami()$login)
-            if (is.null(gitUserNamePoss)) {
-              stop(paste(c(mess, "or try gitcreds::gitcreds_set()"), collapse = "\n"))
-            }
-            messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-            gitUserName <- if (interactive()) readline() else gitUserNamePoss
-            if (!nzchar(gitUserName)) {
-              gitUserName <- gitUserNamePoss
-              needGitUserName <- FALSE
-            }
-
-          }
-
-
-          if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
-            host <- "https://github.com"
-            tf <- tempfile2();
-            out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
-                                        destfile = tf, verbose = verbose - 10)
-            # The suppressWarnings is for "incomplete final line"
-            checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
-
-            if (any(grepl("Not Found", checkExists))) {
-              usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
-            } else {
-              repo <- file.path(host, gitUserName, basenameName)
-              messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
-              # messageVerbose(paste0("The github repository already exists: ", repo),
-              #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-              out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
-              if (grepl("y|yes", tolower(out))) {
-                setwd(dirname(getwd()))
-                unlink(basenameName, recursive = TRUE)
-                gert::git_clone(repo, path = basenameName)
-                cloned <- TRUE
-                setwd(paths[["projectPath"]])
-              } else {
-                stop("Can't proceed: either delete existing github repo, change the ",
-                     "project name, or change the Github account and try again")
-              }
-            }
-          }
-
-          if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
-            igs <- gitIgnoreInitials(paths)
-            usethis::use_git_ignore(igs)
-            # gert::git_add(".gitignore")
-            # gert::git_commit("add more .gitignores")
-          }
-
-          if (!rprojroot::is_git_root$testfun[[1]](pp)) {
-            if (needGitUserName) {
-              messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-              gitUserName <- readline()
-            }
-            if (!nzchar(gitUserName))
-              gitUserName <- NULL
-            bbb <- try(usethis::use_git())
-            if (!(exists("gitUserNamePoss", inherits = FALSE)))
-              gitUserNamePoss <- gh::gh_whoami()$login
-            if (identical(gitUserName, gitUserNamePoss))
-              gitUserName <- NULL
-
-            githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
+        basenameName <- basename(name)
+        needGitUserName <- TRUE
+        if (is.character(useGit)) {
+          if (useGit != "sub") {
+            needGitUserName <- FALSE
+            gitUserName <- useGit
           }
         }
+
+        if (needGitUserName) {
+          mess <- capture.output(
+            type = "message",
+            gitUserNamePoss <- gh::gh_whoami()$login)
+          if (is.null(gitUserNamePoss)) {
+            stop(paste(c(mess, "or try gitcreds::gitcreds_set()"), collapse = "\n"))
+          }
+          messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
+          gitUserName <- if (interactive()) readline() else gitUserNamePoss
+          if (!nzchar(gitUserName)) {
+            gitUserName <- gitUserNamePoss
+            needGitUserName <- FALSE
+          }
+
+        }
+
+
+        if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
+          host <- "https://github.com"
+          tf <- tempfile2();
+          out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
+                                             destfile = tf, verbose = verbose - 10)
+          # The suppressWarnings is for "incomplete final line"
+          checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
+
+          if (any(grepl("Not Found", checkExists))) {
+            usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
+          } else {
+            repo <- file.path(host, gitUserName, basenameName)
+            messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
+            # messageVerbose(paste0("The github repository already exists: ", repo),
+            #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+            out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+            if (grepl("y|yes", tolower(out))) {
+              setwd(dirname(getwd()))
+              unlink(basenameName, recursive = TRUE)
+              gert::git_clone(repo, path = basenameName)
+              cloned <- TRUE
+              setwd(paths[["projectPath"]])
+            } else {
+              stop("Can't proceed: either delete existing github repo, change the ",
+                   "project name, or change the Github account and try again")
+            }
+          }
+        }
+
+        if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
+          igs <- gitIgnoreInitials(paths)
+          usethis::use_git_ignore(igs)
+          # gert::git_add(".gitignore")
+          # gert::git_commit("add more .gitignores")
+        }
+
+        if (!rprojroot::is_git_root$testfun[[1]](pp)) {
+          if (needGitUserName) {
+            messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
+            gitUserName <- readline()
+          }
+          if (!nzchar(gitUserName))
+            gitUserName <- NULL
+          bbb <- try(usethis::use_git())
+          if (!(exists("gitUserNamePoss", inherits = FALSE)))
+            gitUserNamePoss <- gh::gh_whoami()$login
+          if (identical(gitUserName, gitUserNamePoss))
+            gitUserName <- NULL
+
+          githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
+        }
+      }
+      if (isRstudio()) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
         stop_quietly()
-      } else {
-        stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
       }
+      #} else {
+      #  stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
+      #}
     }
   } else {
     if (!Restart %in% FALSE) {

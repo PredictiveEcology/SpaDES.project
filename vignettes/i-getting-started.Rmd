@@ -12,6 +12,12 @@ editor_options:
   chunk_output_type: console
 ---
 
+```{r setCRAN,echo=FALSE}
+# cleanup / restore state
+if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
+ options(repos = c(CRAN = "https://cloud.r-project.org"))
+}
+```
 
 
 ```{r setup, include = FALSE}
@@ -22,6 +28,7 @@ knitr::opts_chunk$set(
 )
 
 # Most are eval=FALSE within each chunk; but a few are not. Those must be eval=FALSE on GA and CRAN
+if (is.null(getOption("repos"))) chooseCRANmirror(ind = 1)
 SuggestedPkgsNeeded <- c("SpaDES.core", "igraph", "visNetwork", "ellipsis", "terra")
 hasSuggests <- all(sapply(SuggestedPkgsNeeded, requireNamespace, quietly = TRUE))
 useSuggests <- !(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_")) == "true")
@@ -46,12 +53,6 @@ origLibPath = .libPaths()[1]
 
 
 
-```{r setCRAN,echo=FALSE}
-# cleanup / restore state
-if (is.null(getOption("repos")) || !"CRAN" %in% names(getOption("repos"))) {
- options(repos = c(CRAN = "https://cloud.r-project.org"))
-}
-```
 
 `SpaDES` is a collection of R packages designed to provide a flexible framework for ecological analysis, simulations, forecasting, and other ecological tasks. At its core, a `SpaDES` analysis revolves around the concept of a "module" - a self-contained unit of code that performs a specific function and includes both machine-readable and human-readable metadata. In a typical `SpaDES` project, users often employ multiple modules, whether they've authored them or they've been contributed by others. This scalability introduces several challenges, including managing file paths (e.g., for data inputs, outputs, figures, modules, and packages), handling package dependencies, and coordinating the development of multiple modules simultaneously. While it is possible to develop a `SpaDES` project using methods familiar to the user, the `SpaDES.project` package streamlines this process, facilitating a clean, reproducible and reusable project setup for any project. Default settings ensure that project files and packages are kept isolated, preventing potential conflicts with other projects on the same computer.
 
