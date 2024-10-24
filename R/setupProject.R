@@ -2048,23 +2048,24 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
       }
 
       # ignore these folders/files
-      igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory",
-               ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile")
-
-      for (ig in igs) {
-        igRel <- if (!is.null(paths[[ig]])) {
-          fs::path_rel(paths[[ig]], prjP)
-        } else {
-          ig
-        }
-
-        if (!isAbsolutePath(igRel)) { # if igRel is inside projectPath, then add to .gitignore
-          if (!any(grepl(igRel, gif))) { # only add if not already there
-            insertLine <- length(gif)
-            gif[insertLine + 1] <- igRel
-          }
-        }
-      }
+      igs <- gitIgnoreInitials(paths)
+      # igs <- c(paths[["cachePath"]], paths[["inputPath"]], paths[["outputPath"]], ".Rproj.user", ".Rhistory",
+      #          ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile")
+      #
+      # for (ig in igs) {
+      #   igRel <- if (!is.null(paths[[ig]])) {
+      #     fs::path_rel(paths[[ig]], prjP)
+      #   } else {
+      #     ig
+      #   }
+      #
+      #   if (!isAbsolutePath(igRel)) { # if igRel is inside projectPath, then add to .gitignore
+      #     if (!any(grepl(igRel, gif))) { # only add if not already there
+      #       insertLine <- length(gif)
+      #       gif[insertLine + 1] <- igRel
+      #     }
+      #   }
+      # }
 
       # Write the file
       if (length(setdiff(gif, gifOrig))) {
@@ -2606,6 +2607,13 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             }
           }
 
+          if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
+            igs <- gitIgnoreInitials(paths)
+            usethis::use_git_ignore(igs)
+            # gert::git_add(".gitignore")
+            # gert::git_commit("add more .gitignores")
+          }
+
           if (!rprojroot::is_git_root$testfun[[1]](pp)) {
             if (needGitUserName) {
               messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
@@ -2613,17 +2621,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             }
             if (!nzchar(gitUserName))
               gitUserName <- NULL
-            if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
-              if (isTRUE(getOption("SpaDES.project.gitignore", TRUE))) {
-                igs <- c("cachePath", "inputPath", "outputPath", ".Rproj.user", ".Rhistory",
-                         ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile", ".Restart*")
-              } else {
-                igs <- getOption("SpaDES.project.gitignore", TRUE)
-              }
-              usethis::use_git_ignore(igs)
-              # gert::git_add(".gitignore")
-              # gert::git_commit("add more .gitignores")
-            }
             bbb <- try(usethis::use_git())
             if (!(exists("gitUserNamePoss", inherits = FALSE)))
               gitUserNamePoss <- gh::gh_whoami()$login
@@ -3283,4 +3280,26 @@ assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinar
 .messages$gitRepoExistsCloneNowTxt <- function(repo, to = getwd()) {
   paste0("The github repository already exists: ", repo,
   "\nWould you like to clone it now to ", to, "\nType (y)es or any other key for no: ")
+}
+
+
+
+gitIgnoreInitials <- function(paths) {
+  if (isTRUE(getOption("SpaDES.project.gitignore", TRUE))) {
+    igs1 <- c(".Rproj.user", ".Rhistory",
+              ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile", ".Restart*")
+    prjP <- paths[["projectPath"]]
+    igs <- c("cachePath", "inputPath", "outputPath")
+    igs <- vapply(igs, FUN.VALUE = character(1), function(ig) {
+      igRel <- if (!is.null(paths[[ig]])) {
+        fs::path_rel(paths[[ig]], prjP)
+      } else {
+        ig
+      }
+      igRel
+    })
+    igs <- c(igs, igs1)
+  } else {
+    igs <- getOption("SpaDES.project.gitignore", TRUE)
+  }
 }
