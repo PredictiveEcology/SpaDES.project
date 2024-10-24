@@ -1911,8 +1911,11 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       val2 <- try(eval(val, envir = envir), silent = TRUE)
     }
 
-    if ((identical(val2, val) && !missing(envir2)) || is.null(val2) ||
-        is(val2, "try-error")) {
+    tryAgain <- (identical(val2, val) && !missing(envir2)) ||
+      is(val2, "try-error")
+    if (!identical(valObjName, "sideEffects"))
+      tryAgain <- tryAgain || is.null(val2)
+    if (tryAgain) {
       val3 <- try(eval(val, envir = envir2), silent = TRUE)
       if (is(val3, "try-error")) {
         # last ditch effort -- brute force
