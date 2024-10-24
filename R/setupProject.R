@@ -1393,7 +1393,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
         } else {
 
-          if (dir.exists(file.path(localPath, ".git"))) {
+          dotGit <- file.path(localPath, ".git")
+          if (file.exists(dotGit)) {
             messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
           } else {
             setwd(dirname(paths[["modulePath"]]))
