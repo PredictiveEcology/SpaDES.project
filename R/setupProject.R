@@ -2591,9 +2591,10 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
               usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
             } else {
               repo <- file.path(host, gitUserName, basenameName)
-              messageVerbose(paste0("The github repository already exists: ", repo),
-                             "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-              out <- if (interactive()) readline() else "yes"
+              messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
+              # messageVerbose(paste0("The github repository already exists: ", repo),
+              #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+              out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
               if (grepl("y|yes", tolower(out))) {
                 setwd(dirname(getwd()))
                 unlink(basenameName, recursive = TRUE)
@@ -3100,9 +3101,14 @@ checkGitRemote <- function(name, paths) {
       stop_quietly()
     }
   } else {
-    message("It looks like the remote Git repo exists (",file.path(gitUserName, name),
-            "). Would you like to clone it now to ", paths[["projectPath"]], "?")
-    cloneNow <- readline("Y or N (if N, this will stop): ")
+    messageVerbose(verbose = verbose,
+      .messages$gitRepoExistsCloneNowTxt(repo = file.path(gitUserName, name),
+                                         to = paths[["projectPath"]]))
+
+    # message("It looks like the remote Git repo exists (",,
+    #         "). Would you like to clone it now to ", paths[["projectPath"]], "?")
+    cloneNow <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+    # cloneNow <- readline("Y or N (if N, this will stop): ")
     if (startsWith(tolower(cloneNow), "y")) {
       if (normalizePath(getwd()) == normalizePath(paths[["projectPath"]], mustWork = FALSE)) {
         stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")

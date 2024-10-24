@@ -15,7 +15,8 @@
 #' give the option. Sometimes these options can be placed in the user's `.Rprofile`
 #' file so they persist between sessions.
 #'
-#' The following options are used, using the prefix: `spades`
+#' The following options are used, and can mostly be specified in the various `setup*`
+#' functions also.
 #' \tabular{lcl}{
 #'   *OPTION* \tab *DEFAULT VALUE* \tab *DESCRIPTION* \cr
 #'   `reproducible.cachePath`
@@ -48,6 +49,9 @@
 #'
 #' }
 #'
+#' `SpaDES.project.ask` is currently only used when offering to clone a remote
+#' github repository. Setting this to `FALSE` will prevent asking and just "do it".
+#'
 spadesProjectOptions <- function() {
   pp <- getOption("spades.projectPath")
   if (is.null(pp))
@@ -67,6 +71,7 @@ spadesProjectOptions <- function() {
   defaults2 <- list(
     SpaDES.project.Restart = FALSE,
     SpaDES.project.useGit = FALSE,
+    SpaDES.project.ask = TRUE,
     SpaDES.project.gitignore = TRUE,
     SpaDES.project.setLinuxBinaryRepo = TRUE,
     SpaDES.project.standAlone = TRUE,
