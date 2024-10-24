@@ -432,7 +432,7 @@ setupProject <- function(name, paths, modules, packages,
     firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
     dotsLater <- dotsSUB[-firstSet]
     dotsSUB <- dotsSUB[firstSet]
-    dotsSUB <- dotsToHereOuter(dots, dotsSUB, defaultDots)
+    dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDots)
   }
 
   functionsSUB <- substitute(functions)
@@ -563,7 +563,7 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   if (length(dotsLater)) {
-    dotsLater <- dotsToHereOuter(dots, dotsLater, defaultDots)
+    dotsLater <- evalDotsOuter(dots, dotsLater, defaultDots)
     dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
   }
 
@@ -686,7 +686,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   makeUpdateRprofileSticky(updateRprofile)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   messageVerbose(yellow("setting up paths ..."), verbose = verbose, verboseLevel = 0)
 
@@ -903,7 +903,7 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   if (!missing(functions)) {
     messageVerbose(yellow("setting up functions..."), verbose = verbose, verboseLevel = 0)
@@ -957,7 +957,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   if (!missing(sideEffects)) {
     messageVerbose(yellow("setting up sideEffects..."), verbose = verbose, verboseLevel = 0)
@@ -1004,7 +1004,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   makeUpdateRprofileSticky(updateRprofile)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   newValuesComplete <- oldValuesComplete <- NULL
   updates <- NULL
@@ -1224,7 +1224,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
   makeUpdateRprofileSticky(updateRprofile)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   if (missing(modules)) {
     modulesOrig <- character()
@@ -1508,7 +1508,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
@@ -1602,7 +1602,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
 
   if (missing(params)) {
     params <- list()
@@ -2266,7 +2266,7 @@ messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnSto
 }
 
 
-dotsToHere <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
+evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
   if (missing(dots))
     dots <- dotsSUB
   else
@@ -2777,8 +2777,8 @@ basename2 <- function (x) {
   }
 }
 
-dotsToHereOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
-  dotsSUB <- dotsToHere(dots, dotsSUB, defaultDots, envir = envir)
+evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir)
   dotsSUBreworked <- list()
   for (i in seq(dotsSUB)) {
     val <- try(eval(dotsSUB[[i]], envir = envir))
@@ -3257,4 +3257,9 @@ assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinar
 .messages <- list()
 .messages$pleaseInstall <- function() {
   "please install git command line e.g., git for Windows"
+}
+
+.messages$gitRepoExistsCloneNowTxt <- function(repo, to = getwd()) {
+  paste0("The github repository already exists: ", repo,
+  "\nWould you like to clone it now to ", to, "\nType (y)es or any other key for no: ")
 }
