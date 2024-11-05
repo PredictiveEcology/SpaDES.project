@@ -2572,11 +2572,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         }
 
         if (needGitUserName) {
+          # options(usethis.protocol = "ssh")
           mess <- capture.output(
             type = "message",
             gitUserNamePoss <- gh::gh_whoami()$login)
           if (is.null(gitUserNamePoss)) {
-            stop(paste(c(mess, "or try gitcreds::gitcreds_set()"), collapse = "\n"))
+            stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
           }
           messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
           gitUserName <- if (interactive()) readline() else gitUserNamePoss
@@ -2631,7 +2632,21 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           }
           if (!nzchar(gitUserName))
             gitUserName <- NULL
-          bbb <- try(usethis::use_git())
+          for (iii in 1:2) {
+            bbb <- try(usethis::use_git())
+            if (is(bbb, "try-error")) {
+              if (any(grepl("user.name", bbb))) {
+                message("Your git account is missing information; either quit",
+                        "and set username and email in the git global config, or specify here:",
+                        "What is your git username: ")
+                un <- readline()
+                em <- readline("What is your git email for github.com: ")
+                usethis::use_git_config(user.name = un, user.email = em)
+              }
+            } else {
+              break
+            }
+          }
           if (!(exists("gitUserNamePoss", inherits = FALSE)))
             gitUserNamePoss <- gh::gh_whoami()$login
           if (identical(gitUserName, gitUserNamePoss))
