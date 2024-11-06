@@ -2588,7 +2588,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
         }
 
-
         if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
           host <- "https://github.com"
           tf <- tempfile2();
@@ -2649,7 +2648,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           }
           if (!(exists("gitUserNamePoss", inherits = FALSE)))
             gitUserNamePoss <- gh::gh_whoami()$login
-          if (identical(gitUserName, gitUserNamePoss))
+
+          gitconf <- gert::git_config()
+          un2 <- gitconf$value[gitconf$name %in% "user.name"]
+
+          if (identical(gitUserName, gitUserNamePoss) || identical(un2, gitUserName) )
             gitUserName <- NULL
 
           githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
