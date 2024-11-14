@@ -1416,6 +1416,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         prev <- setwd(file.path(paths[["modulePath"]], split$repo))
         curBr <- gert::git_branch()
         if (!identical(split$br, curBr)) {
+          gert::git_fetch()
           # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
           # gert::git_submodule_set_to(submod, ref = split$br)
           gert::git_branch_checkout(split$br)
