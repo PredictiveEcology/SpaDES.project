@@ -781,6 +781,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
+  deps <- NULL
   if (isTRUE(changedLibPaths)) {
     deps <- lapply(c("SpaDES.project", "Require"), function(pkg) {
       PackagePath <- getNamespaceInfo(pkg, "path")
@@ -789,9 +790,11 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     })
 
     deps <- unique(c("SpaDES.project", Require::extractPkgName(unlist(deps))))
-    setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
+    needTryInstall <- TRUE
+    # setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
     needSetLibPaths <- TRUE
   } else {
+    needTryInstall <- FALSE
     needSetLibPaths <- needSetLibPathsNow
   }
 
@@ -801,12 +804,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       # requireNamespace will find usethis in memory when devtools is used, but it fails because other
       #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
       #   so need to load before changing .libPaths
-      deps <- Require::pkgDep("usethis")
-      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(deps))))
+      depsUseThis <- Require::pkgDep("usethis")
+      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(depsUseThis))))
       loaded <- sapply(depsSimple, function(pkg) {
         requireNamespace(pkg, quietly = TRUE)
       })
+      deps <- unique(c(deps, depsSimple))
     }
+    # setLibPaths will post-pend the R version number
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                                             updateRprofile = updateRprofile,
                                             exact = FALSE, verbose = verbose))
@@ -816,11 +821,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       } else {
         eval(setLPCall)
       }
+
     if (needSetLibPathsNow %in% FALSE)
       on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
-  }
+    if (isTRUE(needTryInstall))
+      setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
 
+  }
   if (any(lengths(paths) == 0)) {
     paths[lengths(paths) == 0] <- Map(p = names(paths)[lengths(paths) == 0], function(p) {
       spo <- spadesProjectOptions()
