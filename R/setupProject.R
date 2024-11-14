@@ -3325,15 +3325,19 @@ gitIgnoreInitials <- function(paths) {
     igs1 <- c(".Rproj.user", ".Rhistory",
               ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile", ".Restart*")
     prjP <- paths[["projectPath"]]
-    igs <- c("cachePath", "inputPath", "outputPath")
+    igs <- c("cachePath", "inputPath", "outputPath", "packagePath", "rasterPath", "terraPath", "scratchPath")
     igs <- vapply(igs, FUN.VALUE = character(1), function(ig) {
       igRel <- if (!is.null(paths[[ig]])) {
-        fs::path_rel(paths[[ig]], prjP)
+        rel <- fs::path_rel(paths[[ig]], prjP)
+        if (startsWith(rel, ".."))
+          rel <- ""
+        rel
       } else {
         ig
       }
       igRel
     })
+    igs <- igs[nzchar(igs)]
     igs <- c(igs, igs1)
   } else {
     igs <- getOption("SpaDES.project.gitignore", TRUE)
