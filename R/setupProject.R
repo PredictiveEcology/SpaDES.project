@@ -425,7 +425,6 @@ setupProject <- function(name, paths, modules, packages,
     argsAreInFormals <- origArgOrder %in% formalArgs(setupProject)
     firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
   }
-
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
   if (firstNamedArg > 2) { # there is always an empty one at first slot
@@ -1375,6 +1374,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # gert::git_submodule_add("https://github.com/cboisvenue/spadesCBM", path = "modules/spadesCBM")
           out <- cloneOrSubmodule(paste0("https://github.com/", modPath),
                                   path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
+          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
+          # system("git branch --set-upstream-to=origin/main main")
+
+
 
           # for (i in 1:2) {
           #   system(cmd)
@@ -1432,7 +1435,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # system(cmd)
           reportBranch <- FALSE
         }
-        gert::git_pull()
+        gpull <- try(gert::git_pull())
+        if (is(gpull, "try-error")) {
+          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
+          # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
+        }
 
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
