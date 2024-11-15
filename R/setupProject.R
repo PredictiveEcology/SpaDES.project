@@ -1822,7 +1822,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         }
       }))
       if (!identical(mess, objLocal)) {
-        if (file.exists(objLocal))
+        if (any(file.exists(objLocal)))
           messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
       }
     }
