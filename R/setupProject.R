@@ -429,7 +429,6 @@ setupProject <- function(name, paths, modules, packages,
     argsAreInFormals <- origArgOrder %in% setdiff(formalArgs(setupProject), argsCanGoAnywhere)
     firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
   }
-
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsLater <- dotsSUB
   if (firstNamedArg > 2) { # there is always an empty one at first slot
@@ -796,6 +795,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
+  deps <- NULL
   if (isTRUE(changedLibPaths)) {
     deps <- lapply(c("SpaDES.project", "Require"), function(pkg) {
       PackagePath <- getNamespaceInfo(pkg, "path")
@@ -804,9 +804,11 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     })
 
     deps <- unique(c("SpaDES.project", Require::extractPkgName(unlist(deps))))
-    setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
+    needTryInstall <- TRUE
+    # setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
     needSetLibPaths <- TRUE
   } else {
+    needTryInstall <- FALSE
     needSetLibPaths <- needSetLibPathsNow
   }
 
@@ -816,12 +818,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       # requireNamespace will find usethis in memory when devtools is used, but it fails because other
       #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
       #   so need to load before changing .libPaths
-      deps <- Require::pkgDep("usethis")
-      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(deps))))
+      depsUseThis <- Require::pkgDep("usethis")
+      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(depsUseThis))))
       loaded <- sapply(depsSimple, function(pkg) {
         requireNamespace(pkg, quietly = TRUE)
       })
+      deps <- unique(c(deps, depsSimple))
     }
+    # setLibPaths will post-pend the R version number
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                                             updateRprofile = updateRprofile,
                                             exact = FALSE, verbose = verbose))
@@ -831,11 +835,14 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       } else {
         eval(setLPCall)
       }
+
     if (needSetLibPathsNow %in% FALSE)
       on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
-  }
+    if (isTRUE(needTryInstall))
+      setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
 
+  }
   if (any(lengths(paths) == 0)) {
     paths[lengths(paths) == 0] <- Map(p = names(paths)[lengths(paths) == 0], function(p) {
       spo <- spadesProjectOptions()
@@ -1382,6 +1389,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # gert::git_submodule_add("https://github.com/cboisvenue/spadesCBM", path = "modules/spadesCBM")
           out <- cloneOrSubmodule(paste0("https://github.com/", modPath),
                                   path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
+          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
+          # system("git branch --set-upstream-to=origin/main main")
+
+
 
           # for (i in 1:2) {
           #   system(cmd)
@@ -1431,6 +1442,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         prev <- setwd(file.path(paths[["modulePath"]], split$repo))
         curBr <- gert::git_branch()
         if (!identical(split$br, curBr)) {
+          gert::git_fetch()
           # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
           # gert::git_submodule_set_to(submod, ref = split$br)
           gert::git_branch_checkout(split$br)
@@ -1438,7 +1450,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # system(cmd)
           reportBranch <- FALSE
         }
-        gert::git_pull()
+        gpull <- try(gert::git_pull())
+        if (is(gpull, "try-error")) {
+          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
+          # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
+        }
 
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
@@ -1821,7 +1837,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         }
       }))
       if (!identical(mess, objLocal)) {
-        if (file.exists(objLocal))
+        if (any(file.exists(objLocal)))
           messageDF(data.frame(url = mess, "is" = "--->", localFile = objLocal))
       }
     }
@@ -3339,15 +3355,19 @@ gitIgnoreInitials <- function(paths) {
     igs1 <- c(".Rproj.user", ".Rhistory",
               ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile", ".Restart*")
     prjP <- paths[["projectPath"]]
-    igs <- c("cachePath", "inputPath", "outputPath")
+    igs <- c("cachePath", "inputPath", "outputPath", "packagePath", "rasterPath", "terraPath", "scratchPath")
     igs <- vapply(igs, FUN.VALUE = character(1), function(ig) {
       igRel <- if (!is.null(paths[[ig]])) {
-        fs::path_rel(paths[[ig]], prjP)
+        rel <- fs::path_rel(paths[[ig]], prjP)
+        if (startsWith(rel, ".."))
+          rel <- ""
+        rel
       } else {
         ig
       }
       igRel
     })
+    igs <- igs[nzchar(igs)]
     igs <- c(igs, igs1)
   } else {
     igs <- getOption("SpaDES.project.gitignore", TRUE)
