@@ -252,6 +252,10 @@ utils::globalVariables(c(
 #' )
 #' ````
 #'
+#' \subsection{Argument order}{
+#'
+#' }
+#'
 #' \subsection{Values and/or files}{
 #' The arguments, `paths`, `options`, and `params`, can all
 #' understand lists of named values, character vectors, or a mixture by using a list where
@@ -422,7 +426,7 @@ setupProject <- function(name, paths, modules, packages,
   if (is.null(origArgOrder)) {
     firstNamedArg <- 0
   } else {
-    argsAreInFormals <- origArgOrder %in% formalArgs(setupProject)
+    argsAreInFormals <- origArgOrder %in% setdiff(formalArgs(setupProject), argsCanGoAnywhere)
     firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
   }
 
@@ -436,9 +440,6 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   functionsSUB <- substitute(functions)
-  timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-  if (!missing(timesSUB))
-    times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
   modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
   optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
@@ -553,19 +554,33 @@ setupProject <- function(name, paths, modules, packages,
   }
 
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
-  params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
+  remainingArgs <- origArgOrder[!argsAreInFormals]
+  remainingArgs <- remainingArgs[nzchar(remainingArgs)]
+  for (ar in remainingArgs) {
+    if (identical(ar, "params")) {
+      params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                         overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
+    } else if (identical(ar, "studyArea")){
+      studyAreaSUB <- substitute(studyArea)
+      if (!is.null(studyAreaSUB)) {
+        dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
+        studyArea <- dotsSUB$studyArea
+      }
+    } else if (identical(ar, "times")) {
+      timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+      if (!missing(timesSUB))
+        times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
+    } else {
+      if (length(dotsLater)) {
+        dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots)
+      }
 
-  studyAreaSUB <- substitute(studyArea)
-  if (!is.null(studyAreaSUB)) {
-    dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
-    studyArea <- dotsSUB$studyArea
+    }
   }
 
-  if (length(dotsLater)) {
-    dotsLater <- evalDotsOuter(dots, dotsLater, defaultDots)
-    dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
-  }
+  dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
+
+
 
   # Now this is done with usethis::use_git and usethis::use_github and one more manual
   # setupGitIgnore(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE), verbose)
@@ -3338,3 +3353,5 @@ gitIgnoreInitials <- function(paths) {
     igs <- getOption("SpaDES.project.gitignore", TRUE)
   }
 }
+
+argsCanGoAnywhere <- c("params", "studyArea", "times")
