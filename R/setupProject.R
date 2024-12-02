@@ -555,6 +555,8 @@ setupProject <- function(name, paths, modules, packages,
   # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
   remainingArgs <- origArgOrder[!argsAreInFormals]
   remainingArgs <- remainingArgs[nzchar(remainingArgs)]
+  # if (missing(paramsSUB))
+  #   params <- list()
   for (ar in remainingArgs) {
     if (identical(ar, "params")) {
       params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
@@ -600,12 +602,30 @@ setupProject <- function(name, paths, modules, packages,
   paths <- paths[spPaths]
   attr(paths, "extraPaths") <- pathsOrig[extras]
 
-  out <- append(list(
-    modules = modules,
-    paths = paths, # this means we lose the packagePath --> but it is in .libPaths()[1]
-    # we also lose projectPath --> but this is getwd()
-    params = params,
-    times = times), dotsSUB)
+  out <- dotsSUB
+  toAppend <- rev(list("modules", "paths", "params"))
+  for (toA in toAppend) {
+    # some may be missing, e.g., params
+    arg <- try(eval(parse(text = toA)), silent = TRUE)
+    if (!is(arg, "try-error")) {
+      argToAppend <- list(arg) |> setNames(toA)
+      out <- append(argToAppend, out)
+    } else {
+      message("Argument ", toA, " is missing; proceeding without")
+    }
+      # append(list(
+      #   modules = modules,
+      #   paths = paths, # this means we lose the packagePath --> but it is in .libPaths()[1]
+      #   # we also lose projectPath --> but this is getwd()
+      #   params = params,
+      #   times = times), dotsSUB)
+  }
+  # out <- append(list(
+  #   modules = modules,
+  #   paths = paths, # this means we lose the packagePath --> but it is in .libPaths()[1]
+  #   # we also lose projectPath --> but this is getwd()
+  #   params = params,
+  #   times = times), dotsSUB)
   if (!is.null(options)) {
     attr(out, "projectOptions") <- opts$updates
   }
