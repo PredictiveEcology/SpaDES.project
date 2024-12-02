@@ -611,7 +611,12 @@ setupProject <- function(name, paths, modules, packages,
       argToAppend <- list(arg) |> setNames(toA)
       out <- append(argToAppend, out)
     } else {
-      message("Argument ", toA, " is missing; proceeding without")
+      # this most likely for 'parameters' supplied instead of `params`
+      similar <- grep(paste0(gsub("s$", "", toA), ".*s"), names(out), value = TRUE)
+      if (length(similar)) {
+        message("Argument '", toA, "' is missing; but the similar, '", similar, "' is provided; is this intended?")
+      }
+
     }
       # append(list(
       #   modules = modules,
