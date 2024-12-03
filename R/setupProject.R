@@ -603,7 +603,7 @@ setupProject <- function(name, paths, modules, packages,
   attr(paths, "extraPaths") <- pathsOrig[extras]
 
   out <- dotsSUB
-  toAppend <- rev(list("modules", "paths", "params"))
+  toAppend <- rev(list("modules", "paths", "params", "times"))
   for (toA in toAppend) {
     # some may be missing, e.g., params
     arg <- try(eval(parse(text = toA)), silent = TRUE)
