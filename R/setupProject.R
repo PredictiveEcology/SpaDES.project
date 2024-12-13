@@ -1623,14 +1623,47 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
       requirePkgNames <- Require::extractPkgName(require)
 
-      out <- #try({
-        Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                         standAlone = standAlone,
-                         libPaths = libPaths,
-                         verbose = verbose)
-      #})
-      # }
+      warns <- list()
 
+      withCallingHandlers(
+        out <-
+          Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
+                           standAlone = standAlone,
+                           libPaths = libPaths,
+                           verbose = verbose)
+        , warning = function(w) {
+          if (any(grepl("cannot open", w$message))) {
+            sc <- sys.calls()
+            pkgDT <- Require:::getInStack("pkgDT")
+            packageFail <- Require:::getInStack("packageFullName")
+            thisSha <- Require:::getInStack("shas")
+            pkgDTfail <- pkgDT[shas %in% thisSha]
+
+            a <- "Package"; obj <- get(a, whereInStack(a))
+            # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
+            b <- pkgDT[Package %in% obj]
+            wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
+            ptt <- packagesToTry[wh]
+            whPackages <- sapply(modulePackages, function(mp) {
+              whp <- mp %in% ptt
+              mp[which(whp)]
+            })
+            whPkg <- unlist(whPackages)
+            warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+            invokeRestart("muffleWarning")
+          }
+
+        })
+
+      if (length(warns)) {
+        warns <- warns[!duplicated(warns)]
+        Map(fail = warns$packageFail, depOf = warns$whPkg, mod = names(warns$whPkg),
+            function(fail, depOf, mod)
+              messageVerbose(green("It looks like a package or package branch may no longer exist?\n",
+                                   "Package: ", fail, "\nA dependency of: ", depOf,
+                                   "\nSpecified in module: ", mod))
+        )
+      }
 
       if (is(out, "try-error")) {
         deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
