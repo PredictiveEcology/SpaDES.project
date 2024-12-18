@@ -1414,8 +1414,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # gert::git_submodule_add("https://github.com/cboisvenue/spadesCBM", path = "modules/spadesCBM")
           out <- cloneOrSubmodule(paste0("https://github.com/", modPath),
                                   path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
+          setwd(localPath)
+          gert::git_branch_checkout(split$br)
           gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
           # system("git branch --set-upstream-to=origin/main main")
+          # system("git branch --set-upstream-to=origin/development development")
 
 
 
@@ -1632,7 +1635,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
                            libPaths = libPaths,
                            verbose = verbose)
         , warning = function(w) {
-          if (any(grepl("cannot open", w$message))) {
+          if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
             sc <- sys.calls()
             pkgDT <- Require:::getInStack("pkgDT")
             packageFail <- Require:::getInStack("packageFullName")
