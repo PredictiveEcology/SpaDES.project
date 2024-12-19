@@ -116,9 +116,9 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
     if (any(missingSpace))
       inequality[missingSpace] <- gsub("([=><]+)", "\\1 ", inequality[missingSpace])
     hasSC <- grepl("SpaDES.core", imports)
+    imports[hasVersionNumb] <- paste(imports[hasVersionNumb], inequality)
     if (all(!hasSC))
       imports <- c("SpaDES.core", imports)
-    imports[hasVersionNumb] <- paste(imports[hasVersionNumb], inequality)
     d$Imports <- imports
 
     d$Suggests <- c('knitr', 'rmarkdown')
