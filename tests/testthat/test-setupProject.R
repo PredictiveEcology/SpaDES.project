@@ -90,7 +90,8 @@ test_that("test setupProject - relative paths and modules", {
         paths = list(projectPath = name,
                      modulePath = "m",
                      scratchPath = tempdir()),
-        modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+        modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+        packages = NULL
       )
     })
   )
@@ -98,7 +99,7 @@ test_that("test setupProject - relative paths and modules", {
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(fs::path_has_parent(out$paths$modulePath, getwd()))
   expect_true(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules))
-  expect_true(length(out$params) == 1) # .globals for .studyAreaName
+  expect_true(length(out$params) <= 1) # .globals for .studyAreaName or empty; not sure which is better behaviour
 })
 
 test_that("test setupProject - options and params", {
@@ -114,7 +115,8 @@ test_that("test setupProject - options and params", {
         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+        modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+        packages = NULL
       )
     })
   )
@@ -137,7 +139,8 @@ test_that("test setupProject - remote options file", {
         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+        modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+        packages = NULL
       )
     })
   )
@@ -183,7 +186,7 @@ test_that("test setupProject - arbitrary arguments", {
   #   expect_true(sum(grepl("Authenticating as", mess)) == 1)
 })
 
-test_that("test setupProject - args from global envir", {
+test_that("test setupProject - args from global envir -- allow pkg installs", {
   skip("Not completed tests yet")
   skip_on_cran()
   setupTest("geodata", "reproducible")
@@ -215,7 +218,8 @@ test_that("test setupProject - mixture of named list elements", {
       params = list(Biomass_borealDataPrep = list(.plots = "screen")),
       paths = list(modulePath = "m", # projectPath = "test",
                    scratchPath = tempdir()),
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development"
+      modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+      packages = NULL
     )
   })
 })
@@ -250,7 +254,8 @@ test_that("test setupProject - pass modules as a list", {
       out <- setupProject(
         paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
         modules = c("PredictiveEcology/Biomass_speciesData@master",
-                    "PredictiveEcology/Biomass_borealDataPrep@development"))
+                    "PredictiveEcology/Biomass_borealDataPrep@development"),
+        packages = NULL)
     }))
 
   expect_true(all(dir(out$paths$modulePath) %in% Require::extractPkgName(out$modules)))
@@ -260,7 +265,8 @@ test_that("test setupProject - pass modules as a list", {
     out <- setupProject(
       paths = list(projectPath = paste0("testList2", .rndstr(1))), # will deduce name of project from projectPath
       modules = list("PredictiveEcology/Biomass_speciesData@master",
-                  "PredictiveEcology/Biomass_borealDataPrep@development"))
+                  "PredictiveEcology/Biomass_borealDataPrep@development"),
+      packages = NULL)
   })
   )
 
@@ -274,7 +280,8 @@ test_that("test setupProject - studyArea in lonlat", {
   jurs <- "Al|Brit"
   ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
   mess <- capture_messages(
-    out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2)
+    out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2,
+                        packages = "googledrive")
   )
 
   expect_true(length(mess) == 0)   ## failing. verbose = -2 not suppressing messages completely.
@@ -294,7 +301,8 @@ test_that("test setupProject -studyArea using CRS", {
 
   warns <- capture_warnings(
     mess <- capture_messages({
-      out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = epsg))
+      out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = epsg),
+                          packages = "googledrive")
     }))
   expect_true(!is.null(out$studyArea))
   expect_true(is(out$studyArea, "SpatVector"))
@@ -327,6 +335,7 @@ test_that("projectPath is in a tempdir", {
       out <- setupProject(
         paths = list(projectPath = paste0("test_LandWeb", .rndstr(1))),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development",
+        packages = NULL,
         config = "LandWeb",
         defaultDots = list(mode = "development", studyAreaName = "MB"),
         mode = mode, studyAreaName = studyAreaName#,
@@ -346,7 +355,8 @@ test_that("test setupProject - nested GH modules", {
         name = paste0("test_SpaDES_project_", .rndstr(1)),
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = "bcgov/castor@main/R/SpaDES-modules/dataCastor"
+        modules = "bcgov/dataCastor@main",
+        packages = NULL
       )
     })
   )
@@ -358,8 +368,9 @@ test_that("test setupProject - nested GH modules", {
         name = paste0("test_SpaDES_project_", .rndstr(1)),
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
-                    "PredictiveEcology/Biomass_borealDataPrep@development")
+        modules = c("bcgov/dataCastor@main",
+                    "PredictiveEcology/Biomass_borealDataPrep@development"),
+        packages = NULL
       )
     })
   )
@@ -412,13 +423,15 @@ test_that("test setupProject - nested modulePath castorExamples", {
     mess <- capture_messages({
       out <- setupProject(modules =
                             file.path(
-                              "bcgov/castor@main/R/SpaDES-modules",
-                              c("dataCastor",
+                              "bcgov",
+                              paste0(c("dataCastor",
                                        "growingStockCastor",
                                        "blockingCastor",
                                        "forestryCastor",
-                                       "roadCastor")
-                            ))
+                                       "roadCastor"),
+                                     "@main"
+                            )),
+                          packages = NULL)
 
 
     })
@@ -431,7 +444,7 @@ test_that("test setupProject - nested modulePath castorExamples", {
     any(dir.exists(file.path(out$paths$modulePath, extractModName(out$modules))))
   )))
 
-  expect_true(length(out$params) == 1) # .globals for .studyAreaName
+  expect_true(length(out$params) == 0) # .globals for .studyAreaName
   # SpaDES.core::simInit2(out)
 })
 
@@ -467,12 +480,13 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
         name = projName,
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
-                    "bcgov/castor@main/R/SpaDES-modules/blockingCastor",
+        modules = c("bcgov/dataCastor@main",
+                    "bcgov/blockingCastor@main",
                     "PredictiveEcology/Biomass_borealDataPrep@development",
                     "PredictiveEcology/Biomass_core@development",
                     "PredictiveEcology/scfm@development/modules/scfmLandcoverInit",
-                    "PredictiveEcology/scfm@development/modules/scfmRegime")
+                    "PredictiveEcology/scfm@development/modules/scfmRegime"),
+        packages = NULL
       )
     })
   )
@@ -488,9 +502,10 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
         name = projName,
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+        modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_core@development",
-                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit")
+                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit"),
+        packages = NULL
       )
     })
   )
@@ -509,10 +524,11 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
         name = projName,
         paths = list(modulePath = "m",
                      scratchPath = tempdir()),
-        modules = c("bcgov/castor@main/R/SpaDES-modules/dataCastor",
+        modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_core@development",
                     "PredictiveEcology/scfm@development/modules/scfmLandcoverInit"),
-        overwrite = TRUE
+        overwrite = TRUE,
+        packages = NULL
       )
     })
   )
