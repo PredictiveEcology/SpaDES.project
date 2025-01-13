@@ -423,6 +423,7 @@ setupProject <- function(name, paths, modules, packages,
   envirCur = environment()
 
   origArgOrder <- names(tail(sys.calls(), 1)[[1]])
+  argsAreInFormals <- logical()
   if (is.null(origArgOrder)) {
     firstNamedArg <- 0
   } else {
@@ -579,9 +580,10 @@ setupProject <- function(name, paths, modules, packages,
     }
   }
 
-  if (identical(params$.globals$.studyAreaName, DEFAULT)) {
-    params <- studyAreaName2(studyArea, rasterToMatch, paths$projectPath, params)
-  }
+  if (!missing(params))
+    if (identical(params$.globals$.studyAreaName, DEFAULT)) {
+      params <- studyAreaName2(studyArea, rasterToMatch, paths$projectPath, params)
+    }
 
   dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
 
