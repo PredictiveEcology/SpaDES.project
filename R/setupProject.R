@@ -582,7 +582,11 @@ setupProject <- function(name, paths, modules, packages,
 
   if (!missing(params))
     if (identical(params$.globals$.studyAreaName, DEFAULT)) {
-      params <- studyAreaName2(studyArea, rasterToMatch, paths$projectPath, params)
+      params <- studyAreaName2(
+        projectPath = paths$projectPath, params = params,
+        studyArea     = if (exists("studyArea",     inherits = FALSE)) studyArea,
+        rasterToMatch = if (exists("rasterToMatch", inherits = FALSE)) rasterToMatch
+      )
     }
 
   dotsSUB <- Require::modifyList2(dotsSUB, dotsLater)
@@ -3446,13 +3450,12 @@ argsCanGoAnywhere <- c("params", "studyArea", "times")
 
 DEFAULT <- "DEFAULT"
 
+studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL, params = NULL, verbose = getOption("Require.verbose")) {
+  sa  <- if (!is.null(studyArea))     reproducible::.robustDigest(studyArea)
+  rtm <- if (!is.null(rasterToMatch)) paste0(terra::ncell(rasterToMatch), "pix")
 
-studyAreaName2 <- function(studyArea, rasterToMatch, projectPath, params, verbose = getOption("Require.verbose")) {
-  sa <- if (exists("studyArea", inherits = FALSE)) reproducible::.robustDigest(studyArea) else NULL
-  rtm <- if (exists("rasterToMatch", inherits = FALSE)) paste0(terra::ncell(rasterToMatch), "pix") else NULL
-
-  san <- paste(basename(projectPath), sa, rtm, sep = "_")
-  messageVerbose("Setting .studyAreaName to be ", san, " because it is not supplied by user", verbose = verbose)
+  san <- paste0(basename(projectPath), sa, rtm, collapse = "_")
+  messageVerbose("Setting .studyAreaName to be ", san, " because it is not supplied by user in params$.global", verbose = verbose)
   params <- Require::modifyList2(params, list(.globals = list(.studyAreaName = san)))
   params
 
