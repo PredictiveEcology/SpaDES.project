@@ -2020,6 +2020,10 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     if (!identical(valObjName, "sideEffects"))
       tryAgain <- tryAgain || is.null(val2)
     if (tryAgain) {
+      if (isTRUE(any(grepl("could not find function", val2)))) {
+        break
+      }
+
       val3 <- try(eval(val, envir = envir2), silent = TRUE)
       if (is(val3, "try-error")) {
         # last ditch effort -- brute force
