@@ -573,7 +573,7 @@ setupProject <- function(name, paths, modules, packages,
       if (!missing(timesSUB))
         times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
     } else {
-      if (length(dotsLater)) {
+      if (length(dotsLater) && (ar %in% names(dotsLater))) {
         dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots)
       }
 
