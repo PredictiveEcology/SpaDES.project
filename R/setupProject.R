@@ -486,7 +486,7 @@ setupProject <- function(name, paths, modules, packages,
   if (isTRUE(usingGit)) {
     isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
     if (isFALSE(isLocalGitRepoAlready)) {
-      gitUserName <- checkGitRemote(name, pathsSUB)
+      gitUserName <- checkGitRemote(name, paths, modulesSUB, useGit, verbose)
     }
   }
 
@@ -1426,11 +1426,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                                   path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
           setwd(localPath)
           gert::git_branch_checkout(split$br)
-          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
+          out <- try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br))
+          if (is(out, "try-error")) # this is mainly for main vs master misnaming
+            out <- gitBranchSetUpstreamIfError(out, split, modules)
           # system("git branch --set-upstream-to=origin/main main")
           # system("git branch --set-upstream-to=origin/development development")
-
-
 
           # for (i in 1:2) {
           #   system(cmd)
@@ -1490,7 +1490,17 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         }
         gpull <- try(gert::git_pull())
         if (is(gpull, "try-error")) {
-          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
+          gitBranchSetUpstreamIfError(gpull, split, modules)
+          # for (i in 1:2) {
+          #   out <- try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br))
+          #   if (isTRUE(any(grepl("No remote branch found", out)))) {
+          #     masterMain <- c("master", "main")
+          #     if (isTRUE(any(grepl(paste(masterMain, collapse = "|"), split$br))))
+          #       stop("It looks like branch ", split$br, " in ",
+          #            grep(paste0(split$acct, "/", split$repo, "@", split$br), modules, value = TRUE),
+          #            " does not exist; perhaps change to ", setdiff(masterMain, split$br), " and retry")
+          #   }
+          # }
           # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
         }
 
@@ -2671,99 +2681,104 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
         basenameName <- basename(name)
         needGitUserName <- TRUE
-        if (is.character(useGit)) {
-          if (useGit != "sub") {
-            needGitUserName <- FALSE
-            gitUserName <- useGit
-          }
-        }
-
-        if (needGitUserName) {
-          # options(usethis.protocol = "ssh")
-          mess <- capture.output(
-            type = "message",
-            gitUserNamePoss <- gh::gh_whoami()$login)
-          if (is.null(gitUserNamePoss)) {
-            stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
-          }
-          messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-          gitUserName <- if (interactive()) readline() else gitUserNamePoss
-          if (!nzchar(gitUserName)) {
-            gitUserName <- gitUserNamePoss
-            needGitUserName <- FALSE
-          }
-
-        }
+        # if (is.character(useGit)) {
+        #   if (useGit != "sub") {
+        #     needGitUserName <- FALSE
+        #     gitUserName <- useGit
+        #   }
+        # }
+        gitUserName <- gitUserName(useGit)
+        # if (nzchar(gitUserName))
+        #   needGitUserName <- FALSE
+        #
+        #
+        # if (needGitUserName) {
+        #   # options(usethis.protocol = "ssh")
+        #   mess <- capture.output(
+        #     type = "message",
+        #     gitUserNamePoss <- gh::gh_whoami()$login)
+        #   if (is.null(gitUserNamePoss)) {
+        #     stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
+        #   }
+        #   messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
+        #   gitUserName <- if (interactive()) readline() else gitUserNamePoss
+        #   if (!nzchar(gitUserName)) {
+        #     gitUserName <- gitUserNamePoss
+        #     needGitUserName <- FALSE
+        #   }
+        #
+        # }
 
         if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
-          host <- "https://github.com"
-          tf <- tempfile2();
-          out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
-                                             destfile = tf, verbose = verbose - 10)
+          cloned <- createGitProject(gitUserName, name, projectPath, modulesSUB, verbose)
+          # host <- "https://github.com"
+          # tf <- tempfile2();
+          # out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
+          #                                    destfile = tf, verbose = verbose - 10)
           # The suppressWarnings is for "incomplete final line"
-          checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
-
-          if (any(grepl("Not Found", checkExists))) {
-            usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
-          } else {
-            repo <- file.path(host, gitUserName, basenameName)
-            messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
+          # checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
+          #
+          # if (any(grepl("Not Found", checkExists))) {
+          #   usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
+          # } else {
+          #  repo <- file.path(host, gitUserName, basenameName)
+          #  messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
             # messageVerbose(paste0("The github repository already exists: ", repo),
             #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-            out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
-            if (grepl("y|yes", tolower(out))) {
-              setwd(dirname(getwd()))
-              unlink(basenameName, recursive = TRUE)
-              gert::git_clone(repo, path = basenameName)
-              cloned <- TRUE
-              setwd(paths[["projectPath"]])
-            } else {
-              stop("Can't proceed: either delete existing github repo, change the ",
-                   "project name, or change the Github account and try again")
-            }
-          }
+          #  out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+          #  if (grepl("y|yes", tolower(out))) {
+          #    setwd(dirname(getwd()))
+          #    unlink(basenameName, recursive = TRUE)
+          #    gert::git_clone(repo, path = basenameName)
+          #    cloned <- TRUE
+          #    setwd(paths[["projectPath"]])
+          #  } else {
+          #    stop("Can't proceed: either delete existing github repo, change the ",
+          #         "project name, or change the Github account and try again")
+          #  }
+          #}
         }
 
-        if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
-          igs <- gitIgnoreInitials(paths)
-          usethis::use_git_ignore(igs)
-          # gert::git_add(".gitignore")
-          # gert::git_commit("add more .gitignores")
-        }
+        # if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
+        #   igs <- gitIgnoreInitials(paths)
+        #   usethis::use_git_ignore(igs)
+        #   # gert::git_add(".gitignore")
+        #   # gert::git_commit("add more .gitignores")
+        # }
 
-        if (!rprojroot::is_git_root$testfun[[1]](pp)) {
-          if (needGitUserName) {
-            messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-            gitUserName <- readline()
-          }
-          if (!nzchar(gitUserName))
-            gitUserName <- NULL
-          for (iii in 1:2) {
-            bbb <- try(usethis::use_git())
-            if (is(bbb, "try-error")) {
-              if (any(grepl("user.name", bbb))) {
-                message("Your git account is missing information; either quit",
-                        "and set username and email in the git global config, or specify here:",
-                        "What is your git username: ")
-                un <- readline()
-                em <- readline("What is your git email for github.com: ")
-                usethis::use_git_config(user.name = un, user.email = em)
-              }
-            } else {
-              break
-            }
-          }
-          if (!(exists("gitUserNamePoss", inherits = FALSE)))
-            gitUserNamePoss <- gh::gh_whoami()$login
-
-          gitconf <- gert::git_config()
-          un2 <- gitconf$value[gitconf$name %in% "user.name"]
-
-          if (identical(gitUserName, gitUserNamePoss) || identical(un2, gitUserName) )
-            gitUserName <- NULL
-
-          githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
-        }
+        # if (!rprojroot::is_git_root$testfun[[1]](pp)) {
+        #   # if (needGitUserName) {
+        #   #   messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
+        #   #   gitUserName <- readline()
+        #   # }
+        #   if (!nzchar(gitUserName))
+        #     gitUserName <- NULL
+        #   for (iii in 1:2) {
+        #     bbb <- try(usethis::use_git())
+        #     if (is(bbb, "try-error")) {
+        #       if (any(grepl("user.name", bbb))) {
+        #         message("Your git account is missing information; either quit",
+        #                 "and set username and email in the git global config, or specify here:",
+        #                 "What is your git username: ")
+        #         un <- readline()
+        #         em <- readline("What is your git email for github.com: ")
+        #         usethis::use_git_config(user.name = un, user.email = em)
+        #       }
+        #     } else {
+        #       break
+        #     }
+        #   }
+        #   if (!(exists("gitUserNamePoss", inherits = FALSE)))
+        #     gitUserNamePoss <- gh::gh_whoami()$login
+        #
+        #   gitconf <- gert::git_config()
+        #   un2 <- gitconf$value[gitconf$name %in% "user.name"]
+        #
+        #   if (identical(gitUserName, gitUserNamePoss) || identical(un2, gitUserName) )
+        #     gitUserName <- NULL
+        #
+        #   githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
+        # }
       }
       if (isRstudio()) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
@@ -3205,75 +3220,81 @@ checkUseGit <- function(useGit) {
 
 
 #' @importFrom utils browseURL
-checkGitRemote <- function(name, paths) {
-  # If this function is run, it means that local is not yet a git repo
-  message("Please provide the github account for the repository (without quotes): ")
-  gitUserName <- readline()
+checkGitRemote <- function(name, paths, modulesSUB, useGit, verbose) {
+  gitUserName <- gitUserName(useGit)
+  if (!nzchar(gitUserName)) {
+    # If this function is run, it means that local is not yet a git repo
+    message("Please provide the github account for the repository (without quotes): ")
+    gitUserName <- readline()
+  }
+
   if (!nzchar(gitUserName))
     stop("Need to supply the account name for the repository (not the repository name)")
 
-  tf <- tempfile()
-  urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
-  out <- capture.output(type = "message",
-                        outSkip <- try(.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
-  od <- getwd()
+  cloned <- createGitProject(gitUserName, name, paths = paths, modulesSUB, verbose)
 
-  if (isTRUE(any(grepl("cannot open URL", out)) || identical(out, character(0)))) {
-    message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
-                   gitUserName, " repo name: ", name, "; return here, press enter to continue"))
-    browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))
-    readline()
+#   tf <- tempfile()
+#   urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
+#   out <- capture.output(type = "message",
+#                         outSkip <- try(.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
+#   od <- getwd()
 
-    checkPath(paths[["projectPath"]], create = TRUE)
-    setwd(paths[["projectPath"]])
-    on.exit(setwd(od))
-    pp <- path.expand(paths[["projectPath"]])
-
-    if (!requireNamespace("usethis")) stop("Please install usethis")
-
-    bbb <- usethis::use_git()
-    if (isTRUE(bbb)) {
-      usethis::use_github(gitUserName)
-      stop_quietly()
-    }
-  } else {
-    messageVerbose(verbose = verbose,
-      .messages$gitRepoExistsCloneNowTxt(repo = file.path(gitUserName, name),
-                                         to = paths[["projectPath"]]))
-
-    # message("It looks like the remote Git repo exists (",,
-    #         "). Would you like to clone it now to ", paths[["projectPath"]], "?")
-    cloneNow <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
-    # cloneNow <- readline("Y or N (if N, this will stop): ")
-    if (startsWith(tolower(cloneNow), "y")) {
-      if (normalizePath(getwd()) == normalizePath(paths[["projectPath"]], mustWork = FALSE)) {
-        stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")
-      }
-      projectBase <- dirname(paths[["projectPath"]])
-      dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
-      setwd(projectBase)
-      on.exit(setwd(od))
-      out <- gert::git_clone(url = file.path("https://github.com", gitUserName, name))
-      # cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
-      system(cmd)
-      setwd(name)
-      if (length(dir(pattern = ".gitmodules", all.files = T))) {
-        if (nzchar(Sys.which("git2"))) {
-          cmd <- paste0("git submodule init")
-          a <- system(cmd, intern = TRUE)
-          cmd <- paste0("git submodule update --recursive")
-          b <- system(cmd, intern = TRUE)
-        } else {
-          stop("This is not tested; ", .messages$pleaseInstall())
-          gert::git_submodule_init()
-          gert::git_submodule_fetch()
-        }
-      }
-    } else {
-      stop("Please clone the project manually, or choose another account and repository")
-    }
-
-  }
+  # if (isTRUE(any(grepl("cannot open URL", out)) || identical(out, character(0)))) {
+  #   message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
+  #                  gitUserName, " repo name: ", name, "; return here, press enter to continue"))
+  #   browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))
+  #   readline()
+  #
+  #   checkPath(paths[["projectPath"]], create = TRUE)
+  #   setwd(paths[["projectPath"]])
+  #   on.exit(setwd(od))
+  #   pp <- path.expand(paths[["projectPath"]])
+  #
+  #   if (!requireNamespace("usethis")) stop("Please install usethis")
+  #
+  #   bbb <- usethis::use_git()
+  #   if (isTRUE(bbb)) {
+  #     usethis::use_github(gitUserName)
+  #     stop_quietly()
+  #   }
+  # } else {
+  #   messageVerbose(verbose = verbose,
+  #     .messages$gitRepoExistsCloneNowTxt(repo = file.path(gitUserName, name),
+  #                                        to = paths[["projectPath"]]))
+  #
+  #   # message("It looks like the remote Git repo exists (",,
+  #   #         "). Would you like to clone it now to ", paths[["projectPath"]], "?")
+  #   cloneNow <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+  #   # cloneNow <- readline("Y or N (if N, this will stop): ")
+  #   if (startsWith(tolower(cloneNow), "y")) {
+  #     if (normalizePath(getwd()) == normalizePath(paths[["projectPath"]], mustWork = FALSE)) {
+  #       stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")
+  #     }
+  #     projectBase <- dirname(paths[["projectPath"]])
+  #     dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
+  #     setwd(projectBase)
+  #     on.exit(setwd(od))
+  #     out <- gert::git_clone(url = file.path("https://github.com", gitUserName, name))
+  #     # cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
+  #     system(cmd)
+  #     setwd(name)
+  #     if (length(dir(pattern = ".gitmodules", all.files = T))) {
+  #       if (nzchar(Sys.which("git2"))) {
+  #         cmd <- paste0("git submodule init")
+  #         a <- system(cmd, intern = TRUE)
+  #         cmd <- paste0("git submodule update --recursive")
+  #         b <- system(cmd, intern = TRUE)
+  #       } else {
+  #         stop("This is not tested; ", .messages$pleaseInstall())
+  #         gert::git_submodule_init()
+  #         gert::git_submodule_fetch()
+  #       }
+  #     }
+  #   } else {
+  #     stop("Please clone the project manually, or choose another account and repository")
+  #   }
+  #
+  # }
   return(gitUserName)
 }
 
@@ -3463,4 +3484,157 @@ studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL, 
   params <- Require::modifyList2(params, list(.globals = list(.studyAreaName = san)))
   params
 
+}
+
+
+
+gitUserName <- function(useGit) {
+
+  if (is.character(useGit)) {
+    if (useGit != "sub") {
+      needGitUserName <- FALSE
+      gitUserName <- useGit
+    }
+  } else {
+    gitUserName <- ""
+  }
+  if (nzchar(gitUserName))
+    needGitUserName <- FALSE
+
+
+  if (needGitUserName) {
+    # options(usethis.protocol = "ssh")
+    mess <- capture.output(
+      type = "message",
+      gitUserNamePoss <- gh::gh_whoami()$login)
+    if (is.null(gitUserNamePoss)) {
+      stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
+    }
+    messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
+    gitUserName <- if (interactive()) readline() else gitUserNamePoss
+    if (!nzchar(gitUserName)) {
+      gitUserName <- gitUserNamePoss
+      # needGitUserName <- FALSE
+    }
+    attr(gitUserName, .txtWhoAmILogin) <- gitUserNamePoss
+
+  }
+
+  gitUserName
+}
+
+
+createGitProject <- function(gitUserName, name, paths, modulesSUB, verbose, cloned = FALSE) {
+  basenameName <- basename(name)
+  host <- "https://github.com"
+  tf <- tempfile2();
+  out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
+                                     destfile = tf, verbose = verbose - 10)
+  # The suppressWarnings is for "incomplete final line"
+  checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
+
+  if (any(grepl("Not Found", checkExists))) {
+        usethis::create_project(paths[["projectPath"]], open = FALSE, rstudio = isRstudio())
+  } else {
+    repo <- file.path(host, gitUserName, basenameName)
+    messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
+    # messageVerbose(paste0("The github repository already exists: ", repo),
+    #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+    out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+    if (grepl("y|yes", tolower(out))) {
+      setwd(dirname(getwd()))
+      unlink(basenameName, recursive = TRUE)
+      gert::git_clone(repo, path = basenameName)
+      cloned <- TRUE
+      setwd(paths[["projectPath"]])
+    } else {
+      stop("Can't proceed: either delete existing github repo, change the ",
+           "project name, or change the Github account and try again")
+    }
+  }
+  if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
+    igs <- gitIgnoreInitials(paths)
+    usethis::use_git_ignore(igs)
+    # gert::git_add(".gitignore")
+    # gert::git_commit("add more .gitignores")
+  }
+
+  if (!rprojroot::is_git_root$testfun[[1]](paths[["projectPath"]])) {
+    # if (needGitUserName) {
+    #   messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
+    #   gitUserName <- readline()
+    # }
+    if (!nzchar(gitUserName))
+      gitUserName <- NULL
+
+    # Check whether modules exist or not
+    modulesFull <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envirCur, envir2 = envir)
+    moduleNames <- Require::extractPkgName(modulesFull)
+    moduleDirs <- file.path(paths[["modulePath"]], moduleNames)
+    modulesExist <- ifelse(dir.exists(moduleDirs),
+                           file.exists(file.path(moduleDirs, paste0(moduleNames, ".R"))),
+                           FALSE)
+    if (any(modulesExist)) {
+      isGH <- isGitHub(modulesFull)
+      if (any(isGH)) {
+        warning("Modules have already been downloaded, but are not git connected as sub-modules.",
+                "Would you like to delete current local modules and re-clone as submodules? Y or N ")
+        reclone <- readline()
+        if (startsWith(tolower(reclone), "y")) {
+          message("Deleting local modules ... ")
+          unlink(moduleDirs, recursive = TRUE)
+        } else {
+          stop("Can't set up a git module with git submodules. Please start again or remove local copies of modules.")
+        }
+      }
+    }
+    for (iii in 1:2) {
+      # This makes it a git repository using `git`
+      bbb <- try(usethis::use_git())
+      if (is(bbb, "try-error")) {
+        if (any(grepl("user.name", bbb))) {
+          message("Your git account is missing information; either quit",
+                  "and set username and email in the git global config, or specify here:",
+                  "What is your git username: ")
+          un <- readline()
+          em <- readline("What is your git email for github.com: ")
+          usethis::use_git_config(user.name = un, user.email = em)
+        }
+      } else {
+        break
+      }
+    }
+
+    gitUserNamePoss <- if (is.null(attr(gitUserName, .txtWhoAmILogin))) gh::gh_whoami()$login else NULL
+
+    gitconf <- gert::git_config()
+    un2 <- gitconf$value[gitconf$name %in% "user.name"]
+
+    if (identical(gitUserName, gitUserNamePoss) || identical(un2, gitUserName) )
+      gitUserName <- NULL
+
+    githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
+  }
+
+  cloned
+}
+
+.txtWhoAmILogin <- "whoami.login"
+
+
+
+gitBranchSetUpstreamIfError <- function(out, split, modules) {
+  #if (is(gpull, "try-error")) {
+  #for (i in 1:2) {
+  # out <- try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br))
+  if (isTRUE(any(grepl("No remote branch found", out)))) {
+    masterMain <- c("master", "main")
+    if (isTRUE(any(grepl(paste(masterMain, collapse = "|"), split$br))))
+      stop("It looks like branch ", split$br, " in ",
+           grep(paste0(split$acct, "/", split$repo, "@", split$br), modules, value = TRUE),
+           " does not exist; perhaps change to ", setdiff(masterMain, split$br), " and retry")
+  }
+  #}
+  # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
+  #}
 }
