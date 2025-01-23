@@ -11,21 +11,24 @@ plotSAs <- function(inSim, country = "CAN", saCols = c("purple", "blue", "green"
                     title = "Study Areas",
                     rasterToMatchLabel = "Stand Age", rasterToMatchPalette = "muted") {
   library(tidyterra)
+  sas <- grep(names(inSim), pattern = "studyArea", value = TRUE)
+  sizes <- sapply(sas, function(sa) areas(inSim[[sa]]))
+  ord <- order(sizes)
+  sizesOrdered <- rev(sizes[ord])
+  biggestSA <- names(which.max(sizesOrdered))
+  saCols <- saCols[cumsum(!duplicated(sizesOrdered))]
+
   Canada <- {projectTo(SpaDES.project::setupStudyArea(studyArea = list(country = country)),
                        projectTo = inSim$studyArea) |>
-      reproducible::postProcess(cropTo = inSim$studyAreaPSP)
+      reproducible::postProcess(cropTo = inSim[[biggestSA]])
   } |> Cache()
   p <- ggplot2::ggplot()
   rtms <- grep(names(inSim), pattern = "rasterToMatch", value = TRUE)
   sizesRtms <- sapply(inSim[rtms], function(rtm) terra::ncell(rtm))
   ordRtms <- order(sizesRtms)
 
-  sas <- grep(names(inSim), pattern = "studyArea", value = TRUE)
-  sizes <- sapply(sas, function(sa) areas(inSim[[sa]]))
-  ord <- order(sizes)
-  sizesOrdered <- rev(sizes[ord])
 
-  saCols <- saCols[cumsum(!duplicated(sizesOrdered))]
+
 
   i <- 0
   subTitle <- character()
