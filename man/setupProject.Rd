@@ -320,6 +320,10 @@ values, such as paths.
 )
 }\if{html}{\out{</div>}}
 
+\subsection{Argument order}{
+
+}
+
 \subsection{Values and/or files}{
 The arguments, \code{paths}, \code{options}, and \code{params}, can all
 understand lists of named values, character vectors, or a mixture by using a list where
