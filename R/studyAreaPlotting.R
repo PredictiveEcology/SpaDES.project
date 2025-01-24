@@ -168,7 +168,7 @@ plotSAsLeaflet <- function(ll, ..., saCols = c("purple", "blue", "green", "red")
 
     rtms <- terra::project(rtms, "epsg:4326") |> Cache()
     names(rtms) <- paste0(names(rtms), "_", rasterToMatchLabel)
-    a <- terra::plet(rtms, seq_len(nlyr(rtms)), collapse = FALSE)#, maxcell=5000000)
+    a <- terra::plet(rtms, seq_len(terra::nlyr(rtms)), collapse = FALSE)#, maxcell=5000000)
     subTitle <- c(subTitle, rtmsNames[min(ordRtms)])
   }
 
