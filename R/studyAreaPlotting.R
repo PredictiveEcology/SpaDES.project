@@ -128,6 +128,7 @@ plotSAs <- function(ll, ..., saCols = c("purple", "blue", "green", "red"),
 }
 
 #' @rdname plotSAs
+#' @export
 plotSAsLeaflet <- function(ll, ..., saCols = c("purple", "blue", "green", "red"),
                            title = "Study Areas",
                            rasterToMatchLabel = "Stand Age",
