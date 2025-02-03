@@ -196,11 +196,11 @@ plotSAsLeaflet <- function(ll, ..., saCols = c("purple", "blue", "green", "red")
       #   states$name, states$density
       # ) %>% lapply(htmltools::HTML)
 
-      a <- a |> addPolygons(data=vv, weight = 3,
+      a <- a |> leaflet::addPolygons(data=vv, weight = 3,
                             label = ~paste0(sa),
                             fillColor = saCols[i], color = saCols[i],
                             fillOpacity = 0,
-                            highlight = highlightOptions(weight = 10#,
+                            highlight = leaflet::highlightOptions(weight = 10#,
                                                          # fillOpacity = 0.7
                                                          # color = "blue",
                                                          # bringToFront = TRUE
