@@ -2401,17 +2401,22 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
     dots <- dotsSUB
   else
     dots <- append(dots, dotsSUB)
+  localEnv <- new.env(parent = envir)
+  localEnv2 <- localEnv # this second environment could be defaultDots below; but is just here if no defaultDots
+
   haveDefaults <- !missing(defaultDots)
   if (haveDefaults) {
-    newInEnv <- setdiff(names(defaultDots), ls(envir = envir))
+    objsPassed <- union(names(dotsSUB), ls(envir = envir, all.names = TRUE))
+    newInEnv <- setdiff(names(defaultDots), objsPassed)
+    # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
     list2env(defaultDots[newInEnv], envir = envir)
+    localEnv2 <- defaultDots
     on.exit(rm(list = newInEnv, envir = envir))
   }
-  localEnv <- new.env(parent = envir)
 
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
               function(d, nam) {
-                d1 <- evalSUB(d, valObjName = nam, envir = localEnv, envir2 = localEnv)
+                d1 <- evalSUB(d, valObjName = nam, envir = localEnv, envir2 = localEnv2)
                 # d1 <- try(eval(d, envir = localEnv), silent = TRUE)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
