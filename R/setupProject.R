@@ -436,7 +436,10 @@ setupProject <- function(name, paths, modules, packages,
     firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
     dotsLater <- dotsSUB[-firstSet]
     dotsSUB <- dotsSUB[firstSet]
-    dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDots)
+    dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDots,
+                             envir = envirCur, callingEnv = envir)
+                             #envir = envir,
+                             #callingEnv = envir)
   }
 
   functionsSUB <- substitute(functions)
@@ -574,7 +577,9 @@ setupProject <- function(name, paths, modules, packages,
         times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
     } else {
       if (length(dotsLater) && (ar %in% names(dotsLater))) {
-        dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots)
+        # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
+        dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
+                                       envir = envirCur, callingEnv = envir)
       }
 
     }
@@ -2396,7 +2401,8 @@ messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnSto
 }
 
 
-evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
+evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
+                     callingEnv = sys.frame(-2)) {
   if (missing(dots))
     dots <- dotsSUB
   else
@@ -2406,12 +2412,25 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
 
   haveDefaults <- !missing(defaultDots)
   if (haveDefaults) {
-    objsPassed <- union(names(dotsSUB), ls(envir = envir, all.names = TRUE))
-    newInEnv <- setdiff(names(defaultDots), objsPassed)
-    # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
-    list2env(defaultDots[newInEnv], envir = envir)
-    localEnv2 <- defaultDots
-    on.exit(rm(list = newInEnv, envir = envir))
+    objsPassed <- names(dotsSUB)# , ls(envir = envir, all.names = TRUE))
+    if (!is.null(objsPassed)) {
+      inEnv <- exists(objsPassed, envir = envir, inherits = FALSE) # if this was from an "upstream" dots
+      inCallingEnv <- exists(objsPassed, envir = callingEnv, inherits = FALSE) # if it is still unevaluated dots
+      # newInEnv <- setdiff(names(defaultDots), objsPassed)
+      # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
+      if (isFALSE(inEnv) && isFALSE(inCallingEnv)) {
+        list2env(defaultDots[objsPassed], envir = envir) # put it in the main environment for later use
+        localEnv2 <- defaultDots[objsPassed]
+        # on.exit(rm(list = newInEnv, envir = envir))
+      } else {
+        if (isTRUE(inEnv)) {
+          localEnv2 <- envir
+        } else if (isTRUE(inCallingEnv)) {
+          localEnv2 <- callingEnv
+        }
+
+      }
+    }
   }
 
   dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
@@ -2937,8 +2956,10 @@ basename2 <- function (x) {
   }
 }
 
-evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame()) {
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir)
+evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
+                          callingEnv = parent.env(envir)) {
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir,
+                      callingEnv = callingEnv)
   dotsSUBreworked <- list()
   for (i in seq(dotsSUB)) {
     val <- try(eval(dotsSUB[[i]], envir = envir))
