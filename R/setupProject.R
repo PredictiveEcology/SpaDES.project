@@ -578,7 +578,10 @@ setupProject <- function(name, paths, modules, packages,
     } else {
       if (length(dotsLater) && (ar %in% names(dotsLater))) {
         # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
-        dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
+        possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
+                                   envir = envirCur, callingEnv = envir)
+        if (length(possToAdd))
+          dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                        envir = envirCur, callingEnv = envir)
       }
 
