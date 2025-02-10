@@ -546,3 +546,20 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
   expect_true(all(fileInfo[rows, "mtime"] == fileInfo2[rows, "mtime"]))
 
 })
+
+test_that("test sideEffects that are not in sideEffect", {
+  skip_on_cran()
+  fn <- function(x) NULL
+  out <- setupProject(
+    name = nam,
+    lala = fn(1) # This used to fail with `dotsLater[ar]`;
+  )
+  out2 <- setupProject(
+    name = nam,
+    sideEffect = fn(1) # This would not fail; but check that it does not put something in out2
+  )
+
+  expect_true(!is.null(out$lala))
+  expect_true(is.null(out2$lala))
+})
+
