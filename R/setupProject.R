@@ -893,8 +893,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     }
     )
   }
-  a <- try(do.call(setPaths, append(paths[spPaths], list(verbose = verbose))))
-  if (is(a, "try-error")) browser()
+  do.call(setPaths, append(paths[spPaths], list(verbose = verbose)))
 
   messageVerbose(yellow("  done setting up paths"), verbose = verbose, verboseLevel = 0)
 
@@ -2575,11 +2574,17 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
     on.exit(setwd(origGetWd), add = TRUE)
 
-    if (!(useGit %in% FALSE) && isRstudio() && !inProject) {
+    pp <- path.expand(paths[["projectPath"]])
+
+    # could be Rstudio project, but not yet a git project;
+    #   this happens when a user starts with useGit = FALSE or NULL, then changes to useGit = something
+    isGitProject <- is_git_root$testfun[[1]](pp)
+
+    if (!(useGit %in% FALSE) && isRstudio() && !inProject && !isGitProject) {
       messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
       Restart = TRUE
     }
-    pp <- path.expand(paths[["projectPath"]])
+
     isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
     if (isRstudio()) {
       curRstudioProj <- rstudioapi::getActiveProject()
@@ -2587,110 +2592,120 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
     # inProject <- isInProject(name)
 
-    if ((!inProject || !isRstudioProj)) {
+    if ((!inProject || !isRstudioProj) || !isGitProject) {
       if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudio() ) {
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
-        messageVerbose("... restarting Rstudio inside the project",
-                       verbose = verbose)
+        if (!inProject || !isRstudioProj) {
+          messageVerbose("... restarting Rstudio inside the project",
+                         verbose = verbose)
+        } else {
+          if ( ((!inProject || !isRstudioProj) || !isGitProject))  {
+            messageVerbose("... restarting Rstudio with git activated, inside the project",
+                           verbose = verbose)
+          }
+        }
         activeFile <- rstudioapi::getSourceEditorContext()$path
-        if (!is.character(Restart)) {
-          rstudioUnsavedFile <- "~/.active-rstudio-document"
+        if (!inProject || !isRstudioProj) { # if already in, don't copy active file
+          if (!is.character(Restart)) {
+            rstudioUnsavedFile <- "~/.active-rstudio-document"
 
-          if (!nzchar(activeFile))
-            activeFile <- rstudioUnsavedFile
-          fe <- file.exists(activeFile)
-          wasUnsaved <- identical(activeFile, rstudioUnsavedFile)
-          if (isFALSE(fe) || wasUnsaved) {
-            if (isTRUE(fe)) {
-              newRestart <- file.path(paths[["projectPath"]], "global.R")
-              Restart <- activeFile # is absolute
-              basenameRestartFile <- basename(newRestart)
+            if (!nzchar(activeFile))
+              activeFile <- rstudioUnsavedFile
+            fe <- file.exists(activeFile)
+            wasUnsaved <- identical(activeFile, rstudioUnsavedFile)
+            if (isFALSE(fe) || wasUnsaved) {
+              if (isTRUE(fe)) {
+                newRestart <- file.path(paths[["projectPath"]], "global.R")
+                Restart <- activeFile # is absolute
+                basenameRestartFile <- basename(newRestart)
 
-              message("Renaming the active, unsaved file: global.R in the new projectPath root")
-              wasLastActive <- TRUE
+                message("Renaming the active, unsaved file: global.R in the new projectPath root")
+                wasLastActive <- TRUE
+              } else {
+                message("There was no 'active-source' file or named Restart file.")
+                message("User has requested to restart in a new Rproject; please ")
+                message("specify path to the 'global' script (the one that has this setupProject call).")
+                message("Please provide name here of that file (e.g., global.R )")
+                message("(If it isn't saved, please save it now):")
+                Restart <- readline("")
+                if (!file.exists(Restart))
+                  stop("That file does not exist. Please rerun, specifying the global file. This",
+                       " will be copied to the new project folder.")
+                basenameRestartFile <- basename(Restart)
+              }
             } else {
-              message("There was no 'active-source' file or named Restart file.")
-              message("User has requested to restart in a new Rproject; please ")
-              message("specify path to the 'global' script (the one that has this setupProject call).")
-              message("Please provide name here of that file (e.g., global.R )")
-              message("(If it isn't saved, please save it now):")
-              Restart <- readline("")
-              if (!file.exists(Restart))
-                stop("That file does not exist. Please rerun, specifying the global file. This",
-                     " will be copied to the new project folder.")
+              Restart <- activeFile
               basenameRestartFile <- basename(Restart)
+              wasLastActive <- TRUE
             }
           } else {
-            Restart <- activeFile
             basenameRestartFile <- basename(Restart)
-            wasLastActive <- TRUE
           }
-        } else {
-          basenameRestartFile <- basename(Restart)
+
+          if (!fs::is_absolute_path(Restart))
+            Restart <- file.path(origGetWd, Restart)
+          newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
+
+          # Switch to file to save it
+          id <- rstudioapi::navigateToFile(activeFile)
+          rstudioapi::documentSave(id)
+          copied <- file.copy(Restart, newRestart, overwrite = FALSE)
+
+
+          RHistBase <- ".Rhistory"
+          RHist <- file.path(origGetWd, RHistBase)
+          if (isTRUE(file.exists(RHist)))
+            file.copy(RHist, file.path(pp, RHistBase))
+          if (all(copied))
+            message(green("copied ", Restart, " to ", newRestart))
+          else
+            message(blue("Did not copy ", Restart, " to ", newRestart, "; it already exists."))
+
+          # Copy .Rhistory if it exists
+          RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
+          RestartTmpFileStart <- ".Restart_"
+          tempfileInOther <- file.path(paste0(RestartTmpFileStart, basename(tempfile())))
+          addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
+                             "if (newSession) {",
+                             "# message('Welcome to RStudio ', rstudioapi::getVersion())",
+                             "}",
+                             "ap <- rstudioapi::getActiveProject()",
+                             "if (is.null(ap)) ap <- 'No active project'",
+                             "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
+                             paste0("message('attempting to re-open ", "last active"[wasLastActive],
+                                    " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
+                                    "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
+                             paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
+                             paste0("rstudioapi::navigateToFile('", newRestart, "')")
+
+          )
+
+          newRprofile <- paste0("source('", tempfileInOther, "')")
+          if (file.exists(RprofileInOther)) {
+            rl <- readLines(RprofileInOther)
+            newRprofile <- c(rl, newRprofile)
+            lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
+            lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")
+            nextLine <- paste0("readLns <- readLns[-lineToDel]") # remove source line
+            nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
+            addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
+
+          } else {
+            addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
+
+          }
+          addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
+
+          addToTempFile <- c(addToTempFile,
+                             "}, action = 'append'",
+                             ")")
+          cat(addToTempFile, file = tempfileInOther, sep = "\n")
+          cat(newRprofile, file = RprofileInOther, sep = "\n")
         }
-
-        if (!fs::is_absolute_path(Restart))
-          Restart <- file.path(origGetWd, Restart)
-        newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
-
-        # Switch to file to save it
-        id <- rstudioapi::navigateToFile(activeFile)
-        rstudioapi::documentSave(id)
-        # id2 <- rstudioapi::navigateToFile(activeFile)
-
-        copied <- file.copy(Restart, newRestart, overwrite = FALSE)
-
-        # Copy .Rhistory if it exists
-        RHistBase <- ".Rhistory"
-        RHist <- file.path(origGetWd, RHistBase)
-        if (isTRUE(file.exists(RHist)))
-          file.copy(RHist, file.path(pp, RHistBase))
-        if (all(copied))
-          message(green("copied ", Restart, " to ", newRestart))
-        else
-          message(blue("Did not copy ", Restart, " to ", newRestart, "; it already exists."))
-        RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
-        RestartTmpFileStart <- ".Restart_"
-        tempfileInOther <- file.path(paste0(RestartTmpFileStart, basename(tempfile())))
-        addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
-                           "if (newSession) {",
-                           "# message('Welcome to RStudio ', rstudioapi::getVersion())",
-                           "}",
-                           "ap <- rstudioapi::getActiveProject()",
-                           "if (is.null(ap)) ap <- 'No active project'",
-                           "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
-                           paste0("message('attempting to re-open ", "last active"[wasLastActive],
-                                  " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
-                                  "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
-                           paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
-                           paste0("rstudioapi::navigateToFile('", newRestart, "')")
-
-        )
-
-        newRprofile <- paste0("source('", tempfileInOther, "')")
-        if (file.exists(RprofileInOther)) {
-          rl <- readLines(RprofileInOther)
-          newRprofile <- c(rl, newRprofile)
-          lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
-          lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")
-          nextLine <- paste0("readLns <- readLns[-lineToDel]") # remove source line
-          nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
-          addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
-
-        } else {
-          addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
-
-        }
-        addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
-
-        addToTempFile <- c(addToTempFile,
-                           "}, action = 'append'",
-                           ")")
-        cat(addToTempFile, file = tempfileInOther, sep = "\n")
-        cat(newRprofile, file = RprofileInOther, sep = "\n")
 
       }
+
 
       cloned <- FALSE
       if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
@@ -2722,10 +2737,15 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
         }
 
-        if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
+
+        # isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
+        isRstudioProjButNotGit <- (isRstudioProj && !isGitProject)
+
+        if (!isRstudioProj || isRstudioProjButNotGit) {
           host <- "https://github.com"
           tf <- tempfile2();
-          out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
+          hostFullPath <- file.path("https://api.github.com/repos",gitUserName, basenameName)
+          out <- .downloadFileMasterMainAuth(hostFullPath,
                                              destfile = tf, verbose = verbose - 10)
           # The suppressWarnings is for "incomplete final line"
           checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
@@ -2739,11 +2759,56 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
             out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
             if (grepl("y|yes", tolower(out))) {
+              if (isRstudioProjButNotGit) {
+                warning("You are in an Rstudio project, which is not a Git project, but you have requested useGit = '", useGit, "'",
+                        ". \nIf you proceed, current local files in ", basenameName, " will be deleted, and it will be cloned from ",
+                        hostFullPath)
+                messageVerbose("If you would like to keep the `(c)ache`, `(i)nputs` and/or `(o)utputs`, type one or more of ",
+                               "the first letters e.g., cio will keep all three. Default (type Enter) is cio or FALSE for skip copying: ")
+                keepFolders <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "cio"
+                if (identical(keepFolders, "")) keepFolders <- "cio"
+                if (!isFALSE(keepFolders)) {
+                  tempdir <- tempfile()
+                  dir.create(tempdir, recursive = TRUE, showWarnings = FALSE)
+                  pathsHere <- c("cachePath", "inputPath", "outputPath")
+                  keepFolders <- strsplit(keepFolders, split = "")[[1]]
+                  files <- Map(kf = keepFolders, function(kf) character())
+                  newFiles <- Map(kf = keepFolders, function(kf) character())
+                  for (keep in keepFolders) {
+                    path <- grep(paste0("^", keep), pathsHere, value = TRUE)
+                    files[[keep]] <- dir(paths[[path]], recursive = TRUE, full.names = TRUE)
+                    if (length(files[[keep]])) {
+                      filesRel <- dir(paths[[path]], recursive = TRUE, full.names = FALSE)
+                      pathForFolder <- file.path(tempdir, path)
+                      dirs <- file.path(pathForFolder, unique(dirname(filesRel)))
+                      created <- lapply(dirs, function(dir)
+                        dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+                      )
+                      newFiles[[keep]] <- file.path(pathForFolder, filesRel)
+                      done <- suppressWarnings(file.link(files[[keep]], newFiles[[keep]]))
+                      if (any(!done))
+                        file.copy(files[[keep]][!done], newFiles[[keep]][!done], overwrite = TRUE)
+                    }
+                  }
+                }
+              }
+
               setwd(dirname(getwd()))
               unlink(basenameName, recursive = TRUE)
               gert::git_clone(repo, path = basenameName)
               cloned <- TRUE
               setwd(paths[["projectPath"]])
+              if (!isFALSE(keepFolders)) {
+                Map(fls = files, newfls = newFiles, function(fls, newfls) {
+                  if (length(fls)) {
+                  done <- suppressWarnings(file.link(newfls, fls))
+                      if (any(!done))
+                        file.copy(newfls[!done], fls[!done], overwrite = TRUE)
+                  }
+                  })
+                messageVerbose("Files in these folders copied to new, restarted project")
+              }
+
             } else {
               stop("Can't proceed: either delete existing github repo, change the ",
                    "project name, or change the Github account and try again")
