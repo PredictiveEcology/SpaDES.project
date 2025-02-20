@@ -1326,7 +1326,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     modulesOrigNestedName <- extractModName(modulesOrig)
 
-    browser()
     if (useGit %in% FALSE) {
       offlineMode <- getOption("Require.offlineMode")
       if (isTRUE(offlineMode)) {
@@ -1413,7 +1412,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
              paste(modules, collapse = "\n"))
 
       mapply(split = gitSplit, function(split) {
-        browser()
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
         reportBranch <- TRUE
@@ -2547,7 +2545,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          origGetWd, verbose = getOption("Require.verbose")) {
 
-  browser()
   if (isTRUE(updateRprofile)) {
 
     inTmpProject <- inTempProject(paths)
@@ -2713,7 +2710,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       cloned <- FALSE
       if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
            requireNamespace("gitcreds")) && cloned %in% FALSE ) {
-        browser()
         setupGitHub(useGit, name, paths, verbose)
         # needGitUserName <- TRUE
         # if (is.character(useGit)) {
@@ -3260,7 +3256,6 @@ checkGitRemote <- function(useGit, name, paths, verbose = getOption("Require.ver
   # message("Please provide the github account for the repository (without quotes): ")
   # gitUserName <- readline()
   # if (!nzchar(gitUserName))
-  browser()
 
   gitUserName <- setupGitHub(useGit, name, paths, verbose)
 #
@@ -3580,7 +3575,6 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
   pp <- path.expand(paths[["projectPath"]])
   basenameName <- basename(name)
   tf <- tempfile2();
-  browser()
   out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
                                      destfile = tf, verbose = verbose - 10)
   # The suppressWarnings is for "incomplete final line"
@@ -3629,7 +3623,6 @@ getGitUserName <- function() {
 
 
 setupGitHub <- function(useGit, name, paths, verbose) {
-  browser()
   pp <- path.expand(paths[["projectPath"]])
 
   needGitUserName <- TRUE
@@ -3720,7 +3713,6 @@ setupGitHub <- function(useGit, name, paths, verbose) {
         break
       }
     }
-    browser()
     if (!(exists("gitUserNamePoss", inherits = FALSE)))
       gitUserNamePoss <- gh::gh_whoami()$login
 
