@@ -1922,7 +1922,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     }
     areAbs <- isAbsolutePath(obj)
     if (any(areAbs %in% FALSE)) {
-      if (!startsWith(fs::path_norm(obj[areAbs %in% FALSE]), fs::path_norm(paths[["projectPath"]]))) {
+      if (any(!startsWith(fs::path_norm(obj[areAbs %in% FALSE]), fs::path_norm(paths[["projectPath"]])))) {
         obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
       }
     }
