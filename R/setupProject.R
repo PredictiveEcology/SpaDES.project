@@ -2755,8 +2755,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           } else {
             repo <- file.path(host, gitUserName, basenameName)
             messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
-            # messageVerbose(paste0("The github repository already exists: ", repo),
-            #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
             out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
             if (grepl("y|yes", tolower(out))) {
               if (isRstudioProjButNotGit) {
@@ -2768,28 +2766,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                 keepFolders <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "cio"
                 if (identical(keepFolders, "")) keepFolders <- "cio"
                 if (!isFALSE(keepFolders)) {
-                  tempdir <- tempfile()
-                  dir.create(tempdir, recursive = TRUE, showWarnings = FALSE)
                   pathsHere <- c("cachePath", "inputPath", "outputPath")
                   keepFolders <- strsplit(keepFolders, split = "")[[1]]
-                  files <- Map(kf = keepFolders, function(kf) character())
-                  newFiles <- Map(kf = keepFolders, function(kf) character())
-                  for (keep in keepFolders) {
-                    path <- grep(paste0("^", keep), pathsHere, value = TRUE)
-                    files[[keep]] <- dir(paths[[path]], recursive = TRUE, full.names = TRUE)
-                    if (length(files[[keep]])) {
-                      filesRel <- dir(paths[[path]], recursive = TRUE, full.names = FALSE)
-                      pathForFolder <- file.path(tempdir, path)
-                      dirs <- file.path(pathForFolder, unique(dirname(filesRel)))
-                      created <- lapply(dirs, function(dir)
-                        dir.create(dir, recursive = TRUE, showWarnings = FALSE)
-                      )
-                      newFiles[[keep]] <- file.path(pathForFolder, filesRel)
-                      done <- suppressWarnings(file.link(files[[keep]], newFiles[[keep]]))
-                      if (any(!done))
-                        file.copy(files[[keep]][!done], newFiles[[keep]][!done], overwrite = TRUE)
-                    }
-                  }
+                  pathsHere <- pathsHere[pmatch(keepFolders, pathsHere)]
+                  pathsHere <- unlist(paths[pathsHere])
+                  newAndOldFiles <- linkOrCopyFiles(pathsHere, toBaseDir = tempfile())
                 }
               }
 
@@ -2799,13 +2780,8 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
               cloned <- TRUE
               setwd(paths[["projectPath"]])
               if (!isFALSE(keepFolders)) {
-                Map(fls = files, newfls = newFiles, function(fls, newfls) {
-                  if (length(fls)) {
-                  done <- suppressWarnings(file.link(newfls, fls))
-                      if (any(!done))
-                        file.copy(newfls[!done], fls[!done], overwrite = TRUE)
-                  }
-                  })
+                newAndOldFiles <- linkOrCopyFiles(fromFilesList = newAndOldFiles$toFilesList,
+                                                  toFilesList = newAndOldFiles$fromFilesList)
                 messageVerbose("Files in these folders copied to new, restarted project")
               }
 
@@ -3557,4 +3533,52 @@ studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL, 
   params <- Require::modifyList2(params, list(.globals = list(.studyAreaName = san)))
   params
 
+}
+
+
+linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toFilesList) {
+
+  if (missing(fromFilesList)) {
+    dirCreated <- dir.create(toBaseDir, showWarnings = FALSE, recursive = TRUE)
+
+    notDeepEnough <- TRUE
+    fromDirsAbs <- fromDirs
+    while (notDeepEnough) {
+      fromDirsRel <- basename(fromDirsAbs)
+      if (length(fromDirs) == length(unique(fromDirsRel)))
+        break
+      fromDirsAbs <- dirname(fromDirs)
+    }
+
+    fromFilesList <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = TRUE))
+    filesRel <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = FALSE))
+    dirsFrom <- Map(fls = filesRel, drs = fromDirs, function(fls, drs) {
+      file.path(drs, unique(dirname(fls)))})
+
+    dirsToCreateRel <- Map(fls = filesRel, drs = fromDirsRel, function(fls, drs) {
+      dtc <- file.path(drs, unique(dirname(fls)))
+    })
+    dirsToCreateAbs <- Map(dtc = dirsToCreateRel, function(dtc) {
+      file.path(toBaseDir, dtc)
+    })
+    toFilesList <- Map(flsRel = filesRel, drs = fromDirsRel, function(flsRel, drs) {
+      file.path(toBaseDir, drs, flsRel)})
+
+  } else {
+    dirsToCreateAbs <- dirname(unique(unlist(toFilesList)))
+  }
+
+  Map(dtc = unlist(dirsToCreateAbs), function(dtc) dir.create(dtc, showWarnings = FALSE, recursive = TRUE))
+
+  Map(fls = fromFilesList, newFls = toFilesList, function(fls, newFls) {
+    done <- NULL
+    if (length(fls)) {
+      done <- suppressWarnings(file.link(fls, newFls))
+      if (any(!done))
+        done[!done] <- file.copy(fls[!done], newFls[!done], overwrite = TRUE)
+    }
+    done
+  })
+
+ list(fromFilesList = fromFilesList, toFilesList = toFilesList)
 }
