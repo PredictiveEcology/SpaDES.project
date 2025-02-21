@@ -11,7 +11,7 @@
 #'   like `studyAreaLarge` or `rasterToMatchPSP` all are fine.
 #' @param ... Any objects to plot. Currently, they must be named arguments, and they must
 #'   have prefixes `studyArea` or `rasterToMatch` to be visualized.
-#' @saCols A vector of same length as number of `studyArea**` objects, that defines
+#' @param saCols A vector of same length as number of `studyArea**` objects, that defines
 #'   the studyArea polygon boundary colours. These will be used in sequence from largest
 #'   to smallest in polygon area.
 #' @param title The main title for the ggplot2 object. Defaults to one or both of
