@@ -34,6 +34,10 @@ like \code{studyAreaLarge} or \code{rasterToMatchPSP} all are fine.}
 \item{...}{Any objects to plot. Currently, they must be named arguments, and they must
 have prefixes \code{studyArea} or \code{rasterToMatch} to be visualized.}
 
+\item{saCols}{A vector of same length as number of \verb{studyArea**} objects, that defines
+the studyArea polygon boundary colours. These will be used in sequence from largest
+to smallest in polygon area.}
+
 \item{title}{The main title for the ggplot2 object. Defaults to one or both of
 "studyArea" and "rasterToMatch" or their plurals.}
 

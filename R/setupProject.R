@@ -2095,6 +2095,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   if (is(val2, "try-error")) {
     val2 <- errorMsgCleaning(val2, valOrig)
     warning(val2, call. = FALSE)
+    val2 <- valOrig
   } else {
     if (exists("val3", inherits = FALSE))
       if (is(val3, "try-error")) {
@@ -3359,9 +3360,10 @@ makeUpdateRprofileSticky <- function(updateRprofile) {
 
 
 errorMsgCleaning <- function(mess, valOrig) {
-  mess <- c(paste0(format(valOrig), "\n"), mess)
+  # mess <- c(paste0(format(valOrig), "\n"), mess)
   mess <- gsub("Error in h.simpleError.msg, call.. : ", "", mess)
   mess <- gsub("Error in eval.{1,3}FUNcaptured.{1,3}, envir = callingEnv.{1,3} : ", "", mess)
+  mess <- gsub(paste0("Error in eval.+envir.+ : "), "", mess)
   mess <- gsub("\n", "", mess)
   mess <- paste0(mess, "\n")
   mess
