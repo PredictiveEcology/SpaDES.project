@@ -74,7 +74,7 @@ opts <- list(
 
   "LandR.verbose" = 1,
 
-  "map.dataPath" = normPath(paths$inputPath), # not used yet
+  "map.dataPath" = normalizePath(paths$inputPath, mustWork = FALSE, winslash = "/"), # not used yet
 
   "map.overwrite" = TRUE,
 
@@ -88,7 +88,7 @@ opts <- list(
 
   # "rasterTmpDir" = scratchDir,
 
-  "reproducible.destinationPath" = normPath(paths$inputPath),
+  "reproducible.destinationPath" = normalizePath(paths$inputPath, mustWork = FALSE, winslash = "/"),
 
   "reproducible.futurePlan" = FALSE,
 
@@ -110,7 +110,7 @@ opts <- list(
 
   "reproducible.useNewDigestAlgorithm" = TRUE,
 
-  "spades.inputPath" = normPath("."),
+  "spades.inputPath" = normalizePath(getwd(), mustWork = FALSE, winslash = "/"),
 
   "spades.moduleCodeChecks" = FALSE,
 
