@@ -505,10 +505,15 @@ setupProject <- function(name, paths, modules, packages,
   if (missing(packages))
     packages <- character()
 
-  setupPackages(packages, modulePackages, require = require, paths = paths,
-                setLinuxBinaryRepo = setLinuxBinaryRepo,
-                standAlone = standAlone,
-                libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
+  if (getOption("spades.useRequire", TRUE)) {
+    setupPackages(packages, modulePackages, require = require, paths = paths,
+                  setLinuxBinaryRepo = setLinuxBinaryRepo,
+                  standAlone = standAlone,
+                  libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
+  } else {
+    messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
+                   verbose = verbose)
+  }
 
   # This next is to set the terra tempdir; don't do it in the cases where terra is not used
   # The longer unique(...) commented next is much slower; they are identical results
