@@ -1,6 +1,7 @@
 utils::globalVariables(c(
-  ".", "i.module", "i.objectClass", "objectClass", "objectName",
-  "i.newValue", "i.oldValue", "newValue", "oldValue", "modulesNoVersion"
+  ".", "i.module", "i.objectClass", "objectClass", "objectName", "shas",
+  "i.newValue", "i.oldValue", "newValue", "oldValue", "modulesNoVersion",
+  "rasterToMatch"
 ))
 
 #' Sets up a new or existing SpaDES project
@@ -370,7 +371,7 @@ utils::globalVariables(c(
 #' outputs are not expected to be passed directly to `simInit` (unlike `setupProject` outputs).
 #'
 #' @importFrom Require extractPkgName
-#' @importFrom stats na.omit
+#' @importFrom stats na.omit setNames
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
 #' @rdname setupProject

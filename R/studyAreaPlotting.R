@@ -1,3 +1,8 @@
+utils::globalVariables(c(
+  c("ordRtms", "ordSas", "rtmsNames", "sasNames", "sizes")
+))
+
+
 #' Plot studyArea** and rasterToMatch** with ggplot2 or leaflet
 #'
 #' Plot all studyArea** and rasterToMatch** objects within a list-like object.
@@ -35,6 +40,7 @@
 #' @param minArea In m^2. This is the minimium area for the entire plot. If this is too
 #'   small then the legislative boundaries may not appear. The area covered by the plot
 #'   will the maximum of the studyArea** or rasterToMatch** and this `minArea` value.
+#' @importFrom grDevices colorRampPalette
 plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue", "green", "red"),
                     title,
                     rasterToMatchLabel = "Stand Age", rasterToMatchPalette = c("Set1", "Set2", "Set3"),
@@ -121,7 +127,7 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
       isRColBrew <- paletteThisRas %in% rownames(RColorBrewer::brewer.pal.info)
 
       if (isRColBrew) {
-        theColFun <- RColorBrewer::brewer.pal(9, paletteThisRas) %>%
+        theColFun <- RColorBrewer::brewer.pal(9, paletteThisRas) |>
           colorRampPalette()
 
         g[[rtmNam]] <- g[[rtmNam]] +
@@ -251,8 +257,8 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
   v <- list()
 
   if (!exists("a", inherits = FALSE)) {
-    a <- leaflet() |>
-      addTiles() #|>
+    a <- leaflet::leaflet() |>
+      leaflet::addTiles() #|>
   }
 
 
@@ -404,6 +410,7 @@ extInLatLong <- function(x) {
     NULL
 }
 
+#' @importFrom utils installed.packages
 requireNamespaces <- function(pkgs) {
   if (!all(sapply(pkgs, requireNamespace))) {
     ip <- installed.packages() |> as.data.table()
