@@ -665,10 +665,10 @@ setupProject <- function(name, paths, modules, packages,
     if (isTRUE(grepl(.txtSettingUp, m$message))) {
       if (grepl("done", m$message)) {
         m$message <- gsub("(done setting up)(.+)",
-                          paste0("\\1", cli::col_blue("\\2")), m$message)
+                          paste0("\\1", blue("\\2")), m$message)
       } else {
         m$message <- gsub("(setting up)(.+)(\\.\\.\\.)",
-                          paste0("\\1", cli::col_blue("\\2"), cli::col_yellow("\\3")), m$message)
+                          paste0("\\1", blue("\\2"), yellow("\\3")), m$message)
       }
     }
     messageVerbose(yellow(m$message), verbose = verbose, appendLF = FALSE)
@@ -1127,7 +1127,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
       oldValuesComplete[names(options)] <- preOptions[names(options)]
       whNULL <- which(lengths(oldValuesComplete) == 0)
       names(oldValuesComplete[unname(whNULL)]) <- names(options)[whNULL]
-      newValues <- Require:::setdiffNamed(options, preOptions)
+      newValues <- setdiffNamed(options, preOptions)
       oldValues <- base::options(newValues)
       if (length(newValues)) {
         messageVerbose("The following options have been changed", verbose = verbose)
@@ -1676,9 +1676,9 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         , warning = function(w) {
           if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
             sc <- sys.calls()
-            pkgDT <- Require:::getInStack("pkgDT")
-            packageFail <- Require:::getInStack("packageFullName")
-            thisSha <- Require:::getInStack("shas")
+            pkgDT <- getInStack("pkgDT")
+            packageFail <- getInStack("packageFullName")
+            thisSha <- getInStack("shas")
             pkgDTfail <- pkgDT[shas %in% thisSha]
 
             a <- "Package"; obj <- get(a, whereInStack(a))

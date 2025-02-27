@@ -105,9 +105,9 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
 
     if (missing(title)) {
       titleSA <- if (length(sasNames) == 0) character() else
-        Require:::singularPlural(c("studyArea", "studyAreas"), l = sasNames)
+        singularPlural(c("studyArea", "studyAreas"), l = sasNames)
       titleRTM <- if (length(rtmsNames) == 0) character() else
-        Require:::singularPlural(c("rasterToMatch", "rasterToMatches"), l = rtmsNames)
+        singularPlural(c("rasterToMatch", "rasterToMatches"), l = rtmsNames)
       title <- paste0(ifelse(length(titleSA), titleSA, ""),
                       ifelse(length(titleSA) && length(titleRTM), " and ", ""),
                       ifelse(length(titleRTM), titleRTM, ""))
@@ -239,8 +239,8 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
       #                           type='click',
       #                           digits=0)
       pal2 <- leaflet::colorNumeric(pal, domain = NULL)
-      a <- reproducible:::suppressWarningsSpecific(
-        falseWarnings = "n too large",
+      a <- suppressWarnings(
+        # falseWarnings = "n too large",
         leaflet::addLegend(a, position = "bottomright",
                            pal = pal2,
                            group = rtmNam,
