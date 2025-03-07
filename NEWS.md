@@ -1,5 +1,9 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 0.1.2
+=============
+* `Restart` had infinite restarting; fixed; was related to new elements address unrelated Git issues
+
 version 0.0.9
 =============
 * `Restart` argument of `setupProject` now uses better `rstudioapi` calls to open new project with active file.
