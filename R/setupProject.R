@@ -2584,6 +2584,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     # could be Rstudio project, but not yet a git project;
     #   this happens when a user starts with useGit = FALSE or NULL, then changes to useGit = something
     isGitProject <- is_git_root$testfun[[1]](pp)
+    needsToBeGitProject <- !useGit %in% FALSE
 
     if (!(useGit %in% FALSE) && isRstudio() && !inProject && !isGitProject) {
       messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
@@ -2597,7 +2598,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
     # inProject <- isInProject(name)
 
-    if ((!inProject || !isRstudioProj) || !isGitProject) {
+    if ((!inProject || !isRstudioProj) || (!isGitProject && needsToBeGitProject)) {
       if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudio() ) {
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
