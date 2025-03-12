@@ -483,15 +483,15 @@ setupProject <- function(name, paths, modules, packages,
   setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
                Restart = Restart, origGetWd, verbose) # This may restart
 
-  # Need to assess if this is a new project locally, but the remote exists
-  usingGit <- checkUseGit(useGit)
-  gitUserName <- NULL
-  if (isTRUE(usingGit)) {
-    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
-    if (isFALSE(isLocalGitRepoAlready)) {
-      gitUserName <- checkGitRemote(name, pathsSUB)
+    # Need to assess if this is a new project locally, but the remote exists
+    usingGit <- checkUseGit(useGit)
+    gitUserName <- NULL
+    if (isTRUE(usingGit)) {
+      isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
+      if (isFALSE(isLocalGitRepoAlready)) {
+        gitUserName <- checkGitRemote(useGit = useGit, name = name, paths = pathsSUB, verbose = verbose)
+      }
     }
-  }
 
   # this next puts them in this environment, returns NULL
   functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
@@ -561,20 +561,36 @@ setupProject <- function(name, paths, modules, packages,
 
   }
 
-  # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
-  remainingArgs <- origArgOrder[!argsAreInFormals]
-  remainingArgs <- remainingArgs[nzchar(remainingArgs)]
-  # if (missing(paramsSUB))
-  #   params <- list()
-  for (ar in remainingArgs) {
-    if (identical(ar, "params")) {
-      params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
-                        overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
-    } else if (identical(ar, "studyArea")){
-      studyAreaSUB <- substitute(studyArea)
-      if (!is.null(studyAreaSUB)) {
-        dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
-        studyArea <- dotsSUB$studyArea
+    # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
+    remainingArgs <- origArgOrder[!argsAreInFormals]
+    remainingArgs <- remainingArgs[nzchar(remainingArgs)]
+    # if (missing(paramsSUB))
+    #   params <- list()
+    for (ar in remainingArgs) {
+      if (identical(ar, "params")) {
+        params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
+                              overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
+      } else if (identical(ar, "studyArea")){
+        studyAreaSUB <- substitute(studyArea)
+        if (!is.null(studyAreaSUB)) {
+          dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
+          studyArea <- dotsSUB$studyArea
+        }
+      } else if (identical(ar, "times")) {
+        timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+        if (!missing(timesSUB))
+          times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
+      } else {
+        if (length(dotsLater) && (ar %in% names(dotsLater))) {
+
+          # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
+          possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
+                                     envir = envirCur, callingEnv = envir)
+          if (length(possToAdd))
+            dotsLater[ar] <- possToAdd #evalDotsOuter(dots, dotsLater[ar], defaultDots,
+                                        #   envir = envirCur, callingEnv = envir)
+        }
+
       }
     } else if (identical(ar, "times")) {
       timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
