@@ -1,6 +1,6 @@
 utils::globalVariables(c(
   c("Account", "GitSubFolder", "Repo", "destFile", "filepath",
-    "hasSubFolder", "repoLocation",
+    "hasSubFolder", "repoLocation", "isGH", "canDownload", "OKtoDL",
     "downloaded", "hasVersionSpec", "inequ", "moduleFullName",
     "needDownload", "pkg", "status", "sufficient", "versionSpec",
     "modulesNoVersion")

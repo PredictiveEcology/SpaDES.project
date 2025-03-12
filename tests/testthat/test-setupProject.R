@@ -309,8 +309,8 @@ test_that("test setupProject -studyArea using CRS", {
   expect_true(NROW(unique(out$studyArea[["NAME_1"]])) == length(strsplit(jurs, "\\|")[[1]]))
   expect_equal(terra::crs(out$studyArea, describe = TRUE)$code, epsg)
   expect_false(terra::is.lonlat(out$studyArea))
-  expect_true(grepl("but the projectPath is the tempdir", warns))
-
+  expect_match(warns, .txtButTheProjPathIsTmpDir, all = FALSE)
+  # expect_true(sum(grepl("but the projectPath is the tempdir", warns))) # There are gdal error 1 that are not relevant
 })
 
 ## Make project-level change to .libPaths() that is persistent
@@ -550,6 +550,7 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
 test_that("test sideEffects that are not in sideEffect", {
   skip_on_cran()
   fn <- function(x) NULL
+  nam <- "hi"
   out <- setupProject(
     name = nam,
     lala = fn(1) # This used to fail with `dotsLater[ar]`;

@@ -436,7 +436,7 @@ There are several ways to specifying an argument, as we have seen. We can also m
 out <- setupProject(
   options = list(
     reproducible.useTerra = TRUE,                                 # direct argument # sets one option
-    "PredictiveEcology/SpaDES.project@transition/inst/options.R", # remote file -- sets many options
+    "PredictiveEcology/SpaDES.project@development/inst/options.R", # remote file -- sets many options
     system.file("authentication.R", package = "SpaDES.project")   # local file -- sets gargle options
   )
 )

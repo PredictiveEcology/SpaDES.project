@@ -69,6 +69,14 @@ DESCRIPTIONFileVersionV <- getFromNamespace("DESCRIPTIONFileVersionV", ns = "Req
 #' @rdname imports
 .rndstr <- getFromNamespace(".rndstr", ns = "Require")
 
+#' @rdname imports
+singularPlural <- utils::getFromNamespace("singularPlural", "Require")
+
+#' @rdname imports
+getInStack <- utils::getFromNamespace("getInStack", "Require")
+
+#' @rdname imports
+setdiffNamed <- utils::getFromNamespace("setdiffNamed", "Require")
 
 
 

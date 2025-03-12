@@ -8,10 +8,12 @@
 plotSAs(
   ll,
   ...,
+  include = TRUE,
+  exclude,
   saCols = c("purple", "blue", "green", "red"),
   title,
   rasterToMatchLabel = "Stand Age",
-  rasterToMatchPalette = "muted",
+  rasterToMatchPalette = c("Set1", "Set2", "Set3"),
   country = "CAN",
   latlong = FALSE,
   minArea = 7e+11
@@ -20,10 +22,12 @@ plotSAs(
 plotSAsLeaflet(
   ll,
   ...,
+  include = TRUE,
+  exclude,
   saCols = c("purple", "blue", "green", "red"),
   title = "Study Areas",
   rasterToMatchLabel = "Stand Age",
-  rasterToMatchPalette = "muted"
+  rasterToMatchPalette = c("Set1", "Set2", "Set3")
 )
 }
 \arguments{
@@ -33,6 +37,20 @@ like \code{studyAreaLarge} or \code{rasterToMatchPSP} all are fine.}
 
 \item{...}{Any objects to plot. Currently, they must be named arguments, and they must
 have prefixes \code{studyArea} or \code{rasterToMatch} to be visualized.}
+
+\item{include}{Either logical or a character vector. If logical, this indicates whether all maps in the \code{ll} object should
+be plotted (if \code{TRUE}) or, if \code{FALSE}, no extra maps (on top of the defaults listed in
+\code{ll} argument description. If a character vector, then the objects indicated will also
+be plotted. Default is \code{FALSE} to prevent inadvertent (slow) plotting of
+potentially many layers.}
+
+\item{exclude}{A character vector of spatial objects contained within \code{ll} to exclude
+from plotting. This is run after \code{include}, so it will override any named objects
+specified in \code{include}.}
+
+\item{saCols}{A vector of same length as number of \verb{studyArea**} objects, that defines
+the studyArea polygon boundary colours. These will be used in sequence from largest
+to smallest in polygon area.}
 
 \item{title}{The main title for the ggplot2 object. Defaults to one or both of
 "studyArea" and "rasterToMatch" or their plurals.}
