@@ -588,8 +588,8 @@ setupProject <- function(name, paths, modules, packages,
           possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                      envir = envirCur, callingEnv = envir)
           if (length(possToAdd))
-            dotsLater[ar] <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
-                                           envir = envirCur, callingEnv = envir)
+            dotsLater[ar] <- possToAdd #evalDotsOuter(dots, dotsLater[ar], defaultDots,
+          #   envir = envirCur, callingEnv = envir)
         }
 
       }
