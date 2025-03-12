@@ -490,7 +490,7 @@ setupProject <- function(name, paths, modules, packages,
   gitUserName <- NULL
   if (isTRUE(usingGit)) {
     isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
-    if (isFALSE(isLocalGitRepoAlready)) {
+    if (isFALSE(isLocalGitRepoAlready))
       gitUserName <- checkGitRemote(useGit = useGit, name = name, paths = pathsSUB, verbose = verbose)
     # Need to assess if this is a new project locally, but the remote exists
     usingGit <- checkUseGit(useGit)
@@ -501,6 +501,7 @@ setupProject <- function(name, paths, modules, packages,
         gitUserName <- checkGitRemote(useGit = useGit, name = name, paths = pathsSUB, verbose = verbose)
       }
     }
+  }
 
     # this next puts them in this environment, returns NULL
     functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
