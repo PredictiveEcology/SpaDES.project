@@ -462,7 +462,7 @@ setupProject <- function(name, paths, modules, packages,
       name <- checkNameProjectPathConflict(name, pathsSUB)
     }
 
-    inProject <- isInProject(name)
+    # inProject <- isInProject(name)
 
     # setupOptions is run twice -- because package startup often changes options
     optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
@@ -476,11 +476,12 @@ setupProject <- function(name, paths, modules, packages,
       useGit <- FALSE
     }
 
-    paths <- setupPaths(name, pathsSUB, inProject, standAlone, libPaths,
+    paths <- setupPaths(name, pathsSUB, # inProject,
+                        standAlone = standAlone, libPaths = libPaths,
                         Restart = Restart, defaultDots = defaultDots,
                         useGit = useGit,
                         updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
-    inProject <- isInProject(name)
+    inProject <- isInProject(name, paths[["projectPath"]])
 
     setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
                  Restart = Restart, origGetWd, verbose) # This may restart
@@ -503,6 +504,11 @@ setupProject <- function(name, paths, modules, packages,
                                    overwrite = overwrite, envir = envirCur, verbose = verbose)
     modules <- extractModName(names(modulePackages))
     names(modules) <- names(modulePackages)
+
+    m <- fileRelPathFromFullGHpath(names(modules))
+    if (any(nzchar(m))) {
+      paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], unique(m))))
+    }
 
     if (missing(packages))
       packages <- character()
@@ -783,7 +789,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     name <- basename(paths[["projectPath"]])
   }
   if (missing(inProject))
-    inProject <- isInProject(name)
+    inProject <- isInProject(name, projectPath = paths[["projectPath"]])
   if (is.null(paths[["projectPath"]]))
     stop("Please specify paths[[\"projectPath\"]] as an absolute path")
 
@@ -800,6 +806,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   defaultsSPO <- spadesProjectOptions() # uses projectPath
   if (is.null(paths[["modulePath"]]))
     paths[["modulePath"]] <- basename(defaultsSPO$spades.modulePath) # "modules"
+
   isAbs <- unlist(lapply(paths, isAbsolutePath))
   toMakeAbsolute <- isAbs %in% FALSE & rep(names(paths), lengths(paths)) != "projectPath"
   if (isTRUE(any(toMakeAbsolute))) {
@@ -1323,7 +1330,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                           defaultDots = defaultDots)#, inProject = TRUE, standAlone = TRUE, libPaths,
     }
     if (missing(inProject))
-      inProject <- isInProject(name)
+      inProject <- isInProject(name, projectPath = paths[["projectPath"]])
 
     messageVerbose(yellow(paste0(.txtSettingUp, " modules...")), verbose = verbose, verboseLevel = 0)
 
@@ -1345,8 +1352,14 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     }
 
     modulesOrig <- modules
+    m <- fileRelPathFromFullGHpath(modulesOrig)
     modulesOrigPkgName <- extractPkgName(modulesOrig)
     modulesOrigNestedName <- extractModName(modulesOrig)
+    ## check that we keep only the modules needed
+    # This also flattens them if they were nested modules
+    actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
+    wantedModPath <- normPath(file.path(paths$modulePath, modulesOrigNestedName))
+    isNested <- which(!actualModPaths %in% wantedModPath)
 
     if (useGit %in% FALSE) {
       offlineMode <- getOption("Require.offlineMode")
@@ -1433,6 +1446,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         stop("Did you specify the modules correctly? Is this correct:\n",
              paste(modules, collapse = "\n"))
 
+      gitSplit <- unique(gitSplit) # there could be several modules within the same repository; only clone once
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
@@ -1448,41 +1462,12 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
             # "clone"
           }
 
-          # cmd <- paste0("git ", cloneOrSubmodule," https://github.com/", modPath)
-          # setwd(paths[["modulePath"]])
-          # gert::git_submodule_add("https://github.com/cboisvenue/spadesCBM", path = "modules/spadesCBM")
           out <- cloneOrSubmodule(paste0("https://github.com/", modPath),
                                   path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
           setwd(localPath)
           gert::git_branch_checkout(split$br)
-          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
-          # system("git branch --set-upstream-to=origin/main main")
-          # system("git branch --set-upstream-to=origin/development development")
-
-
-
-          # for (i in 1:2) {
-          #   system(cmd)
-          #   if (dir.exists(file.path(paths[["modulePath"]], split$repo)))
-          #     break
-          #   if (getOption("SpaDES.project.forceGit", TRUE)) {
-          #     messageVerbose("It looks like the submodule was deleted; restoring it.\n",
-          #             "Set options('SpaDES.project.forceGit' = FALSE) to prevent this", verbose = verbose)
-          #     verbose <<- max(0, verbose - 1)
-          #     cmd2 <- strsplit(cmd, cloneOrSubmodule)[[1]]
-          #     cmd <- paste0(cmd2[1], cloneOrSubmodule, " --force", tail(cmd2, 1))
-          #   }
-          # }
-
-          # if (!grepl("master|main|HEAD", split$br)) {
-          # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          # curBr <- gert::git_branch()
-
-          # cmd <- "git rev-parse --abbrev-ref HEAD"
-          # curBr <- system(cmd, intern = TRUE)
-          # }
-          # cmd <- paste0("git pull")
-          # system(cmd)
+          curBr <- gert::git_branch()
+          setUpstreamWithTry(split, curBr)
 
         } else {
 
@@ -1508,31 +1493,13 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
         prev <- setwd(file.path(paths[["modulePath"]], split$repo))
         curBr <- gert::git_branch()
-        if (!identical(split$br, curBr)) {
-          gert::git_fetch()
-          # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-          # gert::git_submodule_set_to(submod, ref = split$br)
-          gert::git_branch_checkout(split$br)
-          # cmd <- paste0("git checkout ", split$br)
-          # system(cmd)
-          reportBranch <- FALSE
-        }
-        gpull <- try(gert::git_pull())
-        if (is(gpull, "try-error")) {
-          gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br)
-          # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
-        }
+        split <- setUpstreamWithTry(split, curBr)
 
         if (reportBranch)
           messageVerbose("\b ... on ", split$br, " branch")
       })
       setwd(origDir)
       gert::git_pull()
-
-      # cmd <- paste0("git submodule update --recursive")
-      # system(cmd)
-
-      # messageVerbose("You will likely have to commit changes to git repository now", verbose = verbose)
     }
     if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
 
@@ -1562,13 +1529,23 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     #                                     modules = modulesOrigNestedName)
     packages <- modulePackages[modulesOrigNestedName]
 
-    ## check that we keep only the modules needed
-    actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
-    wantedModPath <- normPath(file.path(paths$modulePath, modulesOrigNestedName))
+    if (length(isNested) ) {
+      notUsingGit <- isTRUE(useGit %in% FALSE)
+      if (notUsingGit) {
+        copyOrHardLink <- file.copy
+        args <- list(recursive = TRUE, overwrite = overwrite)
+      }  else {
+        messageVerbose("useGit is '", useGit, "'; creating hardlinks of module files; ",
+                       "\nso there will appear to be two copies of the modules. They are the same files:",
+                       verbose = verbose)
+        common <- paste0(fs::path_common(c(actualModPaths, wantedModPath)), "/")
+        gsub(common, "", actualModPaths)
+        df <- data.frame(repoPath = gsub(common, "", actualModPaths), linked = "<-->", flatPath = gsub(common, "", wantedModPath))
+        messageDF(df[isNested, ], verbose = verbose)
+        copyOrHardLink <- file.link
+        args <- list()
+      }
 
-    isNested <- which(!actualModPaths %in% wantedModPath)
-
-    if (length(isNested)) {
       ## subset to nest modules
       actualModPaths2 <- actualModPaths[isNested]
       wantedModPath2 <- wantedModPath[isNested]
@@ -1586,13 +1563,21 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       }
 
       invisible(sapply(unique(dirname(newModFiles)), dir.create, recursive = TRUE, showWarnings = FALSE))
-      out <- suppressWarnings(file.copy(actualModFiles, newModFiles, recursive = TRUE, overwrite = overwrite))
+      out <- suppressWarnings(do.call(copyOrHardLink, append(list(actualModFiles, newModFiles), args)))
+      # out <- suppressWarnings(copyOrHardLink(actualModFiles, newModFiles))
 
-      if (all(file.exists(newModFiles)) & all(dir.exists(wantedModPath2))) {
-        unlink(moduleSuperFolder, recursive = TRUE)
+      if (notUsingGit) {
+        if (all(file.exists(newModFiles)) & all(dir.exists(wantedModPath2))) {
+          unlink(moduleSuperFolder, recursive = TRUE)
+        } else {
+          warnings("Could not copy module files to 'modulePath', leaving in original, potentially nested directory")
+          unlink(dirname(newModFiles), recursive = TRUE)
+        }
       } else {
-        warnings("Could not copy module files to 'modulePath', leaving in original, potentially nested directory")
-        unlink(dirname(newModFiles), recursive = TRUE)
+        gitIgnore <- fs::path_rel(wantedModPath2, start = paths$projectPath)
+        gitIgnoreFile <- file.path(paths$projectPath, ".gitignore")
+        cat(file = gitIgnoreFile, unique(gitIgnore), append = TRUE, sep = "\n")
+        messageVerbose("Adding the hardlinked flat modules to .gitignore")
       }
     }
 
@@ -1997,13 +1982,16 @@ checkProjectPath <- function(paths, name, envir, envir2) {
   paths
 }
 
-isInProject <- function(name) {
+isInProject <- function(name, projectPath) {
   if (!missing(name)) {
     gtwd <- getwd()
-    gtwdExp <- basename(fs::path_expand_r(gtwd))
-    nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
+    gtwdExp <- fs::path_expand_r(gtwd)
+    if (!missing(projectPath))
+      nameExp <- fs::path_expand_r(projectPath)
+    else
+      nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
     out <- identical(gtwdExp, nameExp)
-    if (out %in% FALSE) {
+    if (out %in% FALSE && !isAbsolutePath(projectPath)) {
       gtwdExp <- basename(fs::path_expand(gtwd))
       nameExp <- basename(fs::path_expand(extractPkgName(name)))
       out <- identical(gtwdExp, nameExp)
@@ -3281,6 +3269,7 @@ checkGitRemote <- function(useGit, name, paths, verbose = getOption("Require.ver
   # gitUserName <- readline()
   # if (!nzchar(gitUserName))
 
+  browser()
   gitUserName <- setupGitHub(useGit, name, paths, verbose)
 #
 #   #   stop("Need to supply the account name for the repository (not the repository name)")
@@ -3533,7 +3522,8 @@ argsCanGoAnywhere <- c("params", "studyArea", "times")
 
 DEFAULT <- "DEFAULT"
 
-studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL, params = NULL, verbose = getOption("Require.verbose")) {
+studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL,
+                           params = NULL, verbose = getOption("Require.verbose")) {
   sa  <- if (!is.null(studyArea))     reproducible::.robustDigest(studyArea)
   rtm <- if (!is.null(rasterToMatch)) paste0(terra::ncell(rasterToMatch), "pix")
 
@@ -3663,50 +3653,10 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     gitUserName <- gitUserNames$gitUserName
     gitUserNamePoss <- gitUserNames$gitUserNamePoss
     if (!nzchar(gitUserName)) needGitUserName <- FALSE
-    # mess <- capture.output(
-    #   type = "message",
-    #   gitUserNamePoss <- gh::gh_whoami()$login)
-    # if (is.null(gitUserNamePoss)) {
-    #   stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
-    # }
-    # messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-    # gitUserName <- if (interactive()) readline() else gitUserNamePoss
-    # if (!nzchar(gitUserName)) {
-    #   gitUserName <- gitUserNamePoss
-    #   needGitUserName <- FALSE
-    # }
-
   }
 
   if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
     cloned <- checkGithubComCreateOrClone(gitUserName, name, paths, verbose)
-    # host <- "https://github.com"
-    # tf <- tempfile2();
-    # basenameName <- basename(name)
-    # out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
-    #                                    destfile = tf, verbose = verbose - 10)
-    # # The suppressWarnings is for "incomplete final line"
-    # checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
-    #
-    # if (any(grepl("Not Found", checkExists))) {
-    #   usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
-    # } else {
-    #   repo <- file.path(host, gitUserName, basenameName)
-    #   messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
-    #   # messageVerbose(paste0("The github repository already exists: ", repo),
-    #   #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-    #   out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
-    #   if (grepl("y|yes", tolower(out))) {
-    #     setwd(dirname(getwd()))
-    #     unlink(basenameName, recursive = TRUE)
-    #     gert::git_clone(repo, path = basenameName)
-    #     cloned <- TRUE
-    #     setwd(paths[["projectPath"]])
-    #   } else {
-    #     stop("Can't proceed: either delete existing github repo, change the ",
-    #          "project name, or change the Github account and try again")
-    #   }
-    # }
   }
 
   if (!isFALSE(getOption("SpaDES.project.gitignore", TRUE))) {
@@ -3723,6 +3673,17 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     # }
     if (!nzchar(gitUserName))
       gitUserName <- NULL
+
+    moduleFiles <- dir(paths$modulePath, recursive = TRUE)
+    if (length(moduleFiles)) {
+      messageVerbose("It seems there are already module files; to clone these from github, ",
+                     "these need to be removed first. Would you like to remove these now? Y or N ")
+      removeModules <- readline()
+      if (startsWith(tolower(removeModules), "y"))
+        unlink(paths$modulePath, recursive = TRUE)
+      else
+        stop("Please either remove modules from ", paths[["modulePath"]], " or set useGit = FALSE")
+    }
     for (iii in 1:2) {
       bbb <- try(usethis::use_git())
       if (is(bbb, "try-error")) {
@@ -3732,7 +3693,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
                   "What is your git username: ")
           un <- readline()
           em <- readline("What is your git email for github.com: ")
-          usethis::use_git_config(user.name = un, user.email = em)
+          usethis::use_git_config(user.name = un, user.email = em, scope = "project")
         }
       } else {
         break
@@ -3750,4 +3711,40 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
   }
   gitUserName
+}
+
+
+
+setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
+  if (is.null(curBr))
+    curBr <- gert::git_branch()
+  for (trySetUpstream in 1:2) {
+
+    if (!identical(split$br, curBr)) {
+      gert::git_fetch()
+      # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
+      # gert::git_submodule_set_to(submod, ref = split$br)
+      gert::git_branch_checkout(split$br)
+      # cmd <- paste0("git checkout ", split$br)
+      # system(cmd)
+      reportBranch <- FALSE
+    }
+    gpull <- try(gert::git_pull())
+    if (is(gpull, "try-error")) {
+      setUpstreamTry <- try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br))
+      masterMain <- c("master", "main")
+      if (is(setUpstreamTry, "try-error"))
+        if (split$br %in% masterMain) {
+          newBr <- setdiff(masterMain, split$br)
+          messageVerbose("It looks like the repo: ", split$repo, " does not have a branch: ", split$br,
+                         "\ntrying ", newBr, "\nTo remove this message, change the reqested branch.",
+                         verbose = verbose)
+          split$br <- newBr
+        }
+      # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
+    } else {
+      break
+    }
+  }
+  split
 }
