@@ -1662,22 +1662,26 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
           if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
             sc <- sys.calls()
             pkgDT <- getInStack("pkgDT")
-            packageFail <- getInStack("packageFullName")
-            thisSha <- getInStack("shas")
-            pkgDTfail <- pkgDT[shas %in% thisSha]
+            packageFail <- try(getInStack("packageFullName"), silent = TRUE)
+            if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
+              thisSha <- try(getInStack("shas"))
+              pkgDTfail <- pkgDT[shas %in% thisSha]
 
-            a <- "Package"; obj <- get(a, whereInStack(a))
-            # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
-            b <- pkgDT[Package %in% obj]
-            wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
-            ptt <- packagesToTry[wh]
-            whPackages <- sapply(modulePackages, function(mp) {
-              whp <- mp %in% ptt
-              mp[which(whp)]
-            })
-            whPkg <- unlist(whPackages)
-            warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+              a <- "Package";
+              obj <- get(a, whereInStack(a))
+              # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
+              b <- pkgDT[Package %in% obj]
+              wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
+              ptt <- packagesToTry[wh]
+              whPackages <- sapply(modulePackages, function(mp) {
+                whp <- mp %in% ptt
+                mp[which(whp)]
+              })
+              whPkg <- unlist(whPackages)
+              warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+            }
             invokeRestart("muffleWarning")
+
           }
 
         })
