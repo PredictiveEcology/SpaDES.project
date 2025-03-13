@@ -36,7 +36,13 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   modulePath <- checkPath(modulePath, create = TRUE)
   modulesOrig <- modules
   modNam <- extractPkgName(modules)
-  localExists <- dir.exists(file.path(modulePath, modNam))
+  m <- fileRelPathFromFullGHpath(modulesOrig)
+
+  modulesOrigPkgName <- extractPkgName(modulesOrig)
+  modulesOrigNestedName <- extractModName(modulesOrig)
+
+  localExists <- dir.exists(file.path(modulePath, modulesOrigNestedName)) |
+    dir.exists(file.path(modulePath, m))
 
   stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
                         versionSpec = extractVersionNumber(modules),
@@ -123,7 +129,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
   successes <- stateDT$moduleFullName[stateDT$sufficient %in% TRUE]
   failed <- stateDT$moduleFullName[!stateDT$sufficient %in% TRUE]
-  stateDT[, modulePath := file.path(modulePath, fileRelPathFromFullGHpath(stateDT$moduleFullName))]
+  stateDT[, modulePath := file.path(modulePath, modulesOrigNestedName)]
   df <- stateDT[, list(moduleFullName, status, modulePath)]
   messageDF(df, verbose = verbose)
 
