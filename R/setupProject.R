@@ -1191,12 +1191,14 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
     }
   } else {
     llOuter <- lapply(files, function(optFiles) {
-      os <- NULL
-      if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R"))) {
+      os <- optFiles # default -- in case the file doesn't exist
+      if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R")) && file.exists(optFiles)) {
         pp <- parse(optFiles)
-        obj <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
+        os <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
                                       verbose = verbose)
-      }})
+      }
+      os
+      })
 
     # basically, the optFiles may not be a namedList, but the objects in the file may be
     #   need reassess
@@ -1839,16 +1841,41 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     if (length(notNamed)) {
       if (any(named))
         namedElements <- obj[which(named)]
-      obj[notNamed] <- Map(objInner = obj[notNamed],
+
+      newObjs <- Map(objInner = obj[notNamed],
                            function(objInner)
                              parseFileLists(objInner, paths, namedList, overwrite,
                                             envir, verbose, dots, ...))
+      # check which ones changed; the ones that don't are files that don't exist
+      isChanged <- mapply(SIMPLIFY = TRUE, oldObj = obj[notNamed], newObj = newObjs,
+                          function(newObj, oldObj) !identical(newObj, oldObj))
+      obj[notNamed] <- newObjs
+
       if (any(named))
         obj[named] <- Map(x = obj[named], nam = names(namedElements), function(x, nam) {
           y <- list(x)
           names(y) <- nam
           y})
-      obj <- Reduce(f = modifyList, obj)
+
+      if (any(!isChanged)) {
+        # we have a problem... need to splice
+        parts <- rle(named)$lengths
+        endIndex <- cumsum(parts)
+        startIndex <- endIndex - parts + 1
+        objNew <- list()
+        for (i in seq_along(parts)) {
+          if (identical(notNamed[!isChanged], i)) {
+            nextBit <- obj[startIndex[i]:endIndex[i]]
+          } else {
+            nextBit <- Reduce(f = modifyList, obj[startIndex[i]:endIndex[i]])
+          }
+          objNew <- append(objNew, nextBit)
+        }
+        obj <- objNew
+
+      } else {
+        obj <- Reduce(f = modifyList, obj)
+      }
     }
   }
 
