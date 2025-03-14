@@ -2032,10 +2032,11 @@ isInProject <- function(name, projectPath) {
   if (!missing(name)) {
     gtwd <- getwd()
     gtwdExp <- fs::path_expand_r(gtwd)
-    if (!missing(projectPath))
+    if (!missing(projectPath)) {
       nameExp <- fs::path_expand_r(projectPath)
-    else
-      nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
+    } else {
+      projectPath <- nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
+    }
     out <- identical(gtwdExp, nameExp)
     if (out %in% FALSE && !isAbsolutePath(projectPath)) {
       gtwdExp <- basename(fs::path_expand(gtwd))
