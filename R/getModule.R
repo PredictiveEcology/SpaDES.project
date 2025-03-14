@@ -41,8 +41,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   modulesOrigPkgName <- extractPkgName(modulesOrig)
   modulesOrigNestedName <- extractModName(modulesOrig)
 
-  localExists <- dir.exists(file.path(modulePath, modulesOrigNestedName)) |
-    dir.exists(file.path(modulePath, m))
+  localExists <- dir.exists(file.path(modulePath, modulesOrigNestedName)) # |
+    # dir.exists(file.path(modulePath, m))
 
   stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
                         versionSpec = extractVersionNumber(modules),
