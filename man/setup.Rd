@@ -200,6 +200,10 @@ the function should use its own internal environment. If called from another
 function, e.g., \code{setupProject}, then the \code{envir} should be the internal
 transient environment of that function.}
 
+\item{callingEnv}{The environment from which the function was called. Defaults to \code{sys.frame(-2)}
+which represents the case where the inner \verb{setup*} functions are called inside
+\code{setupProject}, which was called by a user.}
+
 \item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
 can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
 project can have one or the other, or both of these under git control. If "both",

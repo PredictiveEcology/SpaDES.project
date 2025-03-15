@@ -254,6 +254,14 @@ utils::globalVariables(c(
 #' ````
 #'
 #' \subsection{Argument order}{
+#' Arguments that are *not* the named arguments (i.e., the ones passed in `...`)
+#' are evaluated in the order they are written. Subsequent arguments can use the
+#' previous arguments. If "dot" arguments are declared before the first
+#' standard arguments (the "formals") of the function, then they will be evaluated
+#' prior to the `formals`. If they are after a single standard argument (i.e., not
+#' necessarily after *all* the named arguments), then they will be evaluated after
+#' all standard arguments. The exception to this is `params`, which will be evaluated
+#' like the `...` arguments, i.e., in order.
 #'
 #' }
 #'
@@ -763,6 +771,9 @@ setupProject <- function(name, paths, modules, packages,
 #' @inheritParams setupProject
 #' @param inProject A logical. If `TRUE`, then the current directory is
 #'  inside the `paths[["projectPath"]]`.
+#' @param callingEnv The environment from which the function was called. Defaults to `sys.frame(-2)`
+#'   which represents the case where the inner `setup*` functions are called inside
+#'   `setupProject`, which was called by a user.
 #' @rdname setup
 #' @param envir An environment within which to look for objects. If called alone,
 #' the function should use its own internal environment. If called from another
