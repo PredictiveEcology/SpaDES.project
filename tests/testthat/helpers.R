@@ -34,13 +34,13 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
     #   withr::local_package("terra", .local_envir = envir)
   })
 
-  # if (user("emcintir")) {
-  #   if (!googledrive::drive_has_token()) {
-  #     options(gargle_oauth_cache = "/home/emcintir/.secret",
-  #             gargle_oauth_email = "eliotmcintire@gmail.com")
-  #     googledrive::drive_auth()
-  #   }
-  # }
+  if (user("emcintir")) {
+    if (!googledrive::drive_has_token()) {
+      options(# gargle_oauth_cache = "/home/emcintir/.secret",
+              gargle_oauth_email = "eliotmcintire@gmail.com")
+      googledrive::drive_auth()
+    }
+  }
 
   if (!missing(pkgs)) {
     lapply(pkgs, function(pk) {

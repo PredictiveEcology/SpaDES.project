@@ -23,6 +23,7 @@ setupPaths(
   Restart = getOption("SpaDES.project.Restart", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   useGit = getOption("SpaDES.project.useGit", FALSE),
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -37,6 +38,7 @@ setupFunctions(
   paths,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -50,6 +52,7 @@ setupSideEffects(
   times,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -63,6 +66,7 @@ setupOptions(
   times,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -79,6 +83,7 @@ setupModules(
   useGit = getOption("SpaDES.project.useGit", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   gitUserName,
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -96,6 +101,7 @@ setupPackages(
   setLinuxBinaryRepo = TRUE,
   standAlone,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose"),
   dots,
   defaultDots,
@@ -111,6 +117,7 @@ setupParams(
   options,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -126,7 +133,8 @@ setupGitIgnore(
 setupStudyArea(
   studyArea,
   paths,
-  envir,
+  envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L)
 )
 
@@ -191,6 +199,10 @@ a user can just manually delete a file, then rerun.}
 the function should use its own internal environment. If called from another
 function, e.g., \code{setupProject}, then the \code{envir} should be the internal
 transient environment of that function.}
+
+\item{callingEnv}{The environment from which the function was called. Defaults to \code{sys.frame(-2)}
+which represents the case where the inner \verb{setup*} functions are called inside
+\code{setupProject}, which was called by a user.}
 
 \item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
 can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given

@@ -254,6 +254,14 @@ utils::globalVariables(c(
 #' ````
 #'
 #' \subsection{Argument order}{
+#' Arguments that are *not* the named arguments (i.e., the ones passed in `...`)
+#' are evaluated in the order they are written. Subsequent arguments can use the
+#' previous arguments. If "dot" arguments are declared before the first
+#' standard arguments (the "formals") of the function, then they will be evaluated
+#' prior to the `formals`. If they are after a single standard argument (i.e., not
+#' necessarily after *all* the named arguments), then they will be evaluated after
+#' all standard arguments. The exception to this is `params`, which will be evaluated
+#' like the `...` arguments, i.e., in order.
 #'
 #' }
 #'
@@ -434,6 +442,13 @@ setupProject <- function(name, paths, modules, packages,
     }
     dotsSUB <- as.list(substitute(list(...)))[-1]
     dotsLater <- dotsSUB
+    defaultDotsSUB <- substitute(defaultDots)
+    # if (!missing(defaultDotsSUB)) {
+    #   a <- evalSUB(defaultDots, "defaultDots", envir = envirCur, envir2 = envir)
+    #
+    #   list2env(a, envir = envirCur)
+    #
+    # }
     if (firstNamedArg > 2) { # there is always an empty one at first slot
       firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
       dotsLater <- dotsSUB[-firstSet]
@@ -577,7 +592,8 @@ setupProject <- function(name, paths, modules, packages,
     for (ar in remainingArgs) {
       if (identical(ar, "params")) {
         params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
-                              overwrite = isTRUE(overwrite), envir = envirCur, verbose = verbose)
+                              overwrite = isTRUE(overwrite), envir = envirCur,
+                              callingEnv = envir, verbose = verbose)
       } else if (identical(ar, "studyArea")){
         studyAreaSUB <- substitute(studyArea)
         if (!is.null(studyAreaSUB)) {
@@ -590,6 +606,8 @@ setupProject <- function(name, paths, modules, packages,
           times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
       } else {
         if (length(dotsLater) && (ar %in% names(dotsLater))) {
+          # aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
+
           # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
           possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                      envir = envirCur, callingEnv = envir)
@@ -753,6 +771,9 @@ setupProject <- function(name, paths, modules, packages,
 #' @inheritParams setupProject
 #' @param inProject A logical. If `TRUE`, then the current directory is
 #'  inside the `paths[["projectPath"]]`.
+#' @param callingEnv The environment from which the function was called. Defaults to `sys.frame(-2)`
+#'   which represents the case where the inner `setup*` functions are called inside
+#'   `setupProject`, which was called by a user.
 #' @rdname setup
 #' @param envir An environment within which to look for objects. If called alone,
 #' the function should use its own internal environment. If called from another
@@ -763,7 +784,7 @@ setupProject <- function(name, paths, modules, packages,
 setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NULL,
                        updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                        Restart = getOption("SpaDES.project.Restart", FALSE),
-                       overwrite = FALSE, envir = parent.frame(),
+                       overwrite = FALSE, envir = parent.frame(), callingEnv = sys.frame(-2),
                        useGit = getOption("SpaDES.project.useGit", FALSE),
                        verbose = getOption("Require.verbose", 1L), dots, defaultDots, ...) {
 
@@ -771,7 +792,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   makeUpdateRprofileSticky(updateRprofile)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   messageVerbose(yellow(paste0(.txtSettingUp, " paths ...")), verbose = verbose, verboseLevel = 0)
 
@@ -991,12 +1012,13 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'                     ddd = fn3(terra::ext(0,b,0,b)))
 #' \dontshow{setwd(origDir)}
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
-                           envir = parent.frame(), verbose = getOption("Require.verbose", 1L),
+                           envir = parent.frame(), callingEnv = sys.frame(-2),
+                           verbose = getOption("Require.verbose", 1L),
                            dots, defaultDots, ...) {
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (!missing(functions)) {
     messageVerbose(yellow(paste0(.txtSettingUp, " functions...")), verbose = verbose, verboseLevel = 0)
@@ -1045,12 +1067,12 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 #'
 #' @importFrom data.table data.table
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
-                             envir = parent.frame(), verbose = getOption("Require.verbose", 1L),
+                             envir = parent.frame(), callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L),
                              dots, defaultDots, ...) {
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (!missing(sideEffects)) {
     messageVerbose(yellow(paste0(.txtSettingUp, " sideEffects...")), verbose = verbose, verboseLevel = 0)
@@ -1088,7 +1110,8 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #'
 #'
 #' @importFrom data.table data.table
-setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir = parent.frame(),
+setupOptions <- function(name, options, paths, times, overwrite = FALSE,
+                         envir = parent.frame(), callingEnv = sys.frame(-2),
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
@@ -1097,7 +1120,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE, envir =
   makeUpdateRprofileSticky(updateRprofile)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   newValuesComplete <- oldValuesComplete <- NULL
   updates <- NULL
@@ -1191,12 +1214,14 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
     }
   } else {
     llOuter <- lapply(files, function(optFiles) {
-      os <- NULL
-      if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R"))) {
+      os <- optFiles # default -- in case the file doesn't exist
+      if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R")) && file.exists(optFiles)) {
         pp <- parse(optFiles)
-        obj <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
+        os <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
                                       verbose = verbose)
-      }})
+      }
+      os
+      })
 
     # basically, the optFiles may not be a namedList, but the objects in the file may be
     #   need reassess
@@ -1308,7 +1333,8 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' @param gitUserName The GitHub account name. Used with git clone git@github.com:*gitHuserName*/name
 #' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
-                         overwrite = FALSE, envir = parent.frame(), gitUserName,
+                         overwrite = FALSE, envir = parent.frame(), callingEnv = sys.frame(-2),
+                         gitUserName,
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                          updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                          ...) {
@@ -1317,7 +1343,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
   makeUpdateRprofileSticky(updateRprofile)
 
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (missing(modules)) {
     modulesOrig <- character()
@@ -1604,12 +1630,13 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 #'
 setupPackages <- function(packages, modulePackages = list(), require = list(), paths, libPaths,
                           setLinuxBinaryRepo = TRUE,
-                          standAlone, envir = parent.frame(), verbose = getOption("Require.verbose"),
+                          standAlone, envir = parent.frame(), callingEnv = sys.frame(-2),
+                          verbose = getOption("Require.verbose"),
                           dots, defaultDots, ...) {
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (isTRUE(setLinuxBinaryRepo))
     Require::setLinuxBinaryRepo()
@@ -1662,22 +1689,26 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
           if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
             sc <- sys.calls()
             pkgDT <- getInStack("pkgDT")
-            packageFail <- getInStack("packageFullName")
-            thisSha <- getInStack("shas")
-            pkgDTfail <- pkgDT[shas %in% thisSha]
+            packageFail <- try(getInStack("packageFullName"), silent = TRUE)
+            if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
+              thisSha <- try(getInStack("shas"))
+              pkgDTfail <- pkgDT[shas %in% thisSha]
 
-            a <- "Package"; obj <- get(a, whereInStack(a))
-            # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
-            b <- pkgDT[Package %in% obj]
-            wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
-            ptt <- packagesToTry[wh]
-            whPackages <- sapply(modulePackages, function(mp) {
-              whp <- mp %in% ptt
-              mp[which(whp)]
-            })
-            whPkg <- unlist(whPackages)
-            warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+              a <- "Package";
+              obj <- get(a, whereInStack(a))
+              # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
+              b <- pkgDT[Package %in% obj]
+              wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
+              ptt <- packagesToTry[wh]
+              whPackages <- sapply(modulePackages, function(mp) {
+                whp <- mp %in% ptt
+                mp[which(whp)]
+              })
+              whPkg <- unlist(whPackages)
+              warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+            }
             invokeRestart("muffleWarning")
+
           }
 
         })
@@ -1730,13 +1761,14 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 #'
 #'
 #' @importFrom data.table data.table
-setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE, envir = parent.frame(),
+setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE,
+                        envir = parent.frame(), callingEnv = sys.frame(-2),
                         verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                         ...) {
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
-  dotsSUB <- evalDots(dots, dotsSUB, defaultDots)
+  dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (missing(params)) {
     params <- list()
@@ -1745,7 +1777,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
     messageVerbose(yellow(paste0(.txtSettingUp, " params...")), verbose = verbose, verboseLevel = 0)
 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    params <- evalSUB(val = paramsSUB, valObjName = "params", envir = envirCur, envir2 = envir)
+    params <- evalSUB(val = paramsSUB, valObjName = "params", envir = callingEnv, envir2 = envir)
     params <- parseFileLists(params, paths, overwrite = isTRUE(overwrite),
                              envir = envir, verbose = verbose)
 
@@ -1835,16 +1867,41 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
     if (length(notNamed)) {
       if (any(named))
         namedElements <- obj[which(named)]
-      obj[notNamed] <- Map(objInner = obj[notNamed],
+
+      newObjs <- Map(objInner = obj[notNamed],
                            function(objInner)
                              parseFileLists(objInner, paths, namedList, overwrite,
                                             envir, verbose, dots, ...))
+      # check which ones changed; the ones that don't are files that don't exist
+      isChanged <- mapply(SIMPLIFY = TRUE, oldObj = obj[notNamed], newObj = newObjs,
+                          function(newObj, oldObj) !identical(newObj, oldObj))
+      obj[notNamed] <- newObjs
+
       if (any(named))
         obj[named] <- Map(x = obj[named], nam = names(namedElements), function(x, nam) {
           y <- list(x)
           names(y) <- nam
           y})
-      obj <- Reduce(f = modifyList, obj)
+
+      if (any(!isChanged)) {
+        # we have a problem... need to splice
+        parts <- rle(named)$lengths
+        endIndex <- cumsum(parts)
+        startIndex <- endIndex - parts + 1
+        objNew <- list()
+        for (i in seq_along(parts)) {
+          if (identical(notNamed[!isChanged], i)) {
+            nextBit <- obj[startIndex[i]:endIndex[i]]
+          } else {
+            nextBit <- Reduce(f = modifyList, obj[startIndex[i]:endIndex[i]])
+          }
+          objNew <- append(objNew, nextBit)
+        }
+        obj <- objNew
+
+      } else {
+        obj <- Reduce(f = modifyList, obj)
+      }
     }
   }
 
@@ -1986,10 +2043,11 @@ isInProject <- function(name, projectPath) {
   if (!missing(name)) {
     gtwd <- getwd()
     gtwdExp <- fs::path_expand_r(gtwd)
-    if (!missing(projectPath))
+    if (!missing(projectPath)) {
       nameExp <- fs::path_expand_r(projectPath)
-    else
-      nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
+    } else {
+      projectPath <- nameExp <- basename(fs::path_expand_r(extractPkgName(name)))
+    }
     out <- identical(gtwdExp, nameExp)
     if (out %in% FALSE && !isAbsolutePath(projectPath)) {
       gtwdExp <- basename(fs::path_expand(gtwd))
@@ -2019,47 +2077,53 @@ evalSUB <- function(val, valObjName, envir, envir2) {
   warns <- character()
 
   withCallingHandlers({
-  while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
-    if (identical(valObjName, "options")) {
-      optionsGrepStart <- "^options\\>"
-      if (any(grepl(optionsGrepStart, val))) {
-        val[[1]] <- as.name(gsub(optionsGrepStart, "list", val[[1]]))
-      }
-    }
-    if (inherits(val, "name"))
-      val2 <- get0(val, envir = envir)
-    else {
-      val2 <- try(eval(val, envir = envir), silent = TRUE)
-    }
-
-    tryAgain <- (identical(val2, val) && !missing(envir2)) ||
-      is(val2, "try-error")
-    if (!identical(valObjName, "sideEffects"))
-      tryAgain <- tryAgain || is.null(val2)
-    if (tryAgain) {
-      # if (isTRUE(any(grepl("could not find function", val2)))) {
-      #   break
-      # }
-
-      val3 <- try(eval(val, envir = envir2), silent = TRUE)
-      if (is(val3, "try-error")) {
-        # last ditch effort -- brute force
-        sfs <- sys.frames()
-        for (frm in rev(sfs)) {
-          # env <- new.env(parent = frm)
-          val3 <- try(eval(val, envir = frm), silent = TRUE)
-          if (!is(val3, "try-error"))
-            break
+    while (inherits(val, "call") || inherits(val, "name") || inherits(val, "{") || inherits(val, "if")) {
+      if (identical(valObjName, "options")) {
+        optionsGrepStart <- "^options\\>"
+        if (any(grepl(optionsGrepStart, val))) {
+          val[[1]] <- as.name(gsub(optionsGrepStart, "list", val[[1]]))
         }
       }
-      val <- val3
-      val2 <- val3
-    } else {
-      val <- val2
+      if (inherits(val, "name"))
+        val2 <- get0(val, envir = envir)
+      else {
+        val2 <- try(eval(val, envir = envir), silent = TRUE)
+      }
+
+      tryAgain <- (identical(val2, val) && !missing(envir2)) ||
+        is(val2, "try-error")
+      if (!identical(valObjName, "sideEffects"))
+        tryAgain <- tryAgain || is.null(val2)
+      if (tryAgain) {
+        # if (isTRUE(any(grepl("could not find function", val2)))) {
+        #   break
+        # }
+
+        val3 <- try(eval(val, envir = envir2), silent = TRUE)
+        if (is(val3, "try-error")) {
+          # last ditch effort -- brute force
+          sfs <- sys.frames()
+          for (frm in rev(sfs)) {
+            # env <- new.env(parent = frm)
+            val3 <- try(eval(val, envir = frm), silent = TRUE)
+            if (!is(val3, "try-error"))
+              break
+          }
+          if (is(val3, "try-error")) {
+            envirOnEnvir2 <- new.env(parent = envir2)
+            list2env(mget(ls(envir = envir), envir = envir), envirOnEnvir2)
+            val3 <- try(eval(val, envir = envirOnEnvir2), silent = TRUE)
+            break
+          }
+        }
+        val <- val3
+        val2 <- val3
+      } else {
+        val <- val2
+      }
+      if (missing(envir2))
+        break
     }
-    if (missing(envir2))
-      break
-  }
   },
   warning = function(w) {
     warns <<- c(warns, w$message)
@@ -2069,7 +2133,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     warns <- rev(unique(warns))
     # try to give use more help in debugging
     spaces <- unlist(Map(space = rep("  ", length(warns)), num = seq(length(warns)),
-               function(space, num) paste(collapse = "", rep(space, num))))
+                         function(space, num) paste(collapse = "", rep(space, num))))
     warns <- paste0(spaces, warns)
     warns <- errorMsgCleaning(warns, valOrig)
     if (any(userQuoted))
@@ -2427,21 +2491,26 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
   if (haveDefaults) {
     objsPassed <- names(dotsSUB)# , ls(envir = envir, all.names = TRUE))
     if (!is.null(objsPassed)) {
-      inEnv <- exists(objsPassed, envir = envir, inherits = FALSE) # if this was from an "upstream" dots
-      inCallingEnv <- exists(objsPassed, envir = callingEnv, inherits = FALSE) # if it is still unevaluated dots
+      inEnv <- Map(objPassed = objsPassed, function(objPassed) exists(objPassed, envir = envir, inherits = FALSE))
+      inCallingEnv <- Map(objPassed = objsPassed, function(objPassed) exists(objPassed, envir = callingEnv, inherits = FALSE))
+
+      # inEnv <- exists(objsPassed, envir = envir, inherits = FALSE) # if this was from an "upstream" dots
+      # inCallingEnv <- exists(objsPassed, envir = callingEnv, inherits = FALSE) # if it is still unevaluated dots
       # newInEnv <- setdiff(names(defaultDots), objsPassed)
       # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
-      if (isFALSE(inEnv) && isFALSE(inCallingEnv)) {
-        list2env(defaultDots[objsPassed], envir = envir) # put it in the main environment for later use
-        localEnv2 <- defaultDots[objsPassed]
+      either <- inEnv %in% FALSE & inCallingEnv %in% FALSE
+      if (any(either)) {
+        list2env(defaultDots[objsPassed[either]], envir = envir) # put it in the main environment for later use
+        localEnv2 <- defaultDots[objsPassed[either]]
         # on.exit(rm(list = newInEnv, envir = envir))
-      } else {
-        if (isTRUE(inEnv)) {
+      }
+      if (any(!either)) {
+        if (any(inEnv %in% TRUE)) {
           localEnv2 <- envir
-        } else if (isTRUE(inCallingEnv)) {
-          localEnv2 <- callingEnv
         }
-
+        if (any(inCallingEnv %in% TRUE)) {
+          localEnv <- callingEnv
+        }
       }
     }
   }
@@ -2531,7 +2600,8 @@ stopMessForRequireFail <- function(pkg) {
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
 #' with subregion specification as described in the `studyArea` argument.fsu
-setupStudyArea <- function(studyArea, paths, envir, verbose = getOption("Require.verbose", 1L)) {
+setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
+                           callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L)) {
 
   if (missing(paths))
     paths <- list(inputPaths = ".")
@@ -2989,7 +3059,7 @@ basename2 <- function (x) {
 }
 
 evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
-                          callingEnv = parent.env(envir)) {
+                          callingEnv = sys.frame(-2)) {
   dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir,
                       callingEnv = callingEnv)
   dotsSUBreworked <- list()

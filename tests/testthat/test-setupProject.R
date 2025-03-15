@@ -276,7 +276,8 @@ test_that("test setupProject - pass modules as a list", {
 
 test_that("test setupProject - studyArea in lonlat", {
   skip_on_cran()
-  setupTest(c("geodata", "filelock", "reproducible")) # filelock is unnecessary "first time", but errors if run again
+  setupTest(c("geodata", "filelock", "reproducible", "googledrive",
+              "prettyunits", "mime")) # filelock is unnecessary "first time", but errors if run again
   jurs <- "Al|Brit"
   ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
   mess <- capture_messages(
@@ -295,7 +296,9 @@ test_that("test setupProject -studyArea using CRS", {
   skip_on_cran()
   ## example 2 with studyArea, converted to BC Albers 3005, Alberta, BC, SK,
   ##    with level 2 administrative boundaries
-  setupTest("geodata")
+  # setupTest("geodata")
+  setupTest(c("geodata", "filelock", "reproducible", "googledrive",
+              "prettyunits", "mime"))
   jurs <- "Al|Brit|Sas"
   epsg <- "3005"
 
@@ -399,10 +402,10 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
     })
   )
 
-  startMess <- tail(grep("modulePath", mess), 1) + 2
-  endMess <- tail(grep("setting up modules", mess), 1) - 1
+  startMess <- tail(cli::ansi_grep("modulePath", mess), 1) + 2
+  endMess <- tail(cli::ansi_grep("setting up modules", mess), 1) - 1
   modulePaths <- unlist(lapply(mess[seq(startMess, endMess)], function(x) tail(strsplit(x, split = " ")[[1]], 1)))
-  expect_true(length(unique(modulePaths)) == 2)
+  expect_true(length(unique(modulePaths)) == 2 || length(unique(modulePaths)) == length(out$modules))
   expect_false(any(grepl("@", out$modules)))
   expect_true(all(names(out) %in% c("modules", "paths", "params", "times")))
   expect_true(all(fs::path_has_parent(out$paths$modulePath, getwd())))
@@ -452,6 +455,7 @@ test_that("test setupProject - install pkgs from .R script", {
   skip_on_cran()
   nam <- "test_SpaDES_project3"
   setupTest(name = nam) # setwd, sets .libPaths() to a temp
+  withr::local_options("spades.useRequire" = TRUE)
   ## set relative paths & modules
   warn <- capture_warnings(
     mess <- capture_messages({

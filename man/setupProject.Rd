@@ -321,6 +321,14 @@ values, such as paths.
 }\if{html}{\out{</div>}}
 
 \subsection{Argument order}{
+Arguments that are \emph{not} the named arguments (i.e., the ones passed in \code{...})
+are evaluated in the order they are written. Subsequent arguments can use the
+previous arguments. If "dot" arguments are declared before the first
+standard arguments (the "formals") of the function, then they will be evaluated
+prior to the \code{formals}. If they are after a single standard argument (i.e., not
+necessarily after \emph{all} the named arguments), then they will be evaluated after
+all standard arguments. The exception to this is \code{params}, which will be evaluated
+like the \code{...} arguments, i.e., in order.
 
 }
 
