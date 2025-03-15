@@ -68,8 +68,7 @@ Suggests:
     withr
 Remotes: 
     PredictiveEcology/SpaDES.config@development,
-    PredictiveEcology/SpaDES.core@development,
-    rspatial/geodata
+    PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
