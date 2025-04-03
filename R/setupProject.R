@@ -598,7 +598,8 @@ setupProject <- function(name, paths, modules, packages,
       } else if (identical(ar, "studyArea")){
         studyAreaSUB <- substitute(studyArea)
         if (!is.null(studyAreaSUB)) {
-          dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
+          dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = envirCur,
+                                              callingEnv = envir, verbose = verbose)
           studyArea <- dotsSUB$studyArea
         }
       } else if (identical(ar, "times")) {
@@ -2629,7 +2630,10 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
 
   if (missing(paths))
     paths <- list(inputPaths = ".")
-  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = parent.frame(), envir2 = envir)
+  # evalSUB(val = studyArea, valObjName = "paths", envir = envirCur, envir2 = envir)
+  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = envir, envir2 = callingEnv)
+  if (is.call(studyArea))
+    stop("studyArea was not able to be evaluated; stopping")
 
   if (is(studyArea, "list")) {
     theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
