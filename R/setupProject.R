@@ -421,6 +421,7 @@ setupProject <- function(name, paths, modules, packages,
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
 
+  defaultDotsSUB <- substitute(defaultDots)
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
 
@@ -453,7 +454,7 @@ setupProject <- function(name, paths, modules, packages,
       firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
       dotsLater <- dotsSUB[-firstSet]
       dotsSUB <- dotsSUB[firstSet]
-      dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDots,
+      dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDotsSUB,
                                envir = envirCur, callingEnv = envir)
       #envir = envir,
       #callingEnv = envir)
@@ -2110,8 +2111,13 @@ evalSUB <- function(val, valObjName, envir, envir2) {
               break
           }
           if (is(val3, "try-error")) {
+            if (is.list(envir2)) # envir2 could be a list
+              envir2 <- as.environment(envir2)
             envirOnEnvir2 <- new.env(parent = envir2)
-            list2env(mget(ls(envir = envir), envir = envir), envirOnEnvir2)
+            ll <- ls(envir = envir)
+            llvals <- Map(l = ll, function(l) try(get0(l, envir = envir), silent = TRUE))
+            list2env(llvals, envirOnEnvir2)
+            # list2env(mget(ll, envir = envir), envirOnEnvir2)
             val3 <- try(eval(val, envir = envirOnEnvir2), silent = TRUE)
             break
           }
@@ -2500,8 +2506,19 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
       # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
       either <- inEnv %in% FALSE & inCallingEnv %in% FALSE
       if (any(either)) {
-        list2env(defaultDots[objsPassed[either]], envir = envir) # put it in the main environment for later use
+        for (nn in objsPassed[either]) { # use a for loop because individual elements may fail
+          defaultDots[[nn]] <- evalSUB(defaultDots[[nn]], envir = envir, envir2 = callingEnv,
+                                       valObjName = "defaultDots")
+          ddnn <- if (is.list(defaultDots[nn])) defaultDots[nn] else as.list(defaultDots)[nn] # a call
+
+          list2env(ddnn, envir = envir) # put it in the main environment for later use
+        }
         localEnv2 <- defaultDots[objsPassed[either]]
+
+        if (!is.environment(localEnv2) && !is.list(localEnv2)) {
+          # this would be a "call"
+          localEnv2 <- as.list(localEnv2)
+        }
         # on.exit(rm(list = newInEnv, envir = envir))
       }
       if (any(!either)) {
