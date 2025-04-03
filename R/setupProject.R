@@ -1548,10 +1548,17 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     # m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
     # m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
 
-    modulePackages <- Map(mo = modulesOrigNestedName, di = m, function(di, mo)
+    # Must try both `m` and original `modulePath` if they were flatteend
+    modulePackages <- Map(mo = modulesOrigNestedName, di = m,
+                          MoreArgs = list(modulePath = paths$modulePath), function(di, mo, modulePath) {
+                            modPathLocal <- file.path(paths[["modulePath"]], di)
+                            if (!dir.exists(modPathLocal)) {
+                              modPathLocal <- paths[["modulePath"]]
+                            }
+
       modulePackages <-
-        unlist(packagesInModules(modulePath = file.path(paths[["modulePath"]], di),
-                                 modules = mo), use.names = FALSE))
+        unlist(packagesInModules(modulePath = modPathLocal,
+                                 modules = mo), use.names = FALSE)})
     # modulePackages <- packagesInModules(modulePath = file.path(paths[["modulePath"]], dirname(m)),
     #                                     modules = modulesOrigNestedName)
     packages <- modulePackages[modulesOrigNestedName]
