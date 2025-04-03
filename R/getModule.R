@@ -85,6 +85,10 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     od <- setwd(tmpdir)
     on.exit(setwd(od))
 
+    noAt <- stateDT[["needDownload"]] %in% TRUE & isGitHub(stateDT[["moduleFullName"]]) &
+      !grepl("@", stateDT[["moduleFullName"]])
+    if (any(noAt))
+      stateDT[noAt %in% TRUE, moduleFullName := paste0(moduleFullName, "@HEAD")]
     stateDT[needDownload %in% TRUE,
             isGH := isGitHub(moduleFullName) & grepl("@", moduleFullName)] # the default isGitHub allows no branch]
     stateDT[, canDownload := needDownload %in% TRUE & isGH %in% TRUE]
