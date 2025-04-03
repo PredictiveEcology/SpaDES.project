@@ -608,8 +608,6 @@ setupProject <- function(name, paths, modules, packages,
           times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
       } else {
         if (length(dotsLater) && (ar %in% names(dotsLater))) {
-          # aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
-
           # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
           possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                      envir = envirCur, callingEnv = envir)
@@ -2514,13 +2512,19 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
       # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
       either <- inEnv %in% FALSE & inCallingEnv %in% FALSE
       if (any(either)) {
-        for (nn in objsPassed[either]) { # use a for loop because individual elements may fail
-          defaultDots[[nn]] <- evalSUB(defaultDots[[nn]], envir = envir, envir2 = callingEnv,
-                                       valObjName = "defaultDots")
-          ddnn <- if (is.list(defaultDots[nn])) defaultDots[nn] else as.list(defaultDots)[nn] # a call
+        # for (nn in objsPassed[either]) { # use a for loop because individual elements may fail
+        namsDD <- names(defaultDots)
+        namsDD <- setdiff(namsDD, "")
+          for (dd in namsDD) {
+            if (!exists(dd, envir  = envir, inherits = FALSE)) {
+              defaultDots[[dd]] <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+                                           valObjName = "defaultDots")
+              ddnn <- if (is.list(defaultDots[dd])) defaultDots[dd] else as.list(defaultDots)[dd] # a call
 
-          list2env(ddnn, envir = envir) # put it in the main environment for later use
-        }
+              list2env(ddnn, envir = envir) # put it in the main environment for later use
+            }
+          }
+        # }
         localEnv2 <- defaultDots[objsPassed[either]]
 
         if (!is.environment(localEnv2) && !is.list(localEnv2)) {
