@@ -2136,8 +2136,11 @@ evalSUB <- function(val, valObjName, envir, envir2) {
           }
 
           if (is(val3, "try-error")) {
-            if (is.list(envir2)) # envir2 could be a list
-              envir2 <- as.environment(envir2)
+            if (is.list(envir2)) {# envir2 could be a list
+              envir3 <- new.env(parent = envir)
+              list2env(envir2, envir = envir3)
+              envir2 <- envir3
+            }
             envirOnEnvir2 <- new.env(parent = envir2)
             ll <- ls(envir = envir)
             ll <- setdiff(ll, c("defaultDots", "defaultDotsSUB"))
@@ -2145,7 +2148,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
             list2env(llvals, envirOnEnvir2)
             # list2env(mget(ll, envir = envir), envirOnEnvir2)
             val3 <- try(eval(val, envir = envirOnEnvir2), silent = TRUE)
-            break
+            # break
           }
         }
         val <- val3
@@ -2161,6 +2164,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     warns <<- c(warns, w$message)
     invokeRestart("muffleWarning")
   })
+
   if (length(warns)) {
     warns <- rev(unique(warns))
     # try to give use more help in debugging
@@ -2559,8 +2563,6 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
         # this would be a "call"
         localEnv2 <- as.list(localEnv2)
       }
-      # on.exit(rm(list = newInEnv, envir = envir))
-      # }
       if (any(!either)) {
         if (any(inEnv %in% TRUE)) {
           localEnv2 <- envir
