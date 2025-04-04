@@ -36,6 +36,7 @@ jobs:
             any::covr
             fastshp=?ignore
             NLMR=?ignore
+            PredictiveEcology/Require@development
 
       - name: Install additional package dependencies
         run: |

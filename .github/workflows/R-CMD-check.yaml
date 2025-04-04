@@ -60,6 +60,7 @@ jobs:
             any::rematch2
             fastshp=?ignore
             NLMR=?ignore
+            PredictiveEcology/Require@development
 
       - name: Install additional package dependencies
         run: |
