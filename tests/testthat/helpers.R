@@ -36,8 +36,9 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
 
   if (user("emcintir")) {
     if (!googledrive::drive_has_token()) {
-      options(# gargle_oauth_cache = "/home/emcintir/.secret",
-              gargle_oauth_email = "eliotmcintire@gmail.com")
+      options(gargle_oauth_cache = "/home/emcintir/.secret",
+              gargle_oauth_email = "predictiveecology@gmail.com",
+              gargle_oauth_client_type = "web")
       googledrive::drive_auth()
     }
   }

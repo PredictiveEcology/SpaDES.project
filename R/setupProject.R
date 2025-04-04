@@ -421,6 +421,8 @@ setupProject <- function(name, paths, modules, packages,
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
 
+  defaultDotsSUB <- substitute(defaultDots)
+  failedBCMissingPackage <- FALSE
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
 
@@ -440,150 +442,163 @@ setupProject <- function(name, paths, modules, packages,
       argsAreInFormals <- origArgOrder %in% setdiff(formalArgs(setupProject), argsCanGoAnywhere)
       firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
     }
-    dotsSUB <- as.list(substitute(list(...)))[-1]
+    dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
     dotsLater <- dotsSUB
-    defaultDotsSUB <- substitute(defaultDots)
-    # if (!missing(defaultDotsSUB)) {
-    #   a <- evalSUB(defaultDots, "defaultDots", envir = envirCur, envir2 = envir)
-    #
-    #   list2env(a, envir = envirCur)
-    #
-    # }
-    if (firstNamedArg > 2) { # there is always an empty one at first slot
-      firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
-      dotsLater <- dotsSUB[-firstSet]
-      dotsSUB <- dotsSUB[firstSet]
-      dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDots,
-                               envir = envirCur, callingEnv = envir)
-      #envir = envir,
-      #callingEnv = envir)
+    defaultDotsSUB <- defaultDotsSUBOrig <- substitute(defaultDots)
+    functionsSUB <- functionsSUBOrig <- substitute(functions)
+    modulesSUB <- modulesSUBOrig <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    paramsSUB <- paramsSUBOrig <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    optionsSUB <- optionsSUBOrig <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    pathsSUB <- pathsSUBOrig <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
+    sideEffectsSUB <- sideEffectsSUBOrig <- substitute(sideEffects)
+    libPaths <- libPathsOrig <- substitute(libPaths)
+
+    for (fullAttempt in 1:2) {
+      if (fullAttempt == 2) {
+        messageVerbose("Starting setupProject again with new packages installed", verbose = verbose)
+        Origs <- grep("Orig$", ls(), value = TRUE)
+        OrigsSansOrig <- gsub("Orig", "", Origs)
+        OrigsSansSUBOrig <- gsub("SUBOrig", "", Origs)
+        passed <- c("dots", names(as.list(match.call())[-1]))
+        keepers <- OrigsSansSUBOrig %in% passed
+        Origs <- Origs[keepers]
+        OrigsSansOrig <- OrigsSansOrig[keepers]
+        Map(objName = Origs, objNameSUB = OrigsSansOrig, function(objName, objNameSUB) {
+          if (!missing(objName))
+            assign(objNameSUB,
+                   get(objName, envir = envirCur),
+                   envir = envirCur)
+        })
+      }
+      if (firstNamedArg > 2) { # there is always an empty one at first slot
+        firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
+        dotsLater <- dotsSUB[-firstSet]
+        dotsSUB <- dotsSUB[firstSet]
+        dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDotsSUB,
+                                 envir = envirCur, callingEnv = envir)
+        #envir = envir,
+        #callingEnv = envir)
+      }
+
+      if (missing(times))
+        times <- list(start = 0, end = 1)
+
+      pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
+      if (missing(name)) {
+        name <- basename(normPath(pathsSUB[["projectPath"]]))
+      } else {
+        name <- checkNameProjectPathConflict(name, pathsSUB)
+      }
+
+      # inProject <- isInProject(name)
+
+      # setupOptions is run twice -- because package startup often changes options
+      optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
+                                envir = envirCur, useGit = useGit,
+                                updateRprofile = updateRprofile,
+                                verbose = verbose - 1)
+
+      if (isTRUE(getOption("SpaDES.project.fast"))) {
+        base::options(fastOptions())
+        packages <- NULL
+        useGit <- FALSE
+      }
+
+      paths <- setupPaths(name, pathsSUB, # inProject,
+                          standAlone = standAlone, libPaths = libPaths,
+                          Restart = Restart, defaultDots = defaultDots,
+                          useGit = useGit,
+                          updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
+      inProject <- isInProject(name, paths[["projectPath"]])
+
+      setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
+                   Restart = Restart, origGetWd, verbose) # This may restart
+
+      # Need to assess if this is a new project locally, but the remote exists
+      usingGit <- checkUseGit(useGit)
+      gitUserName <- NULL
+      if (isTRUE(usingGit)) {
+        isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
+        if (isFALSE(isLocalGitRepoAlready)) {
+          gitUserName <- checkGitRemote(useGit = useGit, name = name, paths = pathsSUB, verbose = verbose)
+        }
+      }
+
+      # this next puts them in this environment, returns NULL
+      functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
+
+      modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
+                                     gitUserName = gitUserName, updateRprofile = updateRprofile,
+                                     overwrite = overwrite, envir = envirCur, verbose = verbose)
+      modules <- extractModName(names(modulePackages))
+      names(modules) <- names(modulePackages)
+
+      m <- fileRelPathFromFullGHpath(names(modules))
+      if (any(nzchar(m))) {
+        paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], unique(m))))
+      }
+
+      if (missing(packages))
+        packages <- character()
+
+      if (getOption("spades.useRequire", TRUE)) {
+        setupPackages(packages, modulePackages, require = require, paths = paths,
+                      setLinuxBinaryRepo = setLinuxBinaryRepo,
+                      standAlone = standAlone,
+                      libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
+      } else {
+        messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
+                       verbose = verbose)
+      }
+
+      # This next is to set the terra tempdir; don't do it in the cases where terra is not used
+      # The longer unique(...) commented next is much slower; they are identical results
+      # allPkgs <- unique(Require::extractPkgName(c(packages, unname(unlist(modulePackages)))))
+      allPkgs <- c(packages, unname(unlist(modulePackages)))
+      if (any(grepl("\\<terra\\>", allPkgs))) {
+        terra::terraOptions(tempdir = paths$terraPath)
+      }
+
+      sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
+                                         envir = envirCur, verbose = verbose)
+
+      # 2nd time
+      opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
+                           useGit = useGit, updateRprofile = updateRprofile, verbose = verbose - 1)
+      if (!is.null(opts$newOptions))
+        opts <- mergeOpts(opts, optsFirst, verbose)
+
+      if (isTRUE(getOption("SpaDES.project.fast"))) {
+        message("Using fast options:")
+        df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
+        df <- df[!sapply(df, is.null)]
+        reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
+      }
+
+      options <- opts[["newOptions"]] # put into this environment so parsing can access
+
+      # Run 2nd time after sideEffects & setupOptions -- may not be necessary
+      # setupPackages(packages, modulePackages, require = require,
+      #               setLinuxBinaryRepo = setLinuxBinaryRepo,
+      #               standAlone = standAlone,
+      #               libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
+
+      if (!missing(config)) {
+        # messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
+        # if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
+        #   Require::Install("PredictiveEcology/SpaDES.config@development")
+        # }
+        messageWarnStop("config is not yet setup to run with SpaDES.project")
+        # if (FALSE)
+        #   out <- do.call(SpaDES.config::useConfig, append(
+        #     list(projectName = config,
+        #          projectPath = paths[["projectPath"]], paths = paths),
+        #     localVars))
+
+      }
+      if (failedBCMissingPackage %in% FALSE)
+        break
     }
-
-    functionsSUB <- substitute(functions)
-    modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-    pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
-    sideEffectsSUB <- substitute(sideEffects)
-    libPaths <- substitute(libPaths)
-
-    if (missing(times))
-      times <- list(start = 0, end = 1)
-
-    pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
-    if (missing(name)) {
-      name <- basename(normPath(pathsSUB[["projectPath"]]))
-    } else {
-      name <- checkNameProjectPathConflict(name, pathsSUB)
-    }
-
-    # inProject <- isInProject(name)
-
-    # setupOptions is run twice -- because package startup often changes options
-    optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
-                              envir = envirCur, useGit = useGit,
-                              updateRprofile = updateRprofile,
-                              verbose = verbose - 1)
-
-    if (isTRUE(getOption("SpaDES.project.fast"))) {
-      base::options(fastOptions())
-      packages <- NULL
-      useGit <- FALSE
-    }
-
-    paths <- setupPaths(name, pathsSUB, # inProject,
-                        standAlone = standAlone, libPaths = libPaths,
-                        Restart = Restart, defaultDots = defaultDots,
-                        useGit = useGit,
-                        updateRprofile = updateRprofile, verbose = verbose) # don't pass envir because paths aren't evaluated yet
-    inProject <- isInProject(name, paths[["projectPath"]])
-
-    setupRestart(updateRprofile = updateRprofile, paths, name, inProject, useGit = useGit,
-                 Restart = Restart, origGetWd, verbose) # This may restart
-
-  # Need to assess if this is a new project locally, but the remote exists
-  usingGit <- checkUseGit(useGit)
-  gitUserName <- NULL
-  if (isTRUE(usingGit)) {
-    isLocalGitRepoAlready <- isProjectGitRepo(pathsSUB$projectPath, inProject)
-    if (isFALSE(isLocalGitRepoAlready)) {
-      gitUserName <- checkGitRemote(useGit = useGit, name = name, paths = pathsSUB, verbose = verbose)
-    }
-  }
-
-    # this next puts them in this environment, returns NULL
-    functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
-
-    modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
-                                   gitUserName = gitUserName, updateRprofile = updateRprofile,
-                                   overwrite = overwrite, envir = envirCur, verbose = verbose)
-    modules <- extractModName(names(modulePackages))
-    names(modules) <- names(modulePackages)
-
-    m <- fileRelPathFromFullGHpath(names(modules))
-    if (any(nzchar(m))) {
-      paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], unique(m))))
-    }
-
-    if (missing(packages))
-      packages <- character()
-
-    if (getOption("spades.useRequire", TRUE)) {
-      setupPackages(packages, modulePackages, require = require, paths = paths,
-                    setLinuxBinaryRepo = setLinuxBinaryRepo,
-                    standAlone = standAlone,
-                    libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
-    } else {
-      messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
-                     verbose = verbose)
-    }
-
-    # This next is to set the terra tempdir; don't do it in the cases where terra is not used
-    # The longer unique(...) commented next is much slower; they are identical results
-    # allPkgs <- unique(Require::extractPkgName(c(packages, unname(unlist(modulePackages)))))
-    allPkgs <- c(packages, unname(unlist(modulePackages)))
-    if (any(grepl("\\<terra\\>", allPkgs))) {
-      terra::terraOptions(tempdir = paths$terraPath)
-    }
-
-    sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
-                                       envir = envirCur, verbose = verbose)
-
-    # 2nd time
-    opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
-                         useGit = useGit, updateRprofile = updateRprofile, verbose = verbose - 1)
-    if (!is.null(opts$newOptions))
-      opts <- mergeOpts(opts, optsFirst, verbose)
-
-    if (isTRUE(getOption("SpaDES.project.fast"))) {
-      message("Using fast options:")
-      df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
-      df <- df[!sapply(df, is.null)]
-      reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
-    }
-
-    options <- opts[["newOptions"]] # put into this environment so parsing can access
-
-    # Run 2nd time after sideEffects & setupOptions -- may not be necessary
-    # setupPackages(packages, modulePackages, require = require,
-    #               setLinuxBinaryRepo = setLinuxBinaryRepo,
-    #               standAlone = standAlone,
-    #               libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
-
-    if (!missing(config)) {
-      # messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
-      # if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
-      #   Require::Install("PredictiveEcology/SpaDES.config@development")
-      # }
-      messageWarnStop("config is not yet setup to run with SpaDES.project")
-      # if (FALSE)
-      #   out <- do.call(SpaDES.config::useConfig, append(
-      #     list(projectName = config,
-      #          projectPath = paths[["projectPath"]], paths = paths),
-      #     localVars))
-
-    }
-
     # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
     remainingArgs <- origArgOrder[!argsAreInFormals]
     remainingArgs <- remainingArgs[nzchar(remainingArgs)]
@@ -597,7 +612,8 @@ setupProject <- function(name, paths, modules, packages,
       } else if (identical(ar, "studyArea")){
         studyAreaSUB <- substitute(studyArea)
         if (!is.null(studyAreaSUB)) {
-          dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = parent.frame(), verbose = verbose)
+          dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = envirCur,
+                                              callingEnv = envir, verbose = verbose)
           studyArea <- dotsSUB$studyArea
         }
       } else if (identical(ar, "times")) {
@@ -606,8 +622,6 @@ setupProject <- function(name, paths, modules, packages,
           times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
       } else {
         if (length(dotsLater) && (ar %in% names(dotsLater))) {
-          # aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
-
           # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
           possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                      envir = envirCur, callingEnv = envir)
@@ -697,6 +711,14 @@ setupProject <- function(name, paths, modules, packages,
     }
     messageVerbose(yellow(m$message), verbose = verbose, appendLF = FALSE)
     invokeRestart("muffleMessage")
+  }, warning = function(w) {
+
+    if (grepl(.txtNoPackageCalled, w$message)) {
+      pkgNotAvail <- gsub(paste0(".+", .txtNoPackageCalled, ".+\u2018(.+)\u2019.*"), "\\1", w$message)
+      failedBCMissingPackage <<- TRUE
+      messageVerbose("Missing package(s): ", pkgNotAvail, "; restarting setupProject after installing packages")
+      invokeRestart("muffleWarning")
+    }
   })
 
   return(out)
@@ -877,9 +899,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
                                defaultsSPO$spades.inputPath),
          outputPath = getOption("spades.outputPath",
                                 defaultsSPO$spades.outputPath)
-    # list(cachePath = file.path(paths[["projectPath"]], "cache"),
-    #      inputPath = file.path(paths[["projectPath"]], "inputs"),
-    #      outputPath = file.path(paths[["projectPath"]], "outputs")
+         # list(cachePath = file.path(paths[["projectPath"]], "cache"),
+         #      inputPath = file.path(paths[["projectPath"]], "inputs"),
+         #      outputPath = file.path(paths[["projectPath"]], "outputs")
     ),
     paths)
 
@@ -925,9 +947,9 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     prevLibPaths <- if (verbose < 0) {
       out <- capture.output(type = "message", ret <- eval(setLPCall))
       ret
-      } else {
-        eval(setLPCall)
-      }
+    } else {
+      eval(setLPCall)
+    }
 
     if (needSetLibPathsNow %in% FALSE)
       on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
@@ -963,7 +985,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
         else
           stop("Setting `useGit = *something*` requires that usethis be installed. Please install it.")
       }
-  }}
+    }}
 
   paths
 }
@@ -1218,10 +1240,10 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
       if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R")) && file.exists(optFiles)) {
         pp <- parse(optFiles)
         os <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
-                                      verbose = verbose)
+                                     verbose = verbose)
       }
       os
-      })
+    })
 
     # basically, the optFiles may not be a namedList, but the objects in the file may be
     #   need reassess
@@ -1547,10 +1569,17 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     # m <- lapply(strsplit(m, "/"), function(r) r[-c(1, length(r))])
     # m <- vapply(m, paste, collapse = "/", FUN.VALUE = character(1))
 
-    modulePackages <- Map(mo = modulesOrigNestedName, di = m, function(di, mo)
-      modulePackages <-
-        unlist(packagesInModules(modulePath = file.path(paths[["modulePath"]], di),
-                                 modules = mo), use.names = FALSE))
+    # Must try both `m` and original `modulePath` if they were flatteend
+    modulePackages <- Map(mo = modulesOrigNestedName, di = m,
+                          MoreArgs = list(modulePath = paths$modulePath), function(di, mo, modulePath) {
+                            modPathLocal <- file.path(paths[["modulePath"]], di)
+                            if (!dir.exists(modPathLocal)) {
+                              modPathLocal <- paths[["modulePath"]]
+                            }
+
+                            modulePackages <-
+                              unlist(packagesInModules(modulePath = modPathLocal,
+                                                       modules = mo), use.names = FALSE)})
     # modulePackages <- packagesInModules(modulePath = file.path(paths[["modulePath"]], dirname(m)),
     #                                     modules = modulesOrigNestedName)
     packages <- modulePackages[modulesOrigNestedName]
@@ -1849,7 +1878,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
   }
 
   params <- Require::modifyList2(list(.globals = list(.studyAreaName = DEFAULT)),
-                        params)
+                                 params)
   return(params)
 }
 
@@ -1869,9 +1898,9 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         namedElements <- obj[which(named)]
 
       newObjs <- Map(objInner = obj[notNamed],
-                           function(objInner)
-                             parseFileLists(objInner, paths, namedList, overwrite,
-                                            envir, verbose, dots, ...))
+                     function(objInner)
+                       parseFileLists(objInner, paths, namedList, overwrite,
+                                      envir, verbose, dots, ...))
       # check which ones changed; the ones that don't are files that don't exist
       isChanged <- mapply(SIMPLIFY = TRUE, oldObj = obj[notNamed], newObj = newObjs,
                           function(newObj, oldObj) !identical(newObj, oldObj))
@@ -2095,25 +2124,31 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       if (!identical(valObjName, "sideEffects"))
         tryAgain <- tryAgain || is.null(val2)
       if (tryAgain) {
-        # if (isTRUE(any(grepl("could not find function", val2)))) {
-        #   break
-        # }
-
         val3 <- try(eval(val, envir = envir2), silent = TRUE)
         if (is(val3, "try-error")) {
           # last ditch effort -- brute force
           sfs <- sys.frames()
           for (frm in rev(sfs)) {
-            # env <- new.env(parent = frm)
             val3 <- try(eval(val, envir = frm), silent = TRUE)
-            if (!is(val3, "try-error"))
+            if (!is(val3, "try-error") || any(grepl(.txtNoPackageCalled, val3))) {
               break
+            }
           }
+
           if (is(val3, "try-error")) {
+            if (is.list(envir2)) {# envir2 could be a list
+              envir3 <- new.env(parent = envir)
+              list2env(envir2, envir = envir3)
+              envir2 <- envir3
+            }
             envirOnEnvir2 <- new.env(parent = envir2)
-            list2env(mget(ls(envir = envir), envir = envir), envirOnEnvir2)
+            ll <- ls(envir = envir)
+            ll <- setdiff(ll, c("defaultDots", "defaultDotsSUB"))
+            llvals <- Map(l = ll, function(l) try(get0(l, envir = envir), silent = TRUE))
+            list2env(llvals, envirOnEnvir2)
+            # list2env(mget(ll, envir = envir), envirOnEnvir2)
             val3 <- try(eval(val, envir = envirOnEnvir2), silent = TRUE)
-            break
+            # break
           }
         }
         val <- val3
@@ -2129,6 +2164,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     warns <<- c(warns, w$message)
     invokeRestart("muffleWarning")
   })
+
   if (length(warns)) {
     warns <- rev(unique(warns))
     # try to give use more help in debugging
@@ -2307,12 +2343,12 @@ setPaths <- function(cachePath, inputPath, modulePath, outputPath, rasterPath, s
   }
   if (missing(rasterPath)) { ## TODO: deprecate
     rasterPath <- normPath(file.path(.getOption("spades.scratchPath",
-                             defaultSPO$spades.scratchPath), "raster")) # nolint
+                                                defaultSPO$spades.scratchPath), "raster")) # nolint
     defaults$RP <- TRUE
   }
   if (missing(terraPath)) {
     terraPath <- normPath(file.path(.getOption("spades.scratchPath",
-                                  defaultSPO$spades.scratchPath), "terra"))
+                                               defaultSPO$spades.scratchPath), "terra"))
     # terraPath <- file.path(getOption("spades.scratchPath"), "terra") # nolint
     defaults$TP <- TRUE
   }
@@ -2499,10 +2535,33 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
       # newInEnv <- setdiff(names(defaultDots), objsPassed)
       # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
       either <- inEnv %in% FALSE & inCallingEnv %in% FALSE
-      if (any(either)) {
-        list2env(defaultDots[objsPassed[either]], envir = envir) # put it in the main environment for later use
-        localEnv2 <- defaultDots[objsPassed[either]]
-        # on.exit(rm(list = newInEnv, envir = envir))
+
+
+      # Changed April 3, 2025 -- either is about whether objsPassed are fine; but they may be
+      #   calls that must still be evaluated, and they may need defaultDots; so
+      #   no more "if any(either)"
+
+      # if (any(either)) {
+      # for (nn in objsPassed[either]) { # use a for loop because individual elements may fail
+      namsDD <- names(defaultDots)
+      namsDD <- setdiff(namsDD, "")
+      for (dd in namsDD) {
+        # Add the default dots to the envir if they aren't there. If, later on, they
+        #   are provided, then it will just be overwritten
+        if (!exists(dd, envir  = envir, inherits = FALSE) || is.call(get0(dd, envir = envir))) {
+          defaultDots[[dd]] <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+                                       valObjName = "defaultDots")
+          ddnn <- if (is.list(defaultDots[dd])) defaultDots[dd] else as.list(defaultDots)[dd] # a call
+
+          list2env(ddnn, envir = envir) # put it in the main environment for later use
+        }
+      }
+      # }
+      localEnv2 <- defaultDots[namsDD]# [objsPassed[either]]
+
+      if (!is.environment(localEnv2) && !is.list(localEnv2)) {
+        # this would be a "call"
+        localEnv2 <- as.list(localEnv2)
       }
       if (any(!either)) {
         if (any(inEnv %in% TRUE)) {
@@ -2605,7 +2664,10 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
 
   if (missing(paths))
     paths <- list(inputPaths = ".")
-  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = parent.frame(), envir2 = envir)
+  # evalSUB(val = studyArea, valObjName = "paths", envir = envirCur, envir2 = envir)
+  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = envir, envir2 = callingEnv)
+  if (is.call(studyArea))
+    stop("studyArea was not able to be evaluated; stopping")
 
   if (is(studyArea, "list")) {
     theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
@@ -3316,7 +3378,7 @@ getStudyArea <- function(studyArea, paths, verbose = verbose) {
     }
   }
   # if (requireNamespace("terra")) {
-    # studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
+  # studyArea <- studyArea |> terra::project("epsg:4269") # seemed to fail if not in this longlat
   # }
   if (!is.null(epsg))
     if (requireNamespace("terra")) {
@@ -3341,76 +3403,76 @@ checkGitRemote <- function(useGit, name, paths, verbose = getOption("Require.ver
 
   browser()
   gitUserName <- setupGitHub(useGit, name, paths, verbose)
-#
-#   #   stop("Need to supply the account name for the repository (not the repository name)")
-#   gitUserName <- getGitUserName()
-#   if (!nzchar(gitUserName)) needGitUserName <- FALSE
-#
-#   cloned <- checkGithubComCreateOrClone(gitUserName, name, paths, verbose)
-#
-#   # tf <- tempfile()
-#   # urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
-#   # out <- capture.output(type = "message",
-#   #                       outSkip <- try(.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
-#   # checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
-#   # od <- getwd()
-#   #
-#   # if (isTRUE(any(grepl("cannot open URL", out)) || identical(out, character(0)))) {
-#   #   message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
-#   #                  gitUserName, " repo name: ", name, "; return here, press enter to continue"))
-#   #   browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))
-#   #   readline()
-#   #
-#   #   checkPath(paths[["projectPath"]], create = TRUE)
-#   #   setwd(paths[["projectPath"]])
-#   #   on.exit(setwd(od))
-#   #   pp <- path.expand(paths[["projectPath"]])
-#   #
-#   #   if (!requireNamespace("usethis")) stop("Please install usethis")
-#   #
-#   #   bbb <- usethis::use_git()
-#   #   if (isTRUE(bbb)) {
-#   #     usethis::use_github(gitUserName)
-#   #     stop_quietly()
-#   #   }
-#   # } else {
-#   #   messageVerbose(verbose = verbose,
-#   #     .messages$gitRepoExistsCloneNowTxt(repo = file.path(gitUserName, name),
-#   #                                        to = paths[["projectPath"]]))
-#   #
-#   #   # message("It looks like the remote Git repo exists (",,
-#   #   #         "). Would you like to clone it now to ", paths[["projectPath"]], "?")
-#   #   cloneNow <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
-#   #   # cloneNow <- readline("Y or N (if N, this will stop): ")
-#   #   if (startsWith(tolower(cloneNow), "y")) {
-#   #     if (normalizePath(getwd()) == normalizePath(paths[["projectPath"]], mustWork = FALSE)) {
-#   #       stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")
-#   #     }
-#   #     projectBase <- dirname(paths[["projectPath"]])
-#   #     dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
-#   #     setwd(projectBase)
-#   #     on.exit(setwd(od))
-#   #     out <- gert::git_clone(url = file.path("https://github.com", gitUserName, name))
-#   #     # cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
-#   #     system(cmd)
-#   #     setwd(name)
-#   #     if (length(dir(pattern = ".gitmodules", all.files = T))) {
-#   #       if (nzchar(Sys.which("git2"))) {
-#   #         cmd <- paste0("git submodule init")
-#   #         a <- system(cmd, intern = TRUE)
-#   #         cmd <- paste0("git submodule update --recursive")
-#   #         b <- system(cmd, intern = TRUE)
-#   #       } else {
-#   #         stop("This is not tested; ", .messages$pleaseInstall())
-#   #         gert::git_submodule_init()
-#   #         gert::git_submodule_fetch()
-#   #       }
-#   #     }
-#   #   } else {
-#   #     stop("Please clone the project manually, or choose another account and repository")
-#   #   }
-#   #
-#   # }
+  #
+  #   #   stop("Need to supply the account name for the repository (not the repository name)")
+  #   gitUserName <- getGitUserName()
+  #   if (!nzchar(gitUserName)) needGitUserName <- FALSE
+  #
+  #   cloned <- checkGithubComCreateOrClone(gitUserName, name, paths, verbose)
+  #
+  #   # tf <- tempfile()
+  #   # urlCheckGit <- file.path("https://api.github.com/repos", gitUserName, name)#, destfile = tf)
+  #   # out <- capture.output(type = "message",
+  #   #                       outSkip <- try(.downloadFileMasterMainAuth(urlCheckGit, destfile = tf)))
+  #   # checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
+  #   # od <- getwd()
+  #   #
+  #   # if (isTRUE(any(grepl("cannot open URL", out)) || identical(out, character(0)))) {
+  #   #   message(paste0("It looks like the repository does not exist, please  go to github.com, create a new repository for: ",
+  #   #                  gitUserName, " repo name: ", name, "; return here, press enter to continue"))
+  #   #   browseURL(file.path("https://github.com", paste0(gitUserName, "?tab=repositories")))
+  #   #   readline()
+  #   #
+  #   #   checkPath(paths[["projectPath"]], create = TRUE)
+  #   #   setwd(paths[["projectPath"]])
+  #   #   on.exit(setwd(od))
+  #   #   pp <- path.expand(paths[["projectPath"]])
+  #   #
+  #   #   if (!requireNamespace("usethis")) stop("Please install usethis")
+  #   #
+  #   #   bbb <- usethis::use_git()
+  #   #   if (isTRUE(bbb)) {
+  #   #     usethis::use_github(gitUserName)
+  #   #     stop_quietly()
+  #   #   }
+  #   # } else {
+  #   #   messageVerbose(verbose = verbose,
+  #   #     .messages$gitRepoExistsCloneNowTxt(repo = file.path(gitUserName, name),
+  #   #                                        to = paths[["projectPath"]]))
+  #   #
+  #   #   # message("It looks like the remote Git repo exists (",,
+  #   #   #         "). Would you like to clone it now to ", paths[["projectPath"]], "?")
+  #   #   cloneNow <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+  #   #   # cloneNow <- readline("Y or N (if N, this will stop): ")
+  #   #   if (startsWith(tolower(cloneNow), "y")) {
+  #   #     if (normalizePath(getwd()) == normalizePath(paths[["projectPath"]], mustWork = FALSE)) {
+  #   #       stop("Cannot clone into projectPath because it already exists; please delete it; then rerun this.")
+  #   #     }
+  #   #     projectBase <- dirname(paths[["projectPath"]])
+  #   #     dir.create(projectBase, showWarnings = FALSE, recursive = TRUE)
+  #   #     setwd(projectBase)
+  #   #     on.exit(setwd(od))
+  #   #     out <- gert::git_clone(url = file.path("https://github.com", gitUserName, name))
+  #   #     # cmd <- paste0("git clone git@github.com:", gitUserName, "/", name)
+  #   #     system(cmd)
+  #   #     setwd(name)
+  #   #     if (length(dir(pattern = ".gitmodules", all.files = T))) {
+  #   #       if (nzchar(Sys.which("git2"))) {
+  #   #         cmd <- paste0("git submodule init")
+  #   #         a <- system(cmd, intern = TRUE)
+  #   #         cmd <- paste0("git submodule update --recursive")
+  #   #         b <- system(cmd, intern = TRUE)
+  #   #       } else {
+  #   #         stop("This is not tested; ", .messages$pleaseInstall())
+  #   #         gert::git_submodule_init()
+  #   #         gert::git_submodule_fetch()
+  #   #       }
+  #   #     }
+  #   #   } else {
+  #   #     stop("Please clone the project manually, or choose another account and repository")
+  #   #   }
+  #   #
+  #   # }
   return(gitUserName)
 }
 
@@ -3491,7 +3553,7 @@ extractModName <- function(modules) {
 
 msgNeedGitUserName <- function(gitUserNamePoss) {
   paste0("Please provide the github account if an organization, or press enter ",
-  "to use your personal account (",gitUserNamePoss , ") for the repository (without quotes): ")
+         "to use your personal account (",gitUserNamePoss , ") for the repository (without quotes): ")
 }
 
 
@@ -3559,7 +3621,7 @@ assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinar
 
 .messages$gitRepoExistsCloneNowTxt <- function(repo, to = getwd()) {
   paste0("The github repository already exists: ", repo,
-  "\nWould you like to clone it now to ", to, "\nType (y)es or any other key for no: ")
+         "\nWould you like to clone it now to ", to, "\nType (y)es or any other key for no: ")
 }
 
 
@@ -3649,7 +3711,7 @@ linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toF
     done
   })
 
- list(fromFilesList = fromFilesList, toFilesList = toFilesList)
+  list(fromFilesList = fromFilesList, toFilesList = toFilesList)
 }
 
 
@@ -3818,3 +3880,6 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
   }
   split
 }
+
+
+.txtNoPackageCalled <- "there is no package called"

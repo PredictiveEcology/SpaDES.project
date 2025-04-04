@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2025-03-14
-Version: 0.1.1.9030
+Date: 2025-04-03
+Version: 0.1.1.9035
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -18,7 +18,7 @@ Authors@R: c(
            role = c("ctb"), comment = c(ORCID = ""))
     )
 Depends:
-    R (>= 4.2)
+    R (>= 4.3)
 Imports:
     data.table,
     fs,
