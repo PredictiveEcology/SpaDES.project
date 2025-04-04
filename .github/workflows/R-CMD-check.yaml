@@ -57,6 +57,7 @@ jobs:
         with:
           extra-packages: |
             any::rcmdcheck
+            any::rematch2
             fastshp=?ignore
             NLMR=?ignore
             PredictiveEcology/Require@development
