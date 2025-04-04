@@ -2275,23 +2275,6 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
 
       # ignore these folders/files
       igs <- gitIgnoreInitials(paths)
-      # igs <- c(paths[["cachePath"]], paths[["inputPath"]], paths[["outputPath"]], ".Rproj.user", ".Rhistory",
-      #          ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile")
-      #
-      # for (ig in igs) {
-      #   igRel <- if (!is.null(paths[[ig]])) {
-      #     fs::path_rel(paths[[ig]], prjP)
-      #   } else {
-      #     ig
-      #   }
-      #
-      #   if (!isAbsolutePath(igRel)) { # if igRel is inside projectPath, then add to .gitignore
-      #     if (!any(grepl(igRel, gif))) { # only add if not already there
-      #       insertLine <- length(gif)
-      #       gif[insertLine + 1] <- igRel
-      #     }
-      #   }
-      # }
 
       # Write the file
       if (length(setdiff(gif, gifOrig))) {

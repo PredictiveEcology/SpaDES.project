@@ -34,14 +34,12 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
     #   withr::local_package("terra", .local_envir = envir)
   })
 
-  if (user("emcintir")) {
-    if (!googledrive::drive_has_token()) {
-      options(gargle_oauth_cache = "/home/emcintir/.secret",
-              gargle_oauth_email = "predictiveecology@gmail.com",
-              gargle_oauth_client_type = "web")
-      googledrive::drive_auth()
+  if (isNamespaceLoaded("googledrive"))
+    if ((!googledrive::drive_has_token())) {
+      if (nzchar(Sys.getenv("GOOGLEDRIVE_AUTH"))) {
+        googledrive::drive_auth(path = Sys.getenv("GOOGLEDRIVE_AUTH"))
+      }
     }
-  }
 
   if (!missing(pkgs)) {
     lapply(pkgs, function(pk) {
