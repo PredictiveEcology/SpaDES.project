@@ -31,7 +31,7 @@ jobs:
           - {os: windows-latest, nosuggests: false, r: 'oldrel-1'}
           - {os: ubuntu-latest,   nosuggests: false, r: 'devel'}
           - {os: ubuntu-latest,   nosuggests: false, r: 'release'}
-          - {os: ubuntu-latest-noSuggests,   nosuggests: true,  r: 'release'}
+          - {os: ubuntu-latest,   nosuggests: true,  r: 'release'}
           - {os: ubuntu-latest,   nosuggests: false, r: 'oldrel-1'}
 
     env:
