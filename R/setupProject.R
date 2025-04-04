@@ -2014,6 +2014,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       }
     }
     areAbs <- isAbsolutePath(obj)
+
     if (any(areAbs %in% FALSE)) {
       if (any(!startsWith(fs::path_norm(obj[areAbs %in% FALSE]), fs::path_norm(paths[["projectPath"]])))) {
         obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
@@ -2770,7 +2771,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             basenameRestartFile <- basename(Restart)
           }
 
-          if (!fs::is_absolute_path(Restart))
+          if (!isAbsolutePath(Restart))
             Restart <- file.path(origGetWd, Restart)
           newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
 
