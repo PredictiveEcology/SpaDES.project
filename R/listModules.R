@@ -108,7 +108,6 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
         messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
       else
         messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
-      # if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
 
       patt <- if (hasKeyword) mg else account
 
@@ -174,7 +173,6 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
     # If modules have errors, let them pass
-    # if (mod %in% "mapBins") browser()
     io <- try(SpaDES.core::inputObjects(module = mod, path = modulePath), silent = TRUE)
     if (is(io, "try-error")) {
       message(io); io = list(list()); names(io) <- mod
