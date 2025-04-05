@@ -81,7 +81,7 @@ test_that("test setupProject - simplest", {
 test_that("test setupProject - relative paths and modules", {
   skip_on_cran()
   nam <- "test_SpaDES_project"
-  setupTest(first = TRUE, name = nam) # setwd, sets .libPaths() to a temp
+  setupTest(pkgs = "terra", first = TRUE, name = nam) # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -104,7 +104,7 @@ test_that("test setupProject - relative paths and modules", {
 
 test_that("test setupProject - options and params", {
   skip_on_cran()
-  setupTest()
+  setupTest(pkgs = "terra")
   ## With options and params set
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -128,7 +128,7 @@ test_that("test setupProject - options and params", {
 
 test_that("test setupProject - remote options file", {
   skip_on_cran()
-  setupTest()
+  setupTest(pkgs = "terra")
   ## using an options file that is remote
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -247,7 +247,7 @@ test_that("test setupProject - load packages using require argument", {
 
 test_that("test setupProject - pass modules as a list", {
   skip_on_cran()
-  setupTest()
+  setupTest(pkgs = "terra")
   ## load packages using `require` argument -- now loads SpaDES.core & reproducible
   warns <- capture_warnings( # updateRprofile is TRUE, but the projectPath is the tempdir()
     mess <- capture_messages({
@@ -319,7 +319,7 @@ test_that("test setupProject -studyArea using CRS", {
 ## Make project-level change to .libPaths() that is persistent
 test_that("projectPath is in a tempdir", {
   skip_on_cran()
-  setupTest()
+  setupTest(pkgs = "terra")
 
   warns <- capture_warnings(
     out <- setupProject(package = "terra", updateRprofile = TRUE, verbose = -1))
@@ -350,7 +350,7 @@ test_that("projectPath is in a tempdir", {
 
 test_that("test setupProject - nested GH modules", {
   skip_on_cran()
-  setupTest() # setwd, sets .libPaths() to a temp
+  setupTest(pkgs = "terra") # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -383,7 +383,7 @@ test_that("test setupProject - nested GH modules", {
 test_that("test setupProject - nested modulePath scfm B_bDP", {
   skip_on_cran()
   nam <- "test_SpaDES_project"
-  setupTest(first = TRUE, name = nam) # setwd, sets .libPaths() to a temp
+  setupTest(pkgs = "terra", first = TRUE, name = nam) # setwd, sets .libPaths() to a temp
   ## set relative paths & modules
   warn <- capture_warnings(
     mess <- capture_messages({
@@ -474,7 +474,7 @@ test_that("test setupProject - install pkgs from .R script", {
 
 test_that("test setupProject - two types of nested GH modules + non-nested; rerun fewer modules", {
   skip_on_cran()
-  setupTest() # setwd, sets .libPaths() to a temp
+  setupTest(pkgs = "terra") # setwd, sets .libPaths() to a temp
 
   projName <- paste0("test_SpaDES_project_", .rndstr(1))
 
