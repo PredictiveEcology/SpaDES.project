@@ -52,7 +52,14 @@ one or more module folders (local or GitHub) (not the module .R script).
 If the entire project is a git repository,
 then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.
-See \link{setup}.}
+For convenience, these can also be 2 other url formats:
+\enumerate{
+\item the raw.githubusercontent.com url that points to the main module file or the folder e.g.,
+\code{"https://raw.githubusercontent.com/PredictiveEcology/Biomass_core/refs/heads/main/Biomass_core.R"}
+\item The github.com url used for cloning a git repository, with optional "@branch" specified:
+\code{"https://github.com/PredictiveEcology/Biomass_speciesParameters.git@development"}
+See \link{setup}.
+}}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but

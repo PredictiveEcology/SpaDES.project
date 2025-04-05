@@ -3,6 +3,7 @@ Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
 version 0.1.2
 =============
+* Allow modules to be specified using 1 of 2 full urls e.g., "https://github.com/..." see `?setup`, `modules` argument.
 * drop support for R <= 4.2 as several dependencies don't work rstatix, car, quantreg, MatrixModels, Matrix
 * `Restart` had infinite restarting; fixed; was related to new elements address unrelated Git issues
 

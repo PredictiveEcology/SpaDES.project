@@ -45,6 +45,13 @@ utils::globalVariables(c(
 #'   If the entire project is a git repository,
 #'   then it will not try to re-get these modules; instead it will rely on the user
 #'   managing their git status outside of this function.
+#'   For convenience, these can also be 2 other url formats:
+#'
+#'   1. the raw.githubusercontent.com url that points to the main module file or the folder e.g.,
+#'   `"https://raw.githubusercontent.com/PredictiveEcology/Biomass_core/refs/heads/main/Biomass_core.R"`
+#'
+#'   2. The github.com url used for cloning a git repository, with optional "@branch" specified:
+#'   `"https://github.com/PredictiveEcology/Biomass_speciesParameters.git@development"`
 #'   See [setup].
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
@@ -1384,6 +1391,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envirCur, envir2 = envir)
+    if(!is(modules, "character")) {
+      stop("'modules' must be a character vector.")
+    }
+    modules <- convertHTTPsToGH(modules)
     exts <- tools::file_ext(modules)
     isRepo <- nzchar(exts) & exts %in% "R"
 
@@ -1394,10 +1405,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     }
 
     anyfailed <- character()
-
-    if(!is(modules, "character")) {
-      stop("'modules' must be a character vector.")
-    }
 
     modulesOrig <- modules
     m <- fileRelPathFromFullGHpath(modulesOrig)
@@ -1936,6 +1943,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
   if (is.character(obj)) {
     obj <- mapply(opt = obj, function(opt) {
+      opt <- convertHTTPsToGH(opt)
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
         rem <- opt
@@ -3867,3 +3875,43 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
 
 
 .txtNoPackageCalled <- "there is no package called"
+
+
+
+convertHTTPsToGH <- function(url) {
+  if (length(url) > 1) {
+    return(vapply(url, convertHTTPsToGH, FUN.VALUE = character(1)))
+  }
+  hasHTTP <- startsWith(url, "http")
+  if (any(hasHTTP)) {
+    githubDotCom <- "https://github.com/"
+    rawGithubDotCom <- "https://raw.githubusercontent.com/"
+    isGHwHTTPS <- startsWith(url, rawGithubDotCom)
+    isGHwRepo <- startsWith(url, githubDotCom)
+    if (any(isGHwHTTPS)) {
+      optSplit <- strsplit(url[isGHwHTTPS], split = "/")
+      o <- unlist(lapply(optSplit, function(o)
+        file.path(o[4], paste0(o[5], "@", o[8]))))
+      url[isGHwHTTPS] <- o
+
+    } else if (any(isGHwRepo)) {
+      tmp <- gsub(githubDotCom, "", url[isGHwRepo])
+      tmp <- gsub("\\.git", "", tmp)
+
+      optSplit <- strsplit(tmp, split = "/")
+      hasBranch <- unlist(lapply(optSplit, function(x) grepl("@", x)))
+      o <- unlist(lapply(optSplit, function(o)
+        file.path(o[1], paste0(o[2]))))
+      if (!any(hasBranch)) o <- paste0(o, "@", "main")
+      url[isGHwRepo] <- o
+    } else {
+      stop("Currently, can only accept GitHub urls")
+    }
+  }
+  url
+}
+
+
+isGitHubWAt <- function(txt) {
+  isGitHub(txt) & grepl("@", txt) & endsWith(tolower(txt), ".r")
+}
