@@ -1391,6 +1391,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envirCur, envir2 = envir)
+    if(!is(modules, "character")) {
+      stop("'modules' must be a character vector.")
+    }
     modules <- convertHTTPsToGH(modules)
     exts <- tools::file_ext(modules)
     isRepo <- nzchar(exts) & exts %in% "R"
@@ -1402,10 +1405,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     }
 
     anyfailed <- character()
-
-    if(!is(modules, "character")) {
-      stop("'modules' must be a character vector.")
-    }
 
     modulesOrig <- modules
     m <- fileRelPathFromFullGHpath(modulesOrig)
@@ -3880,8 +3879,9 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
 
 
 convertHTTPsToGH <- function(url) {
-  if (length(url) > 1)
+  if (length(url) > 1) {
     return(vapply(url, convertHTTPsToGH, FUN.VALUE = character(1)))
+  }
   hasHTTP <- startsWith(url, "http")
   if (any(hasHTTP)) {
     githubDotCom <- "https://github.com/"
