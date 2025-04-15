@@ -292,12 +292,31 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
   a <- leaflet::hideGroup(a, c(names(ordSas)[-wh], rtmsNames[rev(ordRtms)][-1]))
 
   exts <- extInLatLong(ll[[names(ordSas)[[1]]]])
-  a <- leaflet::fitBounds(a, lng1 = exts[["xmin"]], lat1 = exts[["ymin"]],
-                          lng2 = exts[["xmax"]], lat2 = exts[["ymax"]])
-  a <- leafem::addHomeButton(a, exts, "Full Extent")
+  a <- leaflet::fitBounds(a, lng1 = xminFn(exts), lat1 = yminFn(exts),
+                          lng2 = xmaxFn(exts), lat2 = ymaxFn(exts))
+  a <- leafem::addHomeButton(a, as.vector(exts), "Full Extent")
 
   a
 }
+
+
+minmaxFn <- function(x, whMinMax = c("xmin", "xmax", "ymin", "ymax")) {
+  if (is(x, "SpatVector") || is(x, "SpatRaster") || is(x, "SpatExtent"))
+    get(whMinMax[1], envir = asNamespace("terra"))(x)
+  else if (is(x, "sf") || is(x, "sfc") || is(x, "bbox"))
+    sf::st_bbox(x)[[whMinMax[1]]]
+  else
+    NULL
+}
+
+xmaxFn <- function(x)
+  minmaxFn(x, "xmax")
+xminFn <- function(x)
+  minmaxFn(x, "xmin")
+ymaxFn <- function(x)
+  minmaxFn(x, "ymax")
+yminFn <- function(x)
+  minmaxFn(x, "ymin")
 
 areas <- function(x) {
   if (is(x, "SpatVector"))
