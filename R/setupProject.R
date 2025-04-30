@@ -1495,7 +1495,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       }
 
-      browser()
+      # browser() Eliot
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
@@ -2847,7 +2847,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       cloned <- FALSE
       if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
            requireNamespace("gitcreds")) && cloned %in% FALSE ) {
-        browser()
+        # browser() Eliot
         setupGitHub(useGit, name, paths, verbose)
         # needGitUserName <- TRUE
         # if (is.character(useGit)) {
