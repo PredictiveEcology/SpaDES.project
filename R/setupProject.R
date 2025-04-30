@@ -1555,7 +1555,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           messageVerbose("\b ... on ", split$br, " branch")
       })
       setwd(origDir)
-      gert::git_pull()
+      setUpstreamWithTry()
+      try(gert::git_pull())
     }
     if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
 
@@ -3855,7 +3856,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 
 
 
-setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
+setUpstreamWithTry <- function(split, curBr = NULL, gitUserName, gitRepo, verbose = getOption("Require.verbose")) {
   if (is.null(curBr))
     curBr <- gert::git_branch()
   for (trySetUpstream in 1:2) {
@@ -3873,14 +3874,19 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
     if (is(gpull, "try-error")) {
       setUpstreamTry <- try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br))
       masterMain <- c("master", "main")
-      if (is(setUpstreamTry, "try-error"))
+      if (is(setUpstreamTry, "try-error")) {
         if (split$br %in% masterMain) {
           newBr <- setdiff(masterMain, split$br)
           messageVerbose("It looks like the repo: ", split$repo, " does not have a branch: ", split$br,
                          "\ntrying ", newBr, "\nTo remove this message, change the reqested branch.",
                          verbose = verbose)
           split$br <- newBr
+        } else {
+          browser()
+          gert::git_remote_add(
+            url = file.path(paste0("git@github.com:", gitUserName), origDir))# anthropogenicDisturbance_Demo.git")
         }
+      }
       # system(paste0("git branch --set-upstream-to=origin/", split$br, " ", split$br))
     } else {
       break
