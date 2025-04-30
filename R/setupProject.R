@@ -3834,7 +3834,6 @@ setupGitHub <- function(useGit, name, paths, verbose) {
       gitUserName <- NULL
 
     # Needs initial commit
-    browser()
     file.create(".ignoreMe")
     gert::git_add(".ignoreMe")
     try(gert::git_commit("Initial Commit"))
