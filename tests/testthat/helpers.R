@@ -14,7 +14,9 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
 
   options(Map(o = names(spadesProjectOptions()), function(o) NULL))
 
-  origLibPaths <- get("origLibPaths", envir = envir)
+  origLibPaths <- get0("origLibPaths", envir = envir)
+  if (is.null(origLibPaths))
+    origLibPaths <- .libPaths()
   withr::local_libpaths(origLibPaths)
   # Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
   warns <- capture_warnings({

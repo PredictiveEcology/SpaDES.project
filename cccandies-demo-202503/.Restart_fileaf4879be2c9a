@@ -1,0 +1,18 @@
+setHook('rstudio.sessionInit', function(newSession) {
+if (newSession) {
+# message('Welcome to RStudio ', rstudioapi::getVersion())
+}
+ap <- rstudioapi::getActiveProject()
+if (is.null(ap)) ap <- 'No active project'
+message('This is now an RStudio project and SpaDES.project projectPath: ', ap)
+message('attempting to re-open last active file (named test-setupProject.R) ')
+try(file.edit('C:/Eliot/GitHub/SpaDES.project/cccandies-demo-202503/test-setupProject.R'), silent = TRUE)
+rstudioapi::navigateToFile('C:/Eliot/GitHub/SpaDES.project/cccandies-demo-202503/test-setupProject.R')
+readLns <- readLines('C:/Eliot/GitHub/SpaDES.project/cccandies-demo-202503/.Rprofile')
+lineToDel <- grep('^.Restart_', readLns)
+readLns <- readLns[-lineToDel]
+cat(readLns, file = 'C:/Eliot/GitHub/SpaDES.project/cccandies-demo-202503/.Rprofile', sep = '
+')
+unlink('.Restart_fileaf4879be2c9a') # delete this file
+}, action = 'append'
+)

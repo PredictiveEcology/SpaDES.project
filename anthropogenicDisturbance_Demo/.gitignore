@@ -1,0 +1,12 @@
+.Rproj.user
+outputs/NT_CanESM5_SSP370_0.2_NT_run04_1
+.Rhistory
+.Rdata
+.RData
+.secret
+.secrets
+.Rprofile
+.Restart*
+.httr-oauth
+.DS_Store
+.quarto
