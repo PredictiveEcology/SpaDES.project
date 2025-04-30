@@ -3839,6 +3839,16 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     gert::git_add(".ignoreMe")
     try(gert::git_commit("Initial Commit"))
 
+    mainMaster <- c("main", "master")
+    if (isFALSE(gert::git_branch() %in% mainMaster)) {
+      for (mm in mainMaster) {
+        gbc <- try(gert::git_branch_checkout(mm))
+        if (!is(gbc, "try-error"))
+          break
+      }
+    }
+
+
     githubRepoExists <- usethis::use_github(gitUserName)
   }
   gitUserName
