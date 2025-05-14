@@ -548,15 +548,16 @@ setupProject <- function(name, paths, modules, packages,
       if (missing(packages))
         packages <- character()
 
-      if (getOption("spades.useRequire", TRUE)) {
-        setupPackages(packages, modulePackages, require = require, paths = paths,
-                      setLinuxBinaryRepo = setLinuxBinaryRepo,
-                      standAlone = standAlone,
-                      libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
-      } else {
-        messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
-                       verbose = verbose)
-      }
+      # if (getOption("spades.useRequire", TRUE)) {
+      setupPackages(packages, modulePackages, require = require, paths = paths,
+                    setLinuxBinaryRepo = setLinuxBinaryRepo,
+                    standAlone = standAlone,
+                    libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
+      # } else {
+
+      # messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
+      #                verbose = verbose)
+      # }
 
       # This next is to set the terra tempdir; don't do it in the cases where terra is not used
       # The longer unique(...) commented next is much slower; they are identical results
@@ -1680,103 +1681,113 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
   if (missing(packages))
     packages <- character()
 
-  if (
-    (length(packages) || length(unlist(modulePackages)) || length(require)) &&
-    !is.null(packages)
-  ){
+  if (getOption("spades.useRequire", TRUE)) {
+    if (
+      (length(packages) || length(unlist(modulePackages)) || length(require)) &&
+      !is.null(packages)
+    ){
 
-    messageVerbose(yellow(paste0(.txtSettingUp, " packages...")), verbose = verbose, verboseLevel = 0)
-    messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
-    continue <- 1L
-    while (continue) {
-      if (verbose > 1) {
-        outP <- capture.output(modulePackages)
-        messageVerbose("reqdPkgs by module:")
-        messageVerbose(paste(outP, collapse = "\n"), verbose = verbose)
-      }
-      mp <- unlist(unname(modulePackages))
-      if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
-        mp <- substitutePackages(mp, envir = envirCur)
-      }
-      if (!any(grepl("SpaDES.core", extractPkgName(mp))))
-        mp <- c(mp, "SpaDES.core")
-      # requireToTry <- unique(c(mp, require))
-      packagesToTry <- c(packages, mp, require)
-      packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
-      areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
-      if (any(areFilesWithPackages)) {
-        remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
-        aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
-                             envir = envir, namedList = FALSE)
-        packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
-      }
-
-      requirePkgNames <- Require::extractPkgName(require)
-
-      warns <- list()
-
-      withCallingHandlers(
-        out <-
-          Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                           standAlone = standAlone,
-                           libPaths = libPaths,
-                           verbose = verbose)
-        , warning = function(w) {
-          if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
-            sc <- sys.calls()
-            pkgDT <- getInStack("pkgDT")
-            packageFail <- try(getInStack("packageFullName"), silent = TRUE)
-            if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
-              thisSha <- try(getInStack("shas"))
-              pkgDTfail <- pkgDT[shas %in% thisSha]
-
-              a <- "Package";
-              obj <- get(a, whereInStack(a))
-              # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
-              b <- pkgDT[Package %in% obj]
-              wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
-              ptt <- packagesToTry[wh]
-              whPackages <- sapply(modulePackages, function(mp) {
-                whp <- mp %in% ptt
-                mp[which(whp)]
-              })
-              whPkg <- unlist(whPackages)
-              warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
-            }
-            invokeRestart("muffleWarning")
-
-          }
-
-        })
-
-      if (length(warns)) {
-        warns <- warns[!duplicated(warns)]
-        Map(fail = warns$packageFail, depOf = warns$whPkg, mod = names(warns$whPkg),
-            function(fail, depOf, mod)
-              messageVerbose(green("It looks like a package or package branch may no longer exist?\n",
-                                   "Package: ", fail, "\nA dependency of: ", depOf,
-                                   "\nSpecified in module: ", mod))
-        )
-      }
-
-      if (is(out, "try-error")) {
-        deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
-        miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
-        if (length(miss)) {
-          modulePackages[[names(miss)]] <- setdiff(modulePackages[[names(miss)]], miss)
-          warning("Module ", names(miss), " has reqdPkgs ", paste0(miss, collapse = ", "),
-                  ", but branch don't exist; \nplease update module. ",
-                  "Omitting that package from this Require call which may mean ",
-                  Require::extractPkgName(unname(miss)), " doesn't get installed")
+      messageVerbose(yellow(paste0(.txtSettingUp, " packages...")), verbose = verbose, verboseLevel = 0)
+      messageVerbose("Installing any missing reqdPkgs", verbose = verbose)
+      continue <- 1L
+      while (continue) {
+        if (verbose > 1) {
+          outP <- capture.output(modulePackages)
+          messageVerbose("reqdPkgs by module:")
+          messageVerbose(paste(outP, collapse = "\n"), verbose = verbose)
         }
-        continue <- continue - 1L
-      } else {
-        continue <- 0L
+        mp <- unlist(unname(modulePackages))
+        if (is(mp, "list")) { # means there was a call in modulePackages i.e., an unquoted thing like PredictiveEcology/Require
+          mp <- substitutePackages(mp, envir = envirCur)
+        }
+        if (!any(grepl("SpaDES.core", extractPkgName(mp))))
+          mp <- c(mp, "SpaDES.core")
+        # requireToTry <- unique(c(mp, require))
+        packagesToTry <- c(packages, mp, require)
+        packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
+        areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
+        if (any(areFilesWithPackages)) {
+          remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
+          aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
+                               envir = envir, namedList = FALSE)
+          packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
+        }
+
+        requirePkgNames <- Require::extractPkgName(require)
+
+        warns <- list()
+
+        withCallingHandlers(
+          out <-
+            Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
+                             standAlone = standAlone,
+                             libPaths = libPaths,
+                             verbose = verbose)
+          , warning = function(w) {
+            if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
+              sc <- sys.calls()
+              pkgDT <- getInStack("pkgDT")
+              packageFail <- try(getInStack("packageFullName"), silent = TRUE)
+              if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
+                thisSha <- try(getInStack("shas"))
+                pkgDTfail <- pkgDT[shas %in% thisSha]
+
+                a <- "Package";
+                obj <- get(a, whereInStack(a))
+                # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
+                b <- pkgDT[Package %in% obj]
+                wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
+                ptt <- packagesToTry[wh]
+                whPackages <- sapply(modulePackages, function(mp) {
+                  whp <- mp %in% ptt
+                  mp[which(whp)]
+                })
+                whPkg <- unlist(whPackages)
+                warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+              }
+              invokeRestart("muffleWarning")
+
+            }
+
+          })
+
+        if (length(warns)) {
+          warns <- warns[!duplicated(warns)]
+          Map(fail = warns$packageFail, depOf = warns$whPkg, mod = names(warns$whPkg),
+              function(fail, depOf, mod)
+                messageVerbose(green("It looks like a package or package branch may no longer exist?\n",
+                                     "Package: ", fail, "\nA dependency of: ", depOf,
+                                     "\nSpecified in module: ", mod))
+          )
+        }
+
+        if (is(out, "try-error")) {
+          deets <- gsub(".+Can't find ([[:alnum:]]+) on GitHub repo (.+); .+", paste0("\\2@\\1"), as.character(out))
+          miss <- unlist(Map(mp = modulePackages, function(mp) grep(value = TRUE, pattern = deets, mp)))
+          if (length(miss)) {
+            modulePackages[[names(miss)]] <- setdiff(modulePackages[[names(miss)]], miss)
+            warning("Module ", names(miss), " has reqdPkgs ", paste0(miss, collapse = ", "),
+                    ", but branch don't exist; \nplease update module. ",
+                    "Omitting that package from this Require call which may mean ",
+                    Require::extractPkgName(unname(miss)), " doesn't get installed")
+          }
+          continue <- continue - 1L
+        } else {
+          continue <- 0L
+        }
       }
+      messageVerbose(yellow("  done setting up packages"), verbose = verbose, verboseLevel = 0)
+
+    } else {
+      messageVerbose(yellow("no packages to set up"), verbose = verbose, verboseLevel = 0)
     }
-    messageVerbose(yellow("  done setting up packages"), verbose = verbose, verboseLevel = 0)
   } else {
-    messageVerbose(yellow("no packages to set up"), verbose = verbose, verboseLevel = 0)
+    messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
+                   verbose = verbose)
+    if (length(require)) {
+      requireSimple <- Require::extractPkgName(require)
+      lapply(requireSimple, function(p) base::require(p, character.only = TRUE))
+    }
   }
 
   if (is.null(packages)) {
