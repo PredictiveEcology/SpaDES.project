@@ -220,7 +220,8 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     } else {
       gr$br
     }
-    url <- file.path("https://raw.githubusercontent.com/", ar, br, file)
+
+    url <- file.path(rawGithubDotCom, ar, br, file)
     tf <- tempfile()
     out <- suppressWarnings(
       try(

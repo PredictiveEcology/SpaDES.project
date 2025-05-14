@@ -1496,6 +1496,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       }
 
+      # browser() Eliot
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
@@ -2857,6 +2858,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       cloned <- FALSE
       if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
            requireNamespace("gitcreds")) && cloned %in% FALSE ) {
+        # browser() Eliot
         setupGitHub(useGit, name, paths, verbose)
         # needGitUserName <- TRUE
         # if (is.character(useGit)) {
@@ -2959,7 +2961,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       if (isRstudio()) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
-        stop_quietly()
+        stop_quietly(mess = "Restarting...")
       }
       #} else {
       #  stop("Please open this in a new Rstudio project at ", paths[["projectPath"]])
@@ -3404,7 +3406,6 @@ checkGitRemote <- function(useGit, name, paths, verbose = getOption("Require.ver
   # gitUserName <- readline()
   # if (!nzchar(gitUserName))
 
-  browser()
   gitUserName <- setupGitHub(useGit, name, paths, verbose)
   #
   #   #   stop("Need to supply the account name for the repository (not the repository name)")
@@ -3725,7 +3726,7 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
   pp <- path.expand(paths[["projectPath"]])
   basenameName <- basename(name)
   tf <- tempfile2();
-  out <- .downloadFileMasterMainAuth(file.path("https://api.github.com/repos",gitUserName, basenameName),
+  out <- .downloadFileMasterMainAuth(file.path(apiGithubDotCom, "repos", gitUserName, basenameName),
                                      destfile = tf, verbose = verbose - 10)
   # The suppressWarnings is for "incomplete final line"
   checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
@@ -3843,7 +3844,22 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     if (identical(gitUserName, gitUserNamePoss) || identical(un2, gitUserName) )
       gitUserName <- NULL
 
-    githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
+    # Needs initial commit
+    file.create(".ignoreMe")
+    gert::git_add(".ignoreMe")
+    try(gert::git_commit("Initial Commit"))
+
+    mainMaster <- c("main", "master")
+    if (isFALSE(gert::git_branch() %in% mainMaster)) {
+      for (mm in mainMaster) {
+        gbc <- try(gert::git_branch_checkout(mm))
+        if (!is(gbc, "try-error"))
+          break
+      }
+    }
+
+
+    githubRepoExists <- usethis::use_github(gitUserName)
   }
   gitUserName
 }
@@ -3895,8 +3911,6 @@ convertHTTPsToGH <- function(url) {
   }
   hasHTTP <- startsWith(url, "http")
   if (any(hasHTTP)) {
-    githubDotCom <- "https://github.com/"
-    rawGithubDotCom <- "https://raw.githubusercontent.com/"
     isGHwHTTPS <- startsWith(url, rawGithubDotCom)
     isGHwRepo <- startsWith(url, githubDotCom)
     if (any(isGHwHTTPS)) {
@@ -3926,3 +3940,7 @@ convertHTTPsToGH <- function(url) {
 isGitHubWAt <- function(txt) {
   isGitHub(txt) & grepl("@", txt) & endsWith(tolower(txt), ".r")
 }
+
+githubDotCom <- "https://github.com"
+rawGithubDotCom <- "https://raw.githubusercontent.com"
+apiGithubDotCom <- "https://api.github.com"

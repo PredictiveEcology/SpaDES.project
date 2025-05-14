@@ -568,3 +568,30 @@ test_that("test sideEffects that are not in sideEffect", {
   expect_true(is.null(out2$lala))
 })
 
+test_that("test mix git repos for modules and non-gitrepos", {
+  skip_on_cran()
+  skip_on_ci()
+  skip("Not Ready Yet")
+
+  setupTest(pkgs = "httr") # setwd, sets .libPaths() to a temp
+  testingDir <- "~/testing"
+  activeDir <- file.path(testingDir, "setupProject", basename(tempfile()))
+  dir.create(activeDir, recursive = TRUE, showWarnings = FALSE)
+  withr::local_dir(activeDir)
+
+  withr::local_options("Require.verbose" = 1)
+  browser()
+  out <- SpaDES.project::setupProject(
+    Restart = FALSE,
+    useGit = "eliotmcintire",
+    paths = list(projectPath = "cccandies-demo-test2",
+                 modulePath = 'modules',
+                 inputPath = 'input',
+                 outputPath = 'output',
+                 cachePath = 'cache'),
+    # overwrite = TRUE, # useGit = "eliotmcintire",
+    modules = c("PredictiveEcology/spades_ws3_dataInit@main",
+                "PredictiveEcology/spades_ws3@dev",
+                "bogus_fire")
+  )
+})

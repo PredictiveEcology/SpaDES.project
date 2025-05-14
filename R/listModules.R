@@ -85,7 +85,7 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
   if (missing(keywords))
     keywords <- ""
   outs <- lapply(accounts, function(account) {
-    url <- paste0("https://api.github.com/users/", account, "/repos?per_page=500")
+    url <- file.path(apiGithubDotCom, "users", account, "repos?per_page=500")
     names(url) <- account
 
     tf <- tempfile()
@@ -337,7 +337,7 @@ listModules2 <- function(keywords, accounts, subfolder = TRUE, includeForks = FA
   outs <- lapply(accounts, function(account) {
     out <- lapply(keywords, function(kw) {
 
-      url <- file.path("https://api.github.com/repos",account, kw, "git/trees/main?recursive=1")
+      url <- file.path(apiGithubDotCom, "repos",account, kw, "git/trees/main?recursive=1")
       names(url) <- account
 
       tf <- tempfile()
