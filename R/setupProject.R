@@ -1787,7 +1787,15 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
                    verbose = verbose)
     if (length(require)) {
       requireSimple <- Require::extractPkgName(require)
-      lapply(requireSimple, function(p) base::require(p, character.only = TRUE))
+      req <- quote(lapply(requireSimple, function(p)
+        base::require(p, character.only = TRUE)))
+      if (verbose > 1) {
+        eval(req)
+      } else {
+        messageVerbose(yellow("Loading ", paste(requireSimple, collapse = ", ")), verbose = verbose)
+        messageVerbose(red("To see all package startup messages, set options(Require.verbose = 2)"), verbose = verbose)
+        suppressPackageStartupMessages(eval(req))
+      }
     }
   }
 
