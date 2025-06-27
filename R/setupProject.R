@@ -1182,6 +1182,10 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
     postOptions <- base::options()
     newValues <- oldValues <- list()
     if (length(options)) {
+      unnamedOptions <- names(options) %in% ""
+      if (any(unnamedOptions)) {
+        options <- options[!unnamedOptions]
+      }
       newValuesComplete <- options
       oldValuesComplete <- Map(nam = names(options), function(nam) NULL)
       oldValuesComplete[names(options)] <- preOptions[names(options)]

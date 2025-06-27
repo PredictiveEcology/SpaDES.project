@@ -90,7 +90,6 @@ Collate:
     'packages.R'
     'paths2.R'
     'pkgload2.R'
-    'reexports.R'
     'setupProject.R'
     'spades-project-package.R'
     'studyAreaPlotting.R'
