@@ -1500,7 +1500,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       }
 
-      # browser() Eliot
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
