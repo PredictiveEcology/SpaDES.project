@@ -2146,7 +2146,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
         }
       }
       if (inherits(val, "name"))
-        val2 <- get0(val, envir = envir)
+        val2 <- get0(val, envir = envir, inherits = FALSE)
       else {
         val2 <- try(eval(val, envir = envir), silent = TRUE)
       }
@@ -2588,7 +2588,8 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
           }
           ddnn <- if (is.list(defaultDots[dd])) defaultDots[dd] else as.list(defaultDots)[dd] # a call
 
-          list2env(ddnn, envir = envir) # put it in the main environment for later use
+          if (!isTRUE(any(is.na(names(ddnn)))))
+            list2env(ddnn, envir = envir) # put it in the main environment for later use
         }
       }
       # }
