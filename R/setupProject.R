@@ -1182,6 +1182,10 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
     postOptions <- base::options()
     newValues <- oldValues <- list()
     if (length(options)) {
+      unnamedOptions <- names(options) %in% ""
+      if (any(unnamedOptions)) {
+        options <- options[!unnamedOptions]
+      }
       newValuesComplete <- options
       oldValuesComplete <- Map(nam = names(options), function(nam) NULL)
       oldValuesComplete[names(options)] <- preOptions[names(options)]
@@ -1496,7 +1500,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       }
 
-      # browser() Eliot
       gitSplit <- splitGitRepo(modules)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
@@ -1787,7 +1790,15 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
                    verbose = verbose)
     if (length(require)) {
       requireSimple <- Require::extractPkgName(require)
-      lapply(requireSimple, function(p) base::require(p, character.only = TRUE))
+      req <- quote(lapply(requireSimple, function(p)
+        base::require(p, character.only = TRUE)))
+      if (verbose > 1) {
+        eval(req)
+      } else {
+        messageVerbose(yellow("Loading ", paste(requireSimple, collapse = ", ")), verbose = verbose)
+        messageVerbose(red("To see all package startup messages, set options(Require.verbose = 2)"), verbose = verbose)
+        suppressPackageStartupMessages(eval(req))
+      }
     }
   }
 

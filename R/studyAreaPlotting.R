@@ -244,7 +244,7 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
         leaflet::addLegend(a, position = "bottomright",
                            pal = pal2,
                            group = rtmNam,
-                           title= names(ll[[rtmNam]]),
+                           title= rtmNam,
                            values = sort(unique(terra::values(ll[[rtmNam]])))))
     }
 
@@ -319,12 +319,17 @@ yminFn <- function(x)
   minmaxFn(x, "ymin")
 
 areas <- function(x) {
-  if (is(x, "SpatVector"))
+  if (is(x, "SpatVector")) {
     sum(terra::expanse(x))
-  else if (is(x, "sf") || is(x, "sfc"))
+  } else if (is(x, "sf") || is(x, "sfc")) {
     sum(sf::st_area(x))
-  else
-    NULL
+  } else {
+    if (is(x, "SpatRaster")) {
+      sum(!is.na(x[])) * prod(res(x))
+    } else {
+      NULL
+    }
+  }
 }
 
 buffs <- function(x, ...) {

@@ -4,6 +4,7 @@
 \name{messageDF}
 \alias{messageDF}
 \alias{yellow}
+\alias{red}
 \alias{blue}
 \alias{green}
 \alias{whereInStack}
@@ -36,6 +37,8 @@ An object of class \code{character} of length 9.
 messageDF(df, round, verbose = getOption("Require.verbose"), verboseLevel = 1)
 
 yellow(...)
+
+red(...)
 
 blue(...)
 
