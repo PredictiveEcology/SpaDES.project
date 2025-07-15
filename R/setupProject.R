@@ -428,7 +428,7 @@ setupProject <- function(name, paths, modules, packages,
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
 
-  defaultDotsSUB <- substitute(defaultDots)
+  # defaultDotsSUB <- substitute(defaultDots)
   failedBCMissingPackage <- FALSE
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
@@ -2558,14 +2558,34 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 
       # if (any(either)) {
       # for (nn in objsPassed[either]) { # use a for loop because individual elements may fail
-      namsDD <- names(defaultDots)
+      namsDD <- unique(c(objsPassed, names(defaultDots)))
       namsDD <- setdiff(namsDD, "")
       for (dd in namsDD) {
         # Add the default dots to the envir if they aren't there. If, later on, they
         #   are provided, then it will just be overwritten
         if (!exists(dd, envir  = envir, inherits = FALSE) || is.call(get0(dd, envir = envir))) {
-          defaultDots[[dd]] <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
-                                       valObjName = "defaultDots")
+
+          possVal <- suppressWarnings(
+            evalSUB(dotsSUB[[dd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
+          )
+          if (identical(possVal, dotsSUB[[dd]])) {
+            for (envs in c(envir, callingEnv)) {
+              if (exists(dd, envir = envs, inherits = FALSE)) {
+                possVal <- get(dd, envir = envs, inherits = FALSE)
+                defaultDots[[dd]] <- possVal
+                break
+              }
+            }
+
+            if (identical(possVal, dotsSUB[[dd]]))
+              defaultDots[[dd]] <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+                                           valObjName = "defaultDots")
+            # if (identical(possValDD, defaultDots[[dd]])) {
+            #   possVal <- possValDD
+            # }
+          } else {
+            defaultDots[[dd]] <- possVal
+          }
           ddnn <- if (is.list(defaultDots[dd])) defaultDots[dd] else as.list(defaultDots)[dd] # a call
 
           list2env(ddnn, envir = envir) # put it in the main environment for later use
