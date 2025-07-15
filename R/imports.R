@@ -15,6 +15,9 @@ messageDF <- utils::getFromNamespace("messageDF", "Require")
 yellow <- utils::getFromNamespace("yellow", "Require")
 
 #' @rdname imports
+red <- utils::getFromNamespace("red", "Require")
+
+#' @rdname imports
 blue <- utils::getFromNamespace("blue", "Require")
 
 #' @rdname imports
