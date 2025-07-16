@@ -2565,9 +2565,12 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
         #   are provided, then it will just be overwritten
         if (!exists(dd, envir  = envir, inherits = FALSE) || is.call(get0(dd, envir = envir))) {
 
-          possVal <- suppressWarnings(
-            evalSUB(dotsSUB[[dd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
-          )
+          possVal <- dotsSUB[[dd]]
+          if (!is.name(dotsSUB[[dd]])) {
+            possVal <- suppressWarnings(
+              evalSUB(dotsSUB[[dd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
+            )
+          }
           if (identical(possVal, dotsSUB[[dd]])) {
             for (envs in c(envir, callingEnv)) {
               if (exists(dd, envir = envs, inherits = FALSE)) {
