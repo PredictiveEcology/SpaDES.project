@@ -2580,9 +2580,12 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
               }
             }
 
-            if (identical(possVal, dotsSUB[[dd]]))
-              defaultDots[[dd]] <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
-                                           valObjName = "defaultDots")
+            if (identical(possVal, dotsSUB[[dd]])) {
+              possVal2 <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+                                  valObjName = "defaultDots")
+              if (!is.null(possVal2))
+                defaultDots[[dd]] <- possVal2
+            }
             # if (identical(possValDD, defaultDots[[dd]])) {
             #   possVal <- possValDD
             # }
