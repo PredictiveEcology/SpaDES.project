@@ -988,7 +988,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     if (!useGit %in% FALSE) {
       if (any(!loaded)) {
         rlout <- readline("usethis package must be installed; install now? (y or n)")
-        if (startsWith(tolower(rlout), "y"))
+        if (!identical(substr(tolower(rlout), start = 1, stop = 1), "n"))
           Require::Install("usethis")
         else
           stop("Setting `useGit = *something*` requires that usethis be installed. Please install it.")
@@ -1510,44 +1510,62 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       mapply(split = gitSplit, function(split) {
         modPath <- file.path(split$acct, split$repo)
         localPath <- file.path(paths[["modulePath"]], split$repo)
+        localPathRelative <- file.path(basename(paths[["modulePath"]]), basename(modPath))
+        dotGit <- file.path(localPath, ".git")
+
         reportBranch <- TRUE
-        if (!dir.exists(localPath)) {
 
-          prev <- setwd(file.path(paths[["modulePath"]]))
-          cloneOrSubmodule <- if (isTRUE(isLocalGitRepoAlready)) {
-            gert::git_submodule_add
-            # "submodule add"
-          } else {
-            gert::git_clone
-            # "clone"
-          }
+        for(attempt in 1:2) {
+          dirExistsButNotGit <- dir.exists(localPath) && !file.exists(dotGit)
+          if (!dir.exists(localPath) || dirExistsButNotGit) {
 
-          out <- cloneOrSubmodule(paste0("https://github.com/", modPath),
-                                  path = file.path(basename(paths[["modulePath"]]), basename(modPath)))
-          setwd(localPath)
-          gert::git_branch_checkout(split$br)
-          curBr <- gert::git_branch()
-          setUpstreamWithTry(split, curBr)
-
-        } else {
-
-          dotGit <- file.path(localPath, ".git")
-          if (file.exists(dotGit)) {
-            messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
-          } else {
-            setwd(dirname(paths[["modulePath"]]))
-            submod <- file.path(basename(paths[["modulePath"]]), split$repo)
-            gert::git_submodule_init(submod)#)
-            out <- try(gert::git_submodule_fetch(submodule = submod))
-            if (is(out, 'try-error')) {
-              if (nzchar(Sys.which("git"))) {
-                cmd <- paste0("git submodule update --recursive")
-                system(cmd)
-              } else {
-                stop("This setup requires git; ", .messages$pleaseInstall())
-              }
+            prev <- setwd(file.path(paths[["modulePath"]]))
+            cloneOrSubmodule <- if (isTRUE(isLocalGitRepoAlready)) {
+              gert::git_submodule_add
+              # "submodule add"
+            } else {
+              gert::git_clone
+              # "clone"
+            }
+            if (dirExistsButNotGit) {
+              dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
             }
 
+            out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
+                                    path = localPathRelative))
+            setwd(localPath)
+            gert::git_branch_checkout(split$br)
+            curBr <- gert::git_branch()
+            setUpstreamWithTry(split, curBr)
+            break
+
+          } else {
+
+            if (file.exists(dotGit)) {
+              messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
+            } else {
+              setwd(dirname(paths[["modulePath"]]))
+              submod <- file.path(basename(paths[["modulePath"]]), split$repo)
+              gsi <- try(gert::git_submodule_init(submod))#)
+              if (is(gsi, "try-error")) {
+                if (dirExistsButNotGit) {
+                  dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
+                }
+                next
+              }
+
+              out <- try(gert::git_submodule_fetch(submodule = submod))
+              if (is(out, 'try-error')) {
+                if (nzchar(Sys.which("git"))) {
+                  cmd <- paste0("git submodule update --recursive")
+                  system(cmd)
+                } else {
+                  stop("This setup requires git; ", .messages$pleaseInstall())
+                }
+              }
+
+            }
+            break
           }
         }
 
@@ -1559,7 +1577,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           messageVerbose("\b ... on ", split$br, " branch")
       })
       setwd(origDir)
-      gert::git_pull()
+
+      curBr <- gert::git_branch()
+      split <- setUpstreamWithTry(split, curBr)
+
+      try(gert::git_pull(), silent = TRUE)
     }
     if (is.character(useGit) && isLocalGitRepoAlready %in% FALSE) {
 
@@ -2134,7 +2156,14 @@ inTempProject <- function(paths) {
 evalSUB <- function(val, valObjName, envir, envir2) {
   valOrig <- val
   val2 <- val
-  userQuoted <- tryCatch(grepl("quote", val), silent = TRUE, error = function(e) FALSE)
+
+  userQuoted <-
+    if (is.call(val)) {
+      tryCatch(grepl("quote", val), silent = TRUE, error = function(e) FALSE)
+  } else {
+    FALSE
+  }
+  # userQuoted <- FALSE
   warns <- character()
 
   withCallingHandlers({
@@ -2162,6 +2191,7 @@ evalSUB <- function(val, valObjName, envir, envir2) {
           sfs <- sys.frames()
           for (frm in rev(sfs)) {
             val3 <- try(eval(val, envir = frm), silent = TRUE)
+
             if (!is(val3, "try-error") || any(grepl(.txtNoPackageCalled, val3))) {
               break
             }
@@ -2225,8 +2255,8 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     # Sequential evaluation
     if (length(namesToEval)) {
       Map(nam = namesToEval, function(nam) {
-        val2[[nam]] <<- evalSUB(val2[[nam]], valObjName = valObjName,
-                                envir = env, envir2 = envir)
+        val2[nam] <<- list(evalSUB(val2[[nam]], valObjName = valObjName,
+                                envir = env, envir2 = envir))
         assign(valObjName, val2, envir = env)
       }
       )
@@ -2896,7 +2926,6 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       cloned <- FALSE
       if (((!useGit %in% FALSE) && requireNamespace("usethis") && requireNamespace("gh") &&
            requireNamespace("gitcreds")) && cloned %in% FALSE ) {
-        # browser() Eliot
         setupGitHub(useGit, name, paths, verbose)
         # needGitUserName <- TRUE
         # if (is.character(useGit)) {
@@ -3982,3 +4011,35 @@ isGitHubWAt <- function(txt) {
 githubDotCom <- "https://github.com"
 rawGithubDotCom <- "https://raw.githubusercontent.com"
 apiGithubDotCom <- "https://api.github.com"
+
+
+messageDirExistsButNotAGitFolder <- function(localPath) {
+  message(localPath, " exists, but it is not a git repository: cannot clone the submodule\n",
+          "Would you like to delete this folder and re-initiate the submodule?")
+}
+
+readLineYoNDelFolder <- function() {
+  substr(tolower(readline("Y(es) or N(o)? ")), start = 1, stop = 1)
+}
+
+
+cleanUpFailedGitSubrepo <- function(projectPath, modPath, localPath, localPathRelative) {
+  unlink(localPath, recursive = TRUE, force = TRUE)
+  dotGitModulesFile <- file.path(paths[["projectPath"]], ".gitmodules")
+  rl <- readLines(dotGitModulesFile)
+  rl <- grep(paste0(modPath, "|", localPathRelative), value = TRUE, rl, invert = TRUE)
+  writeLines(rl, dotGitModulesFile)
+  unlink(file.path(paths[["projectPath"]], ".git/modules", localPathRelative),
+         recursive = TRUE, force = TRUE)
+}
+
+
+dirExistsButNotAGitFolder <- function(projectPath, modPath, localPath, localPathRelative) {
+  messageDirExistsButNotAGitFolder(localPath)
+  delFolder <- readLineYoNDelFolder()
+  if (identical("y", delFolder)) {
+    cleanUpFailedGitSubrepo(projectPath, modPath, localPath, localPathRelative)
+  } else {
+    stop("Please address the git problem manually, i.e., no .git folder, but it is a git repository")
+  }
+}
