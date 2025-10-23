@@ -2225,8 +2225,8 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     # Sequential evaluation
     if (length(namesToEval)) {
       Map(nam = namesToEval, function(nam) {
-        val2[[nam]] <<- evalSUB(val2[[nam]], valObjName = valObjName,
-                                envir = env, envir2 = envir)
+        val2[nam] <<- list(evalSUB(val2[[nam]], valObjName = valObjName,
+                                envir = env, envir2 = envir))
         assign(valObjName, val2, envir = env)
       }
       )
