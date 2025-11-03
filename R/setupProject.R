@@ -1589,7 +1589,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       setwd(origDir)
 
       curBr <- gert::git_branch()
-      split <- setUpstreamWithTry(split, curBr)
+      split <- setUpstreamWithTry(list(br = curBr), curBr)
 
       try(gert::git_pull(), silent = TRUE)
     }
