@@ -3859,6 +3859,11 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
   checkExists <- if (file.exists(tf)) suppressWarnings(readLines(tf)) else "Not Found"
 
   if (any(grepl("Not Found", checkExists))) {
+    pg <- try(usethis::proj_get(), silent = TRUE)
+    if (nchar(pg) > 0) {
+      usethis::proj_set(pp, force = TRUE)
+      # pg <- usethis::proj_activate(pp) # will restart session
+    }
     usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
   } else {
     repo <- file.path(host, gitUserName, basenameName)
@@ -3963,10 +3968,21 @@ setupGitHub <- function(useGit, name, paths, verbose) {
       }
     }
     if (!(exists("gitUserNamePoss", inherits = FALSE)))
-      gitUserNamePoss <- gh::gh_whoami()$login
+      mess <- capture.output(type = "message",
+                     gitUserNamePoss <- gh::gh_whoami()$login)
 
-    gitconf <- gert::git_config()
-    un2 <- gitconf$value[gitconf$name %in% "user.name"]
+    if (isTRUE(any(grepl("No personal access", mess)))) {
+      gert::git_config_global_set("credential.helper", "store")
+      message(mess)
+      hasCredentials <- try(gitcreds::gitcreds_get(url = "https://github.com", use_cache = TRUE, set_cache = TRUE))
+      if (is(hasCredentials, "try-error"))
+        usethis::gh_token_help()
+    }
+    # git config --global credential.helper store
+
+    # These sometimes work; but not if this is just being created now
+    gitconf <- try(gert::git_config(), silent = TRUE)
+    un2 <- try(gitconf$value[gitconf$name %in% "user.name"], silent = TRUE)
 
     if (identical(gitUserName, gitUserNamePoss) || identical(un2, gitUserName) )
       gitUserName <- NULL
