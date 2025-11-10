@@ -947,6 +947,15 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   prevLibPaths <- .libPaths()
   if (needSetLibPaths) {
+    setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
+                                            updateRprofile = updateRprofile,
+                                            exact = FALSE, verbose = verbose))
+    prevLibPaths <- if (verbose < 0) {
+      out <- capture.output(type = "message", ret <- eval(setLPCall))
+      ret
+    } else {
+      eval(setLPCall)
+    }
     if (!useGit %in% FALSE) {
       # requireNamespace will find usethis in memory when devtools is used, but it fails because other
       #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
@@ -959,15 +968,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       deps <- unique(c(deps, depsSimple))
     }
     # setLibPaths will post-pend the R version number
-    setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
-                                            updateRprofile = updateRprofile,
-                                            exact = FALSE, verbose = verbose))
-    prevLibPaths <- if (verbose < 0) {
-      out <- capture.output(type = "message", ret <- eval(setLPCall))
-      ret
-    } else {
-      eval(setLPCall)
-    }
 
     if (needSetLibPathsNow %in% FALSE)
       on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
@@ -1538,6 +1538,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
               # "clone"
             }
             if (dirExistsButNotGit) {
+              browser()
               dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
             }
 
@@ -3108,7 +3109,11 @@ setupSpaDES.ProjectDeps <- function(paths,
                                     verbose = getOption("Require.verbose")) {
 
   libs <- c(.libPaths()[1], paths[["packagePath"]])
-  nsPaths <- vapply(deps, FUN.VALUE = character(1), function(pkg) dirname(getNamespaceInfo(pkg, "path")))
+  nsPaths <- vapply(deps, FUN.VALUE = character(1),
+                    function(pkg)
+                      dirname(
+                        tryCatch(
+                          getNamespaceInfo(pkg, "path"), error = function(err) "")))
   isLoadedLocally <- !names(nsPaths) %in% libs
   nsPaths <- nsPaths[!names(nsPaths) %in% .basePkgs]
 
@@ -3875,6 +3880,11 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
       setwd(dirname(getwd()))
       unlink(basenameName, recursive = TRUE)
       gert::git_clone(repo, path = basenameName)
+      setwd(basenameName)
+      Require::Install("utf8", verbose = FALSE)
+      submods <- gert::git_submodule_list()
+      Map(nam = submods$name, function(nam) gert::git_submodule_init(nam))
+      Map(nam = submods$name, function(nam) gert::git_submodule_fetch(nam))
       cloned <- TRUE
       setwd(paths[["projectPath"]])
     } else {
@@ -3952,21 +3962,24 @@ setupGitHub <- function(useGit, name, paths, verbose) {
       else
         stop("Please either remove modules from ", paths[["modulePath"]], " or set useGit = FALSE")
     }
-    for (iii in 1:2) {
-      bbb <- try(usethis::use_git())
-      if (is(bbb, "try-error")) {
-        if (any(grepl("user.name", bbb))) {
-          message("Your git account is missing information; either quit",
-                  "and set username and email in the git global config, or specify here:",
-                  "What is your git username: ")
-          un <- readline()
-          em <- readline("What is your git email for github.com: ")
-          usethis::use_git_config(user.name = un, user.email = em, scope = "project")
-        }
-      } else {
-        break
-      }
-    }
+    gitEvalWithGitConfigOnError(quote(usethis::use_git()))
+    # for (iii in 1:2) {
+    #   gitEvalWithGitConfigOnError <- function(expr, tryError)
+    #   bbb <- try(usethis::use_git())
+    #   gitConfigOnError(tryError)
+    #   if (is(bbb, "try-error")) {
+    #     if (any(grepl("user.name", bbb))) {
+    #       message("Your git account is missing information; either quit",
+    #               "and set username and email in the git global config, or specify here:",
+    #               "What is your git username: ")
+    #       un <- readline()
+    #       em <- readline("What is your git email for github.com: ")
+    #       usethis::use_git_config(user.name = un, user.email = em, scope = "project")
+    #     }
+    #   } else {
+    #     break
+    #   }
+    # }
     if (!(exists("gitUserNamePoss", inherits = FALSE)))
       mess <- capture.output(type = "message",
                      gitUserNamePoss <- gh::gh_whoami()$login)
@@ -4101,11 +4114,28 @@ readLineYoNDelFolder <- function() {
 
 cleanUpFailedGitSubrepo <- function(projectPath, modPath, localPath, localPathRelative) {
   unlink(localPath, recursive = TRUE, force = TRUE)
-  dotGitModulesFile <- file.path(paths[["projectPath"]], ".gitmodules")
+  dotGitModulesFile <- file.path(projectPath, ".gitmodules")
   rl <- readLines(dotGitModulesFile)
   rl <- grep(paste0(modPath, "|", localPathRelative), value = TRUE, rl, invert = TRUE)
   writeLines(rl, dotGitModulesFile)
-  unlink(file.path(paths[["projectPath"]], ".git/modules", localPathRelative),
+  # usethis::use_git()
+  gitEvalWithGitConfigOnError(quote(gert::git_commit_all(message = "Delete folder")))
+  # for (iii in 1:2) {
+  #   bbb <- try(gert::git_commit_all(message = "Delete folder"))
+  #   if (is(bbb, "try-error")) {
+  #     if (any(grepl("user.name", bbb))) {
+  #       message("Your git account is missing information; either quit",
+  #               "and set username and email in the git global config, or specify here:",
+  #               "What is your git username: ")
+  #       un <- readline()
+  #       em <- readline("What is your git email for github.com: ")
+  #       usethis::use_git_config(user.name = un, user.email = em, scope = "project")
+  #     }
+  #   } else {
+  #     break
+  #   }
+  # }
+  unlink(file.path(projectPath, ".git/modules", localPathRelative),
          recursive = TRUE, force = TRUE)
 }
 
@@ -4119,3 +4149,23 @@ dirExistsButNotAGitFolder <- function(projectPath, modPath, localPath, localPath
     stop("Please address the git problem manually, i.e., no .git folder, but it is a git repository")
   }
 }
+
+gitEvalWithGitConfigOnError <- function(expr, tryError) {
+  for (iii in 1:2) {
+    bbb <- try(eval(expr))
+    gitConfigOnError(tryError)
+    if (is(tryError, "try-error")) {
+      if (any(grepl("user.name", tryError))) {
+        message("Your git account is missing information; either quit",
+                "and set username and email in the git global config, or specify here:",
+                "What is your git username: ")
+        un <- readline()
+        em <- readline("What is your git email for github.com: ")
+        usethis::use_git_config(user.name = un, user.email = em, scope = "project")
+      }
+    } else {
+      break
+    }
+  }
+}
+
