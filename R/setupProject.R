@@ -1538,7 +1538,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
               # "clone"
             }
             if (dirExistsButNotGit) {
-              browser()
               dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
             }
 
@@ -2185,14 +2184,27 @@ evalSUB <- function(val, valObjName, envir, envir2) {
           val[[1]] <- as.name(gsub(optionsGrepStart, "list", val[[1]]))
         }
       }
+      stStart <- Sys.time()
       if (inherits(val, "name"))
         val2 <- get0(val, envir = envir, inherits = FALSE)
       else {
         val2 <- try(eval(val, envir = envir), silent = TRUE)
       }
+      tryAgain <- TRUE
+      if (is(val2, "try-error")) {
+        errorIfTooLong(stStart, val, tryError = val2)
+        # stEnd <- Sys.time()
+        # if (difftime(stEnd, stStart, units = "secs") > 1) {
+        #   errMsg <- paste(paste(c("In:", paste(capture.output(val), sep = "\n"), val2[[1]]), sep = "\n"), "\n")
+        #   errMsg <- paste(errMsg, collapse = "")
+        #   errMsg <- gsub("\\n[ ]+\\n$", "", errMsg)
+        #   stop(errMsg, call. = FALSE)
+        #   tryAgain <- FALSE # if it takes a long time to fail (>2seconds, then it should be a fail)
+        # }
+      }
 
-      tryAgain <- (identical(val2, val) && !missing(envir2)) ||
-        is(val2, "try-error")
+      if (isTRUE(tryAgain))
+        tryAgain <- (identical(val2, val) && !missing(envir2)) || is(val2, "try-error")
       if (!identical(valObjName, "sideEffects"))
         tryAgain <- tryAgain || is.null(val2)
       if (tryAgain) {
@@ -2653,13 +2665,17 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
         if (!exists(dd, envir  = envir, inherits = FALSE) || is.call(get0(dd, envir = envir))) {
 
           possVal <- dotsSUB[[dd]]
-          # aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
+          stStart <- Sys.time()
           if (!is.name(dotsSUB[[dd]])) {
             possVal <- suppressWarnings(
               evalSUB(dotsSUB[[dd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
             )
           }
           if (identical(possVal, dotsSUB[[dd]])) {
+            errorIfTooLong(stStart, possVal, tryError = list(""))
+            #stEnd <- Sys.time()
+            #difft <- difftime(stEnd, stStart, units = "secs")
+            #if (difft > 1) {stop()}
             for (envs in c(envir, callingEnv)) {
               if (exists(dd, envir = envs, inherits = FALSE)) {
                 possVal <- get(dd, envir = envs, inherits = FALSE)
@@ -4169,3 +4185,14 @@ gitEvalWithGitConfigOnError <- function(expr, tryError) {
   }
 }
 
+
+errorIfTooLong <- function(stStart, val, tryError = list("")) {
+  stEnd <- Sys.time()
+  if (difftime(stEnd, stStart, units = "secs") > 1) {
+    errMsg <- paste(paste(c("In:", paste(capture.output(val), sep = "\n"), tryError[[1]]), sep = "\n"), "\n")
+    errMsg <- paste(errMsg, collapse = "")
+    errMsg <- gsub("\\n[ ]+\\n$", "", errMsg)
+    stop(errMsg, call. = FALSE)
+    tryAgain <- FALSE # if it takes a long time to fail (>2seconds, then it should be a fail)
+  }
+}
