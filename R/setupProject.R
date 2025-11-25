@@ -2603,63 +2603,16 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
         exists(dd, callingEnv) || exists(dd, envir), SIMPLIFY = TRUE)
       putInEnv <- names(defaultDotsNotNeeded)[defaultDotsNotNeeded %in% FALSE]
       if (length(putInEnv)) {
-        list2env(evalSUB(defaultDots[defaultDotsNotNeeded %in% FALSE], envir = envir,
-                         envir2 = callingEnv, valObjName = "defaultDots"), envir = envir)
-        # list2env(eval(defaultDots[defaultDotsNotNeeded %in% FALSE]), envir = envir)
-        # on.exit(rm(list = putInEnv, envir = envir), add = TRUE)
+        ll <- list()
+        for (ddd in putInEnv)
+          ll[[ddd]] <- evalSUB(defaultDots[[ddd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
+        list2env(ll, envir = envir)
       }
+      uniqueObjsPassed <- unique(objsPassed)
+      uniqueObjsPassed <- setdiff(uniqueObjsPassed, "")
 
-      # theEnvs <- c(inEnv = any(unlist(inEnv)),
-      #              inCallingEnv = any(unlist(inCallingEnv)),
-      #              # global = TRUE,
-      #              inDD = TRUE)#,
-      # #) # 1 env for defaultDots, one for .GlobalEnv
-      # theEnvs <- theEnvs[theEnvs]
-      # envs <- list()
-      # envNums <- seq(cumsum(as.numeric(rev(theEnvs))))
-      #
-      # i <- 0
-      #
-      #
-      # if (all(defaultDotsNotNeeded %in% FALSE)) { # at least one is not in the .Global; need a new env chain with defaultDots in there
-      #   i <- i + 1
-      #   envs[[i]] <- new.env(parent = .GlobalEnv)
-      #   list2env(eval(defaultDots[defaultDotsNotNeeded %in% FALSE]), envir = envs[[i]])
-      #   if (any(names(theEnvs) %in% "inCallingEnv")) {
-      #     i <- i + 1
-      #     envs[[i]] <- new.env(parent = envs[[i - 1]])
-      #     list2env(as.list(callinEnv), envir = envs[[i]])
-      #   }
-      #   if (any(names(theEnvs) %in% "inEnv")) {
-      #     i <- i + 1
-      #     envs[[i]] <- new.env(parent = envs[[i - 1]])
-      #     list2env(as.list(envir), envir = envs[[i]])
-      #   }
-      #   envir <- tail(envs, 1)[[1]] # override
-      #
-      # }
-      # inEnv <- exists(objsPassed, envir = envir, inherits = FALSE) # if this was from an "upstream" dots
-      # inCallingEnv <- exists(objsPassed, envir = callingEnv, inherits = FALSE) # if it is still unevaluated dots
-      # newInEnv <- setdiff(names(defaultDots), objsPassed)
-      # newInEnv <- setdiff(names(defaultDots), ls(envir = envir))#, all.names = TRUE))
-      either <- inEnv %in% FALSE & inCallingEnv %in% FALSE
+      for (dd in uniqueObjsPassed) {
 
-
-      # Changed April 3, 2025 -- either is about whether objsPassed are fine; but they may be
-      #   calls that must still be evaluated, and they may need defaultDots; so
-      #   no more "if any(either)"
-
-
-
-      # if (any(either)) {
-      # for (nn in objsPassed[either]) { # use a for loop because individual elements may fail
-      #namsDD <- unique(c(objsPassed, names(defaultDots)))
-      #namsDD <- setdiff(namsDD, "")
-
-      namsDD <- unique(objsPassed)
-      namsDD <- setdiff(namsDD, "")
-
-      for (dd in namsDD) {
         # Add the default dots to the envir if they aren't there. If, later on, they
         #   are provided, then it will just be overwritten
         if (!exists(dd, envir  = envir, inherits = FALSE) || is.call(get0(dd, envir = envir))) {
@@ -2690,43 +2643,18 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
               if (!is.null(possVal2))
                 defaultDots[[dd]] <- possVal2
             }
-            # if (identical(possValDD, defaultDots[[dd]])) {
-            #   possVal <- possValDD
-            # }
           } else {
+            dots[[dd]] <- possVal
             assign(dd, possVal, envir = envir)
-            # defaultDots[[dd]] <- possVal
           }
-          # ddnn <- if (is.list(defaultDots[dd])) defaultDots[dd] else as.list(defaultDots)[dd] # a call
-          #
-          # if (!isTRUE(any(is.na(names(ddnn)))))
-          #   list2env(ddnn, envir = envir) # put it in the main environment for later use
         }
       }
-
-      # }
-      # localEnv2 <- defaultDots[namsDD]# [objsPassed[either]]
-      #
-      # if (!is.environment(localEnv2) && !is.list(localEnv2)) {
-      #   # this would be a "call"
-      #   localEnv2 <- as.list(localEnv2)
-      #   localEnv2 <- localEnv2[!sapply(localEnv2, is.null)]
-      # }
-      # if (any(!either)) {
-      #   if (any(inEnv %in% TRUE)) {
-      #     localEnv2 <- envir
-      #   }
-      #   if (any(inCallingEnv %in% TRUE)) {
-      #     localEnv <- callingEnv
-      #   }
-      # }
     }
   }
 
-  dots <- Map(d = dots, nam = names(dots), # MoreArgs = list(defaultDots = defaultDots),
+  dots <- Map(d = dots, nam = names(dots),
               function(d, nam) {
                 d1 <- evalSUB(d, valObjName = nam, envir = envir, envir2 = callingEnv)
-                # d1 <- evalSUB(d, valObjName = nam, envir = localEnv, envir2 = localEnv2)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
                     d1 <- defaultDots[[nam]]
