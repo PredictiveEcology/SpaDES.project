@@ -59,7 +59,7 @@
 #' }
 #'
 #' @import furrr withr
-experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths") {
+experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", logFiles = list(expt, "time")) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
     # eval(pp[1:whSetupProject], envir = environment())
@@ -74,15 +74,24 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths") {
     expt$.runName <- apply(exptChar, 1, function(...) paste0(names(exptChar), ..., collapse = "_"))
   }
   if (is.null(expt$.logFile)) {
-    starttime <- format(Sys.time())
-    logDir <- if (exists("outs", inherits = FALSE)) outs$paths$outputPath else normalizePath(".")
-    expt$.logFile <- file.path(logDir, paste0(expt$.runName, "_", starttime, ".txt"))
+    logFiles2 <- paste0(expt$.runName)
+    if (any(grepl("^time$", unlist(logFiles)))) {
+      starttime <- format(Sys.time())
+      logFiles2 <- paste0(logFiles2, "_", starttime)
+    }
+    logFiles2 <- paste0(logFiles2, ".log")
+    logDir <- if (exists("outs", inherits = FALSE)) attr(outs$paths, "extraPaths")$projectPath else normalizePath(".")
+    logDir <- file.path(logDir, "logs")
+    expt$.logFile <- file.path(logDir, logFiles2)
   }
   message("First logfiles are:\n",
           paste(head(expt$.logFile), collapse = "\n"))
 
+  mess <- head(expt$.logFile)
+  mess <- gsub(" ", "\\\\ ", mess)
+  mess <- gsub(":", "\\\\:", mess)
   message("To see log files, run in a separate command prompt e.g., \n",
-          paste("tail -f", head(expt$.logFile), collapse = "\n"))
+          paste("tail -f", mess, collapse = "\n"))
   message("or in a separate R session on the same machine:\n",
           "system(paste0(\"tail -f '", expt$.logFile[1], "'\"))")
 
@@ -100,16 +109,20 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths") {
         Sys.sleep(dots$.iter)
         withr::local_options(crayon.enabled = TRUE)
         sim <- try(source(file, local = TRUE))
+        if (is(sim, "try-error")) {
+          warning(sim)
+        }
       }, message = function(mess) {
         if (!identical("\n", mess$message) && nchar(mess$message) > 0)
           cat(mess$message, file = dots$.logFile, append = TRUE, sep = "\n")
       }, warning = function(warn) {
         if (!identical("\n", warn$message) && nchar(warn$message) > 0)
-          cat(warn$message, file = dots$.logFile, append = TRUE, sep = "\n")
-      }, error = function(err) {
+          cat(paste("WARNING: ", warn$message), file = dots$.logFile, append = TRUE, sep = "\n")
+      } , error = function(err) {
         if (!identical("\n", err$message) && nchar(err$message) > 0)
-          cat(err$message, file = dots$.logFile, append = TRUE, sep = "\n")
-      })
+          cat(paste("ERROR:", err$message), file = dots$.logFile, append = TRUE, sep = "\n")
+      }
+      )
 
       # The final result of the future
       return(invisible(sim))
