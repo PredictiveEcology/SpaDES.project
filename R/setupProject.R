@@ -901,14 +901,16 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
 
   # Check whether it is in tmpdir --> override if it is
-  if (!is.null(getOption("reproducible.cachePath"))) {
-    commonWithTmpdir <- fs::path_common(c(getOption("reproducible.cachePath"), tempdir()))
-    if (!identical(dirname(commonWithTmpdir), "/") && is.null(paths[["cachePath"]])) {
-      message("getOption(reproducible.cachePath) was already set to a folder in the tempdir();\n",
-              "--> Changing this to SpaDES.project default: ", defaultsSPO$reproducible.cachePath)
-    }
-
-  }
+  pathsOverrideIfInTemp(paths, defaultsSPO, override = c("inputPath", "cachePath"))
+  # if (!is.null(getOption("reproducible.cachePath"))) {
+  #   commonWithTmpdir <- fs::path_common(c(getOption("reproducible.cachePath"), tempdir()))
+  #   if (!identical(dirname(commonWithTmpdir), "/") && is.null(paths[["cachePath"]])) {
+  #     message("getOption(reproducible.cachePath) was already set to a folder in the tempdir();\n",
+  #             "--> Changing this to SpaDES.project default: ", defaultsSPO$reproducible.cachePath)
+  #     options("reproducible.cachePath" = defaultsSPO$reproducible.cachePath)
+  #   }
+  #
+  # }
 
   paths <- Require::modifyList2(
     list(cachePath = getOption("reproducible.cachePath",
@@ -4122,5 +4124,24 @@ errorIfTooLong <- function(stStart, val, tryError = list("")) {
     errMsg <- gsub("\\n[ ]+\\n$", "", errMsg)
     stop(errMsg, call. = FALSE)
     tryAgain <- FALSE # if it takes a long time to fail (>2seconds, then it should be a fail)
+  }
+}
+
+pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", "cachePath")) {
+  for (ovr in override) {
+    if (isTRUE(any(grepl("cache", ovr)))) {
+      optionPath <- paste0("reproducible.", ovr)
+    } else {
+      optionPath <- paste0("spades.", ovr)
+    }
+    if (!is.null(getOption(optionPath))) {
+      commonWithTmpdir <- fs::path_common(c(getOption(optionPath), tempdir()))
+      if (!identical(dirname(commonWithTmpdir), "/") && is.null(paths[[ovr]])) {
+        message("getOption(reproducible.cachePath) was already set to a folder in the tempdir();\n",
+                "--> Changing this to SpaDES.project default: ", defaultsSPO[[optionPath]])
+        list(defaultsSPO[[optionPath]]) |>
+          setNames(optionPath) |> options()
+      }
+    }
   }
 }
