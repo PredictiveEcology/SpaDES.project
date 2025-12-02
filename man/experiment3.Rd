@@ -4,7 +4,12 @@
 \alias{experiment3}
 \title{Run Parallel Experiments for projects that use \code{setupProject}}
 \usage{
-experiment3(expt, file = "global.R", preRunSetupProject = "paths")
+experiment3(
+  expt,
+  file = "global.R",
+  preRunSetupProject = "paths",
+  logFiles = list(expt, "time")
+)
 }
 \arguments{
 \item{expt}{A data.frame/data.table/list of parameters for the experiments.
