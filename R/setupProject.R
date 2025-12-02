@@ -2277,6 +2277,9 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     if (any(userQuoted[-1])) {
       namesToEval <- namesToEval[userQuoted[-1] %in% FALSE]
     }
+    onlyNamedOnes <- nzchar(namesToEval)
+    namesToEval <- namesToEval[onlyNamedOnes]
+    # browser()
     # Sequential evaluation
     if (length(namesToEval)) {
       Map(nam = namesToEval, function(nam) {
