@@ -58,7 +58,6 @@
 #' experiment3(file = "global.R", expt = expt_list)
 #' }
 #'
-#' @import furrr withr
 experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", logFiles = list(expt, "time")) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
@@ -95,6 +94,15 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", l
   message("or in a separate R session on the same machine:\n",
           "system(paste0(\"tail -f '", expt$.logFile[1], "'\"))")
 
+  frr <- requireNamespace("furrr")
+  wthr <- requireNamespace("withr")
+  if (!all(c(frr, wthr))) {
+    toInstall <- c("furrr", "withr")[!c(frr, wthr)]
+    stop("Please install ", toInstall)
+  }
+
+
+  if (!requireNamespace("furrr")) stop("Please install furrr")
   rr <- furrr::future_pmap(
     .options = furrr::furrr_options(seed = TRUE,
                                     scheduling = Inf),
