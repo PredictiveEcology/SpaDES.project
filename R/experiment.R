@@ -25,7 +25,26 @@
 #'   this function will create it, filling the values with
 #'   `paste0(.runName, "_", format(Sys.time()))`.
 #' @param preRunSetupProject Logical or `character`. Passed to `upTo`
-#' in `preRunSetupProject`. Default is `FALSE`.
+#' in `preRunSetupProject`. Default is `paths`, which means that it will run the `file`
+#' up to and including the `paths` argument.
+#'
+#' @param clearSimEnv Logical. Default `TRUE`. This has the potential to be VERY
+#'   large. Returning it from all the threads or cores may be very inefficient. In
+#'   general, the user should define the `outputs` that they want so that individual
+#'   objects are saved. It will not delete any `dot` object, i.e., objects that start
+#'   with a `.`.
+#'
+#' @param saveSimToDisk Logical or character. Default `FALSE`. If `TRUE`, then this will
+#'   save the entire `simList` (before any clearing via `clearSimEnv`, i.e, with
+#'   all objects intact) using `saveSimList`. The object will be saved with the name:
+#'   `file.path(paths$outputPath, paste0("sim_", .runName))` unless this parameter is a character
+#'   string, in which case it will be `file.path(paths$outputPath, paste0(saveSimToDisk, .runName))`.
+#'   In these cases, the `paths$` is coming from the `preRunSetupProject` that returns
+#'   the paths created with `setupProject`. Alternatively the user can pass a
+#'   character vector with the full path of the individual simList objects to save.
+#'   If supplying a character vector of names, it must be same length as the `NROW(expt)`,
+#'   and it must be explicit about the file extension, either `.rds` or `.qs2` for each
+#'   filename.
 #'
 #' @export
 #' @details
@@ -58,7 +77,9 @@
 #' experiment3(file = "global.R", expt = expt_list)
 #' }
 #'
-experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", logFiles = list(expt, "time")) {
+experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
+                        logFiles = list(expt, "time"),
+                        clearSimEnv = TRUE, saveSimToDisk = FALSE) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
     # eval(pp[1:whSetupProject], envir = environment())
@@ -67,6 +88,7 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", l
   if (is.null(expt$.iter)) {
     expt$.iter <- seq_len(NROW(expt))
   }
+
   if (is.null(expt$.runName)) {
     exptChar <- lapply(expt, function(x) if (is.numeric(x)) reproducible:::paddedFloatToChar(x, padL = max(nchar(x))) else x) |>
       as.data.frame()
@@ -79,8 +101,15 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", l
       logFiles2 <- paste0(logFiles2, "_", starttime)
     }
     logFiles2 <- paste0(logFiles2, ".log")
+    startsWithDot <- startsWith(logFiles2, ".")
+    if (any(startsWithDot)) {
+      message("logFiles start with a dot, which will produce hidden files; ",
+              " removing initial dot to make visible log files")
+      logFiles2[startsWithDot] <- gsub("^\\.", "", logFiles2[startsWithDot])
+    }
     logDir <- if (exists("outs", inherits = FALSE)) attr(outs$paths, "extraPaths")$projectPath else normalizePath(".")
     logDir <- file.path(logDir, "logs")
+    dir.create(logDir, recursive = TRUE, showWarnings = FALSE)
     expt$.logFile <- file.path(logDir, logFiles2)
   }
   message("First logfiles are:\n",
@@ -98,28 +127,57 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", l
   wthr <- requireNamespace("withr")
   if (!all(c(frr, wthr))) {
     toInstall <- c("furrr", "withr")[!c(frr, wthr)]
-    stop("Please install ", toInstall)
+    stop("Please install packages", toInstall)
   }
+  if (length(saveSimToDisk) > 1)
+    if (length(saveSimToDisk) != NROW(expt))
+      stop("saveSimToDisk must be either length 1 or length NROW(expt)")
 
 
   if (!requireNamespace("furrr")) stop("Please install furrr")
+  exptOrig <- expt
+  expt <- exptOrig[1:4, ]
   rr <- furrr::future_pmap(
     .options = furrr::furrr_options(seed = TRUE,
                                     scheduling = Inf),
     .progress = TRUE,
     .l = expt,
     file = file,
-    .f = function(..., file) {
+    sstd = saveSimToDisk,
+    cse = clearSimEnv,
+    .f = function(..., file, sstd, cse) {
       dots <- list(...)
       list2env(dots, environment())
 
       withCallingHandlers({
         Sys.sleep(dots$.iter)
         withr::local_options(crayon.enabled = TRUE)
-        sim <- try(source(file, local = TRUE))
-        if (is(sim, "try-error")) {
-          warning(sim)
+
+        # browser()
+
+        # sim <- try(source(file, local = TRUE))
+        # if (is(sim, "try-error")) {
+        #  warning(sim)
+        # }
+        sim <- SpaDES.core::simInit(paths = list(outputPath = tempdir()))
+        sim$a <- 1
+        sim$.b <- 2
+        filenameEnd <- paste0(dots$.runName, ".rds")
+        op <- SpaDES.core::outputPath(sim)
+        if (isTRUE(sstd)) {
+          sstd <- file.path(op, paste0("sim_", filenameEnd))
+        } else if (is.character(sstd)) {
+          if (length(sstd) == 1) {
+            sstd <- file.path(op, paste0(sstd, filenameEnd))
+          } else {
+            sstd <- sstd[dots$.iter]
+            if (requireNamespace("fs"))
+              if (!fs::is_absolute_path(sstd))
+                sstd <- file.path(op, sstd)
+
+          }
         }
+
       }, message = function(mess) {
         if (!identical("\n", mess$message) && nchar(mess$message) > 0)
           cat(mess$message, file = dots$.logFile, append = TRUE, sep = "\n")
@@ -132,10 +190,19 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", l
       }
       )
 
+      # return(sstd)
       # The final result of the future
+      # message("Saving sim to disk at: ", sstd)
+      if (isTRUE(!sstd %in% FALSE)) {
+        SpaDES.core::saveSimList(sim, filename = sstd)
+      }
+      if (isTRUE(cse))
+        rm(list = ls(sim, all.names = FALSE), envir = SpaDES.core::envir(sim))
+
       return(invisible(sim))
     }
   )
+  return(rr)
 }
 
 
