@@ -135,8 +135,8 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 
 
   if (!requireNamespace("furrr")) stop("Please install furrr")
-  exptOrig <- expt
-  expt <- exptOrig[1:4, ]
+  # exptOrig <- expt
+  # expt <- exptOrig[1:4, ]
   rr <- furrr::future_pmap(
     .options = furrr::furrr_options(seed = TRUE,
                                     scheduling = Inf),
