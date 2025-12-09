@@ -112,16 +112,23 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
     dir.create(logDir, recursive = TRUE, showWarnings = FALSE)
     expt$.logFile <- file.path(logDir, logFiles2)
   }
-  message("First logfiles are:\n",
-          paste(head(expt$.logFile), collapse = "\n"))
+  # message("First logfiles are:\n",
+  #         paste(head(expt$.logFile), collapse = "\n"))
 
   mess <- head(expt$.logFile)
   mess <- gsub(" ", "\\\\ ", mess)
   mess <- gsub(":", "\\\\:", mess)
-  message("To see log files, run in a separate command prompt e.g., \n",
-          paste("tail -f", mess, collapse = "\n"))
-  message("or in a separate R session on the same machine:\n",
-          "system(paste0(\"tail -f '", expt$.logFile[1], "'\"))")
+
+  pp <- future::plan()
+  len <- min(10, attr(pp, "backend")$workers)
+  browser()
+  cmd <- tmux_tail_command(head(expt$.logFile, len), columns = 2, session = reproducible:::filePathSansExt(file))
+  message("To see log files using tmux; run this in a separate bash prompt:")
+  message(cmd)
+  # message("To see log files, run in a separate command prompt e.g., \n",
+  #         paste("tail -f", mess, collapse = "\n"))
+  # message("or in a separate R session on the same machine:\n",
+  #         "system(paste0(\"tail -f '", expt$.logFile[1], "'\"))")
 
   frr <- requireNamespace("furrr")
   wthr <- requireNamespace("withr")
@@ -264,4 +271,106 @@ preRunSetupProject <- function(file = "global.R", upTo = "paths") {
     outs <- eval(pp[[whSetupProject]][[3]][1:upToNum], envir = environment())
   }
   outs
+}
+
+
+
+
+
+
+tmux_tail_command <- function(
+  files,
+  session = "firesense",
+  window  = "logs",
+  columns = 1,            # number of columns to create (>=1)
+  status_off = TRUE,      # turn off tmux status line (frees a row)
+  remain_on_exit = TRUE,  # keep pane output after tail exits
+  attach = TRUE,          # attach at the end
+  run = FALSE             # if TRUE, execute the command from R
+) {
+  if (length(files) == 0L) stop("`files` must contain at least one path.")
+  n <- length(files)
+  
+  # columns cannot exceed number of files
+  columns_count <- min(max(1, as.integer(columns)), n)
+  
+  # Shell-quote paths (handles spaces/special chars)
+  q <- function(x) shQuote(x, type = "sh")
+  tails <- sprintf("'tail -F %s'", vapply(files, q, "", USE.NAMES = FALSE))
+  
+  # Distribute files roughly evenly across columns
+  base  <- n %/% columns_count
+  extra <- n %% columns_count
+  col_sizes <- rep(base, columns_count)
+  if (extra > 0) col_sizes[1:extra] <- col_sizes[1:extra] + 1
+  
+  cmds <- character()
+  
+  # 1) Start session detached with first pane (column 1, pane 1)
+  cmds <- c(cmds,
+            sprintf("tmux new-session -d -s %s -n %s %s",
+                    q(session), q(window), tails[1]))
+  
+  # 2) Make window size match the *smallest attached client* to avoid off-screen/dotted space
+  cmds <- c(cmds, sprintf("set-option -t %s window-size smallest", q(session)))
+  
+  # 3) Optional: turn off status line to free one row
+  if (isTRUE(status_off)) {
+    cmds <- c(cmds, sprintf("set-option -t %s status off", q(session)))
+  }
+  
+  # 4) Create additional columns with one pane each
+  idx <- 2  # next file to place
+  if (columns_count > 1) {
+    for (c in 2:columns_count) {
+      if (idx <= n) {
+        cmds <- c(cmds, sprintf("split-window -h %s", tails[idx]))
+        idx <- idx + 1
+      }
+    }
+    # Even out the column widths to stabilize geometry
+    cmds <- c(cmds, "select-layout even-horizontal")
+    # Move back to leftmost column
+    for (i in seq_len(columns_count - 1)) cmds <- c(cmds, "select-pane -L")
+  }
+  
+  # 5) Fill each column by vertical splits (maximize width per pane)
+  for (c in seq_len(columns_count)) {
+    add <- col_sizes[c] - 1  # one pane already placed per column
+    for (k in seq_len(add)) {
+      if (idx <= n) {
+        cmds <- c(cmds, sprintf("split-window -v %s", tails[idx]))
+        idx <- idx + 1
+      }
+    }
+    # Move to the next column to the right
+    if (c < columns_count) cmds <- c(cmds, "select-pane -R")
+  }
+  
+  # 6) Tidy layout (no size flags)
+  if (columns_count == 1) {
+    cmds <- c(cmds, "select-layout even-vertical")
+  } else {
+    cmds <- c(cmds, "select-layout tiled")
+  }
+  
+  # 7) Optional: keep panes visible on exit
+  if (isTRUE(remain_on_exit)) {
+    cmds <- c(cmds, sprintf("set-option -t %s remain-on-exit on", q(session)))
+  }
+  
+  # 8) Attach at the end
+  if (isTRUE(attach)) {
+    cmds <- c(cmds, sprintf("attach -t %s", q(session)))
+  }
+  
+  # Produce a single tmux command string (tmux's command separator)
+  cmd <- paste(cmds, collapse = " \\; \\\n  ")
+  
+  if (isTRUE(run)) {
+    status <- system(cmd)
+    attr(cmd, "status") <- status
+  }
+  
+  cmd
 }
