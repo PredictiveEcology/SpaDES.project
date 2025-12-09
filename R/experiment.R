@@ -155,13 +155,13 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 
         # browser()
 
-        # sim <- try(source(file, local = TRUE))
-        # if (is(sim, "try-error")) {
-        #  warning(sim)
-        # }
-        sim <- SpaDES.core::simInit(paths = list(outputPath = tempdir()))
-        sim$a <- 1
-        sim$.b <- 2
+        sim <- try(source(file, local = TRUE))
+        if (is(sim, "try-error")) {
+          warning(sim)
+        }
+        # sim <- SpaDES.core::simInit(paths = list(outputPath = tempdir()))
+        # sim$a <- 1
+        # sim$.b <- 2
         filenameEnd <- paste0(dots$.runName, ".rds")
         op <- SpaDES.core::outputPath(sim)
         if (isTRUE(sstd)) {
