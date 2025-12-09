@@ -45,6 +45,9 @@
 #'   If supplying a character vector of names, it must be same length as the `NROW(expt)`,
 #'   and it must be explicit about the file extension, either `.rds` or `.qs2` for each
 #'   filename.
+#' @param tmuxName Character string. This command will print a message with a tmux
+#'   command that can be used by a user to follow the multiple logs in a bash
+#'   command prompt. The name of the tmux window will be this.
 #'
 #' @export
 #' @details
@@ -78,20 +81,21 @@
 #' }
 #'
 experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
-logFiles = list(expt, "time"),
-clearSimEnv = TRUE, saveSimToDisk = FALSE) {
+                        logFiles = list(expt, "time"),
+                        clearSimEnv = TRUE, saveSimToDisk = FALSE,
+                        tmuxName = file) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
     # eval(pp[1:whSetupProject], envir = environment())
   }
-  
+
   if (is.null(expt$.iter)) {
     expt$.iter <- seq_len(NROW(expt))
   }
-  
+
   if (is.null(expt$.runName)) {
     exptChar <- lapply(expt, function(x) if (is.numeric(x)) reproducible:::paddedFloatToChar(x, padL = max(nchar(x))) else x) |>
-    as.data.frame()
+      as.data.frame()
     expt$.runName <- apply(exptChar, 1, function(...) paste0(names(exptChar), ..., collapse = "_"))
   }
   if (is.null(expt$.logFile)) {
@@ -104,7 +108,7 @@ clearSimEnv = TRUE, saveSimToDisk = FALSE) {
     startsWithDot <- startsWith(logFiles2, ".")
     if (any(startsWithDot)) {
       message("logFiles start with a dot, which will produce hidden files; ",
-      " removing initial dot to make visible log files")
+              " removing initial dot to make visible log files")
       logFiles2[startsWithDot] <- gsub("^\\.", "", logFiles2[startsWithDot])
     }
     logDir <- if (exists("outs", inherits = FALSE)) attr(outs$paths, "extraPaths")$projectPath else normalizePath(".")
@@ -114,21 +118,21 @@ clearSimEnv = TRUE, saveSimToDisk = FALSE) {
   }
   # message("First logfiles are:\n",
   #         paste(head(expt$.logFile), collapse = "\n"))
-  
+
   mess <- head(expt$.logFile)
   mess <- gsub(" ", "\\\\ ", mess)
   mess <- gsub(":", "\\\\:", mess)
-  
+
   pp <- future::plan()
   len <- min(10, attr(pp, "backend")$workers)
-  cmd <- tmux_tail_command(head(expt$.logFile, len), session = reproducible:::filePathSansExt(file))
+  cmd <- tmux_tail_command(head(expt$.logFile, len), session = tmuxName)
   message("To see log files using tmux; run this in a separate bash prompt:")
   message(cmd)
   # message("To see log files, run in a separate command prompt e.g., \n",
   #         paste("tail -f", mess, collapse = "\n"))
   # message("or in a separate R session on the same machine:\n",
   #         "system(paste0(\"tail -f '", expt$.logFile[1], "'\"))")
-  
+
   frr <- requireNamespace("furrr")
   wthr <- requireNamespace("withr")
   if (!all(c(frr, wthr))) {
@@ -136,71 +140,71 @@ clearSimEnv = TRUE, saveSimToDisk = FALSE) {
     stop("Please install packages", toInstall)
   }
   if (length(saveSimToDisk) > 1)
-  if (length(saveSimToDisk) != NROW(expt))
-  stop("saveSimToDisk must be either length 1 or length NROW(expt)")
-  
-  
+    if (length(saveSimToDisk) != NROW(expt))
+      stop("saveSimToDisk must be either length 1 or length NROW(expt)")
+
+
   if (!requireNamespace("furrr")) stop("Please install furrr")
   # exptOrig <- expt
   # expt <- exptOrig[1:4, ]
   rr <- furrr::future_pmap(
     .options = furrr::furrr_options(seed = TRUE,
-      scheduling = Inf),
-      .progress = TRUE,
-      .l = expt,
-      file = file,
-      sstd = saveSimToDisk,
-      cse = clearSimEnv,
-      .f = function(..., file, sstd, cse) {
-        dots <- list(...)
-        list2env(dots, environment())
-        
-        withCallingHandlers({
-          Sys.sleep(dots$.iter)
-          withr::local_options(crayon.enabled = TRUE)
-          
-          sim <- try(source(file, local = TRUE))
-          if (is(sim, "try-error")) {
-            warning(sim)
-          }
-          # sim <- SpaDES.core::simInitAndSpades(paths = list(outputPath = tempdir()))
-          # sim$a <- 1
-          # sim$.b <- 2
-          filenameEnd <- paste0(dots$.runName, ".rds")
-          op <- SpaDES.core::outputPath(sim)
-          if (isTRUE(sstd)) {
-            sstd <- file.path(op, paste0("sim_", filenameEnd))
-          } else if (is.character(sstd)) {
-            if (length(sstd) == 1) {
-              sstd <- file.path(op, paste0(sstd, filenameEnd))
-            } else {
-              sstd <- sstd[dots$.iter]
-              if (requireNamespace("fs"))
-              if (!fs::is_absolute_path(sstd))
-              sstd <- file.path(op, sstd)
-              
-            }
-          }
-          
-        }, message = function(mess) {
-          if (!identical("\n", mess$message) && nchar(mess$message) > 0) {
-            len <- length(mess$message)
-            if (len > 0) {
-              if (endsWith(mess$message[len], "\n")) {
-                mess$message[len] <- gsub("\n$", "", mess$message[len])
-              }
-            }
-            cat(mess$message, file = dots$.logFile, append = TRUE, sep = "\n")
-          }
-        }, warning = function(warn) {
-          if (!identical("\n", warn$message) && nchar(warn$message) > 0)
-          cat(paste("WARNING: ", warn$message), file = dots$.logFile, append = TRUE, sep = "\n")
-        } , error = function(err) {
-          if (!identical("\n", err$message) && nchar(err$message) > 0)
-          cat(paste("ERROR:", err$message), file = dots$.logFile, append = TRUE, sep = "\n")
+                                    scheduling = Inf),
+    .progress = TRUE,
+    .l = expt,
+    file = file,
+    sstd = saveSimToDisk,
+    cse = clearSimEnv,
+    .f = function(..., file, sstd, cse) {
+      dots <- list(...)
+      list2env(dots, environment())
+
+      withCallingHandlers({
+        Sys.sleep(dots$.iter)
+        withr::local_options(crayon.enabled = TRUE)
+
+        sim <- try(source(file, local = TRUE))
+        if (is(sim, "try-error")) {
+          warning(sim)
         }
+        # sim <- SpaDES.core::simInitAndSpades(paths = list(outputPath = tempdir()))
+        # sim$a <- 1
+        # sim$.b <- 2
+        filenameEnd <- paste0(dots$.runName, ".rds")
+        op <- SpaDES.core::outputPath(sim)
+        if (isTRUE(sstd)) {
+          sstd <- file.path(op, paste0("sim_", filenameEnd))
+        } else if (is.character(sstd)) {
+          if (length(sstd) == 1) {
+            sstd <- file.path(op, paste0(sstd, filenameEnd))
+          } else {
+            sstd <- sstd[dots$.iter]
+            if (requireNamespace("fs"))
+              if (!fs::is_absolute_path(sstd))
+                sstd <- file.path(op, sstd)
+
+          }
+        }
+
+      }, message = function(mess) {
+        if (!identical("\n", mess$message) && nchar(mess$message) > 0) {
+          len <- length(mess$message)
+          if (len > 0) {
+            if (endsWith(mess$message[len], "\n")) {
+              mess$message[len] <- gsub("\n$", "", mess$message[len])
+            }
+          }
+          cat(mess$message, file = dots$.logFile, append = TRUE, sep = "\n")
+        }
+      }, warning = function(warn) {
+        if (!identical("\n", warn$message) && nchar(warn$message) > 0)
+          cat(paste("WARNING: ", warn$message), file = dots$.logFile, append = TRUE, sep = "\n")
+      } , error = function(err) {
+        if (!identical("\n", err$message) && nchar(err$message) > 0)
+          cat(paste("ERROR:", err$message), file = dots$.logFile, append = TRUE, sep = "\n")
+      }
       )
-      
+
       # return(sstd)
       # The final result of the future
       # message("Saving sim to disk at: ", sstd)
@@ -208,8 +212,8 @@ clearSimEnv = TRUE, saveSimToDisk = FALSE) {
         SpaDES.core::saveSimList(sim, filename = sstd)
       }
       if (isTRUE(cse))
-      rm(list = ls(sim, all.names = FALSE), envir = SpaDES.core::envir(sim))
-      
+        rm(list = ls(sim, all.names = FALSE), envir = SpaDES.core::envir(sim))
+
       return(invisible(sim))
     }
   )
@@ -266,7 +270,7 @@ preRunSetupProject <- function(file = "global.R", upTo = "paths") {
   pp <- parse(file)
   whSetupProject <- grep("setupProject", pp)
   # eval(pp[1:whSetupProject], envir = environment())
-  
+
   eval(pp[1:c(whSetupProject - 1)], envir = environment())
   if (isTRUE(upTo)) {
     outs <-   eval(pp[whSetupProject], envir = environment())
@@ -285,53 +289,53 @@ preRunSetupProject <- function(file = "global.R", upTo = "paths") {
 
 
 tmux_tail_command <- function(
-  files,
-  session = "firesense",
-  window  = "logs",
-  columns = 1,            # number of columns to create (>=1)
-  status_off = TRUE,      # turn off tmux status line (frees a row)
-  remain_on_exit = TRUE,  # keep pane output after tail exits
-  attach = TRUE,          # attach at the end
-  run = FALSE             # if TRUE, execute the command from R
+    files,
+    session = "firesense",
+    window  = "logs",
+    columns = 1,            # number of columns to create (>=1)
+    status_off = TRUE,      # turn off tmux status line (frees a row)
+    remain_on_exit = TRUE,  # keep pane output after tail exits
+    attach = TRUE,          # attach at the end
+    run = FALSE             # if TRUE, execute the command from R
 ) {
   if (length(files) == 0L) stop("`files` must contain at least one path.")
   n <- length(files)
   columns_count <- min(max(1, as.integer(columns)), n)
-  
+
   # Quote helpers
   qsh <- function(x) shQuote(x, type = "sh")   # for shell-safe quoting
-  
+
   # Build per-pane command: bash -lc 'exec tail -F -- "/path"'
   cmd_tail <- function(path) {
     inner <- sprintf("exec tail -F -- %s", qsh(path))         # quoted path only
     sprintf("bash -lc %s", qsh(inner))                        # quote whole inner for bash -lc
   }
-  
+
   # Prepare the commands for each file
   tail_cmds <- vapply(files, cmd_tail, "", USE.NAMES = FALSE)
-  
+
   # Distribute files across columns evenly
   base  <- n %/% columns_count
   extra <- n %% columns_count
   col_sizes <- rep(base, columns_count)
   if (extra > 0) col_sizes[1:extra] <- col_sizes[1:extra] + 1
-  
+
   cmds <- character()
-  
+
   # 1) Start session detached with first pane running tail
   cmds <- c(cmds,
-    sprintf("tmux new-session -d -s %s -n %s %s",
-    qsh(session), qsh(window), tail_cmds[1])
+            sprintf("tmux new-session -d -s %s -n %s %s",
+                    qsh(session), qsh(window), tail_cmds[1])
   )
-  
+
   # 2) Make window size match smallest attached client (avoid dotted off-screen area)
   cmds <- c(cmds, sprintf("set-option -t %s window-size smallest", qsh(session)))
-  
+
   # 3) Optional: turn off status line
   if (isTRUE(status_off)) {
     cmds <- c(cmds, sprintf("set-option -t %s status off", qsh(session)))
   }
-  
+
   # 4) Create additional columns (one pane per column), each starting tail
   idx <- 2
   if (columns_count > 1) {
@@ -345,7 +349,7 @@ tmux_tail_command <- function(
     # Move back to leftmost column to start vertical splits there
     for (i in seq_len(columns_count - 1)) cmds <- c(cmds, "select-pane -L")
   }
-  
+
   # 5) Fill each column by vertical splits (preserve width), starting tail in each
   for (c in seq_len(columns_count)) {
     add <- col_sizes[c] - 1  # one pane already in each column
@@ -357,27 +361,27 @@ tmux_tail_command <- function(
     }
     if (c < columns_count) cmds <- c(cmds, "select-pane -R")
   }
-  
+
   # 6) Tidy layout
   if (columns_count == 1) {
     cmds <- c(cmds, "select-layout even-vertical")
   } else {
     cmds <- c(cmds, "select-layout tiled")
   }
-  
+
   # 7) Optional: keep panes visible on exit
   if (isTRUE(remain_on_exit)) {
     cmds <- c(cmds, sprintf("set-option -t %s remain-on-exit on", qsh(session)))
   }
-  
+
   # 8) Attach
   if (isTRUE(attach)) {
     cmds <- c(cmds, sprintf("attach -t %s", qsh(session)))
   }
-  
+
   # Single tmux command string (with proper separators)
   cmd <- paste(cmds, collapse = " \\; \\\n  ")
-  
+
   if (isTRUE(run)) {
     status <- system(cmd)
     attr(cmd, "status") <- status

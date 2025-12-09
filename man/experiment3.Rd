@@ -10,7 +10,8 @@ experiment3(
   preRunSetupProject = "paths",
   logFiles = list(expt, "time"),
   clearSimEnv = TRUE,
-  saveSimToDisk = FALSE
+  saveSimToDisk = FALSE,
+  tmuxName = file
 )
 }
 \arguments{
@@ -54,6 +55,10 @@ character vector with the full path of the individual simList objects to save.
 If supplying a character vector of names, it must be same length as the \code{NROW(expt)},
 and it must be explicit about the file extension, either \code{.rds} or \code{.qs2} for each
 filename.}
+
+\item{tmuxName}{Character string. This command will print a message with a tmux
+command that can be used by a user to follow the multiple logs in a bash
+command prompt. The name of the tmux window will be this.}
 }
 \value{
 Invisibly returns the result of \code{furrr::future_pmap()}.
