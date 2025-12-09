@@ -121,7 +121,6 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 
   pp <- future::plan()
   len <- min(10, attr(pp, "backend")$workers)
-  browser()
   cmd <- tmux_tail_command(head(expt$.logFile, len), columns = 2, session = reproducible:::filePathSansExt(file))
   message("To see log files using tmux; run this in a separate bash prompt:")
   message(cmd)
