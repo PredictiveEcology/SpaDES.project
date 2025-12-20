@@ -4,7 +4,7 @@
 \alias{preRunSetupProject}
 \title{Partially or Fully Run \code{setupProject}}
 \usage{
-preRunSetupProject(file = "global.R", upTo = "paths")
+preRunSetupProject(file = "global.R", upTo = "paths", envir = parent.frame())
 }
 \arguments{
 \item{file}{Character string. Path to the R script containing the setup code.
@@ -15,6 +15,9 @@ including the first \code{setupProject()} call within \code{file}.
 If a character string, only evaluates the code up to the \code{setupProject} plus
 the arguments up to the \code{upTo} named argument. Defaults to \code{"paths"} so
 that \code{paths} will be evaluated and availble to use.}
+
+\item{envir}{The environment where the function should be finding objects. Defaults
+to \code{parent.frame()} so it can find them in the calling frame.}
 }
 \value{
 The evaluated result of the executed portion of \code{setupProject()}.

@@ -11,7 +11,8 @@ experiment3(
   logFiles = list(expt, "time"),
   clearSimEnv = TRUE,
   saveSimToDisk = FALSE,
-  tmuxName = file
+  tmuxName = file,
+  ...
 )
 }
 \arguments{
@@ -59,6 +60,9 @@ filename.}
 \item{tmuxName}{Character string. This command will print a message with a tmux
 command that can be used by a user to follow the multiple logs in a bash
 command prompt. The name of the tmux window will be this.}
+
+\item{...}{Any other objects to be made available to the \code{global.R}. These will
+be added to the \code{.GlobalEnv} of the workers.}
 }
 \value{
 Invisibly returns the result of \code{furrr::future_pmap()}.
