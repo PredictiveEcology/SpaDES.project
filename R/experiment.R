@@ -48,6 +48,8 @@
 #' @param tmuxName Character string. This command will print a message with a tmux
 #'   command that can be used by a user to follow the multiple logs in a bash
 #'   command prompt. The name of the tmux window will be this.
+#' @param ... Any other objects to be made available to the `global.R`. These will
+#'   be added to the `.GlobalEnv` of the workers.
 #'
 #' @export
 #' @details
@@ -83,7 +85,7 @@
 experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
                         logFiles = list(expt, "time"),
                         clearSimEnv = TRUE, saveSimToDisk = FALSE,
-                        tmuxName = file) {
+                        tmuxName = file, ...) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
     # eval(pp[1:whSetupProject], envir = environment())
@@ -155,6 +157,7 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
     file = file,
     sstd = saveSimToDisk,
     cse = clearSimEnv,
+    ...,
     .f = function(..., file, sstd, cse) {
       dots <- list(...)
       list2env(dots, environment())

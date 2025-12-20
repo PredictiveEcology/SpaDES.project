@@ -2125,7 +2125,7 @@ checkProjectPath <- function(paths, name, envir, envir2) {
   }
 
   if (!is.null(paths[["projectPath"]])) {
-    paths[["projectPath"]] <- evalSUB(paths[["projectPath"]], valObjName = "paths", envir, envir2)
+    paths[["projectPath"]] <- evalSUB(paths[["projectPath"]], valObjName = "paths", envir = envir, envir2 = envir2)
     #  name <- basename(normPath(paths[["projectPath"]]))
   } else {
     stop("Must provide either a name or a paths[[\"projectPath\"]]")
