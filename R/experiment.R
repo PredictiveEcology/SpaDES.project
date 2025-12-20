@@ -240,6 +240,8 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 #'   If a character string, only evaluates the code up to the `setupProject` plus
 #'   the arguments up to the `upTo` named argument. Defaults to \code{"paths"} so
 #'   that `paths` will be evaluated and availble to use.
+#' @param envir The environment where the function should be finding objects. Defaults
+#'   to `parent.frame()` so it can find them in the calling frame.
 #'
 #' @details
 #' The function:
@@ -269,17 +271,17 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 #' @seealso \code{\link{setupProject}}
 #'
 #' @export
-preRunSetupProject <- function(file = "global.R", upTo = "paths") {
+preRunSetupProject <- function(file = "global.R", upTo = "paths", envir = parent.frame()) {
   pp <- parse(file)
   whSetupProject <- grep("setupProject", pp)
   # eval(pp[1:whSetupProject], envir = environment())
 
-  eval(pp[1:c(whSetupProject - 1)], envir = environment())
+  eval(pp[1:c(whSetupProject - 1)], envir = envir)
   if (isTRUE(upTo)) {
-    outs <-   eval(pp[whSetupProject], envir = environment())
+    outs <-   eval(pp[whSetupProject], envir = envir)
   } else {
     upToNum <- grep(upTo, names(pp[[whSetupProject]][[3]]))
-    outs <- eval(pp[[whSetupProject]][[3]][1:upToNum], envir = environment())
+    outs <- eval(pp[[whSetupProject]][[3]][1:upToNum], envir = envir)
   }
   outs
 }
