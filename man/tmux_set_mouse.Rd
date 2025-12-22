@@ -13,6 +13,5 @@ tmux_set_mouse(on = TRUE)
 Invisibly returns \code{on}.
 }
 \description{
-Sets tmux mouse mode via \verb{set-option -g mouse on/off}, enabling pane
-selection, resizing, and scrolling with the mouse. See tmux manual for details. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}
+Sets tmux mouse mode via \verb{set-option -g mouse on/off}. See tmux manual.
 }
