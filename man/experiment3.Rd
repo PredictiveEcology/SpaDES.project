@@ -12,6 +12,7 @@ experiment3(
   clearSimEnv = TRUE,
   saveSimToDisk = FALSE,
   tmuxName = file,
+  delay = 60,
   ...
 )
 }

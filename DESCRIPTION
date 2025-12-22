@@ -50,7 +50,9 @@ Suggests:
     knitr,
     leaflet,
     leafem,
+    lockfile,
     pkgload,
+    processx,
     raster,
     RColorBrewer,
     rematch2,
@@ -95,5 +97,7 @@ Collate:
     'setupProject.R'
     'spades-project-package.R'
     'studyAreaPlotting.R'
+    'tmux-queue.R'
+    'tmux.R'
     'txt.R'
     'zzz.R'
