@@ -226,11 +226,15 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
           cat(mess$message, file = pidHere, append = TRUE, sep = "\n")
         }
       }, warning = function(warn) {
-        if (!identical("\n", warn$message) && nchar(warn$message) > 0)
+        if (!identical("\n", warn$message) && nchar(warn$message) > 0) {
           cat(paste("WARNING: ", warn$message), file = dots$.logFile, append = TRUE, sep = "\n")
+          cat(paste("WARNING: ", warn$message), file = pidHere, append = TRUE, sep = "\n")
+        }
       } , error = function(err) {
-        if (!identical("\n", err$message) && nchar(err$message) > 0)
+        if (!identical("\n", err$message) && nchar(err$message) > 0) {
           cat(paste("ERROR:", err$message), file = dots$.logFile, append = TRUE, sep = "\n")
+          cat(paste("ERROR:", err$message), file = pidHere, append = TRUE, sep = "\n")
+        }
       }
       )
 
