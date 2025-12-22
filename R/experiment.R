@@ -85,7 +85,7 @@
 experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
                         logFiles = list(expt, "time"),
                         clearSimEnv = TRUE, saveSimToDisk = FALSE,
-                        tmuxName = file, ...) {
+                        tmuxName = file, delay = 60, ...) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
     # eval(pp[1:whSetupProject], envir = environment())
@@ -176,6 +176,7 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
     file = file,
     sstd = saveSimToDisk,
     cse = clearSimEnv,
+    delay = delay,
     ...,
     .f = function(..., file, sstd, cse) {
       dots <- list(...)
@@ -183,7 +184,7 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 
       pidHere <- file.path(dirname(dots$.logFile), Sys.getpid())
       withCallingHandlers({
-        Sys.sleep(dots$.iter)
+        Sys.sleep(dots$.iter * delay)
         withr::local_options(crayon.enabled = TRUE)
 
         sim <- try(source(file, local = TRUE))
