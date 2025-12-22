@@ -104,3 +104,96 @@ experimentTmux <- function(df,
 
   invisible(workers)
 }
+
+
+# internal: run tmux command
+.tmux_run <- function(...) {
+  if (!requireNamespace("processx", quietly = TRUE)) {
+    stop("Package 'processx' is required. Install it.", call. = FALSE)
+  }
+  processx::run("tmux", c(...), echo_cmd = FALSE, echo = FALSE, error_on_status = TRUE)
+}
+
+# internal: get tmux stdout lines
+.tmux_out <- function(...) {
+  res <- .tmux_run(...)
+  out <- strsplit(res$stdout, "\n", fixed = TRUE)[[1]]
+  out[nzchar(out)]
+}
+
+# internal: resolve current "session:window" via formats
+.tmux_current_window <- function() {
+  pane_id <- Sys.getenv("TMUX_PANE")
+  if (pane_id == "") stop("Not inside tmux.", call. = FALSE)
+  sw <- .tmux_out("display-message", "-p", "-t", pane_id, "#{session_name}:#{window_index}")
+  if (length(sw) != 1L || !grepl("^.+:[0-9]+$", sw)) {
+    stop("Failed to resolve current tmux session:window.", call. = FALSE)
+  }
+  sw
+}
+
+# internal: single-shot code (assign ALL columns, optional pane-internal sleep)
+.make_assignment_code_all_cols <- function(df, row_i, global_path, pre_sleep = 0) {
+  cols <- names(df)
+  vals <- df[row_i, , drop = FALSE]
+  assigns <- vapply(seq_along(cols), function(j) {
+    nm <- cols[j]
+    sprintf('assign("%s", `%s`[[%d]], envir = .GlobalEnv)', nm, "vals", j)
+  }, character(1))
+  sleep_code <- if (pre_sleep > 0) sprintf("Sys.sleep(%s); ", pre_sleep) else ""
+  paste0(
+    sleep_code,
+    paste(assigns, collapse = "; "),
+    "; ",
+    sprintf('source(%s)', deparse(global_path))
+  )
+}
+
+# internal: write the worker loop (queue mode) with file locking
+.write_worker_loop <- function(queue_path, global_path) {
+  stopifnot(file.exists(queue_path), file.exists(global_path))
+  loop <- sprintf('
+    if (!requireNamespace("filelock", quietly = TRUE)) {
+      stop("Package \\'filelock\\' is required in worker panes.")
+    }
+    QUEUE <- %s
+    LOCKF <- paste0(QUEUE, ".lock")
+    GLOBAL <- %s
+    PANE <- Sys.getenv("TMUX_PANE")
+
+    repeat {
+      # claim next
+      lck <- filelock::lock(LOCKF, timeout = Inf)
+      q <- readRDS(QUEUE)
+      i <- which(q$status == "PENDING")[1]
+      if (is.na(i)) { filelock::unlock(lck); break }
+      q$status[i]      <- "RUNNING"
+      q$claimed_by[i]  <- PANE
+      q$started_at[i]  <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
+      saveRDS(q, QUEUE)
+      filelock::unlock(lck)
+
+      # assign ALL non-metadata columns
+      meta <- c("status","claimed_by","started_at","finished_at")
+      data_cols <- setdiff(names(q), meta)
+      for (nm in data_cols) {
+        assign(nm, q[[nm]][i], envir = .GlobalEnv)
+      }
+
+      # run user script
+      source(GLOBAL)
+
+      # mark done
+      lck <- filelock::lock(LOCKF, timeout = Inf)
+      q <- readRDS(QUEUE)
+      q$status[i]      <- "DONE"
+      q$finished_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
+      saveRDS(q, QUEUE)
+      filelock::unlock(lck)
+    }
+  ', deparse(normalizePath(queue_path)), deparse(normalizePath(global_path)))
+
+  script_path <- file.path(dirname(queue_path), "tmux_worker_loop.R")
+  writeLines(loop, script_path)
+   normalizePath(script_path)
+}

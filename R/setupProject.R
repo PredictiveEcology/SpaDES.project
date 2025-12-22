@@ -439,7 +439,22 @@ setupProject <- function(name, paths, modules, packages,
     if (isTRUE(Restart))
       on.exit(setwd(origGetWd), add = TRUE)
 
-    envirCur = environment()
+    # envirCur = environment()
+    envirCur    <- environment()      # current execution frame of fn
+    # caller <- envir     # caller (priority over .GlobalEnv in lookup)
+
+    # cur    <- environment()      # execution frame (contains arguments + locals)
+    # caller <- parent.frame()     # calling env (preferred over .GlobalEnv in lookup)
+
+    # Build the persistent proxy once
+    proxy <- build_proxy(envirCur, envir)
+    envir <- proxy$exec
+
+    # Expose small helpers inside fn so you don't pass `exec` around:
+    #ensure <- function(name) ensure_binding(name, proxy)
+    #let_   <- function(name, value) let(name, value, proxy)
+
+    # You can now evaluate any expression using the proxy
 
     origArgOrder <- names(tail(sys.calls(), 1)[[1]])
     argsAreInFormals <- logical()
@@ -470,6 +485,7 @@ setupProject <- function(name, paths, modules, packages,
         keepers <- OrigsSansSUBOrig %in% passed
         Origs <- Origs[keepers]
         OrigsSansOrig <- OrigsSansOrig[keepers]
+        addNewObjsToProxy(envirCur, envir, proxy)
         Map(objName = Origs, objNameSUB = OrigsSansOrig, function(objName, objNameSUB) {
           if (!missing(objName))
             assign(objNameSUB,
@@ -481,6 +497,7 @@ setupProject <- function(name, paths, modules, packages,
         firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
         dotsLater <- dotsSUB[-firstSet]
         dotsSUB <- dotsSUB[firstSet]
+        addNewObjsToProxy(envirCur, envir, proxy)
         dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDotsSUB,
                                  envir = envirCur, callingEnv = envir)
         #envir = envir,
@@ -490,6 +507,7 @@ setupProject <- function(name, paths, modules, packages,
       if (missing(times))
         times <- list(start = 0, end = 1)
 
+      addNewObjsToProxy(envirCur, envir, proxy)
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
       if (missing(name)) {
         name <- basename(normPath(pathsSUB[["projectPath"]]))
@@ -500,6 +518,7 @@ setupProject <- function(name, paths, modules, packages,
       # inProject <- isInProject(name)
 
       # setupOptions is run twice -- because package startup often changes options
+      addNewObjsToProxy(envirCur, envir, proxy)
       optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                                 envir = envirCur, useGit = useGit,
                                 updateRprofile = updateRprofile,
@@ -532,8 +551,10 @@ setupProject <- function(name, paths, modules, packages,
       }
 
       # this next puts them in this environment, returns NULL
+      addNewObjsToProxy(envirCur, envir, proxy)
       functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
 
+      addNewObjsToProxy(envirCur, envir, proxy)
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,
                                      overwrite = overwrite, envir = envirCur, verbose = verbose)
@@ -549,6 +570,7 @@ setupProject <- function(name, paths, modules, packages,
         packages <- character()
 
       # if (getOption("spades.useRequire", TRUE)) {
+      addNewObjsToProxy(envirCur, envir, proxy)
       setupPackages(packages, modulePackages, require = require, paths = paths,
                     setLinuxBinaryRepo = setLinuxBinaryRepo,
                     standAlone = standAlone,
@@ -566,11 +588,12 @@ setupProject <- function(name, paths, modules, packages,
       if (any(grepl("\\<terra\\>", allPkgs))) {
         terra::terraOptions(tempdir = paths$terraPath)
       }
-
+      addNewObjsToProxy(envirCur, envir, proxy)
       sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
                                          envir = envirCur, verbose = verbose)
 
       # 2nd time
+      addNewObjsToProxy(envirCur, envir, proxy)
       opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
                            useGit = useGit, updateRprofile = updateRprofile, verbose = verbose - 1)
       if (!is.null(opts$newOptions))
@@ -614,23 +637,28 @@ setupProject <- function(name, paths, modules, packages,
     #   params <- list()
     for (ar in remainingArgs) {
       if (identical(ar, "params")) {
+        addNewObjsToProxy(envirCur, envir, proxy)
         params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                               overwrite = isTRUE(overwrite), envir = envirCur,
                               callingEnv = envir, verbose = verbose)
       } else if (identical(ar, "studyArea")){
         studyAreaSUB <- substitute(studyArea)
         if (!is.null(studyAreaSUB)) {
+          addNewObjsToProxy(envirCur, envir, proxy)
           dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = envirCur,
                                               callingEnv = envir, verbose = verbose)
           studyArea <- dotsSUB$studyArea
         }
       } else if (identical(ar, "times")) {
         timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
-        if (!missing(timesSUB))
+        if (!missing(timesSUB)) {
+          addNewObjsToProxy(envirCur, envir, proxy)
           times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
+        }
       } else {
         if (length(dotsLater) && (ar %in% names(dotsLater))) {
           # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
+          addNewObjsToProxy(envirCur, envir, proxy)
           possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                      envir = envirCur, callingEnv = envir)
           if (length(possToAdd))
@@ -2195,14 +2223,6 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       tryAgain <- TRUE
       if (is(val2, "try-error")) {
         errorIfTooLong(stStart, val, tryError = val2)
-        # stEnd <- Sys.time()
-        # if (difftime(stEnd, stStart, units = "secs") > 1) {
-        #   errMsg <- paste(paste(c("In:", paste(capture.output(val), sep = "\n"), val2[[1]]), sep = "\n"), "\n")
-        #   errMsg <- paste(errMsg, collapse = "")
-        #   errMsg <- gsub("\\n[ ]+\\n$", "", errMsg)
-        #   stop(errMsg, call. = FALSE)
-        #   tryAgain <- FALSE # if it takes a long time to fail (>2seconds, then it should be a fail)
-        # }
       }
 
       if (isTRUE(tryAgain))
@@ -2610,7 +2630,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
       if (length(putInEnv)) {
         ll <- list()
         for (ddd in putInEnv)
-          ll[[ddd]] <- evalSUB(defaultDots[[ddd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
+          ll[[ddd]] <- evalSUB(defaultDots[[ddd]], envir = callingEnv, envir2 = envir, valObjName = "defaultDots")
         list2env(ll, envir = envir)
       }
       uniqueObjsPassed <- unique(objsPassed)
@@ -2626,7 +2646,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
           stStart <- Sys.time()
           if (!is.name(dotsSUB[[dd]])) {
             possVal <- suppressWarnings(
-              evalSUB(dotsSUB[[dd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
+              evalSUB(dotsSUB[[dd]], envir = callingEnv, envir2 = envir, valObjName = "defaultDots")
             )
           }
           if (identical(possVal, dotsSUB[[dd]])) {
@@ -2643,7 +2663,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
             }
 
             if (identical(possVal, dotsSUB[[dd]])) {
-              possVal2 <- evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+              possVal2 <- evalSUB(defaultDots[[dd]], envir2 = envir, envir = callingEnv,
                                   valObjName = "defaultDots")
               if (!is.null(possVal2))
                 defaultDots[[dd]] <- possVal2
@@ -2659,7 +2679,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 
   dots <- Map(d = dots, nam = names(dots),
               function(d, nam) {
-                d1 <- evalSUB(d, valObjName = nam, envir = envir, envir2 = callingEnv)
+                d1 <- evalSUB(d, valObjName = nam, envir2 = envir, envir = callingEnv)
                 if (is(d1, "try-error")) {
                   if (isTRUE(haveDefaults))
                     d1 <- defaultDots[[nam]]
@@ -2747,7 +2767,7 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
   if (missing(paths))
     paths <- list(inputPaths = ".")
   # evalSUB(val = studyArea, valObjName = "paths", envir = envirCur, envir2 = envir)
-  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir = envir, envir2 = callingEnv)
+  studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir2 = envir, envir = callingEnv)
   if (is.call(studyArea))
     stop("studyArea was not able to be evaluated; stopping")
 
@@ -4147,4 +4167,120 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
       }
     }
   }
+}
+
+
+
+# ---- Helpers ---------------------------------------------------------------
+
+# Create one active binding in `exec` that forwards get/set into `cur` (no forcing at install)
+bind_forward <- function(sym, cur, exec) {
+  makeActiveBinding(
+    sym,
+    local({
+      key <- sym
+      function(val) {
+        if (missing(val)) {
+          # GET: forward to cur; a promise is forced only if you actually read it
+          get(key, envir = cur, inherits = FALSE)
+        } else {
+          # SET: write back into cur
+          assign(key, val, envir = cur)
+          invisible(val)
+        }
+      }
+    }),
+    exec
+  )
+}
+
+# Build a persistent proxy once, mirroring all current names + '...' + optional dot pronouns
+build_proxy <- function(cur, caller, expose_dot_pronouns = TRUE) {
+  exec <- new.env(parent = caller)
+
+  # 1) Mirror *all* current names in `cur` (arguments + locals)
+  for (nm in ls(envir = cur, all.names = TRUE)) {
+    if (nm == "...") next
+    bind_forward(nm, cur, exec)
+  }
+
+  # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
+  makeActiveBinding(
+    "...",
+    local({
+      function(val) {
+        if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
+        get("...", envir = cur, inherits = FALSE)
+      }
+    }),
+    exec
+  )
+
+  # 3) Optional: positional pronouns ..1, ..2, ... (read-only)
+  if (expose_dot_pronouns) {
+    dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
+    for (i in seq_along(dots)) {
+      pronoun <- paste0("..", i)
+      makeActiveBinding(
+        pronoun,
+        local({
+          idx <- i
+          function(val) {
+            if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
+            get("...", envir = cur, inherits = FALSE)[[idx]]
+          }
+        }),
+        exec
+      )
+    }
+  }
+
+  # Return both proxy and the original frame so we can extend later
+  list(exec = exec, cur = cur)
+}
+
+# Convenience: ensure a binding exists for a newly created symbol
+ensure_binding <- function(sym, proxy) {
+  if (!exists(sym, envir = proxy$exec, inherits = FALSE)) {
+    bind_forward(sym, proxy$cur, proxy$exec)
+  }
+  invisible(sym)
+}
+
+# Convenience: assign + ensure binding in one call
+let <- function(sym, value, proxy) {
+  assign(sym, value, envir = proxy$cur)
+  ensure_binding(sym, proxy)
+  invisible(value)
+}
+
+# ---- Your API --------------------------------------------------------------
+
+# Long-lived fn: builds proxy once, reuses it for multiple evals
+# fn <- function(expr, ...) {
+#   cur    <- environment()      # execution frame (contains arguments + locals)
+#   caller <- parent.frame()     # calling env (preferred over .GlobalEnv in lookup)
+#
+#   # Build the persistent proxy once
+#   proxy <- build_proxy(cur, caller)
+#
+#   # Expose small helpers inside fn so you don't pass `exec` around:
+#   ensure <- function(name) ensure_binding(name, proxy)
+#   let_   <- function(name, value) let(name, value, proxy)
+#
+#   # You can now evaluate any expression using the proxy
+#   res <- eval(expr, envir = proxy$exec)
+#
+#   # Optionally return the helpers for later use (pattern: list of tools)
+#   invisible(list(result = res, ensure = ensure, let = let_, exec = proxy$exec))
+# }
+
+
+
+addNewObjsToProxy <- function(envirCur, envir, proxy) {
+  newNames <- setdiff(ls(envirCur, all.names = TRUE), ls(envir, all.names = TRUE))
+  Map(nn = newNames, function(nn) {
+    ensure_binding(nn, proxy)
+  })
+  return(invisible())
 }
