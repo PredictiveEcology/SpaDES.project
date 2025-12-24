@@ -588,3 +588,93 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   writeLines(loop, script_path)
   normalizePath(script_path)
 }
+
+
+#' Assess simulation status from PNG outputs
+#' @param elfind_path Directory containing the figures/hists
+#' @param timeout_min Threshold for inactivity (e.g., 20)
+.assess_sim_visual_status <- function(elfind_path, timeout_min = 20) {
+  hdir <- file.path("outputs", elfind_path, "figures", "hists")
+  if (!dir.exists(hdir)) return("PENDING")
+  
+  # Find most recent PNG
+  png_files <- list.files(hdir, pattern = "\\.png$", full.names = TRUE)
+  if (length(png_files) == 0) return("PENDING")
+  
+  # Get most recent file
+  finfo <- file.info(png_files)
+  latest_file <- png_files[which.max(finfo$mtime)]
+  last_mod <- finfo$mtime[which.max(finfo$mtime)]
+  
+  # Check for staleness
+  is_stale <- difftime(Sys.time(), last_mod, units = "mins") > timeout_min
+  if (!is_stale) return("RUNNING")
+  
+  # Visual check for "red" using magick
+  # Red pixels typically have high R and low G/B values
+  reproducible::.requireNamespace("magick", stopOnFALSE = TRUE)
+  img <- magick::image_read(latest_file)
+  img_data <- as.integer(img[[1]]) # Get RGBA array
+  
+  # Heuristic: Red channel > 200 AND Green/Blue < 100
+  # img_data is [height, width, channels]
+  red_pixels <- sum(img_data[,,1] > 200 & img_data[,,2] < 100 & img_data[,,3] < 100)
+  has_red <- red_pixels > 0
+  
+  if (has_red) {
+    return("FINISHED")
+  } else {
+    return("INTERRUPTED")
+  }
+}
+
+#' Refresh and Assess Queue Status from Simulation Outputs
+#'
+#' Scans the simulation output directories (defined by `.ELFind`) to assess
+#' current status based on file timestamps and visual content of PNGs.
+#' If a PNG has not been updated for a specified timeout, the task is marked 
+#' as "FINISHED" (if red pixels are detected) or "INTERRUPTED" (if no red
+#' is detected).
+#'
+#' @param queue_path Character. Absolute path to the `experiment_queue.rds` file.
+#' @param timeout_min Numeric. Minutes of inactivity before a task is 
+#'   considered stale. Defaults to 20.
+#'
+#' @return A data.frame (the updated queue), invisibly. 
+#'   As a side effect, updates the RDS file on disk.
+#'
+#' @export
+#' @importFrom filelock lock unlock
+#' @importFrom magick image_read
+#'
+#' @examples
+#' \dontrun{
+#' # Assessment of all simulations in the current project
+#' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
+#' }
+tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
+  lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
+  if (is.null(lck)) stop("Could not lock queue for refresh.")
+  
+  q <- readRDS(queue_path)
+  
+  # Only refresh rows that aren't already marked DONE
+  to_check <- which(q$status != "DONE")
+  
+  for (i in to_check) {
+    new_status <- .assess_sim_visual_status(q[[".ELFind"]][i], timeout_min)
+    
+    # Update status and timestamps if changed
+    if (q$status[i] != new_status) {
+      q$status[i] <- new_status
+      # If newly finished, record current time
+      if (new_status == "FINISHED") {
+        q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      }
+    }
+  }
+  
+  saveRDS(q, queue_path)
+  filelock::unlock(lck)
+  invisible(q)
+}
