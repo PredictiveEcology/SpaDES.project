@@ -9,9 +9,9 @@ tmux_prepare_queue_from_df(df, queue_path)
 tmux_prepare_queue_from_df(df, queue_path)
 }
 \arguments{
-\item{df}{data.frame}
+\item{df}{data.frame; experiment rows (columns become objects in workers)}
 
-\item{queue_path}{character path to \code{.rds}}
+\item{queue_path}{character; path to the queue \code{.rds} (absolute recommended)}
 }
 \value{
 Invisibly returns \code{queue_path}.
@@ -22,6 +22,16 @@ Invisibly returns \code{queue_path}.
 Mirrors \code{df} into a queue RDS and adds status columns:
 \code{status}, \code{claimed_by}, \code{started_at}, \code{finished_at}.
 
-Mirrors \code{df} into a queue RDS and adds status columns:
-\code{status}, \code{claimed_by}, \code{started_at}, \code{finished_at}.
+Adds metadata columns used by workers:
+\itemize{
+\item status:       PENDING | RUNNING | DONE | FAILED
+\item claimed_by:   tmux pane id that claimed the row
+\item started_at:   "YYYY-MM-DD HH:MM:SS"
+\item finished_at:  "YYYY-MM-DD HH:MM:SS"
+\item elapsed_time: numeric seconds (finished_at - started_at)
+\item machine_name: \code{Sys.info()[["nodename"]]}
+\item process_id:   Sys.getpid()
+\item heartbeat_at: latest timestamp (as character) detected by heartbeat
+\item heartbeat_iter: latest iteration number (integer) detected by heartbeat
+}
 }

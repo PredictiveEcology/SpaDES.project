@@ -2,13 +2,97 @@
 % Please edit documentation in R/tmux.R
 \name{tmux_spawn_workers_from_df}
 \alias{tmux_spawn_workers_from_df}
-\title{Deprecated: use experimentTmux()}
+\title{Spawn tmux worker panes, start R, assign objects from a data.frame, and source a script (pane-internal delay)}
 \usage{
-tmux_spawn_workers_from_df(...)
+tmux_spawn_workers_from_df(
+  df,
+  global_path = "global.R",
+  n_workers = 4,
+  start_cmd = "R",
+  delay_after_split = 0.4,
+  delay_after_layout = 0.4,
+  delay_between_R_start = 0,
+  delay_before_source = 60,
+  stagger_by = 60,
+  set_mouse = TRUE,
+  continue = TRUE,
+  queue_path = NULL,
+  on_interrupt = c("requeue", "fail"),
+  on_error = c("requeue", "fail"),
+  ss_id = NULL,
+  email = getOption("gargle_oauth_email"),
+  cache_path = getOption("gargle_oauth_cache"),
+  workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco", "core",
+    "dougfir", "fire", "mpb", "sbw", "mega", "acer", "abies", "pinus")
+)
+}
+\arguments{
+\item{df}{A \code{data.frame}. Column names become object names in worker panes; values
+from each row are assigned prior to sourcing \code{global_path}.}
+
+\item{global_path}{Character scalar. Path to the script to \code{source()} in each pane.
+Prefer an \strong{absolute path} if worker panes start in a different directory.}
+
+\item{n_workers}{Integer. Number of worker panes to spawn. Default \code{4}.}
+
+\item{start_cmd}{Character scalar. Command used to start R in each pane. Default \code{"R"}.}
+
+\item{delay_after_split}{Numeric. Seconds to wait after each \code{split-window}. Default \code{0.2}.}
+
+\item{delay_after_layout}{Numeric. Seconds to wait after \code{select-layout}. Default \code{0.2}.}
+
+\item{delay_between_R_start}{Numeric. Seconds to wait immediately \strong{after starting R}
+in each pane (or set \code{0} to skip). Default \code{0.0}.}
+
+\item{delay_before_source}{Numeric. Seconds panes \strong{2..n} wait \strong{inside R} before
+injecting assignments + \code{source(global_path)}. Default \code{60.0}.}
+
+\item{stagger_by}{Numeric. Extra seconds added per subsequent pane beyond pane 2, so pane i>1 waits
+\code{delay_before_source + (i-2)*stagger_by} inside R. Default \code{0.0}.}
+
+\item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support via \code{tmux_set_mouse(TRUE)}. Default \code{TRUE}. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}}
 }
 \value{
-Invisibly returns worker pane IDs.
+Invisibly returns the character vector of tmux \strong{pane IDs} for the workers.
 }
 \description{
-Deprecated: use experimentTmux()
+Controls the \strong{current tmux window} to:
+\enumerate{
+\item create \code{n_workers} panes and tile them,
+\item start plain \strong{R} in each pane,
+\item for the first \code{min(n_workers, nrow(df))} rows of \code{df}, assign objects named
+by the \strong{column names} in that row and then \code{source(global_path)}.
+}
+
+\strong{Delays happen inside each pane’s R}, so control returns immediately to the \strong{master pane}:
+\itemize{
+\item Pane 1: \strong{no delay} before \code{source()}.
+\item Pane i>1: sleeps \code{delay_before_source + (i-2)*stagger_by} seconds \strong{inside R} before assignments + \code{source()}.
+}
+
+Targeting uses tmux format expansion (\verb{#\{session_name\}:#\{window_index\}}) and pane IDs
+via \verb{list-panes -F "#\{pane_id\}"}; command injection uses \verb{send-keys … C-m}. \href{https://callr.r-lib.org/}{2}
+}
+\examples{
+\dontrun{
+expt <- data.frame(
+  .ELFind = c("6.1.1","6.2.2","6.2.3","6.3.1"),
+  .rep    = 1,
+  check.names = FALSE
+)
+
+# First pane: no delay. Others: 60s, with +5s stagger per pane.
+workers <- tmux_spawn_workers_from_df(
+  df                  = expt,
+  global_path         = "/abs/path/to/global.R",
+  n_workers           = 4,
+  start_cmd           = "R",
+  delay_before_source = 60,
+  stagger_by          = 5,
+  set_mouse           = TRUE
+)
+
+# If something goes wrong during development:
+tmux_kill_panes(workers)
+}
 }

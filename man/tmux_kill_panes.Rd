@@ -2,16 +2,18 @@
 % Please edit documentation in R/tmux.R
 \name{tmux_kill_panes}
 \alias{tmux_kill_panes}
-\title{Kill a set of tmux panes (development helper)}
+\title{Kill a set of tmux panes (e.g., those spawned by tmux_spawn_workers_from_df)}
 \usage{
 tmux_kill_panes(panes)
 }
 \arguments{
-\item{panes}{Character vector of tmux pane IDs (e.g., \code{c("\%2", "\%3")}).}
+\item{panes}{Character vector of tmux pane IDs (e.g., \code{c("\%2", "\%3")}) returned by
+\code{tmux_spawn_workers_from_df()}.}
 }
 \value{
 Invisibly returns the subset of \code{panes} successfully targeted.
 }
 \description{
-Kills panes by tmux pane ID via \verb{kill-pane -t <pane-id>}.
+Development utility: kills all panes identified by their tmux pane IDs.
+Uses \verb{kill-pane -t <pane-id>}; panes already gone are ignored. See tmux manual. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}
 }
