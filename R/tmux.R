@@ -92,7 +92,7 @@ tmux_spawn_workers_from_df <- function(df,
                                        delay_after_layout = 0.4,
                                        delay_between_R_start = 0.0,
                                        delay_before_source = 60,
-                                       stagger_by = 60,
+                                       stagger_by = delay_before_source,
                                        set_mouse = TRUE,
                                        # --- new arguments ---
                                        continue = TRUE,
@@ -132,6 +132,8 @@ tmux_spawn_workers_from_df <- function(df,
   
   # 1. Create a new pane for the sync process
   if (!is.null(queue_path)) {
+    tmux_refresh_queue_status(queue_path)
+    
     if (!is.null(ss_id)) {
       isDir <- reproducible:::isGoogleDriveDirectory(ss_id)
       if (isTRUE(isDir)) {
@@ -179,7 +181,7 @@ tmux_spawn_workers_from_df <- function(df,
       .tmux_run("select-layout", "-t", target_win, "tiled")
       .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
       
-      full_bash_mon_cmd <- sprintf(" Rscript -e %s", shQuote(mon_cmd))
+      full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
       .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
       
       
@@ -200,8 +202,9 @@ tmux_spawn_workers_from_df <- function(df,
       )
       
       # 3. Send keys to the specific ID
-      # Adding a leading space ' ' prevents the command from being saved in bash history
-      full_bash_cmd <- sprintf(" Rscript -e %s", shQuote(sync_cmd))
+      # Adding a leading space ' ' prevents the command from being saved in bash history;
+      #  I took this away because I wanted access to the command
+      full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
       .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
       
       # 4. Label the pane for clarity
@@ -269,16 +272,17 @@ tmux_spawn_workers_from_df <- function(df,
       queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
     }
     tmux_prepare_queue_from_df(df, queue_path)
+    tmux_refresh_queue_status(queue_path)
     # Warn if filelock missing (workers will error in panes if not installed)
     if (!requireNamespace("filelock", quietly = TRUE)) {
       warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
     }
     worker_script <- .write_worker_loop(queue_path, global_path, 
                                         on_interrupt = on_interrupt, on_error = on_error)
-    
     for (i in seq_along(workers)) {
       pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
       code <- sprintf("Sys.sleep(%s); source(%s)", pre_sleep, deparse(worker_script))
+      # This next line starts the source("global.R")
       .tmux_run("send-keys", "-t", workers[i], code, "C-m")
     }
   }
@@ -477,7 +481,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     
     
     # 3. Find all PENDING rows
-    pending_idx <- which(q$status == "PENDING")
+    # pending_idx <- which(q$status == "PENDING")
+    pending_idx <- which(q$status %%in%% c("INTERRUPTED", "PENDING"))[1]
     
     if (length(pending_idx) == 0) {
       filelock::unlock(lck)
@@ -594,7 +599,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' @param elfind_path Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
 .assess_sim_visual_status <- function(elfind_path, timeout_min = 20) {
-  hdir <- file.path("outputs", elfind_path, "figures", "hists")
+  hdir <- file.path("outputs", elfind_path, "figures", "objFun")
   if (!dir.exists(hdir)) return("PENDING")
   
   # Find most recent PNG
@@ -622,8 +627,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   has_red <- red_pixels > 0
   
   if (has_red) {
-    return("FINISHED")
+    return("DONE")
   } else {
+    # return("DONE")
     return("INTERRUPTED")
   }
 }
@@ -653,28 +659,34 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
 #' }
 tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
-  lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
-  if (is.null(lck)) stop("Could not lock queue for refresh.")
-  
-  q <- readRDS(queue_path)
-  
-  # Only refresh rows that aren't already marked DONE
-  to_check <- which(q$status != "DONE")
-  
-  for (i in to_check) {
-    new_status <- .assess_sim_visual_status(q[[".ELFind"]][i], timeout_min)
+  if (file.exists(queue_path)) {
+    lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
+    if (is.null(lck)) stop("Could not lock queue for refresh.")
     
-    # Update status and timestamps if changed
-    if (q$status[i] != new_status) {
-      q$status[i] <- new_status
-      # If newly finished, record current time
-      if (new_status == "FINISHED") {
-        q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    q <- try(readRDS(queue_path))
+    if (is(q, "try-error")) {
+      unlink(queue_path)
+      return(invisible(NULL))
+    }
+    
+    # Only refresh rows that aren't already marked DONE
+    to_check <- which(q$status != "DONE")
+    
+    for (i in to_check) {
+      new_status <- .assess_sim_visual_status(q[[".ELFind"]][i], timeout_min)
+      
+      # Update status and timestamps if changed
+      if (q$status[i] != new_status) {
+        q$status[i] <- new_status
+        # If newly finished, record current time
+        # if (new_status  "FINISHED") {
+        #   q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        # }
       }
     }
+    
+    saveRDS(q, queue_path)
+    filelock::unlock(lck)
+    invisible(q)
   }
-  
-  saveRDS(q, queue_path)
-  filelock::unlock(lck)
-  invisible(q)
 }

@@ -26,7 +26,7 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
 
 #' Sync queue to Google Sheets (Package Internal)
 #' @keywords internal
-.sync_loop_internal <- function(queue_path, ss_id, email, cache_path, interval = 300) {
+.sync_loop_internal <- function(queue_path, ss_id, email, cache_path, interval = 120) {
   # This code runs inside the tmux pane
   # library(googlesheets4)
   options(

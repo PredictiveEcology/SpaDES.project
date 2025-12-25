@@ -13,7 +13,7 @@ tmux_spawn_workers_from_df(
   delay_after_layout = 0.4,
   delay_between_R_start = 0,
   delay_before_source = 60,
-  stagger_by = 60,
+  stagger_by = delay_before_source,
   set_mouse = TRUE,
   continue = TRUE,
   queue_path = NULL,
