@@ -29,7 +29,8 @@ Imports:
     rstudioapi,
     stats,
     tools,
-    utils
+    utils,
+    withr
 Suggests:
     cli,
     covr,
@@ -37,6 +38,7 @@ Suggests:
     digest,
     ellipsis,
     filelock,
+    furrr,
     geodata,
     gert,
     ggplot2,
@@ -64,8 +66,7 @@ Suggests:
     tidyterra,
     usethis,
     visNetwork,
-    waldo,
-    withr
+    waldo
 Remotes: 
     PredictiveEcology/SpaDES.config@development,
     PredictiveEcology/SpaDES.core@development

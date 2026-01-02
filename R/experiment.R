@@ -25,7 +25,8 @@
 #'   this function will create it, filling the values with
 #'   `paste0(.runName, "_", format(Sys.time()))`.
 #' @param preRunSetupProject Logical or `character`. Passed to `upTo`
-#' in `preRunSetupProject`. Default is `FALSE`.
+#' in `preRunSetupProject`. Default is `packages`, so that key packages are
+#' installed for use.
 #'
 #' @export
 #' @details
@@ -58,8 +59,9 @@
 #' experiment3(file = "global.R", expt = expt_list)
 #' }
 #'
-#' @import furrr withr
-experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", logFiles = list(expt, "time")) {
+#' @import furrr future_pmap furrr_options
+#' @importFrom withr local_options
+experiment3 <- function(expt, file = "global.R", preRunSetupProject = "packages", logFiles = list(expt, "time")) {
   if (isTRUE(preRunSetupProject) || nzchar(preRunSetupProject)) {
     outs <- preRunSetupProject(file = file, upTo = preRunSetupProject)
     # eval(pp[1:whSetupProject], envir = environment())
@@ -108,7 +110,15 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths", l
       withCallingHandlers({
         Sys.sleep(dots$.iter)
         withr::local_options(crayon.enabled = TRUE)
-        sim <- try(source(file, local = TRUE))
+        if (requireNamespace("reproducible")) {
+          dig1 <- reproducible::.robustDigest(mget(ls(environment()), environment()))
+          dig2 <- reproducible::.robustDigest(
+            reproducible::asPath(
+              c(reproducible::asPath("global.R"), dir("R", full.names = TRUE))))
+          dig <- unlist(c(dig1, dig2))
+        }
+        sim <- try(source(file, local = TRUE)) |> Cache(omitArgs = "file",
+                                                        .cacheExtra = dig)
         if (is(sim, "try-error")) {
           warning(sim)
         }

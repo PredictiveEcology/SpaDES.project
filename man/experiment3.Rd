@@ -4,7 +4,12 @@
 \alias{experiment3}
 \title{Run Parallel Experiments for projects that use \code{setupProject}}
 \usage{
-experiment3(expt, file = "global.R", preRunSetupProject = "paths")
+experiment3(
+  expt,
+  file = "global.R",
+  preRunSetupProject = "packages",
+  logFiles = list(expt, "time")
+)
 }
 \arguments{
 \item{expt}{A data.frame/data.table/list of parameters for the experiments.
@@ -27,7 +32,8 @@ call, including no loading of libraries (other than \code{setupProject} and its
 dependencies).}
 
 \item{preRunSetupProject}{Logical or \code{character}. Passed to \code{upTo}
-in \code{preRunSetupProject}. Default is \code{FALSE}.}
+in \code{preRunSetupProject}. Default is \code{packages}, so that key packages are
+installed for use.}
 }
 \value{
 Invisibly returns the result of \code{furrr::future_pmap()}.
