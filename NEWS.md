@@ -1,5 +1,8 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 0.1.3
+=============
+* `experiment3` new function to be used with `setupProject`
 
 version 0.1.2
 =============

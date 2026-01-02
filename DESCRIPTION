@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2025-11-25
-Version: 0.1.1.9050
+Date: 2026-01-02
+Version: 0.1.4
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -51,7 +51,10 @@ Suggests:
     knitr,
     leaflet,
     leafem,
+    lockfile,
+    magick,
     pkgload,
+    processx,
     raster,
     RColorBrewer,
     rematch2,
@@ -86,6 +89,7 @@ Collate:
     'fileEdit.R'
     'imports.R'
     'getModule.R'
+    'googlesheets.R'
     'helpers.R'
     'listModules.R'
     'makeDESCRIPTION.R'
@@ -95,5 +99,7 @@ Collate:
     'setupProject.R'
     'spades-project-package.R'
     'studyAreaPlotting.R'
+    'tmux-queue.R'
+    'tmux.R'
     'txt.R'
     'zzz.R'

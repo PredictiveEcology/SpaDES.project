@@ -7,8 +7,13 @@
 experiment3(
   expt,
   file = "global.R",
-  preRunSetupProject = "packages",
-  logFiles = list(expt, "time")
+  preRunSetupProject = "paths",
+  logFiles = list(expt, "time"),
+  clearSimEnv = TRUE,
+  saveSimToDisk = FALSE,
+  tmuxName = file,
+  delay = 60,
+  ...
 )
 }
 \arguments{
@@ -33,7 +38,32 @@ dependencies).}
 
 \item{preRunSetupProject}{Logical or \code{character}. Passed to \code{upTo}
 in \code{preRunSetupProject}. Default is \code{packages}, so that key packages are
-installed for use.}
+installed for use. This will also include \code{paths}.}
+
+\item{clearSimEnv}{Logical. Default \code{TRUE}. This has the potential to be VERY
+large. Returning it from all the threads or cores may be very inefficient. In
+general, the user should define the \code{outputs} that they want so that individual
+objects are saved. It will not delete any \code{dot} object, i.e., objects that start
+with a \code{.}.}
+
+\item{saveSimToDisk}{Logical or character. Default \code{FALSE}. If \code{TRUE}, then this will
+save the entire \code{simList} (before any clearing via \code{clearSimEnv}, i.e, with
+all objects intact) using \code{saveSimList}. The object will be saved with the name:
+\code{file.path(paths$outputPath, paste0("sim_", .runName))} unless this parameter is a character
+string, in which case it will be \code{file.path(paths$outputPath, paste0(saveSimToDisk, .runName))}.
+In these cases, the \verb{paths$} is coming from the \code{preRunSetupProject} that returns
+the paths created with \code{setupProject}. Alternatively the user can pass a
+character vector with the full path of the individual simList objects to save.
+If supplying a character vector of names, it must be same length as the \code{NROW(expt)},
+and it must be explicit about the file extension, either \code{.rds} or \code{.qs2} for each
+filename.}
+
+\item{tmuxName}{Character string. This command will print a message with a tmux
+command that can be used by a user to follow the multiple logs in a bash
+command prompt. The name of the tmux window will be this.}
+
+\item{...}{Any other objects to be made available to the \code{global.R}. These will
+be added to the \code{.GlobalEnv} of the workers.}
 }
 \value{
 Invisibly returns the result of \code{furrr::future_pmap()}.
