@@ -26,7 +26,7 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
 
 #' Sync queue to Google Sheets (Package Internal)
 #' @keywords internal
-.sync_loop_internal <- function(queue_path, ss_id, email, cache_path, interval = 120) {
+.sync_loop_internal <- function(queue_path, ss_id, email, cache_path, interval = 300) {
   # This code runs inside the tmux pane
   # library(googlesheets4)
   options(
@@ -44,9 +44,11 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
     "\nevery ", interval, " seconds")
   repeat {
     if (file.exists(queue_path)) {
+      
+      tmux_refresh_queue_status(queue_path)
       q <- try(readRDS(queue_path), silent = TRUE)
       if (inherits(q, "try-error")) { Sys.sleep(2); next }
-      
+  
       q_sync <- as.data.frame(lapply(q, as.character))
       names(q_sync) <- gsub("^\\.", "", names(q_sync))
       

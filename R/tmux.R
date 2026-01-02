@@ -126,6 +126,7 @@ tmux_spawn_workers_from_df <- function(df,
   
   # -- resolve current tmux window
   target_win <- .tmux_current_window()
+  system("tmux set -g pane-border-status top") # sets so titles have names
   
   # -- list existing panes
   pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
@@ -387,7 +388,7 @@ tmux_kill_panes <- function(panes) {
 #' - claimed_by:   tmux pane id that claimed the row
 #' - started_at:   "YYYY-MM-DD HH:MM:SS"
 #' - finished_at:  "YYYY-MM-DD HH:MM:SS"
-#' - elapsed_time: numeric seconds (finished_at - started_at)
+#' - DEoptimElapsedTime: numeric seconds (sum(diff(allIterations[allIterations < 20 minutes])))
 #' - machine_name: `Sys.info()[["nodename"]]`
 #' - process_id:   Sys.getpid()
 #' - heartbeat_at: latest timestamp (as character) detected by heartbeat
@@ -405,11 +406,12 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     claimed_by     = NA_character_,
     started_at     = as.character(NA),
     finished_at    = as.character(NA),
-    elapsed_time   = as.numeric(NA),
+    DEoptimElapsedTime   = as.numeric(NA),
     machine_name   = NA_character_,
     process_id     = as.integer(NA),
     heartbeat_at   = as.character(NA),
-    heartbeat_iter = as.integer(NA)
+    heartbeat_iter = as.integer(NA),
+    iterationsTotal= as.integer(NA)
   )
   saveRDS(q, queue_path)
   invisible(queue_path)
@@ -442,30 +444,6 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   PANE   <- Sys.getenv("TMUX_PANE")
   HB_INT <- %d
   
-  get_latest_heartbeat <- function(elfind_path) {
-    hdir <- file.path("outputs", elfind_path, "figures", "hists")
-    if (!dir.exists(hdir)) return(list(ts = NA_character_, iter = NA_integer_))
-    
-    files <- list.files(hdir, pattern = "iter", full.names = FALSE)
-    if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
-    
-    parse_one <- function(fn) {
-      parts <- strsplit(fn, "_", fixed = TRUE)[[1]]
-      ts <- if (length(parts) >= 1) parts[length(parts)] else NA_character_
-      # Clean regex: no extra backslashes needed because of Raw String wrapper
-      iter_idx <- which(grepl("iter\\d+", parts))
-      iter <- if (length(iter_idx)) {
-        as.integer(sub("iter(\\d+)", "\\1", parts[iter_idx[1]]))
-      } else NA_integer_
-      list(ts = ts, iter = iter)
-    }
-    
-    parsed <- lapply(files, parse_one)
-    ts_vec <- vapply(parsed, function(x) x$ts, character(1))
-    iter_vec <- vapply(parsed, function(x) x$iter, integer(1))
-    ord <- order(ts_vec, na.last = TRUE)
-    list(ts = ts_vec[ord[length(ord)]], iter = iter_vec[ord[length(ord)]])
-  }
   
   hb_thread <- NULL
   
@@ -475,6 +453,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     
     # 1. Acquire EXCLUSIVE lock on the lock file
     lck <- filelock::lock(LOCKF, timeout = Inf)
+    on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
     
     # 2. Read the queue inside the lock
     q <- readRDS(QUEUE)
@@ -494,8 +473,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     
     # Identify non-metadata columns to inject as global variables
     meta_cols <- c("status", "claimed_by", "started_at", "finished_at", 
-                   "elapsed_time", "machine_name", "process_id", 
-                   "heartbeat_at", "heartbeat_iter")
+                   "DEoptimElapsedTime", "machine_name", "process_id", 
+                   "heartbeat_at", "heartbeat_iter", "iterationsTotal")
     data_cols <- setdiff(names(q), meta_cols)
     
     for (nm in data_cols) {
@@ -528,6 +507,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
         Sys.sleep(HB_INT)
         hb_vals <- get_latest_heartbeat(current_elfind)
         lck2 <- filelock::lock(LOCKF, timeout = 10)
+        on.exit(try(filelock::unlock(lck2), silent = TRUE), add = TRUE)
         if (!is.null(lck2)) {
           q2 <- readRDS(QUEUE)
           idx <- which(q2$status == "RUNNING" & q2$claimed_by == PANE)
@@ -548,6 +528,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
        error     = function(e) "error")
   
     lck <- filelock::lock(LOCKF, timeout = Inf)
+    on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
     q <- readRDS(QUEUE)
     
     if (identical(outcome, "ok")) {
@@ -600,6 +581,12 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' @param timeout_min Threshold for inactivity (e.g., 20)
 .assess_sim_visual_status <- function(elfind_path, timeout_min = 20) {
   hdir <- file.path("outputs", elfind_path, "figures", "objFun")
+  startedFiles <- dir("logs", pattern = "Running")
+  is_running <- elfind_path %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
+  if (isTRUE(is_running)) {
+    return("RUNNING")
+  }
+  
   if (!dir.exists(hdir)) return("PENDING")
   
   # Find most recent PNG
@@ -624,6 +611,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   # Heuristic: Red channel > 200 AND Green/Blue < 100
   # img_data is [height, width, channels]
   red_pixels <- sum(img_data[,,1] > 200 & img_data[,,2] < 100 & img_data[,,3] < 100)
+  # This is simpler heuristic. Maybe not accurate enough though
+  # red_pixels <- sum(img_data[,,1] > 200)
+  
   has_red <- red_pixels > 0
   
   if (has_red) {
@@ -661,7 +651,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
   if (file.exists(queue_path)) {
     lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
+    on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
     if (is.null(lck)) stop("Could not lock queue for refresh.")
+    # browser()
     
     q <- try(readRDS(queue_path))
     if (is(q, "try-error")) {
@@ -670,12 +662,69 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
     }
     
     # Only refresh rows that aren't already marked DONE
-    to_check <- which(q$status != "DONE")
+    to_check <- which(!q$status %in% "DONE")
+    to_check <- seq_len(NROW(q))#which(!q$status %in% "DONE")
     
     for (i in to_check) {
-      new_status <- .assess_sim_visual_status(q[[".ELFind"]][i], timeout_min)
-      
-      # Update status and timestamps if changed
+      ELFind <- q[[".ELFind"]][i]
+      # if (ELFind == "9.2.3") browser()
+      new_status <- .assess_sim_visual_status(ELFind, timeout_min)
+      hb <- get_latest_heartbeat(ELFind) 
+      elapsedTime <- hb$elapsed
+  
+      if (any(unlist(hb) %in% NA) ) {
+        if (new_status %in% "PENDING") {
+          cns <- setdiff(colnames(q), c(".ELFind", ".rep", "status"))
+          for (cn in cns)
+            q[[cn]][i] <- NA  
+        } else {
+          # This is RUNNING; but not at DEoptim yet
+          fi <- logFileInfo(dir = "logs", pattern = "Running", ELFind)
+          q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+          q$machine_name[i] <- Sys.info()[["nodename"]]
+          q$DEoptimElapsedTime[i] <- NA
+          # q$process_id[i] <- NA
+        }
+      } else {
+        # Update status and timestamps if changed
+        fi <- logFileInfo(dir = "logs", pattern = "Running", ELFind)
+        q$process_id[i] <- NA
+        if (NROW(fi)) {
+          procId <- strsplit(rownames(fi), split = "_")[[1]][3]
+          if (!is.na(suppressWarnings(as.numeric(procId))))
+            q$process_id[i] <- procId
+          if (!is.character(hb$started) || is.na(hb$started)) {
+            q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+          } else {
+            # elapsedTime <- difftime(fi$mtime, hb$started)
+            if (elapsedTime > 0)
+              q$started_at[i] <- format(as.POSIXct(hb$ts) - elapsedTime, "%Y-%m-%d %H:%M:%S")
+            else 
+              q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+          }
+          if (isTRUE(is.na(q$machine_name[i])))
+            q$machine_name[i] <- Sys.info()[["nodename"]]
+        } else {
+          if (isTRUE(is.na(q$started_at[i])))
+            q$started_at[i] <- hb$started
+          if (isTRUE(is.na(q$machine_name[i])))
+            q$machine_name[i] <- Sys.info()[["nodename"]]
+        }
+        
+        q$heartbeat_iter[i] <- hb$iter
+        q$heartbeat_at[i] <- hb$ts
+        # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
+        # if (is(dt, "try-error")) browser()
+        q$DEoptimElapsedTime[i] <- format(round(elapsedTime, 2), digits = 2, units = "days")
+        if (new_status %in% "DONE") {
+          q$finished_at[i] <- q$heartbeat_at[i]
+          q$heartbeat_at[i] <- NA
+          q$iterationsTotal[i] <- q$heartbeat_iter[i]
+          q$heartbeat_iter[i] <- NA
+          q$claimed_by[i] <- NA
+        }
+        
+      }
       if (q$status[i] != new_status) {
         q$status[i] <- new_status
         # If newly finished, record current time
@@ -683,10 +732,62 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
         #   q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         # }
       }
+      
     }
+    
+    q <- data.table::as.data.table(q); 
+    ord <- order(as.package_version(q$.ELFind))
+    q <- q[ord, ]
+    q1 <- data.table::rbindlist(list(q[status %in% "DONE"], q[status %in% "RUNNING"]))
+    q2 <- q[!q1, on = ".ELFind"][grep("^(5.|6.|14.|9.|12.)", .ELFind),]
+    q3 <- rbindlist(list(q1, q2))
+    q <- rbindlist(list(q3, q[!q3, on = ".ELFind"]))
+    
+    q <- as.data.frame(q)
     
     saveRDS(q, queue_path)
     filelock::unlock(lck)
     invisible(q)
   }
+}
+
+get_latest_heartbeat <- function(elfind_path) {
+  hdir <- file.path("outputs", elfind_path, "figures", "hists")
+  if (!dir.exists(hdir)) return(list(ts = NA_character_, iter = NA_integer_))
+  
+  files <- list.files(hdir, pattern = "iter", full.names = FALSE)
+  if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
+  
+  parse_one <- function(fn) {
+    parts <- strsplit(fn, "_", fixed = TRUE)[[1]]
+    ts <- if (length(parts) >= 1) parts[length(parts)] else NA_character_
+    # Clean regex: no extra backslashes needed because of Raw String wrapper
+    iter_idx <- which(grepl("iter\\d+", parts))
+    iter <- if (length(iter_idx)) {
+      as.integer(sub("iter(\\d+)", "\\1", parts[iter_idx[1]]))
+    } else NA_integer_
+    list(ts = ts, iter = iter)
+  }
+  
+  parsed <- lapply(files, parse_one)
+  a <- rbindlist(parsed) |> data.table::setorderv("iter")
+  ts_vec <- vapply(parsed, function(x) x$ts, character(1))
+  ts_vec <- fs::path_ext_remove(ts_vec)
+  iter_vec <- vapply(parsed, function(x) x$iter, integer(1))
+  ord <- order(ts_vec, na.last = TRUE)
+  elapsed <- diff(as.POSIXct(ts_vec[ord]), units = "mins")
+  elapsedTime <- sum(elapsed[elapsed < 20])
+  units(elapsedTime) <- "days"
+  list(ts = ts_vec[ord[length(ord)]], iter = iter_vec[ord[length(ord)]],
+       started = head(ts_vec[ord], 1), elapsed = elapsedTime)
+}
+
+
+logFileInfo <- function(dir = "logs", pattern = "Running", ELFind) {
+  startedFiles <- dir(dir, pattern = pattern)
+  startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
+  wh <- which(startedFilesELFind == ELFind)
+  startedFilesFull <- dir(dir, pattern = pattern, full.names = TRUE)
+  fi <- file.info(startedFilesFull[wh])
+  fi
 }
