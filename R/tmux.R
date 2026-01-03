@@ -98,22 +98,22 @@ tmux_spawn_workers_from_df <- function(df,
                                        continue = TRUE,
                                        queue_path = NULL,
                                        on_interrupt = c("requeue", "fail"),
-                                       on_error     = c("requeue", "fail"),
+                                       # on_error     = c("requeue", "fail"),
                                        ss_id = NULL,  # Pass the Google Sheet ID here
                                        email = getOption("gargle_oauth_email"),  # Pass the authenticated email
                                        cache_path = getOption("gargle_oauth_cache"),
-                                       workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco", 
-                                                            "core", "dougfir", "fire", "mpb", "sbw", "mega", 
+                                       workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco",
+                                                            "core", "dougfir", "fire", "mpb", "sbw", "mega",
                                                             "acer", "abies", "pinus")) {
-  
+
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
-  
+
   on_interrupt <- match.arg(on_interrupt)
-  on_error     <- match.arg(on_error)
-  
+  # on_error     <- match.arg(on_error)
+
   # -- preconditions
   if (Sys.getenv("TMUX") == "") {
     stop("Not inside tmux. Start/attach to a tmux session first.", call. = FALSE)
@@ -123,30 +123,30 @@ tmux_spawn_workers_from_df <- function(df,
     warning("global_path not found from master R working directory: ", global_path)
   }
   if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
-  
+
   # -- resolve current tmux window
   target_win <- .tmux_current_window()
   system("tmux set -g pane-border-status top") # sets so titles have names
-  
+
   # -- list existing panes
   pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
-  
+
   # 1. Create a new pane for the sync process
   if (!is.null(queue_path)) {
     tmux_refresh_queue_status(queue_path)
-    
+
     if (!is.null(ss_id)) {
       isDir <- reproducible:::isGoogleDriveDirectory(ss_id)
       if (isTRUE(isDir)) {
         reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
         # googledrive::drive_auth()
-        
+
         # 1. Derive the name from the local queue file
         sheet_name <- gsub("\\.rds$", "", basename(queue_path))
-        
+
         # 2. Check if it already exists in that folder to avoid duplicates
         existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
-        
+
         if (nrow(existing) > 0) {
           ss_id <- existing$id[1]
         } else {
@@ -154,43 +154,43 @@ tmux_spawn_workers_from_df <- function(df,
           # googlesheets4::gs4_auth()
           # 3. Create the sheet (defaults to root) then move it to the folder
           new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
-          googledrive::drive_mv(file = googledrive::as_id(new_sheet), 
+          googledrive::drive_mv(file = googledrive::as_id(new_sheet),
                                 path = googledrive::as_id(ss_id))
           ss_id <- as.character(googledrive::as_id(new_sheet))
         }
       }
-      
+
       # 1. Create the Monitoring Pane (Detached)
       mon_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-      
+
       # 2. Label it for 2025 observability
       .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
-      
+
       # 3. Construct the R command
       # We deparse the vector to ensure it's passed correctly as a character string
       workersToMonitor
-      # workersToMonitor <- c("birds", "biomass", "camas", "carbon", "caribou", "coco", 
-      #                   "core", "dougfir", "fire", "mpb", "sbw", "mega", 
+      # workersToMonitor <- c("birds", "biomass", "camas", "carbon", "caribou", "coco",
+      #                   "core", "dougfir", "fire", "mpb", "sbw", "mega",
       #                   "acer", "abies", "pinus")
-      
+
       mon_cmd <- sprintf(
-        "clusters::monitorCluster(cores = %s)", 
+        "clusters::monitorCluster(cores = %s)",
         deparse1(workersToMonitor)
       )
-      
+
       # 4. Launch in the new pane
       .tmux_run("select-layout", "-t", target_win, "tiled")
       .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
-      
+
       full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
       .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
-      
-      
+
+
       # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
       # This ensures the focus stays on the Master Pane
       sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
       .tmux_run("select-layout", "-t", target_win, "tiled")
-      
+
       # 2. Prepare the command as a SINGLE line to prevent shell splitting
       # Use deparse1() and force ss_id to character
       sync_cmd <- sprintf(
@@ -201,61 +201,61 @@ tmux_spawn_workers_from_df <- function(df,
         deparse1(email),
         deparse1(normalizePath(cache_path))
       )
-      
+
       # 3. Send keys to the specific ID
       # Adding a leading space ' ' prevents the command from being saved in bash history;
       #  I took this away because I wanted access to the command
       full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
       .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
-      
+
       # 4. Label the pane for clarity
       .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
     }
   }
-  
-  
+
+
   # -- create worker panes
   worker_ids <- character()
   for (i in seq_len(n_workers)) {
     # Create detached so focus stays on Master
     new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
     worker_ids <- c(worker_ids, new_id)
-    
+
     # MANDATORY: Reset layout immediately so the next split has room
     .tmux_run("select-layout", "-t", target_win, "tiled")
-    Sys.sleep(0.1) 
+    Sys.sleep(0.1)
   }
-  
+
   # -- arrange evenly
   # 2. Force the window into a tiled grid layout
   # This fixes the "tiny sliver" problem immediately
   # .tmux_run("select-layout", "-t", target_win, "tiled")
   # if (delay_after_layout > 0) Sys.sleep(delay_after_layout)
-  
+
   # -- mouse on, if requested
   if (set_mouse) tmux_set_mouse(TRUE)
-  
+
   # -- collect new worker panes
   post <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
   if (length(post) == 0L) stop("tmux list-panes returned no panes.", call. = FALSE)
-  
+
   master  <- Sys.getenv("TMUX_PANE")
   workers <- setdiff(post, pre)
   workers <- setdiff(workers, master)
-  
+
   if (length(workers) < n_workers) {
     stop(sprintf("Expected %d new worker panes, found %d. Check tmux version/layout.",
                  n_workers, length(workers)), call. = FALSE)
   }
   workers <- workers[seq_len(n_workers)]
-  
+
   # 3. Now send the R commands to the clean, tiled panes
   for (pid in worker_ids) {
     .tmux_run("send-keys", "-t", pid, "R", "C-m")
     # Your existing staggered start delay
-    Sys.sleep(2.0) 
+    Sys.sleep(2.0)
   }
-  
+
   # ---------- branching: single-shot vs queue mode ----------
   if (!continue) {
     # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
@@ -278,8 +278,8 @@ tmux_spawn_workers_from_df <- function(df,
     if (!requireNamespace("filelock", quietly = TRUE)) {
       warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
     }
-    worker_script <- .write_worker_loop(queue_path, global_path, 
-                                        on_interrupt = on_interrupt, on_error = on_error)
+    worker_script <- .write_worker_loop(queue_path, global_path,
+                                        on_interrupt = on_interrupt)#, on_error = on_error)
     for (i in seq_along(workers)) {
       pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
       code <- sprintf("Sys.sleep(%s); source(%s)", pre_sleep, deparse(worker_script))
@@ -287,10 +287,10 @@ tmux_spawn_workers_from_df <- function(df,
       .tmux_run("send-keys", "-t", workers[i], code, "C-m")
     }
   }
-  
+
   invisible(workers)
 }
- 
+
 
 #' Kill a set of tmux panes (e.g., those spawned by tmux_spawn_workers_from_df)
 #'
@@ -351,12 +351,12 @@ tmux_kill_panes <- function(panes) {
 .make_assignment_code <- function(df, row_i, global_path, pre_sleep = 0) {
   cols <- names(df)
   vals <- df[row_i, , drop = FALSE]
-  
+
   assigns <- vapply(seq_along(cols), function(j) {
     nm <- cols[j]
     v  <- vals[[j]]
     if (is.factor(v)) v <- as.character(v)
-    
+
     if (is.character(v)) {
       sprintf('%s <- "%s"', nm, v)
     } else if (is.logical(v)) {
@@ -369,10 +369,10 @@ tmux_kill_panes <- function(panes) {
       sprintf('%s <- %s', nm, deparse(v))
     }
   }, character(1))
-  
+
   # Prepend pane-internal sleep if requested (FIXED: correct sprintf + quoting)
   sleep_code <- if (pre_sleep > 0) sprintf("Sys.sleep(%s); ", pre_sleep) else ""
-  
+
   paste0(
     sleep_code,
     paste(assigns, collapse = "; "),
@@ -424,12 +424,12 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 .write_worker_loop <- function(queue_path,
                                global_path,
                                on_interrupt = c("requeue","fail"),
-                               on_error     = c("fail","requeue"),
+                               # on_error     = c("fail","requeue"),
                                heartbeat_interval_s = 60) {
   stopifnot(file.exists(queue_path), file.exists(global_path))
   on_interrupt <- match.arg(on_interrupt)
-  on_error     <- match.arg(on_error)
-  
+  # on_error     <- match.arg(on_error)
+
   # --- Inside your .write_worker_loop generator ---
     # --- Inside .write_worker_loop ---
     # Use R's raw string syntax to protect the regex \d
@@ -437,46 +437,46 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   if (!requireNamespace("filelock", quietly = TRUE)) {
     stop("Package filelock is required in worker panes.")
   }
-  
+
   QUEUE  <- %s
   LOCKF  <- paste0(QUEUE, ".lock")
   GLOBAL <- %s
   PANE   <- Sys.getenv("TMUX_PANE")
   HB_INT <- %d
-  
-  
+
+
   hb_thread <- NULL
-  
+
   repeat {
     # 0. Random jitter
     Sys.sleep(runif(1, 0.1, 0.8))
-    
+
     # 1. Acquire EXCLUSIVE lock on the lock file
     lck <- filelock::lock(LOCKF, timeout = Inf)
     on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
-    
+
     # 2. Read the queue inside the lock
     q <- readRDS(QUEUE)
-    
-    
+
+
     # 3. Find all PENDING rows
     # pending_idx <- which(q$status == "PENDING")
     pending_idx <- which(q$status %%in%% c("INTERRUPTED", "PENDING"))[1]
-    
+
     if (length(pending_idx) == 0) {
       filelock::unlock(lck)
       break
     }
-    
+
     # 4. Take the VERY FIRST one and claim it IMMEDIATELY
     i <- pending_idx[1]
-    
+
     # Identify non-metadata columns to inject as global variables
-    meta_cols <- c("status", "claimed_by", "started_at", "finished_at", 
-                   "DEoptimElapsedTime", "machine_name", "process_id", 
+    meta_cols <- c("status", "claimed_by", "started_at", "finished_at",
+                   "DEoptimElapsedTime", "machine_name", "process_id",
                    "heartbeat_at", "heartbeat_iter", "iterationsTotal")
     data_cols <- setdiff(names(q), meta_cols)
-    
+
     for (nm in data_cols) {
       # USE envir = .GlobalEnv EXPLICITLY
       # This ensures variables like .ELFind are available to source(GLOBAL)
@@ -490,18 +490,18 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     q$started_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
     q$machine_name[i] <- Sys.info()[["nodename"]]
     q$process_id[i]   <- Sys.getpid()
-    
-    
+
+
     saveRDS(q, QUEUE)
     filelock::unlock(lck)
-  
+
     current_elfind <- q[[".ELFind"]][i]
-  
+
     if (!is.null(hb_thread)) {
       try(parallel::pskill(hb_thread$pid), silent = TRUE)
       try(parallel::mccollect(hb_thread, wait = FALSE), silent = TRUE)
     }
-  
+
     hb_thread <- parallel::mcparallel({
       repeat {
         Sys.sleep(HB_INT)
@@ -520,17 +520,16 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
         }
       }
     }, silent = TRUE)
-  
+
     outcome <- tryCatch({
       source(GLOBAL, local = .GlobalEnv)
       "ok"
-    }, interrupt = function(e) "interrupt",
-       error     = function(e) "error")
-  
+    }, interrupt = function(e) "interrupt")
+
     lck <- filelock::lock(LOCKF, timeout = Inf)
     on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
     q <- readRDS(QUEUE)
-    
+
     if (identical(outcome, "ok")) {
       q$status[i]      <- "DONE"
       q$finished_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
@@ -542,33 +541,25 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
         q$status[i]      <- "FAILED"
         q$finished_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
       }
-    } else {
-      if ("%s" == "requeue") {
-        q$status[i]      <- "PENDING"
-        q$claimed_by[i]  <- NA_character_
-      } else {
-        q$status[i]      <- "FAILED"
-        q$finished_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
-      }
     }
-    
+
     saveRDS(q, QUEUE)
     filelock::unlock(lck)
     if (identical(outcome, "interrupt")) break
   }
   if (!is.null(hb_thread)) try(parallel::pskill(hb_thread$pid), silent = TRUE)
   )-"
-  
+
   # Now run sprintf with exactly 5 arguments
   loop <- sprintf(
     template,
     deparse1(normalizePath(queue_path)),
     deparse1(normalizePath(global_path)),
     as.integer(heartbeat_interval_s),
-    on_interrupt,
-    on_error
+    on_interrupt
+    # on_error
   )
-  
+
 
   script_path <- file.path(dirname(queue_path), "tmux_worker_loop.R")
   writeLines(loop, script_path)
@@ -586,36 +577,36 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   if (isTRUE(is_running)) {
     return("RUNNING")
   }
-  
+
   if (!dir.exists(hdir)) return("PENDING")
-  
+
   # Find most recent PNG
   png_files <- list.files(hdir, pattern = "\\.png$", full.names = TRUE)
   if (length(png_files) == 0) return("PENDING")
-  
+
   # Get most recent file
   finfo <- file.info(png_files)
   latest_file <- png_files[which.max(finfo$mtime)]
   last_mod <- finfo$mtime[which.max(finfo$mtime)]
-  
+
   # Check for staleness
   is_stale <- difftime(Sys.time(), last_mod, units = "mins") > timeout_min
   if (!is_stale) return("RUNNING")
-  
+
   # Visual check for "red" using magick
   # Red pixels typically have high R and low G/B values
   reproducible::.requireNamespace("magick", stopOnFALSE = TRUE)
   img <- magick::image_read(latest_file)
   img_data <- as.integer(img[[1]]) # Get RGBA array
-  
+
   # Heuristic: Red channel > 200 AND Green/Blue < 100
   # img_data is [height, width, channels]
   red_pixels <- sum(img_data[,,1] > 200 & img_data[,,2] < 100 & img_data[,,3] < 100)
   # This is simpler heuristic. Maybe not accurate enough though
   # red_pixels <- sum(img_data[,,1] > 200)
-  
+
   has_red <- red_pixels > 0
-  
+
   if (has_red) {
     return("DONE")
   } else {
@@ -628,15 +619,15 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #'
 #' Scans the simulation output directories (defined by `.ELFind`) to assess
 #' current status based on file timestamps and visual content of PNGs.
-#' If a PNG has not been updated for a specified timeout, the task is marked 
+#' If a PNG has not been updated for a specified timeout, the task is marked
 #' as "FINISHED" (if red pixels are detected) or "INTERRUPTED" (if no red
 #' is detected).
 #'
 #' @param queue_path Character. Absolute path to the `experiment_queue.rds` file.
-#' @param timeout_min Numeric. Minutes of inactivity before a task is 
+#' @param timeout_min Numeric. Minutes of inactivity before a task is
 #'   considered stale. Defaults to 20.
 #'
-#' @return A data.frame (the updated queue), invisibly. 
+#' @return A data.frame (the updated queue), invisibly.
 #'   As a side effect, updates the RDS file on disk.
 #'
 #' @export
@@ -654,29 +645,29 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
     on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
     if (is.null(lck)) stop("Could not lock queue for refresh.")
     # browser()
-    
+
     q <- try(readRDS(queue_path))
     if (is(q, "try-error")) {
       unlink(queue_path)
       return(invisible(NULL))
     }
-    
+
     # Only refresh rows that aren't already marked DONE
     to_check <- which(!q$status %in% "DONE")
     to_check <- seq_len(NROW(q))#which(!q$status %in% "DONE")
-    
+
     for (i in to_check) {
       ELFind <- q[[".ELFind"]][i]
       # if (ELFind == "9.2.3") browser()
       new_status <- .assess_sim_visual_status(ELFind, timeout_min)
-      hb <- get_latest_heartbeat(ELFind) 
+      hb <- get_latest_heartbeat(ELFind)
       elapsedTime <- hb$elapsed
-  
+
       if (any(unlist(hb) %in% NA) ) {
         if (new_status %in% "PENDING") {
           cns <- setdiff(colnames(q), c(".ELFind", ".rep", "status"))
           for (cn in cns)
-            q[[cn]][i] <- NA  
+            q[[cn]][i] <- NA
         } else {
           # This is RUNNING; but not at DEoptim yet
           fi <- logFileInfo(dir = "logs", pattern = "Running", ELFind)
@@ -699,7 +690,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
             # elapsedTime <- difftime(fi$mtime, hb$started)
             if (elapsedTime > 0)
               q$started_at[i] <- format(as.POSIXct(hb$ts) - elapsedTime, "%Y-%m-%d %H:%M:%S")
-            else 
+            else
               q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
           }
           if (isTRUE(is.na(q$machine_name[i])))
@@ -710,7 +701,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
           if (isTRUE(is.na(q$machine_name[i])))
             q$machine_name[i] <- Sys.info()[["nodename"]]
         }
-        
+
         q$heartbeat_iter[i] <- hb$iter
         q$heartbeat_at[i] <- hb$ts
         # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
@@ -723,7 +714,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
           q$heartbeat_iter[i] <- NA
           q$claimed_by[i] <- NA
         }
-        
+
       }
       if (q$status[i] != new_status) {
         q$status[i] <- new_status
@@ -732,19 +723,19 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
         #   q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         # }
       }
-      
+
     }
-    
-    q <- data.table::as.data.table(q); 
+
+    q <- data.table::as.data.table(q);
     ord <- order(as.package_version(q$.ELFind))
     q <- q[ord, ]
     q1 <- data.table::rbindlist(list(q[status %in% "DONE"], q[status %in% "RUNNING"]))
     q2 <- q[!q1, on = ".ELFind"][grep("^(5.|6.|14.|9.|12.)", .ELFind),]
     q3 <- rbindlist(list(q1, q2))
     q <- rbindlist(list(q3, q[!q3, on = ".ELFind"]))
-    
+
     q <- as.data.frame(q)
-    
+
     saveRDS(q, queue_path)
     filelock::unlock(lck)
     invisible(q)
@@ -754,10 +745,10 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
 get_latest_heartbeat <- function(elfind_path) {
   hdir <- file.path("outputs", elfind_path, "figures", "hists")
   if (!dir.exists(hdir)) return(list(ts = NA_character_, iter = NA_integer_))
-  
+
   files <- list.files(hdir, pattern = "iter", full.names = FALSE)
   if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
-  
+
   parse_one <- function(fn) {
     parts <- strsplit(fn, "_", fixed = TRUE)[[1]]
     ts <- if (length(parts) >= 1) parts[length(parts)] else NA_character_
@@ -768,7 +759,7 @@ get_latest_heartbeat <- function(elfind_path) {
     } else NA_integer_
     list(ts = ts, iter = iter)
   }
-  
+
   parsed <- lapply(files, parse_one)
   a <- rbindlist(parsed) |> data.table::setorderv("iter")
   ts_vec <- vapply(parsed, function(x) x$ts, character(1))
