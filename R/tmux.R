@@ -644,7 +644,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
     lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
     on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
     if (is.null(lck)) stop("Could not lock queue for refresh.")
-    # browser()
 
     q <- try(readRDS(queue_path))
     if (is(q, "try-error")) {
@@ -658,7 +657,10 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
 
     for (i in to_check) {
       ELFind <- q[[".ELFind"]][i]
-      # if (ELFind == "9.2.3") browser()
+      # if (ELFind == "14.1") {
+      #   browser()
+      #   debug(get_latest_heartbeat)
+      # }
       new_status <- .assess_sim_visual_status(ELFind, timeout_min)
       hb <- get_latest_heartbeat(ELFind)
       elapsedTime <- hb$elapsed
@@ -744,7 +746,11 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
 
 get_latest_heartbeat <- function(elfind_path) {
   hdir <- file.path("outputs", elfind_path, "figures", "hists")
-  if (!dir.exists(hdir)) return(list(ts = NA_character_, iter = NA_integer_))
+  if (!dir.exists(hdir))  {
+    hdir <- file.path("outputs", elfind_path, "figures", "fireSense_SpreadFit", "hists")
+    if (!dir.exists(hdir))
+      return(list(ts = NA_character_, iter = NA_integer_))
+  }
 
   files <- list.files(hdir, pattern = "iter", full.names = FALSE)
   if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
