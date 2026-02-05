@@ -519,6 +519,9 @@ setupProject <- function(name, paths, modules, packages,
 
       # setupOptions is run twice -- because package startup often changes options
       addNewObjsToProxy(envirCur, envir, proxy)
+
+      # This needs to be set to default before running setupOptions as it will unset it there if needed
+      base::options("spades.useRequireOverride" = FALSE)
       optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                                 envir = envirCur, useGit = useGit,
                                 updateRprofile = updateRprofile,
@@ -603,7 +606,10 @@ setupProject <- function(name, paths, modules, packages,
         message("Using fast options:")
         df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
         df <- df[!sapply(df, is.null)]
-        reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
+        if (requireNamespace("reproducible"))
+          reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
+        else
+          print(data.frame(option = names(df), val = unlist(df)))
       }
 
       options <- opts[["newOptions"]] # put into this environment so parsing can access
@@ -1242,6 +1248,13 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
     }
     messageVerbose(yellow("  done setting up options"), verbose = verbose, verboseLevel = 0)
   }
+
+  if (isTRUE(getOption("spades.useRequireOverride"))) {
+    messageVerbose("Package request is identical to a previous request, setting `options(spades.useRequire = FALSE)`",
+                   verbose = verbose)
+    base::options(spades.useRequire = FALSE)
+  }
+
   return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete, updates = updates)))
 }
 
@@ -1768,7 +1781,6 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         }
         if (!any(grepl("SpaDES.core", extractPkgName(mp))))
           mp <- c(mp, "SpaDES.core")
-        # requireToTry <- unique(c(mp, require))
         packagesToTry <- c(packages, mp, require)
         packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
         areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
@@ -1783,39 +1795,61 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
         warns <- list()
 
-        withCallingHandlers(
-          out <-
-            Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                             standAlone = standAlone,
-                             libPaths = libPaths,
-                             verbose = verbose)
-          , warning = function(w) {
-            if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
-              sc <- sys.calls()
-              pkgDT <- getInStack("pkgDT")
-              packageFail <- try(getInStack("packageFullName"), silent = TRUE)
-              if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
-                thisSha <- try(getInStack("shas"))
-                pkgDTfail <- pkgDT[shas %in% thisSha]
+        ip <- installed.packages()
+        nonHEADs <- grep("\\(HEAD\\)", packagesToTry, value = TRUE, invert = TRUE)
+        needToAssess <- grep("\\(HEAD\\)", packagesToTry, value = TRUE)
+        # needToAssess <- unique(c(needToAssess, requirePkgNames))
+        needToAssess <- c(needToAssess, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
+        ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
+        if (requireNamespace("reproducible")) {
+          # run annonymous function to see if it is new list; Cache needs a function
+          ll <- reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire")
+          if (!isTRUE(attr(ll, ".Cache")$newCache)) {
+            message("Package requirements are identical to previous; skipping Require...")
+          } else {
+            needToAssess <- unique(c(needToAssess, nonHEADs))
+          }
+        }
+        # needToAssess <- packagesToTry
 
-                a <- "Package";
-                obj <- get(a, whereInStack(a))
-                # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
-                b <- pkgDT[Package %in% obj]
-                wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
-                ptt <- packagesToTry[wh]
-                whPackages <- sapply(modulePackages, function(mp) {
-                  whp <- mp %in% ptt
-                  mp[which(whp)]
-                })
-                whPkg <- unlist(whPackages)
-                warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+        if (length(needToAssess)) {
+          withCallingHandlers(
+            out <-
+              Require::Require(needToAssess, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
+                               standAlone = standAlone,
+                               libPaths = libPaths,
+                               verbose = verbose)
+            , warning = function(w) {
+              if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
+                sc <- sys.calls()
+                pkgDT <- getInStack("pkgDT")
+                packageFail <- try(getInStack("packageFullName"), silent = TRUE)
+                if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
+                  thisSha <- try(getInStack("shas"))
+                  pkgDTfail <- pkgDT[shas %in% thisSha]
+
+                  a <- "Package";
+                  obj <- get(a, whereInStack(a))
+                  # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
+                  b <- pkgDT[Package %in% obj]
+                  wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
+                  ptt <- packagesToTry[wh]
+                  whPackages <- sapply(modulePackages, function(mp) {
+                    whp <- mp %in% ptt
+                    mp[which(whp)]
+                  })
+                  whPkg <- unlist(whPackages)
+                  warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+                }
+                invokeRestart("muffleWarning")
+
               }
-              invokeRestart("muffleWarning")
 
-            }
-
-          })
+            })
+        } else {
+          out <- vapply(requirePkgNames, base::require, character.only = TRUE, FUN.VALUE = logical(1))
+          base::options("spades.useRequireOverride" = TRUE)
+        }
 
         if (length(warns)) {
           warns <- warns[!duplicated(warns)]
@@ -2299,7 +2333,6 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     }
     onlyNamedOnes <- nzchar(namesToEval)
     namesToEval <- namesToEval[onlyNamedOnes]
-    # browser()
     # Sequential evaluation
     if (length(namesToEval)) {
       Map(nam = namesToEval, function(nam) {
@@ -3435,6 +3468,7 @@ getStudyArea <- function(studyArea, paths, verbose = verbose) {
     if (isTRUE(studyAreaOrig[["country"]] %in% "CAN")) {
       "https://drive.google.com/file/d/1OhYZymGc9VlLg-X0ZlBalBNjDrzT9XtP/view?usp=sharing"
       message("Because the country is Canada, will try manually hosted file that represents level 2 ")
+      if (!requireNamespace("reproducible")) stop("Please install `reproducible` to continue with setupStudyArea")
       studyArea <- reproducible::prepInputs(url = "https://drive.google.com/file/d/1DdtWeFYEhSRxXcAaJ_J6i8hP8YbfoC1q/view?usp=drive_link",
                                             destinationPath = paths$inputPath)
 
@@ -3604,7 +3638,7 @@ fastOptions <- function() {
 
 makeUpdateRprofileSticky <- function(updateRprofile) {
   if (isTRUE(updateRprofile) && !getOption("Require.updateRprofile") %in% TRUE)
-    options(Require.updateRprofile = updateRprofile)
+    base::options(Require.updateRprofile = updateRprofile)
 }
 
 
@@ -3761,6 +3795,7 @@ DEFAULT <- "DEFAULT"
 
 studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL,
                            params = NULL, verbose = getOption("Require.verbose")) {
+  if (!requireNamespace("reproducible")) stop("Please install `reproducible` to continue with setupStudyArea")
   sa  <- if (!is.null(studyArea))     reproducible::.robustDigest(studyArea)
   rtm <- if (!is.null(rasterToMatch)) paste0(terra::ncell(rasterToMatch), "pix")
 
@@ -4163,7 +4198,7 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
         message("getOption(reproducible.cachePath) was already set to a folder in the tempdir();\n",
                 "--> Changing this to SpaDES.project default: ", defaultsSPO[[optionPath]])
         list(defaultsSPO[[optionPath]]) |>
-          setNames(optionPath) |> options()
+          setNames(optionPath) |> base::options()
       }
     }
   }
