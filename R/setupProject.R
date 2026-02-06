@@ -588,7 +588,7 @@ setupProject <- function(name, paths, modules, packages,
       # The longer unique(...) commented next is much slower; they are identical results
       # allPkgs <- unique(Require::extractPkgName(c(packages, unname(unlist(modulePackages)))))
       allPkgs <- c(packages, unname(unlist(modulePackages)))
-      if (any(grepl("\\<terra\\>", allPkgs))) {
+      if (any(grepl("\\<terra\\>", allPkgs)) && requireNamespace("terra", quietly = TRUE)) {
         terra::terraOptions(tempdir = paths$terraPath)
       }
       addNewObjsToProxy(envirCur, envir, proxy)
@@ -606,7 +606,8 @@ setupProject <- function(name, paths, modules, packages,
         message("Using fast options:")
         df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
         df <- df[!sapply(df, is.null)]
-        if (requireNamespace("reproducible"))
+        if (requireNamespace("reproducible", quietly = TRUE) && 
+            requireNamespace("qs2", quietly = TRUE))
           reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
         else
           print(data.frame(option = names(df), val = unlist(df)))
@@ -1797,19 +1798,20 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
         ip <- installed.packages()
         nonHEADs <- grep("\\(HEAD\\)", packagesToTry, value = TRUE, invert = TRUE)
-        needToAssess <- grep("\\(HEAD\\)", packagesToTry, value = TRUE)
-        # needToAssess <- unique(c(needToAssess, requirePkgNames))
-        needToAssess <- c(needToAssess, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
+        needToAssessPoss <- grep("\\(HEAD\\)", packagesToTry, value = TRUE)
+        # needToAssessPoss <- unique(c(needToAssessPoss, requirePkgNames))
+        needToAssessPoss <- c(needToAssessPoss, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
         ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
-        if (requireNamespace("reproducible")) {
+        needToAssess <- unique(c(needToAssessPoss, nonHEADs))
+        if ((requireNamespace("reproducible", quietly = TRUE) && 
+             requireNamespace("qs2", quietly = TRUE))) {
           # run annonymous function to see if it is new list; Cache needs a function
           ll <- reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire")
           if (!isTRUE(attr(ll, ".Cache")$newCache)) {
             message("Package requirements are identical to previous; skipping Require...")
-          } else {
-            needToAssess <- unique(c(needToAssess, nonHEADs))
-          }
-        }
+            needToAssess <- needToAssessPoss # revert to using the smaller list
+          } 
+        } 
         # needToAssess <- packagesToTry
 
         if (length(needToAssess)) {

@@ -55,6 +55,7 @@ Suggests:
     magick,
     pkgload,
     processx,
+    qs2,
     raster,
     RColorBrewer,
     rematch2,
