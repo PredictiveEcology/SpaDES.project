@@ -3371,9 +3371,12 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
     if (NROW(a)) {
       messageVerbose(yellow("  options changed:"), verbose = verbose, verboseLevel = 0)
       if (!is.null(b)) {
-        a[unlist(lapply(newValue, is.null)), newValue := i.newValue]
-        a[, oldValue := i.oldValue]
-        a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+        anyNew <- which(unlist(lapply(a$newValue, is.null)))
+        if (length(anyNew)) {
+          a[anyNew, newValue := i.newValue]
+          a[anyNew, oldValue := i.oldValue]
+          a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+        }
       }
       messageDF(a, verbose = verbose)
     }
