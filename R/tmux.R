@@ -153,6 +153,11 @@ tmux_spawn_workers_from_df <- function(df,
           reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
           # googlesheets4::gs4_auth()
           # 3. Create the sheet (defaults to root) then move it to the folder
+          googlesheets4::gs4_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+          googledrive::drive_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+          # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+          # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+          
           new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
           googledrive::drive_mv(file = googledrive::as_id(new_sheet),
                                 path = googledrive::as_id(ss_id))
@@ -658,7 +663,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
     for (i in to_check) {
       ELFind <- q[[".ELFind"]][i]
       # if (ELFind == "14.1") {
-      #   browser()
       #   debug(get_latest_heartbeat)
       # }
       new_status <- .assess_sim_visual_status(ELFind, timeout_min)
@@ -707,7 +711,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20) {
         q$heartbeat_iter[i] <- hb$iter
         q$heartbeat_at[i] <- hb$ts
         # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
-        # if (is(dt, "try-error")) browser()
         q$DEoptimElapsedTime[i] <- format(round(elapsedTime, 2), digits = 2, units = "days")
         if (new_status %in% "DONE") {
           q$finished_at[i] <- q$heartbeat_at[i]
