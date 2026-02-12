@@ -1817,7 +1817,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         } 
         # needToAssess <- packagesToTry
 
-        if (length(needToAssess)) {
+        if (sum(nzchar(needToAssess))) {
           withCallingHandlers(
             out <-
               Require::Require(needToAssess, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
