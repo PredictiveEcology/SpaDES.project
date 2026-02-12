@@ -465,6 +465,9 @@ setupProject <- function(name, paths, modules, packages,
       firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
     }
     dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
+    if (any(nzchar(names(dotsSUB)) %in% FALSE)) {
+      stop("Any non-formal arguments must be named, i.e., the ... must be named")
+    }
     dotsLater <- dotsSUB
     defaultDotsSUB <- defaultDotsSUBOrig <- substitute(defaultDots)
     functionsSUB <- functionsSUBOrig <- substitute(functions)
