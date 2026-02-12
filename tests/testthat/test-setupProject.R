@@ -644,9 +644,11 @@ test_that("test check if all args are used", {
   expect_true(!is.null(out$hello))
   expect_true(out$hello == 3)
   expr[setdiff(names(expr)[-1], formalArgs(setupProject))] <- NULL
-  browser()
+  err <- capture_error(
   mess <- capture_messages(
     warns <- capture_warnings(out <- do.call(SpaDES.project::setupProject, eval(expr)))
   )
+  )
+  expect_null(err)
   
 })
