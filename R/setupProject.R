@@ -4252,34 +4252,53 @@ build_proxy <- function(cur, caller, expose_dot_pronouns = TRUE) {
     bind_forward(nm, cur, exec)
   }
 
-  # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
-  makeActiveBinding(
-    "...",
-    local({
-      function(val) {
-        if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
-        get("...", envir = cur, inherits = FALSE)
-      }
-    }),
-    exec
+  idx <- sys.parent()  # the frame where build_proxy was called from
+  mc  <- match.call(
+    definition  = sys.function(idx),  # the function object 'f'
+    call        = sys.call(idx),      # the call that invoked 'f'
+    expand.dots = FALSE
   )
+  userSupplied <- names(sys.call(idx))
+  deprecated <- "libPaths"
+  onlyFromDefault <- setdiff(names(mc)[-1], c(userSupplied, "..."))
+  onlyFromDefault <- intersect(onlyFromDefault, deprecated)
+  mc[onlyFromDefault] <- NULL
+  allObjs <- ls(envir = cur, all.names = TRUE)
+  namedArgs <- intersect(names(mc), allObjs)
+  haveDots <- !is.null(mc[["..."]])
+  
+  # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
+  if (isTRUE(haveDots)) {
+    makeActiveBinding(
+      "...",
+      local({
+        function(val) {
+          if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
+          get("...", envir = cur, inherits = FALSE)
+        }
+      }),
+      exec
+    )
+  }
 
   # 3) Optional: positional pronouns ..1, ..2, ... (read-only)
-  if (expose_dot_pronouns) {
-    dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
-    for (i in seq_along(dots)) {
-      pronoun <- paste0("..", i)
-      makeActiveBinding(
-        pronoun,
-        local({
-          idx <- i
-          function(val) {
-            if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
-            get("...", envir = cur, inherits = FALSE)[[idx]]
-          }
-        }),
-        exec
-      )
+  if (isTRUE(haveDots)) {
+    if (expose_dot_pronouns) {
+      dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
+      for (i in seq_along(dots)) {
+        pronoun <- paste0("..", i)
+        makeActiveBinding(
+          pronoun,
+          local({
+            idx <- i
+            function(val) {
+              if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
+              get("...", envir = cur, inherits = FALSE)[[idx]]
+            }
+          }),
+          exec
+        )
+      }
     }
   }
 
