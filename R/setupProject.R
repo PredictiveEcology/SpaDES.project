@@ -477,7 +477,7 @@ setupProject <- function(name, paths, modules, packages,
     pathsSUB <- pathsSUBOrig <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
     sideEffectsSUB <- sideEffectsSUBOrig <- substitute(sideEffects)
     libPaths <- libPathsOrig <- substitute(libPaths)
-
+    
     for (fullAttempt in 1:2) {
       if (fullAttempt == 2) {
         messageVerbose("Starting setupProject again with new packages installed", verbose = verbose)
@@ -506,7 +506,7 @@ setupProject <- function(name, paths, modules, packages,
         #envir = envir,
         #callingEnv = envir)
       }
-
+      
       if (missing(times))
         times <- list(start = 0, end = 1)
 
@@ -4194,6 +4194,11 @@ errorIfTooLong <- function(stStart, val, tryError = list("")) {
 }
 
 pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", "cachePath")) {
+  # First check if entire projectPath is also in temp; then skip override if it is:
+  ppCommonWithTmpdir <- fs::path_common(c(paths$projectPath, tempdir()))
+  if (identical(basename(ppCommonWithTmpdir), basename(tempdir())))
+    return(invisible())
+  
   for (ovr in override) {
     if (isTRUE(any(grepl("cache", ovr)))) {
       optionPath <- paste0("reproducible.", ovr)
