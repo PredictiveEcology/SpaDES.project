@@ -228,6 +228,7 @@ tmux_spawn_workers_from_df <- function(df,
 
     # MANDATORY: Reset layout immediately so the next split has room
     .tmux_run("select-layout", "-t", target_win, "tiled")
+    # was Sys.sleep(2)
     Sys.sleep(0.1)
   }
 
@@ -256,9 +257,9 @@ tmux_spawn_workers_from_df <- function(df,
 
   # 3. Now send the R commands to the clean, tiled panes
   for (pid in worker_ids) {
-    .tmux_run("send-keys", "-t", pid, "R", "C-m")
+    .tmux_run("send-keys", "-t", pid, start_cmd, "C-m")
     # Your existing staggered start delay
-    Sys.sleep(2.0)
+    Sys.sleep(0.1)
   }
 
   # ---------- branching: single-shot vs queue mode ----------
