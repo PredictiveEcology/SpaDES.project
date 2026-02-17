@@ -1590,6 +1590,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
             out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
                                     path = localPathRelative))
+            checkPath(localPath, create = TRUE)
+            aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
             setwd(localPath)
             gert::git_branch_checkout(split$br)
             curBr <- gert::git_branch()
@@ -4035,6 +4037,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 
 
 setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
+  if (exists("aaaa", envir = .GlobalEnv)) browser()
   if (is.null(curBr))
     curBr <- gert::git_branch()
   for (trySetUpstream in 1:2) {
@@ -4165,9 +4168,9 @@ dirExistsButNotAGitFolder <- function(projectPath, modPath, localPath, localPath
 gitEvalWithGitConfigOnError <- function(expr, tryError) {
   for (iii in 1:2) {
     bbb <- try(eval(expr))
-    gitConfigOnError(tryError)
-    if (is(tryError, "try-error")) {
-      if (any(grepl("user.name", tryError))) {
+    # gitConfigOnError(tryError)
+    if (is(bbb, "try-error")) {
+      if (any(grepl("user.name", bbb))) {
         message("Your git account is missing information; either quit",
                 "and set username and email in the git global config, or specify here:",
                 "What is your git username: ")
