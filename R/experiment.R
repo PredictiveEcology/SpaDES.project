@@ -317,7 +317,10 @@ preRunSetupProject <- function(file = "global.R", upTo = "paths", envir = parent
   if (isTRUE(upTo)) {
     outs <-   eval(pp[whSetupProject], envir = envir)
   } else {
-    upToNum <- grep(upTo, names(pp[[whSetupProject]][[3]]))
+    if (is.null(upTo) || identical(upTo, ""))
+      upToNum <- length(names(pp))
+    else 
+      upToNum <- grep(upTo, names(pp[[whSetupProject]][[3]]))
     outs <- eval(pp[[whSetupProject]][[3]][1:upToNum], envir = envir)
   }
   outs
