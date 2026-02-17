@@ -21,8 +21,10 @@ Depends:
     R (>= 4.3)
 Imports:
     data.table,
+    filelock,
     fs,
     grDevices,
+    magick,
     methods,
     Require (>= 1.0.0),
     rprojroot,
@@ -37,7 +39,6 @@ Suggests:
     crayon,
     digest,
     ellipsis,
-    filelock,
     furrr,
     geodata,
     gert,
@@ -52,7 +53,6 @@ Suggests:
     leaflet,
     leafem,
     lockfile,
-    magick,
     pkgload,
     processx,
     qs2,
