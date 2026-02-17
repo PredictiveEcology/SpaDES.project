@@ -18,7 +18,6 @@ tmux_spawn_workers_from_df(
   continue = TRUE,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
-  on_error = c("requeue", "fail"),
   ss_id = NULL,
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),

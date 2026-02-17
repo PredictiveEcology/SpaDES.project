@@ -1806,8 +1806,8 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         needToAssessPoss <- c(needToAssessPoss, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
         ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
         needToAssess <- unique(c(needToAssessPoss, nonHEADs))
-        if ((requireNamespace("reproducible", quietly = TRUE) && 
-             requireNamespace("qs2", quietly = TRUE))) {
+        if (requireNamespace("reproducible", quietly = TRUE) && 
+             requireNamespace("qs2", quietly = TRUE)) {
           # run annonymous function to see if it is new list; Cache needs a function
           ll <- reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire")
           if (!isTRUE(attr(ll, ".Cache")$newCache)) {
