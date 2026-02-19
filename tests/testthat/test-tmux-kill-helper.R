@@ -11,7 +11,7 @@ testthat::test_that("tmux_kill_panes returns targeted panes", {
   writeLines("Sys.sleep(30)", global)
 
   # one worker, small delay
-  workers <- tmux_spawn_workers_from_df(
+  workers <- experimentTmux(
     df                  = data.frame(.ELFind="X", .rep=1, check.names=FALSE),
     global_path         = global,
     n_workers           = 1,

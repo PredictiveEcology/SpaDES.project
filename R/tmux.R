@@ -70,7 +70,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' )
 #'
 #' # First pane: no delay. Others: 60s, with +5s stagger per pane.
-#' workers <- tmux_spawn_workers_from_df(
+#' workers <- experimentTmux(
 #'   df                  = expt,
 #'   global_path         = "/abs/path/to/global.R",
 #'   n_workers           = 4,
@@ -82,34 +82,34 @@ tmux_set_mouse <- function(on = TRUE) {
 #' # If something goes wrong during development:
 #' tmux_kill_panes(workers)
 #' }
-tmux_spawn_workers_from_df <- function(df,
-                                       global_path = "global.R",
-                                       n_workers = 4,
-                                       delay_after_split = 0.4,
-                                       delay_after_layout = 0.4,
-                                       delay_between_R_start = 0.0,
-                                       delay_before_source = 60,
-                                       stagger_by = delay_before_source,
-                                       set_mouse = TRUE,
-                                       # --- new arguments ---
-                                       continue = TRUE,
-                                       queue_path = NULL,
-                                       on_interrupt = c("requeue", "fail"),
-                                       ss_id = NULL,
-                                       email = getOption("gargle_oauth_email"),
-                                       cache_path = getOption("gargle_oauth_cache"),
-                                       workersToMonitor = c("birds","biomass","camas","carbon","caribou","coco",
-                                                            "core","dougfir","fire","mpb","sbw","mega","acer","abies","pinus"),
-                                       runNameLabel = NULL) {
-
+experimentTmux <- function(df,
+                           global_path = "global.R",
+                           n_workers = 4,
+                           delay_after_split = 0.4,
+                           delay_after_layout = 0.4,
+                           delay_between_R_start = 0.0,
+                           delay_before_source = 60,
+                           stagger_by = delay_before_source,
+                           set_mouse = TRUE,
+                           # --- new arguments ---
+                           continue = TRUE,
+                           queue_path = NULL,
+                           on_interrupt = c("requeue", "fail"),
+                           ss_id = NULL,
+                           email = getOption("gargle_oauth_email"),
+                           cache_path = getOption("gargle_oauth_cache"),
+                           workersToMonitor = c("birds","biomass","camas","carbon","caribou","coco",
+                                                "core","dougfir","fire","mpb","sbw","mega","acer","abies","pinus"),
+                           runNameLabel = NULL) {
+  
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
-
+  
   on_interrupt <- match.arg(on_interrupt)
   # on_error     <- match.arg(on_error)
-
+  
   # -- preconditions
   if (Sys.getenv("TMUX") == "") {
     stop("Not inside tmux. Start/attach to a tmux session first.", call. = FALSE)
@@ -473,14 +473,14 @@ runWorkerLoop <- function(queue_path, global_path,
 }
 
 
-#' Kill a set of tmux panes (e.g., those spawned by tmux_spawn_workers_from_df)
+#' Kill a set of tmux panes (e.g., those spawned by experimentTmux)
 #'
 #' @description
 #' Development utility: kills all panes identified by their tmux pane IDs.
 #' Uses `kill-pane -t <pane-id>`; panes already gone are ignored. See tmux manual. [1](https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute)
 #'
 #' @param panes Character vector of tmux pane IDs (e.g., `c("%2", "%3")`) returned by
-#'   `tmux_spawn_workers_from_df()`.
+#'   `experimentTmux()`.
 #' @return Invisibly returns the subset of `panes` successfully targeted.
 #' @export
 tmux_kill_panes <- function(panes) {
