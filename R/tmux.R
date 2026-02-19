@@ -329,7 +329,8 @@ experimentTmux <- function(df,
 runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
-                          runNameLabel = NULL) {
+                          runNameLabel = NULL,
+                          logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")) {
   if (missing(global_path))
     global_path <- "global.R"
   stopifnot(file.exists(queue_path), file.exists(global_path))
@@ -394,7 +395,7 @@ runNextWorker <- function(queue_path, global_path,
     }
   }, silent = TRUE)
   
-  startedFile <- file.path("logs/tmuxStatus", paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
+  startedFile <- file.path(logPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
   reproducible::checkPath(dirname(startedFile), create = TRUE)
   saveRDS(runName, file = startedFile)
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
@@ -569,7 +570,7 @@ tmux_kill_panes <- function(panes) {
 #' - claimed_by:   tmux pane id that claimed the row
 #' - started_at:   "YYYY-MM-DD HH:MM:SS"
 #' - finished_at:  "YYYY-MM-DD HH:MM:SS"
-#' - DEoptimElapsedTime: numeric seconds (sum(diff(allIterations[allIterations < 20 minutes])))
+#' - DEoptimElapsedTime: numeric seconds (`sum(diff(allIterations[allIterations < 20 minutes]))`)
 #' - machine_name: `Sys.info()[["nodename"]]`
 #' - process_id:   Sys.getpid()
 #' - heartbeat_at: latest timestamp (as character) detected by heartbeat
@@ -751,9 +752,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' Assess simulation status from PNG outputs
 #' @param runName Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
-.assess_sim_visual_status <- function(runName, timeout_min = 20) {
+.assess_sim_visual_status <- function(runName, timeout_min = 20, logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")) {
   hdir <- file.path("outputs", runName, "figures", "objFun")
-  startedFiles <- dir("logs/tmuxStatus", pattern = "Running")
+  startedFiles <- dir(logPath, pattern = txtRunning)
   is_running <- runName %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
   if (isTRUE(is_running)) {
     return("RUNNING")
@@ -820,7 +821,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' # Assessment of all simulations in the current project
 #' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
 #' }
-tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel) {
+tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel,
+                                      logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")) {
   if (file.exists(queue_path)) {
     lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
     on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
@@ -857,7 +859,10 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
             q[[cn]][i] <- NA
         } else {
           # This is RUNNING; but not at DEoptim yet
-          fi <- logFileInfo(dir = "logs/tmuxStatus", pattern = "Running", runName = runName)
+          fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName)
+          
+          # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
+          
           q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
           q$machine_name[i] <- Sys.info()[["nodename"]]
           q$DEoptimElapsedTime[i] <- NA
@@ -865,7 +870,15 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         }
       } else {
         # Update status and timestamps if changed
-        fi <- logFileInfo(dir = "logs/tmuxStatus", pattern = "Running", runName = runName)
+        fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName)
+        # pids <- Map(fiHere = rownames(fi), function(fiHere) {
+        #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
+        #   alive <- is_pid_alive_tools(pid)
+        #   if (isFALSE(alive)) {
+        #     unlink(fiHere)
+        #   }
+        # })
+        
         q$process_id[i] <- NA
         if (NROW(fi)) {
           procId <- strsplit(rownames(fi), split = "_")[[1]][3]
@@ -888,7 +901,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           if (isTRUE(is.na(q$machine_name[i])))
             q$machine_name[i] <- Sys.info()[["nodename"]]
         }
-
+        
         q$heartbeat_iter[i] <- hb$iter
         q$heartbeat_at[i] <- hb$ts
         # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
@@ -900,7 +913,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           q$heartbeat_iter[i] <- NA
           q$claimed_by[i] <- NA
         }
-
+        
       }
       if (q$status[i] != new_status) {
         q$status[i] <- new_status
@@ -909,9 +922,9 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         #   q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         # }
       }
-
+      
     }
-
+    
     q <- data.table::as.data.table(q);
     # ord <- order(as.package_version(q[[runNameLabel]]))
     # q <- q[ord, ]
@@ -919,9 +932,9 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     # q2 <- q[!q1, on = runNameLabel][grep("^(5.|6.|14.|9.|12.)", .ELFind),]
     # q3 <- rbindlist(list(q1, q2))
     # q <- rbindlist(list(q3, q[!q3, on = runNameLabel]))
-
+    
     q <- as.data.frame(q)
-
+    
     saveRDS(q, queue_path)
     filelock::unlock(lck)
     invisible(q)
@@ -935,10 +948,10 @@ get_latest_heartbeat <- function(runName, runNameLabel) {
     if (!dir.exists(hdir))
       return(list(ts = NA_character_, iter = NA_integer_))
   }
-
+  
   files <- list.files(hdir, pattern = "iter", full.names = FALSE)
   if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
-
+  
   parse_one <- function(fn) {
     parts <- strsplit(fn, "_", fixed = TRUE)[[1]]
     ts <- if (length(parts) >= 1) parts[length(parts)] else NA_character_
@@ -949,7 +962,7 @@ get_latest_heartbeat <- function(runName, runNameLabel) {
     } else NA_integer_
     list(ts = ts, iter = iter)
   }
-
+  
   parsed <- lapply(files, parse_one)
   a <- rbindlist(parsed) |> data.table::setorderv("iter")
   ts_vec <- vapply(parsed, function(x) x$ts, character(1))
@@ -964,12 +977,20 @@ get_latest_heartbeat <- function(runName, runNameLabel) {
 }
 
 
-logFileInfo <- function(dir = "logs/tmuxStatus", pattern = "Running", runNameLabel) {
-  startedFiles <- dir(dir, pattern = pattern)
-  startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
-  wh <- which(startedFilesELFind == runNameLabel)
-  startedFilesFull <- dir(dir, pattern = pattern, full.names = TRUE)
-  fi <- file.info(startedFilesFull[wh])
+logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus"), pattern = txtRunning, runNameLabel) {
+  startedFiles <- dir(logPath, pattern = pattern, ignore.case = TRUE)
+  if (length(startedFiles)) {
+    startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
+    if (missing(runNameLabel) || is.null(runNameLabel) || !nzchar(runNameLabel)) {
+      wh <- seq(NROW(startedFiles))
+    } else {
+      wh <- which(startedFilesELFind == runNameLabel)
+    }
+    startedFilesFull <- dir(logPath, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
+    fi <- file.info(startedFilesFull[wh])
+  } else {
+    fi <- NULL
+  }
   fi
 }
 
