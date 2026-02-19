@@ -2871,8 +2871,9 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       Restart = TRUE
     }
 
-    isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
+    isRstudioProj <- FALSE
     if (isRstudio()) {
+      isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
       curRstudioProj <- rstudioapi::getActiveProject()
       isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
     }
@@ -3638,7 +3639,7 @@ fastOptions <- function() {
        spades.useRequire = FALSE,
        spades.allowSequentialCaching = FALSE,
        reproducible.memoisePersist = TRUE,
-       reproducible.cacheSaveFormat = "qs",
+       reproducible.cacheSaveFormat = "qs2",
        LandR.assertions = FALSE,
        reproducible.cacheSpeed = "fast",
        reproducible.gdalwarp = TRUE,
