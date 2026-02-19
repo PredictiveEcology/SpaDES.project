@@ -1813,7 +1813,14 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
           # run annonymous function to see if it is new list; Cache needs a function
           ll <- reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire")
           if (!isTRUE(attr(ll, ".Cache")$newCache)) {
-            message("Package requirements are identical to previous; skipping Require...")
+            message("Package requirements are identical to previous")
+            haveHEAD <- grepl("HEAD", needToAssessPoss)
+            if (any(haveHEAD)) {
+              message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
+                      "checking/installing if needed ...")
+            } else {
+              message("...skipping Require...")
+            }
             needToAssess <- needToAssessPoss # revert to using the smaller list
           } 
         } 
