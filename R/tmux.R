@@ -350,7 +350,7 @@ runNextWorker <- function(queue_path, global_path,
   
   
   # Take the first one on the list that is PENDING or INTERRUPTED
-  pending_idx <- which(q$status %in% c("INTERRUPTED","PENDING"))[1]
+  pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
   
   if (length(pending_idx) == 0) {
     filelock::unlock(lck)
@@ -374,7 +374,7 @@ runNextWorker <- function(queue_path, global_path,
   }
   
   # status bookkeeping (unchanged)
-  q$status[i]       <- "RUNNING"
+  q$status[i]       <- txtRunning
   q$claimed_by[i]   <- PANE
   q$started_at[i]   <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   q$machine_name[i] <- Sys.info()[["nodename"]]
@@ -410,7 +410,7 @@ runNextWorker <- function(queue_path, global_path,
       on.exit(try(filelock::unlock(l2), silent = TRUE), add = TRUE)
       if (!is.null(l2)) {
         q2 <- readRDS(queue_path)
-        idx <- which(q2$status == "RUNNING" & q2$claimed_by == PANE)
+        idx <- which(q2$status == txtRunning & q2$claimed_by == PANE)
         if (length(idx)) {
           q2$heartbeat_at[idx]   <- hb_vals$ts
           q2$heartbeat_iter[idx] <- hb_vals$iter
@@ -431,11 +431,11 @@ runNextWorker <- function(queue_path, global_path,
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   if (outcome == "ok") {
-    q$status[i]      <- "DONE"
+    q$status[i]      <- txtDone
     q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   } else if (outcome == "interrupt") {
     if (on_interrupt == "requeue") {
-      q$status[i]    <- "PENDING"
+      q$status[i]    <- txtPending
       q$claimed_by[i] <- NA_character_
     } else {
       q$status[i]      <- "FAILED"
@@ -584,7 +584,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   stopifnot(is.data.frame(df), is.character(queue_path), length(queue_path) == 1)
   q <- cbind(
     df,
-    status         = "PENDING",
+    status         = txtPending,
     claimed_by     = NA_character_,
     started_at     = as.character(NA),
     finished_at    = as.character(NA),
@@ -692,7 +692,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #         on.exit(try(filelock::unlock(lck2), silent = TRUE), add = TRUE)
 #         if (!is.null(lck2)) {
 #           q2 <- readRDS(QUEUE)
-#           idx <- which(q2$status == "RUNNING" & q2$claimed_by == PANE)
+#           idx <- which(q2$status == txtRunning & q2$claimed_by == PANE)
 #           if (length(idx)) {
 #             q2$heartbeat_at[idx]   <- hb_vals$ts
 #             q2$heartbeat_iter[idx] <- hb_vals$iter
@@ -713,11 +713,11 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #     q <- readRDS(QUEUE)
 # 
 #     if (identical(outcome, "ok")) {
-#       q$status[i]      <- "DONE"
+#       q$status[i]      <- txtDone
 #       q$finished_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
 #     } else if (identical(outcome, "interrupt")) {
 #       if ("%s" == "requeue") {
-#         q$status[i]      <- "PENDING"
+#         q$status[i]      <- txtPending
 #         q$claimed_by[i]  <- NA_character_
 #       } else {
 #         q$status[i]      <- "FAILED"
@@ -757,14 +757,14 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   startedFiles <- dir(logPath, pattern = txtRunning)
   is_running <- runName %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
   if (isTRUE(is_running)) {
-    return("RUNNING")
+    return(txtRunning)
   }
 
-  if (!dir.exists(hdir)) return("PENDING")
+  if (!dir.exists(hdir)) return(txtPending)
 
   # Find most recent PNG
   png_files <- list.files(hdir, pattern = "\\.png$", full.names = TRUE)
-  if (length(png_files) == 0) return("PENDING")
+  if (length(png_files) == 0) return(txtPending)
 
   # Get most recent file
   finfo <- file.info(png_files)
@@ -773,7 +773,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 
   # Check for staleness
   is_stale <- difftime(Sys.time(), last_mod, units = "mins") > timeout_min
-  if (!is_stale) return("RUNNING")
+  if (!is_stale) return(txtRunning)
 
   # Visual check for "red" using magick
   # Red pixels typically have high R and low G/B values
@@ -790,10 +790,10 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
   has_red <- red_pixels > 0
 
   if (has_red) {
-    return("DONE")
+    return(txtDone)
   } else {
-    # return("DONE")
-    return("INTERRUPTED")
+    # return(txtDone)
+    return(txtInterrupted)
   }
 }
 
@@ -835,12 +835,13 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     }
 
     # Only refresh rows that aren't already marked DONE
-    to_check <- which(!q$status %in% "DONE")
-    to_check <- seq_len(NROW(q))#which(!q$status %in% "DONE")
+    to_check <- which(!q$status %in% txtDone)
+    to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
     if (missing(runNameLabel) || is.null(runNameLabel)) {
       runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
     }
+    
     
     for (i in to_check) {
       runName <- q[[runNameLabel]][i]
@@ -851,9 +852,9 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       new_status <- .assess_sim_visual_status(runName, timeout_min)
       hb <- get_latest_heartbeat(runName, runNameLabel = runNameLabel)
       elapsedTime <- hb$elapsed
-
+      
       if (any(unlist(hb) %in% NA) ) {
-        if (new_status %in% "PENDING") {
+        if (new_status %in% txtPending) {
           cns <- setdiff(colnames(q), c(runNameLabel, ".rep", "status"))
           for (cn in cns)
             q[[cn]][i] <- NA
@@ -906,7 +907,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         q$heartbeat_at[i] <- hb$ts
         # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
         q$DEoptimElapsedTime[i] <- format(round(elapsedTime, 2), digits = 2, units = "days")
-        if (new_status %in% "DONE") {
+        if (new_status %in% txtDone) {
           q$finished_at[i] <- q$heartbeat_at[i]
           q$heartbeat_at[i] <- NA
           q$iterationsTotal[i] <- q$heartbeat_iter[i]
@@ -928,7 +929,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     q <- data.table::as.data.table(q);
     # ord <- order(as.package_version(q[[runNameLabel]]))
     # q <- q[ord, ]
-    # q1 <- data.table::rbindlist(list(q[status %in% "DONE"], q[status %in% "RUNNING"]))
+    # q1 <- data.table::rbindlist(list(q[status %in% txtDone], q[status %in% txtRunning]))
     # q2 <- q[!q1, on = runNameLabel][grep("^(5.|6.|14.|9.|12.)", .ELFind),]
     # q3 <- rbindlist(list(q1, q2))
     # q <- rbindlist(list(q3, q[!q3, on = runNameLabel]))
@@ -997,3 +998,8 @@ logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs", "logs/tmu
 meta_cols <- c("status","claimed_by","started_at","finished_at",
                "DEoptimElapsedTime","machine_name","process_id",
                "heartbeat_at","heartbeat_iter","iterationsTotal")
+
+txtInterrupted <- "INTERRUPTED"
+txtPending <- "PENDING"
+txtDone <- "DONE"
+txtRunning <- "RUNNING"
