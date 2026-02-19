@@ -9,7 +9,8 @@ runWorkerLoop(
   global_path,
   on_interrupt = c("requeue", "fail"),
   heartbeat_interval_s = 60,
-  stop_file = NULL
+  stop_file = NULL,
+  runNameLabel = NULL
 )
 }
 \arguments{
@@ -22,6 +23,9 @@ runWorkerLoop(
 \item{heartbeat_interval_s}{numeric; seconds between heartbeats while the job runs}
 
 \item{stop_file}{optional path; if present, stop after current iteration}
+
+\item{runNameLabel}{character scalar; name of the queue/data column used as the run identifier.
+If NULL/missing, defaults to the first non-metadata column when claiming a job.}
 }
 \value{
 invisibly TRUE

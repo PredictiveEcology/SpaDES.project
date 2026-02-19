@@ -4,10 +4,14 @@
 \alias{.assess_sim_visual_status}
 \title{Assess simulation status from PNG outputs}
 \usage{
-.assess_sim_visual_status(elfind_path, timeout_min = 20)
+.assess_sim_visual_status(
+  runName,
+  timeout_min = 20,
+  logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")
+)
 }
 \arguments{
-\item{elfind_path}{Directory containing the figures/hists}
+\item{runName}{Directory containing the figures/hists}
 
 \item{timeout_min}{Threshold for inactivity (e.g., 20)}
 }

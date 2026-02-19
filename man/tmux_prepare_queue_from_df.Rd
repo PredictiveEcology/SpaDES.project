@@ -28,7 +28,7 @@ Adds metadata columns used by workers:
 \item claimed_by:   tmux pane id that claimed the row
 \item started_at:   "YYYY-MM-DD HH:MM:SS"
 \item finished_at:  "YYYY-MM-DD HH:MM:SS"
-\item DEoptimElapsedTime: numeric seconds (sum(diff(allIterations\link{allIterations < 20 minutes})))
+\item DEoptimElapsedTime: numeric seconds (\verb{sum(diff(allIterations[allIterations < 20 minutes]))})
 \item machine_name: \code{Sys.info()[["nodename"]]}
 \item process_id:   Sys.getpid()
 \item heartbeat_at: latest timestamp (as character) detected by heartbeat

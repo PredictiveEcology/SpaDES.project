@@ -2,13 +2,13 @@
 % Please edit documentation in R/tmux.R
 \name{tmux_kill_panes}
 \alias{tmux_kill_panes}
-\title{Kill a set of tmux panes (e.g., those spawned by tmux_spawn_workers_from_df)}
+\title{Kill a set of tmux panes (e.g., those spawned by experimentTmux)}
 \usage{
 tmux_kill_panes(panes)
 }
 \arguments{
 \item{panes}{Character vector of tmux pane IDs (e.g., \code{c("\%2", "\%3")}) returned by
-\code{tmux_spawn_workers_from_df()}.}
+\code{experimentTmux()}.}
 }
 \value{
 Invisibly returns the subset of \code{panes} successfully targeted.

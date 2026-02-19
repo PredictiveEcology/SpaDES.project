@@ -8,7 +8,9 @@ runNextWorker(
   queue_path,
   global_path,
   on_interrupt = c("requeue", "fail"),
-  heartbeat_interval_s = 60
+  heartbeat_interval_s = 60,
+  runNameLabel = NULL,
+  logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")
 )
 }
 \arguments{
@@ -19,6 +21,9 @@ runNextWorker(
 \item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as FAILED.}
 
 \item{heartbeat_interval_s}{numeric; seconds between heartbeats while the job runs}
+
+\item{runNameLabel}{character scalar; name of the queue/data column used as the run identifier.
+If NULL/missing, defaults to the first non-metadata column when claiming a job.}
 }
 \value{
 "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()

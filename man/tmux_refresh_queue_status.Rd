@@ -4,7 +4,12 @@
 \alias{tmux_refresh_queue_status}
 \title{Refresh and Assess Queue Status from Simulation Outputs}
 \usage{
-tmux_refresh_queue_status(queue_path, timeout_min = 20)
+tmux_refresh_queue_status(
+  queue_path,
+  timeout_min = 20,
+  runNameLabel,
+  logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")
+)
 }
 \arguments{
 \item{queue_path}{Character. Absolute path to the \code{experiment_queue.rds} file.}
@@ -17,7 +22,7 @@ A data.frame (the updated queue), invisibly.
 As a side effect, updates the RDS file on disk.
 }
 \description{
-Scans the simulation output directories (defined by \code{.ELFind}) to assess
+Scans the simulation output directories (defined by \code{runNameLabel}) to assess
 current status based on file timestamps and visual content of PNGs.
 If a PNG has not been updated for a specified timeout, the task is marked
 as "FINISHED" (if red pixels are detected) or "INTERRUPTED" (if no red

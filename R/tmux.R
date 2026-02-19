@@ -286,6 +286,7 @@ experimentTmux <- function(df,
       queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
     }
     tmux_prepare_queue_from_df(df, queue_path)
+    browser()
     tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
     
     # Warn if filelock missing (workers will error in panes if not installed)
@@ -348,7 +349,7 @@ runNextWorker <- function(queue_path, global_path,
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   
-  
+  browser()
   # Take the first one on the list that is PENDING or INTERRUPTED
   pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
   
@@ -381,6 +382,7 @@ runNextWorker <- function(queue_path, global_path,
   q$process_id[i]   <- Sys.getpid()
   saveRDS(q, queue_path)
   filelock::unlock(lck)
+  browser()
   
   
   # --- Pane title uses runName ---
@@ -400,6 +402,43 @@ runNextWorker <- function(queue_path, global_path,
   saveRDS(runName, file = startedFile)
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
   
+  
+  # fi <- logFileInfo(logPath = logPath, pattern = txtRunning)
+  # pidsAlive <- Map(fiHere = rownames(fi), function(fiHere) {
+  #   splits <- strsplit(fiHere, split = "_")[[1]]
+  #   pid <- splits[3] |> as.integer()
+  #   alive <- is_pid_alive_tools(pid)
+  #   if (isFALSE(alive)) {
+  #     unlink(fiHere)
+  #   }
+  #   names(alive) <- splits[3]
+  #   alive
+  # })
+  # pidsToRm <- do.call(c, unname(pidsAlive))
+  # # pidsToRm <- unlist(pidsAlive) %in% FALSE
+  # # if (any(pidsToRm)) {
+  # # Don't change txtDone
+  # whPending <- q$status %in% c(txtRunning, txtPending, txtInterrupted) &
+  #   (q$process_id %in% names(pidsToRm)[pidsToRm]) %in% FALSE
+  # # q[whPending, "status"] <- txtPending
+  # mightBeFinished <- q$heartbeat_iter %% 25 %in% 0
+  # mightBeInterrupted <- !is.na(q$heartbeat_iter)
+  # interrupted <- mightBeInterrupted & mightBeFinished %in% FALSE
+  # if (any(interrupted)) {
+  #   whInterrupted <- which(interrupted)
+  #   q[whInterrupted, "status"] <- txtInterrupted
+  #   colsToReset <- grep("status|heartbeat|iterationsT|finished|DEoptimE", meta_cols, value = TRUE, invert = TRUE)
+  #   for (col_nam in colsToReset) {
+  #     q[whInterrupted, col_nam] <- NA  
+  #   }
+  # }
+  # if (any(mightBeFinished)) {
+  #   q[which(mightBeFinished), "status"] <- txtDone
+  # }
+  # mightBeRunning <- q$process_id %in% names(pidsToRm)[pidsToRm]
+  # q[mightBeRunning,"status"] <- txtRunning
+  # saveRDS(q, file = queue_path)
+  # 
   # --- Heartbeat now tracks runNameLabel-based location ---
   current_run <- q[[runNameLabel]][i]
   hb_thread <- try(parallel::mcparallel({
@@ -642,8 +681,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 # 
 # 
 #     # 3. Find all PENDING rows
-#     # pending_idx <- which(q$status == "PENDING")
-#     pending_idx <- which(q$status %%in%% c("INTERRUPTED", "PENDING"))[1]
+#     # pending_idx <- which(q$status == txtPending)
+#     pending_idx <- which(q$status %%in%% c(txtInterrupted, txtPending))[1]
 # 
 #     if (length(pending_idx) == 0) {
 #       filelock::unlock(lck)
@@ -667,7 +706,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #       message("Injected ", nm, " = ", q[[nm]][i], " into .GlobalEnv")
 #     }
 # 
-#     q$status[i]      <- "RUNNING"
+#     q$status[i]      <- txtRunning
 #     q$claimed_by[i]  <- PANE
 #     q$started_at[i] <- format(Sys.time(), "%%Y-%%m-%%d %%H:%%M:%%S")
 #     q$machine_name[i] <- Sys.info()[["nodename"]]
@@ -998,6 +1037,16 @@ logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs", "logs/tmu
 meta_cols <- c("status","claimed_by","started_at","finished_at",
                "DEoptimElapsedTime","machine_name","process_id",
                "heartbeat_at","heartbeat_iter","iterationsTotal")
+
+is_pid_alive_tools <- function(pid) {
+  stopifnot(length(pid) == 1L, is.numeric(pid), pid > 0)
+  out <- tryCatch(
+    tools::pskill(pid, signal = 0L),  # TRUE if PID exists & you have permission
+    error = function(e) NA
+  )
+  isTRUE(out)
+}
+
 
 txtInterrupted <- "INTERRUPTED"
 txtPending <- "PENDING"
