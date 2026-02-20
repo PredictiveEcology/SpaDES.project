@@ -286,7 +286,6 @@ experimentTmux <- function(df,
       queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
     }
     tmux_prepare_queue_from_df(df, queue_path)
-    browser()
     tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
     
     # Warn if filelock missing (workers will error in panes if not installed)
@@ -349,7 +348,6 @@ runNextWorker <- function(queue_path, global_path,
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   
-  browser()
   # Take the first one on the list that is PENDING or INTERRUPTED
   pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
   
@@ -382,8 +380,6 @@ runNextWorker <- function(queue_path, global_path,
   q$process_id[i]   <- Sys.getpid()
   saveRDS(q, queue_path)
   filelock::unlock(lck)
-  browser()
-  
   
   # --- Pane title uses runName ---
   runName <- as.character(q[[runNameLabel]][i])
@@ -875,15 +871,15 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
 
     # Only refresh rows that aren't already marked DONE
     to_check <- which(!q$status %in% txtDone)
-    to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
+    # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
     if (missing(runNameLabel) || is.null(runNameLabel)) {
       runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
     }
     
-    
     for (i in to_check) {
       runName <- q[[runNameLabel]][i]
+      # if (runName == "6.3.2") browser()
       # if (runName == "14.1") {
       #   debug(get_latest_heartbeat)
       # }
@@ -893,6 +889,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       elapsedTime <- hb$elapsed
       
       if (any(unlist(hb) %in% NA) ) {
+        # Has 
         if (new_status %in% txtPending) {
           cns <- setdiff(colnames(q), c(runNameLabel, ".rep", "status"))
           for (cn in cns)
@@ -922,6 +919,9 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         q$process_id[i] <- NA
         if (NROW(fi)) {
           procId <- strsplit(rownames(fi), split = "_")[[1]][3]
+          if (is_pid_alive_tools(as.integer(procId)) )
+            new_status <- txtRunning
+          
           if (!is.na(suppressWarnings(as.numeric(procId))))
             q$process_id[i] <- procId
           if (!is.character(hb$started) || is.na(hb$started)) {
@@ -936,10 +936,17 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           if (isTRUE(is.na(q$machine_name[i])))
             q$machine_name[i] <- Sys.info()[["nodename"]]
         } else {
+
+          # Says it is RUNNING --> but is actually INTERRUPTED because it has no log file (fi)
           if (isTRUE(is.na(q$started_at[i])))
             q$started_at[i] <- hb$started
           if (isTRUE(is.na(q$machine_name[i])))
             q$machine_name[i] <- Sys.info()[["nodename"]]
+          
+          new_status <- txtInterrupted
+          if (q$heartbeat_iter[i] %% 25 %in% 0)
+            new_status <- txtDone
+            
         }
         
         q$heartbeat_iter[i] <- hb$iter

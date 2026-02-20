@@ -308,19 +308,16 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
 #' @seealso \code{\link{setupProject}}
 #'
 #' @export
-preRunSetupProject <- function(file = "global.R", upTo = "paths", envir = parent.frame()) {
+preRunSetupProject <- function(file = "global.R", upTo = TRUE, envir = parent.frame()) {
   pp <- parse(file)
   whSetupProject <- grep("setupProject", pp)
   # eval(pp[1:whSetupProject], envir = environment())
 
   eval(pp[1:c(whSetupProject - 1)], envir = envir)
-  if (isTRUE(upTo)) {
+  if (isTRUE(upTo) || is.null(upTo) || identical(upTo, "")) {
     outs <-   eval(pp[whSetupProject], envir = envir)
   } else {
-    if (is.null(upTo) || identical(upTo, ""))
-      upToNum <- length(names(pp))
-    else 
-      upToNum <- grep(upTo, names(pp[[whSetupProject]][[3]]))
+    upToNum <- grep(upTo, names(pp[[whSetupProject]][[3]]))
     outs <- eval(pp[[whSetupProject]][[3]][1:upToNum], envir = envir)
   }
   outs
