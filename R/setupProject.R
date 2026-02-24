@@ -2837,13 +2837,14 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          origGetWd, verbose = getOption("Require.verbose")) {
 
+  isRstudioLocal <- isRstudio()
   if (isTRUE(updateRprofile)) {
 
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
       warning(.txtUpdateProfileIsTRUE)
     } else {
-      if (isRstudio()) {
+      if (isRstudioLocal) {
         inCorrectRstudioProj <- isInRstudioProj(name)
         if (!inProject || !inCorrectRstudioProj) { # either wrong Rstudio or not in project
           if (isFALSE(Restart)) {
@@ -2857,11 +2858,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
   }
 
-  if (!isRstudio()) {
+  if (!isRstudioLocal) {
     Restart <- FALSE
   }
 
-  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio() ||
+  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudioLocal ||
        !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
 
     # on.exit(setwd(origGetWd), add = TRUE)
@@ -2873,21 +2874,27 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     isGitProject <- is_git_root$testfun[[1]](pp)
     needsToBeGitProject <- !useGit %in% FALSE
 
-    if (!(useGit %in% FALSE) && isRstudio() && !inProject && !isGitProject) {
+    if (!(useGit %in% FALSE) && isRstudioLocal && !inProject && !isGitProject) {
       messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
       Restart = TRUE
     }
 
     isRstudioProj <- FALSE
-    if (isRstudio()) {
+    if (isRstudioLocal) {
+      # could be rstudio terminal --> which needs own test
       isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
-      curRstudioProj <- rstudioapi::getActiveProject()
-      isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+      curRstudioProj <- tryCatch(rstudioapi::getActiveProject(), error = function(e) FALSE)
+      if (isFALSE(curRstudioProj)) {
+        isRstudioLocal <- FALSE
+        isRstudioProj <- FALSE
+      } else {
+        isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+      }
     }
     # inProject <- isInProject(name)
 
     if ((!inProject || !isRstudioProj) || (!isGitProject && needsToBeGitProject)) {
-      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudio() ) {
+      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudioLocal ) {
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
         if (!inProject || !isRstudioProj) {
@@ -3103,7 +3110,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         #   githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
         # }
       }
-      if (isRstudio()) {
+      if (isRstudioLocal) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
         stop_quietly(mess = "Restarting...")
@@ -3114,7 +3121,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
   } else {
     if (!Restart %in% FALSE) {
-      if (isRstudio())
+      if (isRstudioLocal)
         messageVerbose("Restart is not FALSE, but this session is not Rstudio, ignoring...",
                        verbose = verbose)
     }
