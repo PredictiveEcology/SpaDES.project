@@ -10,7 +10,8 @@ runNextWorker(
   on_interrupt = c("requeue", "fail"),
   heartbeat_interval_s = 60,
   runNameLabel = NULL,
-  logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")
+  heartbeatFolder = NULL,
+  logPath = getOption("spades.project.tmuxLogs")
 )
 }
 \arguments{

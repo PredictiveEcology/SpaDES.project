@@ -7,7 +7,8 @@
 .assess_sim_visual_status(
   runName,
   timeout_min = 20,
-  logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")
+  heartbeatFolder = NULL,
+  logPath = getOption("spades.project.tmuxLogs")
 )
 }
 \arguments{

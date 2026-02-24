@@ -91,6 +91,7 @@ experimentTmux <- function(df,
                            delay_before_source = 60,
                            stagger_by = delay_before_source,
                            set_mouse = TRUE,
+                           heartbeatFolder = NULL, # file.path("outputs", runName, "figures", "hists"),
                            # --- new arguments ---
                            continue = TRUE,
                            queue_path = NULL,
@@ -267,7 +268,6 @@ experimentTmux <- function(df,
     n_send <- min(n_workers, nrow(df))
     for (i in seq_len(n_send)) {
       # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
-      
       runName <- as.character(df[[runNameLabel]][i])
       runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
       code <- sprintf(
@@ -286,7 +286,7 @@ experimentTmux <- function(df,
       queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
     }
     tmux_prepare_queue_from_df(df, queue_path)
-    tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+    tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder)
     
     # Warn if filelock missing (workers will error in panes if not installed)
     if (!requireNamespace("filelock", quietly = TRUE)) {
@@ -330,7 +330,8 @@ runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
                           runNameLabel = NULL,
-                          logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")) {
+                          heartbeatFolder = NULL,
+                          logPath = getOption("spades.project.tmuxLogs")) {
   if (missing(global_path))
     global_path <- "global.R"
   stopifnot(file.exists(queue_path), file.exists(global_path))
@@ -342,7 +343,7 @@ runNextWorker <- function(queue_path, global_path,
   LOCKF <- paste0(queue_path, ".lock")
   
   # update queue file from log files
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder)
   # claim a row (unchanged)
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
@@ -393,6 +394,7 @@ runNextWorker <- function(queue_path, global_path,
     }
   }, silent = TRUE)
   
+  logPath <- logPathForTmux(logPath = NULL, queue_path)
   startedFile <- file.path(logPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
   reproducible::checkPath(dirname(startedFile), create = TRUE)
   saveRDS(runName, file = startedFile)
@@ -440,7 +442,7 @@ runNextWorker <- function(queue_path, global_path,
   hb_thread <- try(parallel::mcparallel({
     repeat {
       Sys.sleep(heartbeat_interval_s)
-      hb_vals <- get_latest_heartbeat(current_run, runNameLabel = runNameLabel)
+      hb_vals <- get_latest_heartbeat(current_run, heartbeatFolder = heartbeatFolder)
       l2 <- filelock::lock(LOCKF, timeout = 10)
       on.exit(try(filelock::unlock(l2), silent = TRUE), add = TRUE)
       if (!is.null(l2)) {
@@ -500,7 +502,7 @@ runWorkerLoop <- function(queue_path, global_path,
     if (missing(global_path))
       global_path <- "global.R"
     res <- runNextWorker(queue_path, global_path, on_interrupt,
-                         heartbeat_interval_s, runNameLabel = runNameLabel)
+                         heartbeat_interval_s, runNameLabel = runNameLabel, logPath = logPath)
     if (identical(res, "empty")) break
     if (identical(res, "interrupt") && on_interrupt == "fail") break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
@@ -787,48 +789,52 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' Assess simulation status from PNG outputs
 #' @param runName Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
-.assess_sim_visual_status <- function(runName, timeout_min = 20, logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")) {
-  hdir <- file.path("outputs", runName, "figures", "objFun")
-  startedFiles <- dir(logPath, pattern = txtRunning)
+.assess_sim_visual_status <- function(runName, timeout_min = 20, heartbeatFolder = NULL, logPath = getOption("spades.project.tmuxLogs")) {
+  startedFiles <- dir(logPath, pattern = txtRunning, ignore.case = TRUE)
   is_running <- runName %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
   if (isTRUE(is_running)) {
     return(txtRunning)
   }
-
-  if (!dir.exists(hdir)) return(txtPending)
-
-  # Find most recent PNG
-  png_files <- list.files(hdir, pattern = "\\.png$", full.names = TRUE)
-  if (length(png_files) == 0) return(txtPending)
-
-  # Get most recent file
-  finfo <- file.info(png_files)
-  latest_file <- png_files[which.max(finfo$mtime)]
-  last_mod <- finfo$mtime[which.max(finfo$mtime)]
-
-  # Check for staleness
-  is_stale <- difftime(Sys.time(), last_mod, units = "mins") > timeout_min
-  if (!is_stale) return(txtRunning)
-
-  # Visual check for "red" using magick
-  # Red pixels typically have high R and low G/B values
-  reproducible::.requireNamespace("magick", stopOnFALSE = TRUE)
-  img <- magick::image_read(latest_file)
-  img_data <- as.integer(img[[1]]) # Get RGBA array
-
-  # Heuristic: Red channel > 200 AND Green/Blue < 100
-  # img_data is [height, width, channels]
-  red_pixels <- sum(img_data[,,1] > 200 & img_data[,,2] < 100 & img_data[,,3] < 100)
-  # This is simpler heuristic. Maybe not accurate enough though
-  # red_pixels <- sum(img_data[,,1] > 200)
-
-  has_red <- red_pixels > 0
-
-  if (has_red) {
-    return(txtDone)
+  
+  if (!is.null(heartbeatFolder)) {
+    # heartbeatFolder <- file.path("outputs", runName, "figures", "objFun")
+    if (!dir.exists(heartbeatFolder)) return(txtPending)
+    
+    # Find most recent PNG
+    png_files <- list.files(heartbeatFolder, pattern = "\\.png$", full.names = TRUE)
+    if (length(png_files) == 0) return(txtPending)
+    
+    # Get most recent file
+    finfo <- file.info(png_files)
+    latest_file <- png_files[which.max(finfo$mtime)]
+    last_mod <- finfo$mtime[which.max(finfo$mtime)]
+    
+    # Check for staleness
+    is_stale <- difftime(Sys.time(), last_mod, units = "mins") > timeout_min
+    if (!is_stale) return(txtRunning)
+    
+    # Visual check for "red" using magick
+    # Red pixels typically have high R and low G/B values
+    reproducible::.requireNamespace("magick", stopOnFALSE = TRUE)
+    img <- magick::image_read(latest_file)
+    img_data <- as.integer(img[[1]]) # Get RGBA array
+    
+    # Heuristic: Red channel > 200 AND Green/Blue < 100
+    # img_data is [height, width, channels]
+    red_pixels <- sum(img_data[,,1] > 200 & img_data[,,2] < 100 & img_data[,,3] < 100)
+    # This is simpler heuristic. Maybe not accurate enough though
+    # red_pixels <- sum(img_data[,,1] > 200)
+    
+    has_red <- red_pixels > 0
+    
+    if (has_red) {
+      return(txtDone)
+    } else {
+      # return(txtDone)
+      return(txtInterrupted)
+    }
   } else {
-    # return(txtDone)
-    return(txtInterrupted)
+    return(txtPending)
   }
 }
 
@@ -857,7 +863,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
 #' }
 tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel,
-                                      logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus")) {
+                                      heartbeatFolder = NULL,
+                                      logPath = getOption("spades.project.tmuxLogs")) {
+  
   if (file.exists(queue_path)) {
     lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
     on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
@@ -879,27 +887,28 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     
     for (i in to_check) {
       runName <- q[[runNameLabel]][i]
-      # if (runName == "6.3.2") browser()
       # if (runName == "14.1") {
       #   debug(get_latest_heartbeat)
       # }
       # runName <- q[[runNameLabel]][i]
-      new_status <- .assess_sim_visual_status(runName, timeout_min)
-      hb <- get_latest_heartbeat(runName, runNameLabel = runNameLabel)
+      logPath <- logPathForTmux(logPath = NULL, queue_path)
+      new_status <- .assess_sim_visual_status(runName, timeout_min, 
+                                              heartbeatFolder = heartbeatFolder, 
+                                              logPath = logPath)
+      hb <- get_latest_heartbeat(runName, heartbeatFolder = heartbeatFolder)
       elapsedTime <- hb$elapsed
       
       if (any(unlist(hb) %in% NA) ) {
         # Has 
         if (new_status %in% txtPending) {
-          cns <- setdiff(colnames(q), c(runNameLabel, ".rep", "status"))
+          cns <- setdiff(meta_cols, "status") #setdiff(colnames(q), c(runNameLabel, ".rep", "status"))
           for (cn in cns)
             q[[cn]][i] <- NA
         } else {
           # This is RUNNING; but not at DEoptim yet
-          fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName)
+          fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
           
           # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
-          
           q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
           q$machine_name[i] <- Sys.info()[["nodename"]]
           q$DEoptimElapsedTime[i] <- NA
@@ -907,7 +916,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         }
       } else {
         # Update status and timestamps if changed
-        fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName)
+        fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
         # pids <- Map(fiHere = rownames(fi), function(fiHere) {
         #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
         #   alive <- is_pid_alive_tools(pid)
@@ -988,43 +997,52 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
   }
 }
 
-get_latest_heartbeat <- function(runName, runNameLabel) {
-  hdir <- file.path("outputs", runName, "figures", "hists")
-  if (!dir.exists(hdir))  {
-    hdir <- file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists")
-    if (!dir.exists(hdir))
-      return(list(ts = NA_character_, iter = NA_integer_))
+get_latest_heartbeat <- function(runName, heartbeatFolder = NULL) {
+  retNames <- c("ts", "iter", "started", "elapsed")
+  if (!is.null(heartbeatFolder)) {
+    # heartbeatFolder <- file.path("outputs", runName, "figures", "hists")
+    if (!dir.exists(heartbeatFolder))  {
+      heartbeatFolder <- file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists")
+      if (!dir.exists(heartbeatFolder))
+        return(list(ts = NA_character_, iter = NA_integer_))
+    }
+    
+    files <- list.files(heartbeatFolder, pattern = "iter", full.names = FALSE)
+    if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
+    
+    parse_one <- function(fn) {
+      parts <- strsplit(fn, "_", fixed = TRUE)[[1]]
+      ts <- if (length(parts) >= 1) parts[length(parts)] else NA_character_
+      # Clean regex: no extra backslashes needed because of Raw String wrapper
+      iter_idx <- which(grepl("iter\\d+", parts))
+      iter <- if (length(iter_idx)) {
+        as.integer(sub("iter(\\d+)", "\\1", parts[iter_idx[1]]))
+      } else NA_integer_
+      list(ts = ts, iter = iter)
+    }
+    
+    parsed <- lapply(files, parse_one)
+    a <- rbindlist(parsed) |> data.table::setorderv("iter")
+    ts_vec <- vapply(parsed, function(x) x$ts, character(1))
+    ts_vec <- fs::path_ext_remove(ts_vec)
+    iter_vec <- vapply(parsed, function(x) x$iter, integer(1))
+    ord <- order(ts_vec, na.last = TRUE)
+    elapsed <- diff(as.POSIXct(ts_vec[ord]), units = "mins")
+    elapsedTime <- sum(elapsed[elapsed < 20])
+    units(elapsedTime) <- "days"
+    ret <- list(ts = ts_vec[ord[length(ord)]], iter = iter_vec[ord[length(ord)]],
+                started = head(ts_vec[ord], 1), elapsed = elapsedTime) |> setNames(retNames)
+  } else {
+    ret <- lapply(1:4, function(x) NA) |> setNames(retNames)
   }
-  
-  files <- list.files(hdir, pattern = "iter", full.names = FALSE)
-  if (length(files) == 0) return(list(ts = NA_character_, iter = NA_integer_))
-  
-  parse_one <- function(fn) {
-    parts <- strsplit(fn, "_", fixed = TRUE)[[1]]
-    ts <- if (length(parts) >= 1) parts[length(parts)] else NA_character_
-    # Clean regex: no extra backslashes needed because of Raw String wrapper
-    iter_idx <- which(grepl("iter\\d+", parts))
-    iter <- if (length(iter_idx)) {
-      as.integer(sub("iter(\\d+)", "\\1", parts[iter_idx[1]]))
-    } else NA_integer_
-    list(ts = ts, iter = iter)
-  }
-  
-  parsed <- lapply(files, parse_one)
-  a <- rbindlist(parsed) |> data.table::setorderv("iter")
-  ts_vec <- vapply(parsed, function(x) x$ts, character(1))
-  ts_vec <- fs::path_ext_remove(ts_vec)
-  iter_vec <- vapply(parsed, function(x) x$iter, integer(1))
-  ord <- order(ts_vec, na.last = TRUE)
-  elapsed <- diff(as.POSIXct(ts_vec[ord]), units = "mins")
-  elapsedTime <- sum(elapsed[elapsed < 20])
-  units(elapsedTime) <- "days"
-  list(ts = ts_vec[ord[length(ord)]], iter = iter_vec[ord[length(ord)]],
-       started = head(ts_vec[ord], 1), elapsed = elapsedTime)
+  ret
 }
 
 
-logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs", "logs/tmuxStatus"), pattern = txtRunning, runNameLabel) {
+logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs"), pattern = txtRunning, queue_path, runNameLabel) {
+  if (is.null(logPath))
+    logPath <- logPathForTmux(logPath = NULL, queue_path)
+  
   startedFiles <- dir(logPath, pattern = pattern, ignore.case = TRUE)
   if (length(startedFiles)) {
     startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
@@ -1059,3 +1077,18 @@ txtInterrupted <- "INTERRUPTED"
 txtPending <- "PENDING"
 txtDone <- "DONE"
 txtRunning <- "RUNNING"
+
+#' Log path for default tmux status
+#' 
+#' Just a default path.
+#' 
+#' @return The default path.
+#' @export
+logPathForTmux <- function(logPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
+  if (is.null(logPath)) {
+    if (missing(queue_path))
+      suffix <- "tmuxStatus"
+    logPath <- file.path(prefix, suffix)
+  }
+  logPath
+}

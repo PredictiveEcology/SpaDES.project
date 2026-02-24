@@ -14,6 +14,7 @@ experimentTmux(
   delay_before_source = 60,
   stagger_by = delay_before_source,
   set_mouse = TRUE,
+  heartbeatFolder = NULL,
   continue = TRUE,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
