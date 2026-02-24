@@ -10,6 +10,7 @@ runWorkerLoop(
   on_interrupt = c("requeue", "fail"),
   heartbeat_interval_s = 60,
   stop_file = NULL,
+  activeRunningPath = getOption("spades.project.tmuxLogs"),
   runNameLabel = NULL
 )
 }

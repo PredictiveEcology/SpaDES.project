@@ -9,7 +9,7 @@ tmux_refresh_queue_status(
   timeout_min = 20,
   runNameLabel,
   heartbeatFolder = NULL,
-  logPath = getOption("spades.project.tmuxLogs")
+  activeRunningPath = getOption("spades.project.tmuxLogs")
 )
 }
 \arguments{

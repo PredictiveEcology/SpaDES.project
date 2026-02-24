@@ -56,6 +56,12 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   injecting assignments + `source(global_path)`. Default `60.0`.
 #' @param stagger_by Numeric. Extra seconds added per subsequent pane beyond pane 2, so pane i>1 waits
 #'   `delay_before_source + (i-2)*stagger_by` inside R. Default `0.0`.
+#' @param activeRunningPath. The directory where the "running" flag will be written. 
+#'   This flag (a file) should only be present while an ELF is running. At the end
+#'   or at failure, it should be removed automatically. If it is not (because of a
+#'   bad crash), then it MUST be manually deleted. Default is derived via
+#'   `SpaDES.project:::activeRunningPathForTmux` and is  
+#'   `file.path("logs/", queue_path)`
 #' @param set_mouse Logical. If `TRUE`, enables tmux mouse support via `tmux_set_mouse(TRUE)`. Default `TRUE`. [1](https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute)
 #'
 #' @return Invisibly returns the character vector of tmux **pane IDs** for the workers.
@@ -93,6 +99,7 @@ experimentTmux <- function(df,
                            set_mouse = TRUE,
                            heartbeatFolder = NULL, # file.path("outputs", runName, "figures", "hists"),
                            # --- new arguments ---
+                           activeRunningPath = getOption("spades.project.tmuxLogs"),
                            continue = TRUE,
                            queue_path = NULL,
                            on_interrupt = c("requeue", "fail"),
@@ -215,6 +222,7 @@ experimentTmux <- function(df,
     }
   }
 
+  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
 
   # -- create worker panes
   worker_ids <- character()
@@ -286,7 +294,8 @@ experimentTmux <- function(df,
       queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
     }
     tmux_prepare_queue_from_df(df, queue_path)
-    tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder)
+    tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder,
+                              activeRunningPath = activeRunningPath)
     
     # Warn if filelock missing (workers will error in panes if not installed)
     if (!requireNamespace("filelock", quietly = TRUE)) {
@@ -299,11 +308,12 @@ experimentTmux <- function(df,
     for (i in seq_along(workers)) {
       pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
       payload <- sprintf(
-        "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s)",
+        "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s, activeRunningPath=%s)",
         deparse1(queue_path),
         deparse1(global_path),
         deparse1(match.arg(on_interrupt)),
-        deparse1(runNameLabel)
+        deparse1(runNameLabel),
+        deparse1(activeRunningPath)
       )
       code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
       .tmux_run("send-keys", "-t", workers[i], code, "C-m")
@@ -331,7 +341,7 @@ runNextWorker <- function(queue_path, global_path,
                           heartbeat_interval_s = 60,
                           runNameLabel = NULL,
                           heartbeatFolder = NULL,
-                          logPath = getOption("spades.project.tmuxLogs")) {
+                          activeRunningPath = getOption("spades.project.tmuxLogs")) {
   if (missing(global_path))
     global_path <- "global.R"
   stopifnot(file.exists(queue_path), file.exists(global_path))
@@ -343,7 +353,9 @@ runNextWorker <- function(queue_path, global_path,
   LOCKF <- paste0(queue_path, ".lock")
   
   # update queue file from log files
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder)
+  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder,
+                            activeRunningPath = activeRunningPath)
   # claim a row (unchanged)
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
@@ -394,14 +406,14 @@ runNextWorker <- function(queue_path, global_path,
     }
   }, silent = TRUE)
   
-  logPath <- logPathForTmux(logPath = NULL, queue_path)
-  startedFile <- file.path(logPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
+  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+  startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
   reproducible::checkPath(dirname(startedFile), create = TRUE)
   saveRDS(runName, file = startedFile)
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
   
   
-  # fi <- logFileInfo(logPath = logPath, pattern = txtRunning)
+  # fi <- logFileInfo(activeRunningPath = activeRunningPath, pattern = txtRunning)
   # pidsAlive <- Map(fiHere = rownames(fi), function(fiHere) {
   #   splits <- strsplit(fiHere, split = "_")[[1]]
   #   pid <- splits[3] |> as.integer()
@@ -495,6 +507,7 @@ runWorkerLoop <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
                           stop_file = NULL,
+                          activeRunningPath = getOption("spades.project.tmuxLogs"),
                           runNameLabel = NULL) {
   on_interrupt <- match.arg(on_interrupt)
   repeat {
@@ -502,7 +515,7 @@ runWorkerLoop <- function(queue_path, global_path,
     if (missing(global_path))
       global_path <- "global.R"
     res <- runNextWorker(queue_path, global_path, on_interrupt,
-                         heartbeat_interval_s, runNameLabel = runNameLabel, logPath = logPath)
+                         heartbeat_interval_s, runNameLabel = runNameLabel, activeRunningPath = activeRunningPath)
     if (identical(res, "empty")) break
     if (identical(res, "interrupt") && on_interrupt == "fail") break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
@@ -789,8 +802,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' Assess simulation status from PNG outputs
 #' @param runName Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
-.assess_sim_visual_status <- function(runName, timeout_min = 20, heartbeatFolder = NULL, logPath = getOption("spades.project.tmuxLogs")) {
-  startedFiles <- dir(logPath, pattern = txtRunning, ignore.case = TRUE)
+.assess_sim_visual_status <- function(runName, timeout_min = 20, heartbeatFolder = NULL, activeRunningPath = getOption("spades.project.tmuxLogs")) {
+  startedFiles <- dir(activeRunningPath, pattern = txtRunning, ignore.case = TRUE)
   is_running <- runName %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
   if (isTRUE(is_running)) {
     return(txtRunning)
@@ -864,7 +877,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' }
 tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel,
                                       heartbeatFolder = NULL,
-                                      logPath = getOption("spades.project.tmuxLogs")) {
+                                      activeRunningPath = getOption("spades.project.tmuxLogs")) {
   
   if (file.exists(queue_path)) {
     lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
@@ -891,10 +904,10 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       #   debug(get_latest_heartbeat)
       # }
       # runName <- q[[runNameLabel]][i]
-      logPath <- logPathForTmux(logPath = NULL, queue_path)
+      activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
       new_status <- .assess_sim_visual_status(runName, timeout_min, 
                                               heartbeatFolder = heartbeatFolder, 
-                                              logPath = logPath)
+                                              activeRunningPath = activeRunningPath)
       hb <- get_latest_heartbeat(runName, heartbeatFolder = heartbeatFolder)
       elapsedTime <- hb$elapsed
       
@@ -906,7 +919,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
             q[[cn]][i] <- NA
         } else {
           # This is RUNNING; but not at DEoptim yet
-          fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
+          fi <- logFileInfo(activeRunningPath = activeRunningPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
           
           # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
           q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
@@ -916,7 +929,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         }
       } else {
         # Update status and timestamps if changed
-        fi <- logFileInfo(logPath = logPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
+        fi <- logFileInfo(activeRunningPath = activeRunningPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
         # pids <- Map(fiHere = rownames(fi), function(fiHere) {
         #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
         #   alive <- is_pid_alive_tools(pid)
@@ -1039,11 +1052,11 @@ get_latest_heartbeat <- function(runName, heartbeatFolder = NULL) {
 }
 
 
-logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs"), pattern = txtRunning, queue_path, runNameLabel) {
-  if (is.null(logPath))
-    logPath <- logPathForTmux(logPath = NULL, queue_path)
+logFileInfo <- function(activeRunningPath = getOption("spades.project.tmuxLogs"), pattern = txtRunning, queue_path, runNameLabel) {
+  if (is.null(activeRunningPath))
+    activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
   
-  startedFiles <- dir(logPath, pattern = pattern, ignore.case = TRUE)
+  startedFiles <- dir(activeRunningPath, pattern = pattern, ignore.case = TRUE)
   if (length(startedFiles)) {
     startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
     if (missing(runNameLabel) || is.null(runNameLabel) || !nzchar(runNameLabel)) {
@@ -1051,7 +1064,7 @@ logFileInfo <- function(logPath = getOption("spades.project.tmuxLogs"), pattern 
     } else {
       wh <- which(startedFilesELFind == runNameLabel)
     }
-    startedFilesFull <- dir(logPath, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
+    startedFilesFull <- dir(activeRunningPath, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
     fi <- file.info(startedFilesFull[wh])
   } else {
     fi <- NULL
@@ -1084,11 +1097,11 @@ txtRunning <- "RUNNING"
 #' 
 #' @return The default path.
 #' @export
-logPathForTmux <- function(logPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
-  if (is.null(logPath)) {
+activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
+  if (is.null(activeRunningPath)) {
     if (missing(queue_path))
       suffix <- "tmuxStatus"
-    logPath <- file.path(prefix, suffix)
+    activeRunningPath <- file.path(prefix, suffix)
   }
-  logPath
+  activeRunningPath
 }

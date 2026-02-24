@@ -8,7 +8,7 @@
   runName,
   timeout_min = 20,
   heartbeatFolder = NULL,
-  logPath = getOption("spades.project.tmuxLogs")
+  activeRunningPath = getOption("spades.project.tmuxLogs")
 )
 }
 \arguments{

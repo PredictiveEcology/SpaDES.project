@@ -11,7 +11,7 @@ runNextWorker(
   heartbeat_interval_s = 60,
   runNameLabel = NULL,
   heartbeatFolder = NULL,
-  logPath = getOption("spades.project.tmuxLogs")
+  activeRunningPath = getOption("spades.project.tmuxLogs")
 )
 }
 \arguments{
