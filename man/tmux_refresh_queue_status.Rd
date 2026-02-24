@@ -7,7 +7,7 @@
 tmux_refresh_queue_status(
   queue_path,
   timeout_min = 20,
-  runNameLabel,
+  runNameLabel = quote(colnames(q)[1:2]),
   heartbeatFolder = NULL,
   activeRunningPath = getOption("spades.project.tmuxLogs")
 )

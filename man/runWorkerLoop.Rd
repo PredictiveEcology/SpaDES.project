@@ -11,7 +11,7 @@ runWorkerLoop(
   heartbeat_interval_s = 60,
   stop_file = NULL,
   activeRunningPath = getOption("spades.project.tmuxLogs"),
-  runNameLabel = NULL
+  runNameLabel = quote(colnames(q)[1:2])
 )
 }
 \arguments{
@@ -25,8 +25,9 @@ runWorkerLoop(
 
 \item{stop_file}{optional path; if present, stop after current iteration}
 
-\item{runNameLabel}{character scalar; name of the queue/data column used as the run identifier.
-If NULL/missing, defaults to the first non-metadata column when claiming a job.}
+\item{runNameLabel}{A quoted expression (possibly of \code{q}, which is the result of \code{q <- readRDS(queue_path)}).
+Default is the first 2 column names of \code{q}. These will be concatenated and used as
+labels for various things including the \code{activeRunningPath} file(s).}
 }
 \value{
 invisibly TRUE

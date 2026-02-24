@@ -108,7 +108,7 @@ experimentTmux <- function(df,
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = c("birds","biomass","camas","carbon","caribou","coco",
                                                 "core","dougfir","fire","mpb","sbw","mega","acer","abies","pinus"),
-                           runNameLabel = NULL) {
+                           runNameLabel = quote(colnames(q)[1:2])) {
   
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
@@ -271,29 +271,32 @@ experimentTmux <- function(df,
   }
 
   # ---------- branching: single-shot vs queue mode ----------
-  if (!continue) {
-    # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
-    n_send <- min(n_workers, nrow(df))
-    for (i in seq_len(n_send)) {
-      # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
-      runName <- as.character(df[[runNameLabel]][i])
-      runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
-      code <- sprintf(
-        "Sys.sleep(%s); system2('tmux', c('select-pane','-t', Sys.getenv('TMUX_PANE'), '-T', %s)); %s",
-        pre_sleep,
-        deparse(runName),
-        .make_assignment_code(df, i, global_path, pre_sleep = 0)
-      )
-      .tmux_run("send-keys", "-t", workers[i], code, "C-m")
-      
-      # No orchestrator sleeps—control returns immediately to master
-    }
-  } else {
+  # if (!continue) {
+  #   # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
+  #   n_send <- min(n_workers, nrow(df))
+  #   for (i in seq_len(n_send)) {
+  #     # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
+  #     runName <- as.character(df[[runNameLabel]][i])
+  #     runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
+  #     code <- sprintf(
+  #       "Sys.sleep(%s); system2('tmux', c('select-pane','-t', Sys.getenv('TMUX_PANE'), '-T', %s)); %s",
+  #       pre_sleep,
+  #       deparse(runName),
+  #       .make_assignment_code(df, i, global_path, pre_sleep = 0)
+  #     )
+  #     .tmux_run("send-keys", "-t", workers[i], code, "C-m")
+  #     
+  #     # No orchestrator sleeps—control returns immediately to master
+  #   }
+  # } else {
     # ---- queue mode: file-backed queue & **direct function invocation** (no source()) ----
     if (is.null(queue_path)) {
       queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
     }
     tmux_prepare_queue_from_df(df, queue_path)
+    q <- readRDS(queue_path)
+    runNameLabel <- eval(runNameLabel)
+    
     tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, heartbeatFolder = heartbeatFolder,
                               activeRunningPath = activeRunningPath)
     
@@ -319,7 +322,7 @@ experimentTmux <- function(df,
       .tmux_run("send-keys", "-t", workers[i], code, "C-m")
     }
     
-  }
+  # }
 
   invisible(workers)
 }
@@ -333,13 +336,14 @@ experimentTmux <- function(df,
 #' @param heartbeat_interval_s numeric; seconds between heartbeats while the job runs
 #' @return "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()
 #' @export
-#' @param runNameLabel character scalar; name of the queue/data column used as the run identifier.
-#'               If NULL/missing, defaults to the first non-metadata column when claiming a job.
+#' @param runNameLabel A quoted expression (possibly of `q`, which is the result of `q <- readRDS(queue_path)`).
+#'   Default is the first 2 column names of `q`. These will be concatenated and used as
+#'   labels for various things including the `activeRunningPath` file(s).
 #' @export
 runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
-                          runNameLabel = NULL,
+                          runNameLabel = quote(colnames(q)[1:2]),
                           heartbeatFolder = NULL,
                           activeRunningPath = getOption("spades.project.tmuxLogs")) {
   if (missing(global_path))
@@ -361,6 +365,8 @@ runNextWorker <- function(queue_path, global_path,
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   
+  runNameLabel <- eval(runNameLabel)
+  
   # Take the first one on the list that is PENDING or INTERRUPTED
   pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
   
@@ -372,12 +378,13 @@ runNextWorker <- function(queue_path, global_path,
   
   # derive data_cols for defaulting runNameLabel
   data_cols <- setdiff(names(q), meta_cols)
+  
   if (is.null(runNameLabel)) {
     if (length(data_cols) == 0L)
       stop("No data columns available to infer 'runNameLabel'.")
     runNameLabel <- data_cols[1L]
   }
-  if (!runNameLabel %in% names(q))
+  if (!all(runNameLabel %in% names(q)))
     stop(sprintf("runNameLabel '%s' is not a column in the queue.", runNameLabel))
   
   # inject globals (unchanged)
@@ -395,7 +402,7 @@ runNextWorker <- function(queue_path, global_path,
   filelock::unlock(lck)
   
   # --- Pane title uses runName ---
-  runName <- as.character(q[[runNameLabel]][i])
+  runName <- as.character(q[i, runNameLabel] |> paste(collapse = "-"))
   runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
   try({
     if (exists(".tmux_run", mode = "function")) {
@@ -411,46 +418,9 @@ runNextWorker <- function(queue_path, global_path,
   reproducible::checkPath(dirname(startedFile), create = TRUE)
   saveRDS(runName, file = startedFile)
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
-  
-  
-  # fi <- logFileInfo(activeRunningPath = activeRunningPath, pattern = txtRunning)
-  # pidsAlive <- Map(fiHere = rownames(fi), function(fiHere) {
-  #   splits <- strsplit(fiHere, split = "_")[[1]]
-  #   pid <- splits[3] |> as.integer()
-  #   alive <- is_pid_alive_tools(pid)
-  #   if (isFALSE(alive)) {
-  #     unlink(fiHere)
-  #   }
-  #   names(alive) <- splits[3]
-  #   alive
-  # })
-  # pidsToRm <- do.call(c, unname(pidsAlive))
-  # # pidsToRm <- unlist(pidsAlive) %in% FALSE
-  # # if (any(pidsToRm)) {
-  # # Don't change txtDone
-  # whPending <- q$status %in% c(txtRunning, txtPending, txtInterrupted) &
-  #   (q$process_id %in% names(pidsToRm)[pidsToRm]) %in% FALSE
-  # # q[whPending, "status"] <- txtPending
-  # mightBeFinished <- q$heartbeat_iter %% 25 %in% 0
-  # mightBeInterrupted <- !is.na(q$heartbeat_iter)
-  # interrupted <- mightBeInterrupted & mightBeFinished %in% FALSE
-  # if (any(interrupted)) {
-  #   whInterrupted <- which(interrupted)
-  #   q[whInterrupted, "status"] <- txtInterrupted
-  #   colsToReset <- grep("status|heartbeat|iterationsT|finished|DEoptimE", meta_cols, value = TRUE, invert = TRUE)
-  #   for (col_nam in colsToReset) {
-  #     q[whInterrupted, col_nam] <- NA  
-  #   }
-  # }
-  # if (any(mightBeFinished)) {
-  #   q[which(mightBeFinished), "status"] <- txtDone
-  # }
-  # mightBeRunning <- q$process_id %in% names(pidsToRm)[pidsToRm]
-  # q[mightBeRunning,"status"] <- txtRunning
-  # saveRDS(q, file = queue_path)
-  # 
+
   # --- Heartbeat now tracks runNameLabel-based location ---
-  current_run <- q[[runNameLabel]][i]
+  current_run <- q[i, runNameLabel] |> paste(collapse = "-")
   hb_thread <- try(parallel::mcparallel({
     repeat {
       Sys.sleep(heartbeat_interval_s)
@@ -508,7 +478,7 @@ runWorkerLoop <- function(queue_path, global_path,
                           heartbeat_interval_s = 60,
                           stop_file = NULL,
                           activeRunningPath = getOption("spades.project.tmuxLogs"),
-                          runNameLabel = NULL) {
+                          runNameLabel = quote(colnames(q)[1:2])) {
   on_interrupt <- match.arg(on_interrupt)
   repeat {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
@@ -875,7 +845,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' # Assessment of all simulations in the current project
 #' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
 #' }
-tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel,
+tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
                                       heartbeatFolder = NULL,
                                       activeRunningPath = getOption("spades.project.tmuxLogs")) {
   
@@ -894,16 +864,17 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     to_check <- which(!q$status %in% txtDone)
     # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
+    runNameLabel <- eval(runNameLabel)
     if (missing(runNameLabel) || is.null(runNameLabel)) {
       runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
     }
     
     for (i in to_check) {
-      runName <- q[[runNameLabel]][i]
+      runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
       #   debug(get_latest_heartbeat)
       # }
-      # runName <- q[[runNameLabel]][i]
+      # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
       new_status <- .assess_sim_visual_status(runName, timeout_min, 
                                               heartbeatFolder = heartbeatFolder, 

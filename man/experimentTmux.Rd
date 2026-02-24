@@ -24,7 +24,7 @@ experimentTmux(
   cache_path = getOption("gargle_oauth_cache"),
   workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco", "core",
     "dougfir", "fire", "mpb", "sbw", "mega", "acer", "abies", "pinus"),
-  runNameLabel = NULL
+  runNameLabel = quote(colnames(q)[1:2])
 )
 }
 \arguments{

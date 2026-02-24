@@ -9,7 +9,7 @@ runNextWorker(
   global_path,
   on_interrupt = c("requeue", "fail"),
   heartbeat_interval_s = 60,
-  runNameLabel = NULL,
+  runNameLabel = quote(colnames(q)[1:2]),
   heartbeatFolder = NULL,
   activeRunningPath = getOption("spades.project.tmuxLogs")
 )
@@ -23,8 +23,9 @@ runNextWorker(
 
 \item{heartbeat_interval_s}{numeric; seconds between heartbeats while the job runs}
 
-\item{runNameLabel}{character scalar; name of the queue/data column used as the run identifier.
-If NULL/missing, defaults to the first non-metadata column when claiming a job.}
+\item{runNameLabel}{A quoted expression (possibly of \code{q}, which is the result of \code{q <- readRDS(queue_path)}).
+Default is the first 2 column names of \code{q}. These will be concatenated and used as
+labels for various things including the \code{activeRunningPath} file(s).}
 }
 \value{
 "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()
