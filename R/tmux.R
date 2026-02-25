@@ -887,6 +887,11 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
                                               activeRunningPath = activeRunningPath)
       hb <- get_latest_heartbeat(runName, heartbeatFolder = heartbeatFolder)
       elapsedTime <- hb$elapsed
+
+      fi <- logFileInfo(activeRunningPath = activeRunningPath, runNameLabel = runNameLabel, queue_path = queue_path)
+      hasFI <- (!is.null(fi) && NROW(fi))
+      if (hasFI)
+        startedAt <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
       
       if (any(unlist(hb) %in% NA) ) {
         # Has 
@@ -895,18 +900,21 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           for (cn in cns)
             q[[cn]][i] <- NA
         } else {
-          # This is RUNNING; but not at DEoptim yet
-          fi <- logFileInfo(activeRunningPath = activeRunningPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
-          
-          # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
-          q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-          q$machine_name[i] <- Sys.info()[["nodename"]]
+          # This is RUNNING; but not at DEoptim yet; can also be DONE
+          # fi <- logFileInfo(activeRunningPath = activeRunningPath, runNameLabel = runNameLabel, queue_path = queue_path)
+          if (hasFI) {
+            # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
+            # browser()
+            # 3
+            q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+            q$machine_name[i] <- Sys.info()[["nodename"]]
+          }
           q$DEoptimElapsedTime[i] <- NA
           # q$process_id[i] <- NA
         }
       } else {
         # Update status and timestamps if changed
-        fi <- logFileInfo(activeRunningPath = activeRunningPath, pattern = txtRunning, runName = runName, queue_path = queue_path)
+        # fi <- logFileInfo(activeRunningPath = activeRunningPath, runNameLabel = runNameLabel, queue_path = queue_path)
         # pids <- Map(fiHere = rownames(fi), function(fiHere) {
         #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
         #   alive <- is_pid_alive_tools(pid)
@@ -916,7 +924,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         # })
         
         q$process_id[i] <- NA
-        if (NROW(fi)) {
+        if (hasFI) {
           procId <- strsplit(rownames(fi), split = "_")[[1]][3]
           if (is_pid_alive_tools(as.integer(procId)) )
             new_status <- txtRunning
@@ -924,13 +932,19 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           if (!is.na(suppressWarnings(as.numeric(procId))))
             q$process_id[i] <- procId
           if (!is.character(hb$started) || is.na(hb$started)) {
-            q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+            # browser()
+            # 1
+            
+            q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
           } else {
             # elapsedTime <- difftime(fi$mtime, hb$started)
+            # browser()
+            # 2
+            
             if (elapsedTime > 0)
               q$started_at[i] <- format(as.POSIXct(hb$ts) - elapsedTime, "%Y-%m-%d %H:%M:%S")
             else
-              q$started_at[i] <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+              q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
           }
           if (isTRUE(is.na(q$machine_name[i])))
             q$machine_name[i] <- Sys.info()[["nodename"]]
@@ -971,7 +985,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       
     }
     
-    q <- data.table::as.data.table(q);
+    #q <- data.table::as.data.table(q);
     # ord <- order(as.package_version(q[[runNameLabel]]))
     # q <- q[ord, ]
     # q1 <- data.table::rbindlist(list(q[status %in% txtDone], q[status %in% txtRunning]))
@@ -979,7 +993,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     # q3 <- rbindlist(list(q1, q2))
     # q <- rbindlist(list(q3, q[!q3, on = runNameLabel]))
     
-    q <- as.data.frame(q)
+    #q <- as.data.frame(q)
     
     saveRDS(q, queue_path)
     filelock::unlock(lck)
