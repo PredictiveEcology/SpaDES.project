@@ -62,6 +62,11 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   bad crash), then it MUST be manually deleted. Default is derived via
 #'   `SpaDES.project:::activeRunningPathForTmux` and is  
 #'   `file.path("logs/", queue_path)`
+#' @param heartbeatFolder. A string or call using optionally `runName`, e.g., 
+#'    `heartbeatFolder = quote(file.path("outputs", runName, "figures", "hists"))`.
+#'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
+#'    Ineffective otherwise.
+#'    
 #' @param set_mouse Logical. If `TRUE`, enables tmux mouse support via `tmux_set_mouse(TRUE)`. Default `TRUE`. [1](https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute)
 #'
 #' @return Invisibly returns the character vector of tmux **pane IDs** for the workers.
@@ -779,6 +784,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     return(txtRunning)
   }
   
+  if (is.call(heartbeatFolder))
+    heartbeatFolder <- eval(heartbeatFolder)
+  
   if (!is.null(heartbeatFolder)) {
     # heartbeatFolder <- file.path("outputs", runName, "figures", "objFun")
     if (!dir.exists(heartbeatFolder)) return(txtPending)
@@ -868,7 +876,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     if (missing(runNameLabel) || is.null(runNameLabel)) {
       runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
     }
-    
     for (i in to_check) {
       runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
@@ -876,7 +883,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       # }
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
-      new_status <- .assess_sim_visual_status(runName, timeout_min, 
+      new_status <- .assess_sim_visual_status(runName = runName, timeout_min = timeout_min, 
                                               heartbeatFolder = heartbeatFolder, 
                                               activeRunningPath = activeRunningPath)
       hb <- get_latest_heartbeat(runName, heartbeatFolder = heartbeatFolder)

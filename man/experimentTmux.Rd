@@ -57,6 +57,11 @@ or at failure, it should be removed automatically. If it is not (because of a
 bad crash), then it MUST be manually deleted. Default is derived via
 \code{SpaDES.project:::activeRunningPathForTmux} and is
 \code{file.path("logs/", queue_path)}}
+
+\item{heartbeatFolder.}{A string or call using optionally \code{runName}, e.g.,
+\code{heartbeatFolder = quote(file.path("outputs", runName, "figures", "hists"))}.
+Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
+Ineffective otherwise.}
 }
 \value{
 Invisibly returns the character vector of tmux \strong{pane IDs} for the workers.
