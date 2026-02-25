@@ -784,10 +784,9 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     return(txtRunning)
   }
   
-  if (is.call(heartbeatFolder))
-    heartbeatFolder <- eval(heartbeatFolder)
-  
   if (!is.null(heartbeatFolder)) {
+    if (is.call(heartbeatFolder))
+      heartbeatFolder <- eval(heartbeatFolder)
     # heartbeatFolder <- file.path("outputs", runName, "figures", "objFun")
     if (!dir.exists(heartbeatFolder)) return(txtPending)
     
@@ -990,7 +989,11 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
 
 get_latest_heartbeat <- function(runName, heartbeatFolder = NULL) {
   retNames <- c("ts", "iter", "started", "elapsed")
+  
   if (!is.null(heartbeatFolder)) {
+    if (is.call(heartbeatFolder))
+      heartbeatFolder <- eval(heartbeatFolder)
+    
     # heartbeatFolder <- file.path("outputs", runName, "figures", "hists")
     if (!dir.exists(heartbeatFolder))  {
       heartbeatFolder <- file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists")
