@@ -14,8 +14,9 @@ experimentTmux(
   delay_before_source = 60,
   stagger_by = delay_before_source,
   set_mouse = TRUE,
-  heartbeatFolder = NULL,
-  activeRunningPath = getOption("spades.project.tmuxLogs"),
+  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
+  activeRunningPath = getOption("spades.activeRunningPath"),
   continue = TRUE,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
@@ -51,6 +52,12 @@ injecting assignments + \code{source(global_path)}. Default \code{60.0}.}
 
 \item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support via \code{tmux_set_mouse(TRUE)}. Default \code{TRUE}. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}}
 
+\item{folderWithDoneIndicator}{A string or call using optionally \code{runName}, e.g.,
+\code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))}.
+Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
+Defaults to \code{getOption("spades.folderWithDoneIndicator", NULL)}
+Ineffective otherwise.}
+
 \item{activeRunningPath.}{The directory where the "running" flag will be written.
 This flag (a file) should only be present while an ELF is running. At the end
 or at failure, it should be removed automatically. If it is not (because of a
@@ -58,10 +65,10 @@ bad crash), then it MUST be manually deleted. Default is derived via
 \code{SpaDES.project:::activeRunningPathForTmux} and is
 \code{file.path("logs/", queue_path)}}
 
-\item{heartbeatFolder.}{A string or call using optionally \code{runName}, e.g.,
-\code{heartbeatFolder = quote(file.path("outputs", runName, "figures", "hists"))}.
+\item{folderWithIterInFilename.}{A string or call using optionally \code{runName}, e.g.,
+\code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))}.
 Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
-Ineffective otherwise.}
+Ineffective otherwise. Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)},}
 }
 \value{
 Invisibly returns the character vector of tmux \strong{pane IDs} for the workers.

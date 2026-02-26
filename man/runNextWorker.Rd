@@ -10,8 +10,9 @@ runNextWorker(
   on_interrupt = c("requeue", "fail"),
   heartbeat_interval_s = 60,
   runNameLabel = quote(colnames(q)[1:2]),
-  heartbeatFolder = NULL,
-  activeRunningPath = getOption("spades.project.tmuxLogs")
+  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
+  activeRunningPath = getOption("spades.activeRunningPath")
 )
 }
 \arguments{

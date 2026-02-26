@@ -8,8 +8,9 @@ tmux_refresh_queue_status(
   queue_path,
   timeout_min = 20,
   runNameLabel = quote(colnames(q)[1:2]),
-  heartbeatFolder = NULL,
-  activeRunningPath = getOption("spades.project.tmuxLogs")
+  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
+  activeRunningPath = getOption("spades.activeRunningPath")
 )
 }
 \arguments{
