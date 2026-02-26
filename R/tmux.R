@@ -216,11 +216,14 @@ experimentTmux <- function(df,
       # 2. Prepare the command as a SINGLE line to prevent shell splitting
       # Use deparse1() and force ss_id to character
       sync_cmd <- sprintf(
-        "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, cache_path=%s)",
+        "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, folderWithDoneIndicator=%s, cache_path=%s)",
         deparse1(email),
+        # deparse1(getOption("spades.folderWithDoneIndicator")),
         deparse1(normalizePath(queue_path)),
         deparse1(as.character(ss_id)),
         deparse1(email),
+        deparse1(runNameLabel),
+        deparse1(folderWithDoneIndicator),
         deparse1(normalizePath(cache_path))
       )
 
@@ -931,7 +934,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
           if (hasFI) {
             # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
-            # browser()
             # 3
             q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
             q$machine_name[i] <- Sys.info()[["nodename"]]
@@ -1127,7 +1129,7 @@ activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefi
   if (is.null(activeRunningPath)) {
     if (missing(queue_path))
       suffix <- "tmuxStatus"
-    activeRunningPath <- file.path(prefix, suffix)
+    activeRunningPath <- file.path(prefix, basename(suffix))
   }
   activeRunningPath
 }

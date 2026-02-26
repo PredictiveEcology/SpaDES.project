@@ -4,7 +4,16 @@
 \alias{.sync_loop_internal}
 \title{Sync queue to Google Sheets (Package Internal)}
 \usage{
-.sync_loop_internal(queue_path, ss_id, email, cache_path, interval = 300)
+.sync_loop_internal(
+  queue_path,
+  ss_id,
+  email,
+  cache_path,
+  runNameLabel,
+  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  activeRunningPath = getOption("spades.activeRunningPath"),
+  interval = 300
+)
 }
 \description{
 Sync queue to Google Sheets (Package Internal)
