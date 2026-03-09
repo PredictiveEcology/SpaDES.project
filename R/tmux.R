@@ -132,38 +132,38 @@ experimentTmux <- function(df,
   # on_error     <- match.arg(on_error)
   
   # -- preconditions
-  if (Sys.getenv("TMUX") == "") {
-    stop("Not inside tmux. Start/attach to a tmux session first.", call. = FALSE)
+  
+  if (is.null(queue_path)) {
+    queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
   }
+  tmux_prepare_queue_from_df(df, queue_path)
+  q <- readRDS(queue_path)
+  runNameLabel <- eval(runNameLabel)
+  
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, folderWithDoneIndicator = folderWithDoneIndicator,
+                            activeRunningPath = activeRunningPath)
   if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
   if (!file.exists(global_path)) {
     warning("global_path not found from master R working directory: ", global_path)
   }
+  
   if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
-
-  # -- resolve current tmux window
-  target_win <- .tmux_current_window()
-  system("tmux set -g pane-border-status top") # sets so titles have names
-
-  # -- list existing panes
-  pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
-
-  # 1. Create a new pane for the sync process
+  
   if (!is.null(queue_path)) {
     # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
-
+    
     if (!is.null(ss_id)) {
       isDir <- reproducible:::isGoogleDriveDirectory(ss_id)
       if (isTRUE(isDir)) {
         reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
         # googledrive::drive_auth()
-
+        
         # 1. Derive the name from the local queue file
         sheet_name <- gsub("\\.rds$", "", basename(queue_path))
 
         # 2. Check if it already exists in that folder to avoid duplicates
         existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
-
+        
         if (nrow(existing) > 0) {
           ss_id <- existing$id[1]
         } else {
@@ -181,165 +181,230 @@ experimentTmux <- function(df,
           ss_id <- as.character(googledrive::as_id(new_sheet))
         }
       }
-
-      # 1. Create the Monitoring Pane (Detached)
-      mon_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-
-      # 2. Label it for 2025 observability
-      .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
-
-      # 3. Construct the R command
-      # We deparse the vector to ensure it's passed correctly as a character string
-      workersToMonitor
-      # workersToMonitor <- c("birds", "biomass", "camas", "carbon", "caribou", "coco",
-      #                   "core", "dougfir", "fire", "mpb", "sbw", "mega",
-      #                   "acer", "abies", "pinus")
-
-      mon_cmd <- sprintf(
-        "clusters::monitorCluster(cores = %s)",
-        deparse1(workersToMonitor)
-      )
-
-      # 4. Launch in the new pane
-      .tmux_run("select-layout", "-t", target_win, "tiled")
-      .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
-
-      full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
-      .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
-
-
-      # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
-      # This ensures the focus stays on the Master Pane
-      sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-      .tmux_run("select-layout", "-t", target_win, "tiled")
-
-      # 2. Prepare the command as a SINGLE line to prevent shell splitting
-      # Use deparse1() and force ss_id to character
-      sync_cmd <- sprintf(
-        "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, folderWithDoneIndicator=%s, cache_path=%s)",
-        deparse1(email),
-        # deparse1(getOption("spades.folderWithDoneIndicator")),
-        deparse1(normalizePath(queue_path)),
-        deparse1(as.character(ss_id)),
-        deparse1(email),
-        deparse1(runNameLabel),
-        deparse1(folderWithDoneIndicator),
-        deparse1(normalizePath(cache_path))
-      )
-
-      # 3. Send keys to the specific ID
-      # Adding a leading space ' ' prevents the command from being saved in bash history;
-      #  I took this away because I wanted access to the command
-      full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
-      .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
-
-      # 4. Label the pane for clarity
-      .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
     }
   }
-
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
-
-  # -- create worker panes
-  worker_ids <- character()
-  for (i in seq_len(n_workers)) {
-    # Create detached so focus stays on Master
-    new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-    worker_ids <- c(worker_ids, new_id)
-
-    # MANDATORY: Reset layout immediately so the next split has room
-    .tmux_run("select-layout", "-t", target_win, "tiled")
-    # was 
-    Sys.sleep(2)
-    #Sys.sleep(0.1)
-  }
-
-  # -- arrange evenly
-  # 2. Force the window into a tiled grid layout
-  # This fixes the "tiny sliver" problem immediately
-  # .tmux_run("select-layout", "-t", target_win, "tiled")
-  # if (delay_after_layout > 0) Sys.sleep(delay_after_layout)
-
-  # -- mouse on, if requested
-  if (set_mouse) tmux_set_mouse(TRUE)
-
-  # -- collect new worker panes
-  post <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
-  if (length(post) == 0L) stop("tmux list-panes returned no panes.", call. = FALSE)
-
-  master  <- Sys.getenv("TMUX_PANE")
-  workers <- setdiff(post, pre)
-  workers <- setdiff(workers, master)
-
-  if (length(workers) < n_workers) {
-    stop(sprintf("Expected %d new worker panes, found %d. Check tmux version/layout.",
-                 n_workers, length(workers)), call. = FALSE)
-  }
-  workers <- workers[seq_len(n_workers)]
-
-  # 3. Now send the R commands to the clean, tiled panes
-  start_cmd <- "R"
   
-  for (pid in worker_ids) {
-    .tmux_run("send-keys", "-t", pid, start_cmd, "C-m")
-    # Your existing staggered start delay
-    Sys.sleep(0.1)
-  }
-
-  # ---------- branching: single-shot vs queue mode ----------
-  # if (!continue) {
-  #   # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
-  #   n_send <- min(n_workers, nrow(df))
-  #   for (i in seq_len(n_send)) {
-  #     # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
-  #     runName <- as.character(df[[runNameLabel]][i])
-  #     runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
-  #     code <- sprintf(
-  #       "Sys.sleep(%s); system2('tmux', c('select-pane','-t', Sys.getenv('TMUX_PANE'), '-T', %s)); %s",
-  #       pre_sleep,
-  #       deparse(runName),
-  #       .make_assignment_code(df, i, global_path, pre_sleep = 0)
-  #     )
-  #     .tmux_run("send-keys", "-t", workers[i], code, "C-m")
-  #     
-  #     # No orchestrator sleeps—control returns immediately to master
-  #   }
-  # } else {
+  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
+  
+  inTmux <- Sys.getenv("TMUX") != ""
+  
+  if (inTmux) {
+    #stop("Not inside tmux. Start/attach to a tmux session first.", call. = FALSE)
+    #}
+    
+    # -- resolve current tmux window
+    target_win <- .tmux_current_window()
+    system("tmux set -g pane-border-status top") # sets so titles have names
+    
+    # -- list existing panes
+    pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
+    
+    # 1. Create a new pane for the sync process
+    if (!is.null(queue_path)) {
+      #   # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+      #   
+      if (!is.null(ss_id)) {
+        #     isDir <- reproducible:::isGoogleDriveDirectory(ss_id)
+        #     if (isTRUE(isDir)) {
+        #       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
+        #       # googledrive::drive_auth()
+        #       
+        #       # 1. Derive the name from the local queue file
+        #       sheet_name <- gsub("\\.rds$", "", basename(queue_path))
+        #       
+        #       # 2. Check if it already exists in that folder to avoid duplicates
+        #       existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
+        #       
+        #       if (nrow(existing) > 0) {
+        #         ss_id <- existing$id[1]
+        #       } else {
+        #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
+        #         # googlesheets4::gs4_auth()
+        #         # 3. Create the sheet (defaults to root) then move it to the folder
+        #         googlesheets4::gs4_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+        #         googledrive::drive_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+        #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+        #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+        #         
+        #         new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
+        #         googledrive::drive_mv(file = googledrive::as_id(new_sheet),
+        #                               path = googledrive::as_id(ss_id))
+        #         ss_id <- as.character(googledrive::as_id(new_sheet))
+        #       }
+        #     }
+        
+        # 1. Create the Monitoring Pane (Detached)
+        mon_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+        
+        # 2. Label it for 2025 observability
+        .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
+        
+        # 3. Construct the R command
+        # We deparse the vector to ensure it's passed correctly as a character string
+        # workersToMonitor
+        # workersToMonitor <- c("birds", "biomass", "camas", "carbon", "caribou", "coco",
+        #                   "core", "dougfir", "fire", "mpb", "sbw", "mega",
+        #                   "acer", "abies", "pinus")
+        
+        mon_cmd <- sprintf(
+          "clusters::monitorCluster(cores = %s)",
+          deparse1(workersToMonitor)
+        )
+        
+        # 4. Launch in the new pane
+        .tmux_run("select-layout", "-t", target_win, "tiled")
+        .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
+        
+        full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
+        .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
+        
+        
+        # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
+        # This ensures the focus stays on the Master Pane
+        sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+        .tmux_run("select-layout", "-t", target_win, "tiled")
+        
+        # 2. Prepare the command as a SINGLE line to prevent shell splitting
+        # Use deparse1() and force ss_id to character
+        sync_cmd <- sprintf(
+          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, folderWithDoneIndicator=%s, cache_path=%s)",
+          deparse1(email),
+          # deparse1(getOption("spades.folderWithDoneIndicator")),
+          deparse1(normalizePath(queue_path)),
+          deparse1(as.character(ss_id)),
+          deparse1(email),
+          deparse1(runNameLabel),
+          deparse1(folderWithDoneIndicator),
+          deparse1(normalizePath(cache_path))
+        )
+        
+        # 3. Send keys to the specific ID
+        # Adding a leading space ' ' prevents the command from being saved in bash history;
+        #  I took this away because I wanted access to the command
+        full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
+        .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
+        
+        # 4. Label the pane for clarity
+        .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
+      }
+    }
+    
+    # -- create worker panes
+    worker_ids <- character()
+    for (i in seq_len(n_workers)) {
+      # Create detached so focus stays on Master
+      new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+      worker_ids <- c(worker_ids, new_id)
+      
+      # MANDATORY: Reset layout immediately so the next split has room
+      .tmux_run("select-layout", "-t", target_win, "tiled")
+      # was 
+      Sys.sleep(2)
+      #Sys.sleep(0.1)
+    }
+    
+    # -- arrange evenly
+    # 2. Force the window into a tiled grid layout
+    # This fixes the "tiny sliver" problem immediately
+    # .tmux_run("select-layout", "-t", target_win, "tiled")
+    # if (delay_after_layout > 0) Sys.sleep(delay_after_layout)
+    
+    # -- mouse on, if requested
+    if (set_mouse) tmux_set_mouse(TRUE)
+    
+    # -- collect new worker panes
+    post <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
+    if (length(post) == 0L) stop("tmux list-panes returned no panes.", call. = FALSE)
+    
+    master  <- Sys.getenv("TMUX_PANE")
+    workers <- setdiff(post, pre)
+    workers <- setdiff(workers, master)
+    
+    if (length(workers) < n_workers) {
+      stop(sprintf("Expected %d new worker panes, found %d. Check tmux version/layout.",
+                   n_workers, length(workers)), call. = FALSE)
+    }
+    workers <- workers[seq_len(n_workers)]
+    
+    # 3. Now send the R commands to the clean, tiled panes
+    start_cmd <- "R"
+    
+    for (pid in worker_ids) {
+      .tmux_run("send-keys", "-t", pid, start_cmd, "C-m")
+      # Your existing staggered start delay
+      Sys.sleep(0.1)
+    }
+    
+    # ---------- branching: single-shot vs queue mode ----------
+    # if (!continue) {
+    #   # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
+    #   n_send <- min(n_workers, nrow(df))
+    #   for (i in seq_len(n_send)) {
+    #     # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
+    #     runName <- as.character(df[[runNameLabel]][i])
+    #     runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
+    #     code <- sprintf(
+    #       "Sys.sleep(%s); system2('tmux', c('select-pane','-t', Sys.getenv('TMUX_PANE'), '-T', %s)); %s",
+    #       pre_sleep,
+    #       deparse(runName),
+    #       .make_assignment_code(df, i, global_path, pre_sleep = 0)
+    #     )
+    #     .tmux_run("send-keys", "-t", workers[i], code, "C-m")
+    #     
+    #     # No orchestrator sleeps—control returns immediately to master
+    #   }
+    # } else {
     # ---- queue mode: file-backed queue & **direct function invocation** (no source()) ----
-    if (is.null(queue_path)) {
-      queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
-    }
-    tmux_prepare_queue_from_df(df, queue_path)
-    q <- readRDS(queue_path)
-    runNameLabel <- eval(runNameLabel)
+    # if (is.null(queue_path)) {
+    #   queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
+    # }
     
-    tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, folderWithDoneIndicator = folderWithDoneIndicator,
-                              activeRunningPath = activeRunningPath)
     
-    # Warn if filelock missing (workers will error in panes if not installed)
-    if (!requireNamespace("filelock", quietly = TRUE)) {
-      warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
-    }
+    # tmux_prepare_queue_from_df(df, queue_path)
+    # q <- readRDS(queue_path)
+    # runNameLabel <- eval(runNameLabel)
+    # 
+    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, folderWithDoneIndicator = folderWithDoneIndicator,
+    #                           activeRunningPath = activeRunningPath)
+    # 
     
-    # Build a pane payload that **calls functions** instead of source()ing files.
-    # Default preserves previous behavior (loop); if you want single-shot workers, swap to runNextWorker().
     
-    for (i in seq_along(workers)) {
-      pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
-      payload <- sprintf(
-        "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s, activeRunningPath=%s)",
-        deparse1(queue_path),
-        deparse1(global_path),
-        deparse1(match.arg(on_interrupt)),
-        deparse1(runNameLabel),
-        deparse1(activeRunningPath)
-      )
-      code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
+  } else {
+    warning("Not running in tmux; running just 1 worker... ")
+    n_workers <- 1
+    workers <- seq_along(n_workers)
+  }
+  
+  # Warn if filelock missing (workers will error in panes if not installed)
+  if (!requireNamespace("filelock", quietly = TRUE)) {
+    warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
+  }
+  
+  # Build a pane payload that **calls functions** instead of source()ing files.
+  # Default preserves previous behavior (loop); if you want single-shot workers, swap to runNextWorker().
+  
+  for (i in seq_along(workers)) {
+    pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
+    payload <- sprintf(
+      "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s, activeRunningPath=%s)",
+      deparse1(queue_path),
+      deparse1(global_path),
+      deparse1(match.arg(on_interrupt)),
+      deparse1(runNameLabel),
+      deparse1(activeRunningPath)
+    )
+    code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
+    if (inTmux) {
       .tmux_run("send-keys", "-t", workers[i], code, "C-m")
+    } else {
+      message("running:\n")
+      message(code)
+      eval(parse(text = code))
     }
-    
+  }
+  
   # }
-
+  
   invisible(workers)
 }
 
