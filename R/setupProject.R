@@ -1157,17 +1157,24 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
   if (!missing(sideEffects)) {
     messageVerbose(yellow(paste0(.txtSettingUp, " sideEffects...")), verbose = verbose, verboseLevel = 0)
 
+    # 
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envirCur, envir2 = envir)
 
-    if (!is.character(sideEffects)) { # this is because I wrote this second;
-      tf <- tempfile()
-      writeLines(format(sideEffects[-1]), con = tf)
-      sideEffects <- tf
-    }
-
+    # if (!is.character(sideEffects)) { # this is because I wrote this second;
+    #   tf <- tempfile()
+    #   writeLines(format(sideEffects[-1]), con = tf)
+    #   sideEffects <- tf
+    # }
+    
+    # parseFileLists needs paths, so must do this
+    pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
+    pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
+    paths <- setupPaths(paths = pathsSUB, # defaultDots = defaultDots,
+                        verbose = verbose - 2)
+    
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
-                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose - 1)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
   }
 
@@ -2053,21 +2060,24 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           y})
 
       if (any(!isChanged)) {
-        # we have a problem... need to splice
-        parts <- rle(named)$lengths
-        endIndex <- cumsum(parts)
-        startIndex <- endIndex - parts + 1
-        objNew <- list()
-        for (i in seq_along(parts)) {
-          if (identical(notNamed[!isChanged], i)) {
-            nextBit <- obj[startIndex[i]:endIndex[i]]
-          } else {
-            nextBit <- Reduce(f = modifyList, obj[startIndex[i]:endIndex[i]])
+        if (any(named)) {
+          # we have a problem... need to splice
+          parts <- rle(named)$lengths
+          endIndex <- cumsum(parts)
+          startIndex <- endIndex - parts + 1
+          objNew <- list()
+          for (i in seq_along(parts)) {
+            browser()
+            if (identical(notNamed[!isChanged], i)) {
+              nextBit <- obj[startIndex[i]:endIndex[i]]
+            } else {
+              nextBit <- Reduce(f = modifyList, obj[startIndex[i]:endIndex[i]])
+            }
+            objNew <- append(objNew, nextBit)
           }
-          objNew <- append(objNew, nextBit)
+          obj <- objNew
+          
         }
-        obj <- objNew
-
       } else {
         obj <- Reduce(f = modifyList, obj)
       }
