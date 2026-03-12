@@ -1798,10 +1798,21 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
         areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
         if (any(areFilesWithPackages)) {
-          remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
-          aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
-                               envir = envir, namedList = FALSE)
-          packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
+          isGH <- grepl("@", packagesToTry)
+          elementsToRm <- pkgsInFiles <- ptt <- remoteLocalFiles <- list()
+          for (ii in c("remote", "local")) {
+            remoteLocalFiles[[ii]] <- areFilesWithPackages & isGH %in% (ii %in% "remote")# the default isGitHub allows no branch
+            # remoteFiles <- areFilesWithPackages & isGH # the default isGitHub allows no branch
+            if (sum(remoteLocalFiles[[ii]])) {
+              pkgsInFiles[[ii]] <- parseFileLists(trimVersionNumber(packagesToTry[remoteLocalFiles[[ii]]]), 
+                                                  paths = paths,
+                                                  envir = envir, namedList = FALSE)
+              elementsToRm[[ii]] <- which(remoteLocalFiles[[ii]])
+              # ptt[[ii]] <- c(packagesToTry[-remoteLocalFiles[[ii]]], unname(unlist(pkgsInFiles[[ii]])))
+            }
+          }
+          packagesToTry <- c(packagesToTry[-unname(unlist(elementsToRm))],
+                            unname(unlist(pkgsInFiles)))
         }
 
         requirePkgNames <- Require::extractPkgName(require)
