@@ -2693,7 +2693,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 
       namsDD <- setdiff(names(defaultDots), "")
       defaultDotsNotNeeded <- mapply(dd = namsDD, function(dd)
-        exists(dd, callingEnv) || exists(dd, envir), SIMPLIFY = TRUE)
+        exists(dd, callingEnv, inherits = FALSE) || exists(dd, envir, inherits = FALSE), SIMPLIFY = TRUE)
       putInEnv <- names(defaultDotsNotNeeded)[defaultDotsNotNeeded %in% FALSE]
       if (length(putInEnv)) {
         ll <- list()
@@ -2845,7 +2845,8 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
       # Cache doesn't evaluate the `theCall` inside eval, so need .cacheExtra to identify the actual contents
       studyArea <- reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
                                        omitArgs = c("enclos", "envir"), verbose = verbose,
-                                       cachePath = paths$cachePath, .functionName = "getStudyArea")
+                                       cachePath = paths$cachePath, .functionName = "getStudyArea",
+                                       useCloud = FALSE)
     else
       studyArea <- eval(theCall)
   }
@@ -3841,7 +3842,8 @@ DEFAULT <- "DEFAULT"
 
 studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL,
                            params = NULL, verbose = getOption("Require.verbose")) {
-  if (!requireNamespace("reproducible")) stop("Please install `reproducible` to continue with setupStudyArea")
+  if (!is.null(studyArea) && !requireNamespace("reproducible", quietly = TRUE))
+    stop("Please install `reproducible` to continue with setupStudyArea")
   sa  <- if (!is.null(studyArea))     reproducible::.robustDigest(studyArea)
   rtm <- if (!is.null(rasterToMatch)) paste0(terra::ncell(rasterToMatch), "pix")
 
