@@ -10,7 +10,7 @@ runNextWorker(
   on_interrupt = c("requeue", "fail"),
   heartbeat_interval_s = 60,
   runNameLabel = quote(colnames(q)[1:2]),
-  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
   activeRunningPath = getOption("spades.activeRunningPath")
 )

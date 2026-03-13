@@ -27,7 +27,7 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
 #' Sync queue to Google Sheets (Package Internal)
 #' @keywords internal
 .sync_loop_internal <- function(queue_path, ss_id, email, cache_path, runNameLabel, 
-                                folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+                                doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
                                 activeRunningPath = getOption("spades.activeRunningPath"),
                                 interval = 300) {
   # This code runs inside the tmux pane
@@ -51,7 +51,7 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
       runNameLabel <- eval(runNameLabel)
       activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, basename(queue_path))
       tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, 
-                                folderWithDoneIndicator = folderWithDoneIndicator,
+                                doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
                                 activeRunningPath = activeRunningPath)
       q <- try(readRDS(queue_path), silent = TRUE)
       if (inherits(q, "try-error")) { Sys.sleep(2); next }

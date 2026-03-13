@@ -14,7 +14,7 @@ experimentTmux(
   delay_before_source = 60,
   stagger_by = delay_before_source,
   set_mouse = TRUE,
-  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
   activeRunningPath = getOption("spades.activeRunningPath"),
   continue = TRUE,
@@ -25,7 +25,8 @@ experimentTmux(
   cache_path = getOption("gargle_oauth_cache"),
   workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco", "core",
     "dougfir", "fire", "mpb", "sbw", "mega", "acer", "abies", "pinus"),
-  runNameLabel = quote(colnames(q)[1:2])
+  runNameLabel = quote(colnames(q)[1:2]),
+  ...
 )
 }
 \arguments{
@@ -52,10 +53,10 @@ injecting assignments + \code{source(global_path)}. Default \code{60.0}.}
 
 \item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support via \code{tmux_set_mouse(TRUE)}. Default \code{TRUE}. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}}
 
-\item{folderWithDoneIndicator}{A string or call using optionally \code{runName}, e.g.,
+\item{doneAndFinishedTimeIndicator}{A string or call using optionally \code{runName}, e.g.,
 \code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))}.
 Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
-Defaults to \code{getOption("spades.folderWithDoneIndicator", NULL)}
+Defaults to \code{getOption("spades.doneAndFinishedTimeIndicator", NULL)}
 Ineffective otherwise.}
 
 \item{activeRunningPath.}{The directory where the "running" flag will be written.

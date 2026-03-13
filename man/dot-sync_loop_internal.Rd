@@ -10,7 +10,7 @@
   email,
   cache_path,
   runNameLabel,
-  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
   activeRunningPath = getOption("spades.activeRunningPath"),
   interval = 300
 )

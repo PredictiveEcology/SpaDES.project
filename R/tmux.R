@@ -66,10 +66,10 @@ tmux_set_mouse <- function(on = TRUE) {
 #'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))`.
 #'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
 #'    Ineffective otherwise. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`,
-#' @param folderWithDoneIndicator A string or call using optionally `runName`, e.g., 
+#' @param doneAndFinishedTimeIndicator A string or call using optionally `runName`, e.g., 
 #'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))`.
 #'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
-#'    Defaults to `getOption("spades.folderWithDoneIndicator", NULL)`
+#'    Defaults to `getOption("spades.doneAndFinishedTimeIndicator", NULL)`
 #'    Ineffective otherwise.
 #'    
 #' @param set_mouse Logical. If `TRUE`, enables tmux mouse support via `tmux_set_mouse(TRUE)`. Default `TRUE`. [1](https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute)
@@ -107,7 +107,7 @@ experimentTmux <- function(df,
                            delay_before_source = 60,
                            stagger_by = delay_before_source,
                            set_mouse = TRUE,
-                           folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+                           doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
                            # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
                            folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                            # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
@@ -121,7 +121,8 @@ experimentTmux <- function(df,
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = c("birds","biomass","camas","carbon","caribou","coco",
                                                 "core","dougfir","fire","mpb","sbw","mega","acer","abies","pinus"),
-                           runNameLabel = quote(colnames(q)[1:2])) {
+                           runNameLabel = quote(colnames(q)[1:2]),
+                           ...) {
   
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
@@ -140,7 +141,7 @@ experimentTmux <- function(df,
   q <- readRDS(queue_path)
   runNameLabel <- eval(runNameLabel)
   
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, folderWithDoneIndicator = folderWithDoneIndicator,
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
                             activeRunningPath = activeRunningPath)
   if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
   if (!file.exists(global_path)) {
@@ -198,6 +199,9 @@ experimentTmux <- function(df,
     
     # -- list existing panes
     pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
+    
+    # -- mouse on, if requested
+    if (set_mouse) tmux_set_mouse(TRUE)
     
     # 1. Create a new pane for the sync process
     if (!is.null(queue_path)) {
@@ -267,16 +271,27 @@ experimentTmux <- function(df,
         # 2. Prepare the command as a SINGLE line to prevent shell splitting
         # Use deparse1() and force ss_id to character
         sync_cmd <- sprintf(
-          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, folderWithDoneIndicator=%s, cache_path=%s)",
+          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, doneAndFinishedTimeIndicator=quote(%s), cache_path=%s)",
           deparse1(email),
-          # deparse1(getOption("spades.folderWithDoneIndicator")),
+          # deparse1(getOption("spades.doneAndFinishedTimeIndicator")),
           deparse1(normalizePath(queue_path)),
           deparse1(as.character(ss_id)),
           deparse1(email),
           deparse1(runNameLabel),
-          deparse1(folderWithDoneIndicator),
+          deparse1(doneAndFinishedTimeIndicator, collapse = "\n"),
           deparse1(normalizePath(cache_path))
         )
+        
+        ndots <- length(...names())
+        extraArgs <- NULL
+        if (ndots) {
+          dots <- list(...)
+          dots <- lapply(dots, deparse1)  
+          extraArgs <- paste(paste(names(dots), "=", unname(unlist(dots))  ), collapse = "; ")
+          sync_cmd <- sprintf(paste0("%s;", sync_cmd), extraArgs)
+        }
+        
+        
         
         # 3. Send keys to the specific ID
         # Adding a leading space ' ' prevents the command from being saved in bash history;
@@ -364,7 +379,7 @@ experimentTmux <- function(df,
     # q <- readRDS(queue_path)
     # runNameLabel <- eval(runNameLabel)
     # 
-    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, folderWithDoneIndicator = folderWithDoneIndicator,
+    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
     #                           activeRunningPath = activeRunningPath)
     # 
     
@@ -425,7 +440,7 @@ runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
                           runNameLabel = quote(colnames(q)[1:2]),
-                          folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+                          doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
                           folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
@@ -442,7 +457,7 @@ runNextWorker <- function(queue_path, global_path,
   
   # update queue file from log files
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, folderWithDoneIndicator = folderWithDoneIndicator,
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
                             activeRunningPath = activeRunningPath)
   # claim a row (unchanged)
   lck <- filelock::lock(LOCKF, timeout = Inf)
@@ -859,7 +874,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' @param runName Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
 assessDoneInFigure <- function(runName, timeout_min = 20, 
-                               folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator")) {
+                               doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator")) {
                                # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
 
   # startedFiles <- dir(activeRunningPath, pattern = txtRunning, ignore.case = TRUE)
@@ -868,15 +883,15 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
   #   return(txtRunning)
   # }
 
-  if (!is.null(folderWithDoneIndicator)) {
+  if (!is.null(doneAndFinishedTimeIndicator)) {
     
-    if (is.call(folderWithDoneIndicator))
-      folderWithDoneIndicator <- eval(folderWithDoneIndicator)
-    # folderWithDoneIndicator <- file.path("outputs", runName, "figures", "objFun")
-    if (length(folderWithDoneIndicator) == 0 || !dir.exists(folderWithDoneIndicator)) return(txtPending)
+    if (is.call(doneAndFinishedTimeIndicator))
+      doneAndFinishedTimeIndicator <- eval(doneAndFinishedTimeIndicator)
+    # doneAndFinishedTimeIndicator <- file.path("outputs", runName, "figures", "objFun")
+    if (length(doneAndFinishedTimeIndicator) == 0 || !dir.exists(doneAndFinishedTimeIndicator)) return(txtPending)
     
     # Find most recent PNG
-    png_files <- list.files(folderWithDoneIndicator, pattern = "\\.png$", full.names = TRUE)
+    png_files <- list.files(doneAndFinishedTimeIndicator, pattern = "\\.png$", full.names = TRUE)
     if (length(png_files) == 0) return(txtPending)
     
     # Get most recent file
@@ -938,10 +953,9 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
 #' }
 tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
-                                      folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
-                                      # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
+                                      doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
                                       folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
-                                      # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
+                                      recheckDone = FALSE, #!is.null(doneAndFinishedTimeIndicator),
                                       activeRunningPath = getOption("spades.activeRunningPath")) {
   
   if (file.exists(queue_path)) {
@@ -956,120 +970,184 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     }
 
     # Only refresh rows that aren't already marked DONE
-    to_check <- which(!q$status %in% txtDone)
-    # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
+    to_check <- if (!isTRUE(try(recheckDone))) {
+      which(!q$status %in% txtDone)
+    } else {
+      seq_along(q$status)
+    }
+      # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
     runNameLabel <- eval(runNameLabel)
     if (missing(runNameLabel) || is.null(runNameLabel)) {
       runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
     }
+    activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
     for (i in to_check) {
+      new_status <- txtPending
       runName <- getRunName(q, i, runNameLabel)# 
+      runNameSimples <- sapply(runNameLabel, function(rnl) q[i, rnl])
+      
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
       #   debug(get_latest_heartbeat)
       # }
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
-      activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
-      startedFiles <- dir(activeRunningPath, pattern = txtRunning, ignore.case = TRUE)
-      is_running <- runName %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
-      if (isTRUE(is_running)) {
-        new_status <- txtRunning
-      } else {
-        new_status <- assessDoneInFigure(runName = runName, timeout_min = timeout_min, 
-                                        folderWithDoneIndicator = folderWithDoneIndicator)#, 
-                                                #activeRunningPath = activeRunningPath)
-      }
-      hb <- get_latest_heartbeat(runName, folderWithIterInFilename = folderWithIterInFilename)
-      elapsedTime <- hb$elapsed
-
-      fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
-      hasFI <- (!is.null(fi) && NROW(fi))
-      if (hasFI)
-        startedAt <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-
-      if (any(unlist(hb) %in% NA) ) {
-        # Has 
-        if (new_status %in% txtPending) {
-          cns <- setdiff(meta_cols, "status") #setdiff(colnames(q), c(runNameLabel, ".rep", "status"))
-          for (cn in cns)
-            q[[cn]][i] <- NA
-        } else {
-          # This is RUNNING; but not at DEoptim yet; can also be DONE
-          # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
-          if (hasFI) {
-            # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
-            # 3
-            q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-            q$machine_name[i] <- Sys.info()[["nodename"]]
+      allFiles <- dir(activeRunningPath)
+      allFilesFull <- dir(activeRunningPath, full.names = TRUE)
+      runningFiles <- grep(allFiles, pattern = txtRunning, ignore.case = TRUE, value = TRUE)
+      runningFilesFull <- grep(allFilesFull, pattern = txtRunning, ignore.case = TRUE, value = TRUE)
+      
+      is_running <- sapply(strsplit(runningFiles, "_"), function(x) runName %in% x)
+      if (any(is_running)) {
+        # confirm that they are still running using pids
+        filename <- runningFilesFull[is_running]
+        if (length(filename)) {
+          toRm <- Map(fiHere = filename, function(fiHere) {
+            pid <- strsplit(basename(fiHere), split = "_")[[1]][3] |> as.integer()
+            alive <- is_pid_alive_tools(pid)
+            if (isFALSE(alive)) {
+              return(fiHere)
+            } else {
+              return(NULL)
+            }
+            
+          })
+          toRm <- unlist(toRm)
+          if (length(toRm)) {
+            unlink(toRm)
+            toRmInd <- match(toRm, allFilesFull)
+            allFiles <- allFiles[-toRmInd]
+            allFilesFull <- allFilesFull[-toRmInd]
+            # toRmIndForPartialRunningFiles <- match(toRm, runningFilesFull[is_running])
+            toRmIndForRunning <- match(runningFilesFull[is_running], runningFilesFull)
+            is_running[toRmIndForRunning] <- FALSE
           }
-          q$DEoptimElapsedTime[i] <- NA
-          # q$process_id[i] <- NA
         }
-      } else {
-        # Update status and timestamps if changed
-        # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runNameLabel = runNameLabel, queue_path = queue_path)
-        # pids <- Map(fiHere = rownames(fi), function(fiHere) {
-        #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
-        #   alive <- is_pid_alive_tools(pid)
-        #   if (isFALSE(alive)) {
-        #     unlink(fiHere)
-        #   }
-        # })
+
         
-        q$process_id[i] <- NA
+      }
+      
+      done <- FALSE
+      if (!is.null(doneAndFinishedTimeIndicator)) {
+        
+        evaled <- try(eval(doneAndFinishedTimeIndicator))
+        if (is(evaled, "try-error")) {
+          doneAndFinishedTimeIndicator <- NULL
+        } else {
+          cn <- meta_cols
+          for (cc in cn) {
+            q[[cc]][i] <- NA
+            if (exists(cc, inherits = FALSE)) {
+              q[[cc]][i] <- get(cc, inherits = FALSE)
+            }
+          }
+        }
+      }
+      if (!isTRUE(done)) {
+        if (isTRUE(any(is_running))) {
+          new_status <- txtRunning
+        } #else if (isTRUE(is_done)) {
+          #new_status <- txtDone
+        #} # else {
+        #   new_status <- assessDoneInFigure(runName = runName, timeout_min = timeout_min, 
+        #                                    doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator)#, 
+        #   #activeRunningPath = activeRunningPath)
+        # }
+        hb <- NA
+        if (!is.null(folderWithIterInFilename)) {
+          hb <- get_latest_heartbeat(runName, folderWithIterInFilename = folderWithIterInFilename)
+          elapsedTime <- hb$elapsed
+        } 
+        
+        fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
+        hasFI <- (!is.null(fi) && NROW(fi))
+        machine_name <- Sys.info()[["nodename"]]
         if (hasFI) {
-          procId <- strsplit(basename(rownames(fi)), split = "_")[[1]][3]
-          if (is_pid_alive_tools(as.integer(procId)) )
-            new_status <- txtRunning
-          
-          if (!is.na(suppressWarnings(as.numeric(procId))))
-            q$process_id[i] <- procId
-          if (!is.character(hb$started) || is.na(hb$started)) {
-            # browser()
-            # 1
-            
-            q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+          startedAt <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+          process_id <- gsub(".+([[:digit:]]{6,7}).+","\\1", basename(rownames(fi)))
+        }
+        
+        if (any(unlist(hb) %in% NA) ) {
+          if (new_status %in% txtPending) {
+            cns <- setdiff(meta_cols, "status")
+            for (cn in cns)
+              q[[cn]][i] <- NA
           } else {
-            # elapsedTime <- difftime(fi$mtime, hb$started)
-            # browser()
-            # 2
-            
-            if (elapsedTime > 0)
-              q$started_at[i] <- format(as.POSIXct(hb$ts) - elapsedTime, "%Y-%m-%d %H:%M:%S")
-            else
+            # This is RUNNING; but not at DEoptim yet; can also be DONE
+            # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
+            if (hasFI) {
+              # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
+              # 3
               q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+              q$machine_name[i] <- machine_name
+            }
+            q$DEoptimElapsedTime[i] <- NA
+            # q$process_id[i] <- NA
           }
-          if (isTRUE(is.na(q$machine_name[i])))
-            q$machine_name[i] <- Sys.info()[["nodename"]]
         } else {
-
-          # Says it is RUNNING --> but is actually INTERRUPTED because it has no log file (fi)
-          if (isTRUE(is.na(q$started_at[i])))
-            q$started_at[i] <- hb$started
-          if (isTRUE(is.na(q$machine_name[i])))
-            q$machine_name[i] <- Sys.info()[["nodename"]]
+          # Update status and timestamps if changed
+          # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runNameLabel = runNameLabel, queue_path = queue_path)
+          # pids <- Map(fiHere = rownames(fi), function(fiHere) {
+          #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
+          #   alive <- is_pid_alive_tools(pid)
+          #   if (isFALSE(alive)) {
+          #     unlink(fiHere)
+          #   }
+          # })
           
-          new_status <- txtInterrupted
-          if (q$heartbeat_iter[i] %% 25 %in% 0)
-            new_status <- txtDone
+          q$process_id[i] <- NA
+          if (hasFI) {
+            procId <- strsplit(basename(rownames(fi)), split = "_")[[1]][3]
+            if (is_pid_alive_tools(as.integer(procId)) )
+              new_status <- txtRunning
             
+            if (!is.na(suppressWarnings(as.numeric(procId))))
+              q$process_id[i] <- procId
+            if (!is.character(hb$started) || is.na(hb$started)) {
+              
+              q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+            } else {
+              # elapsedTime <- difftime(fi$mtime, hb$started)
+              
+              if (elapsedTime > 0)
+                q$started_at[i] <- format(as.POSIXct(hb$ts) - elapsedTime, "%Y-%m-%d %H:%M:%S")
+              else
+                q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
+            }
+            if (isTRUE(is.na(q$machine_name[i])))
+              q$machine_name[i] <- Sys.info()[["nodename"]]
+          } else {
+            
+            # Says it is RUNNING --> but is actually INTERRUPTED because it has no log file (fi)
+            if (isTRUE(is.na(q$started_at[i])))
+              q$started_at[i] <- hb$started
+            if (isTRUE(is.na(q$machine_name[i])))
+              q$machine_name[i] <- Sys.info()[["nodename"]]
+            
+            new_status <- txtInterrupted
+            if (q$heartbeat_iter[i] %% 25 %in% 0)
+              new_status <- txtDone
+            
+          }
+          
+          q$heartbeat_iter[i] <- hb$iter
+          q$heartbeat_at[i] <- hb$ts
+          # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
+          q$DEoptimElapsedTime[i] <- format(round(elapsedTime, 2), digits = 2, units = "days")
+          if (new_status %in% txtDone) {
+            q$finished_at[i] <- q$heartbeat_at[i]
+            q$heartbeat_at[i] <- NA
+            q$iterationsTotal[i] <- q$heartbeat_iter[i]
+            q$heartbeat_iter[i] <- NA
+            q$claimed_by[i] <- NA
+          }
+          
         }
-        
-        q$heartbeat_iter[i] <- hb$iter
-        q$heartbeat_at[i] <- hb$ts
-        # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
-        q$DEoptimElapsedTime[i] <- format(round(elapsedTime, 2), digits = 2, units = "days")
-        if (new_status %in% txtDone) {
-          q$finished_at[i] <- q$heartbeat_at[i]
-          q$heartbeat_at[i] <- NA
-          q$iterationsTotal[i] <- q$heartbeat_iter[i]
-          q$heartbeat_iter[i] <- NA
-          q$claimed_by[i] <- NA
-        }
-        
+      } else {
+        new_status <- txtDone
       }
-      if (q$status[i] != new_status) {
+
+      if (!q$status[i] %in% new_status) {
         q$status[i] <- new_status
         # If newly finished, record current time
         # if (new_status  "FINISHED") {
@@ -1177,6 +1255,7 @@ is_pid_alive_tools <- function(pid) {
   )
   isTRUE(out)
 }
+
 
 
 txtInterrupted <- "INTERRUPTED"

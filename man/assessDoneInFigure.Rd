@@ -7,7 +7,7 @@
 assessDoneInFigure(
   runName,
   timeout_min = 20,
-  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator")
+  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator")
 )
 }
 \arguments{

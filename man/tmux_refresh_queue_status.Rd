@@ -8,8 +8,9 @@ tmux_refresh_queue_status(
   queue_path,
   timeout_min = 20,
   runNameLabel = quote(colnames(q)[1:2]),
-  folderWithDoneIndicator = getOption("spades.folderWithDoneIndicator"),
+  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
+  recheckDone = FALSE,
   activeRunningPath = getOption("spades.activeRunningPath")
 )
 }
