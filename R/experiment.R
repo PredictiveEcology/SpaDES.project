@@ -45,6 +45,8 @@
 #'   If supplying a character vector of names, it must be same length as the `NROW(expt)`,
 #'   and it must be explicit about the file extension, either `.rds` or `.qs2` for each
 #'   filename.
+#' @param logFiles A list describing which objects to log. Default logs `expt` and `"time"`.
+#' @param delay Numeric. Seconds to wait between starting workers. Default `60`.
 #' @param tmuxName Character string. This command will print a message with a tmux
 #'   command that can be used by a user to follow the multiple logs in a bash
 #'   command prompt. The name of the tmux window will be this.
@@ -96,7 +98,7 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
   }
 
   if (is.null(expt$.runName)) {
-    exptChar <- lapply(expt, function(x) if (is.numeric(x)) reproducible:::paddedFloatToChar(x, padL = max(nchar(x))) else x) |>
+    exptChar <- lapply(expt, function(x) if (is.numeric(x)) reproducible::paddedFloatToChar(x, padL = max(nchar(x))) else x) |>
       as.data.frame()
     expt$.runName <- apply(exptChar, 1, function(...) paste0(names(exptChar), ..., collapse = "_"))
   }
@@ -197,7 +199,7 @@ experiment3 <- function(expt, file = "global.R", preRunSetupProject = "paths",
                                                         .cacheExtra = dig)
         if (is(sim, "try-error")) {
           warning(sim)
-          sim <- SpaDES.core:::savedSimEnv()$sim
+          sim <- SpaDES.core::savedSimEnv()$sim
         }
 
         op <- SpaDES.core::outputPath(sim)

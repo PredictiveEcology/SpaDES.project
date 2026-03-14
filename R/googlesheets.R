@@ -43,7 +43,8 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
   # googlesheets4::gs4_auth()
   message(
     "Updating Google Sheet located at: \n", 
-    reproducible:::googledriveIDtoHumanURL(ss_id), 
+    googledriveIDtoHumanURL(ss_id),
+    # paste0("https://drive.google.com/file/d/", ss_id),
     "\nevery ", interval, " seconds")
   repeat {
     if (file.exists(queue_path)) {

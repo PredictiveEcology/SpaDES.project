@@ -11,6 +11,16 @@ activeRunningPathForTmux(
   suffix = queue_path
 )
 }
+\arguments{
+\item{activeRunningPath}{Optional character path. If \code{NULL} (default), derived from
+\code{prefix} and \code{queue_path}.}
+
+\item{queue_path}{Character. Path to the queue \code{.rds} file, used to derive the default path.}
+
+\item{prefix}{Character. Directory prefix for the path. Default \code{"logs"}.}
+
+\item{suffix}{Character. Suffix used in the path. Defaults to \code{queue_path}.}
+}
 \value{
 The default path.
 }

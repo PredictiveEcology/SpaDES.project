@@ -14,6 +14,9 @@ assessDoneInFigure(
 \item{runName}{Directory containing the figures/hists}
 
 \item{timeout_min}{Threshold for inactivity (e.g., 20)}
+
+\item{statusCalculate}{A quoted expression to compute job status from output files.
+Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
 }
 \description{
 Assess simulation status from PNG outputs

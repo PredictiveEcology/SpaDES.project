@@ -84,6 +84,18 @@ setdiffNamed <- utils::getFromNamespace("setdiffNamed", "Require")
 
 
 #' @rdname imports
+googledriveIDtoHumanURL <- tryCatch(
+  utils::getFromNamespace("googledriveIDtoHumanURL", "reproducible"),
+  error = function(e) function(id) paste0("https://drive.google.com/file/d/", id)
+)
+
+#' @rdname imports
+isGoogleDriveDirectory <- tryCatch(
+  utils::getFromNamespace("isGoogleDriveDirectory", "reproducible"),
+  error = function(e) function(url) grepl("folders", url)
+)
+
+#' @rdname imports
 .spatialPkgs <- tryCatch({
   .spatialPkgs <- utils::getFromNamespace(".spatialPkgs", "Require")
 }, error = function(e) {

@@ -51,25 +51,43 @@ injecting assignments + \code{source(global_path)}. Default \code{60.0}.}
 \item{stagger_by}{Numeric. Extra seconds added per subsequent pane beyond pane 2, so pane i>1 waits
 \code{delay_before_source + (i-2)*stagger_by} inside R. Default \code{0.0}.}
 
-\item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support via \code{tmux_set_mouse(TRUE)}. Default \code{TRUE}. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}}
+\item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support. Default \code{TRUE}.}
 
 \item{statusCalculate}{A string or call using optionally \code{runName}, e.g.,
-\code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))}.
-Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
-Defaults to \code{getOption("spades.statusCalculate", NULL)}
-Ineffective otherwise.}
+\code{statusCalculate = quote(file.path("outputs", runName, "figures", "objFun"))}.
+Currently only effective for \code{fireSense_SpreadFit} outputs.
+Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
 
-\item{activeRunningPath.}{The directory where the "running" flag will be written.
+\item{folderWithIterInFilename}{A string or call using optionally \code{runName}, e.g.,
+\code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))}.
+Currently only effective for \code{fireSense_SpreadFit} outputs.
+Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
+
+\item{activeRunningPath}{The directory where the "running" flag will be written.
 This flag (a file) should only be present while an ELF is running. At the end
 or at failure, it should be removed automatically. If it is not (because of a
 bad crash), then it MUST be manually deleted. Default is derived via
-\code{SpaDES.project:::activeRunningPathForTmux} and is
-\code{file.path("logs/", queue_path)}}
+\code{activeRunningPathForTmux} as \code{file.path("logs/", queue_path)}.}
 
-\item{folderWithIterInFilename.}{A string or call using optionally \code{runName}, e.g.,
-\code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))}.
-Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
-Ineffective otherwise. Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)},}
+\item{continue}{Logical. If \code{TRUE} (default), workers loop through the queue until empty.}
+
+\item{queue_path}{Character. Path to the \code{.rds} queue file. Defaults to
+\code{file.path(dirname(global_path), "tmux_queue.rds")}.}
+
+\item{on_interrupt}{Character. Action when a job is interrupted: \code{"requeue"} (default)
+or \code{"fail"}.}
+
+\item{ss_id}{Optional Google Drive folder/sheet ID for queue syncing. \code{NULL} disables.}
+
+\item{email}{Optional email for Google authentication.}
+
+\item{cache_path}{Optional path for gargle OAuth cache.}
+
+\item{workersToMonitor}{Character vector of worker names to monitor.}
+
+\item{runNameLabel}{A quoted expression to derive a run label from the queue data frame.}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
 Invisibly returns the character vector of tmux \strong{pane IDs} for the workers.

@@ -25,6 +25,8 @@ runWorkerLoop(
 
 \item{stop_file}{optional path; if present, stop after current iteration}
 
+\item{activeRunningPath}{Directory for "running" flag files. See \code{activeRunningPathForTmux}.}
+
 \item{runNameLabel}{A quoted expression (possibly of \code{q}, which is the result of \code{q <- readRDS(queue_path)}).
 Default is the first 2 column names of \code{q}. These will be concatenated and used as
 labels for various things including the \code{activeRunningPath} file(s).}

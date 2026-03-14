@@ -2842,10 +2842,14 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
     theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
     if (requireNamespace("reproducible", quietly = TRUE))
       # Cache doesn't evaluate the `theCall` inside eval, so need .cacheExtra to identify the actual contents
-      studyArea <- reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
-                                       omitArgs = c("enclos", "envir"), verbose = verbose,
-                                       cachePath = paths$cachePath, .functionName = "getStudyArea",
-                                       useCloud = FALSE)
+      studyArea <- tryCatch(
+        reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
+                            omitArgs = c("enclos", "envir"), verbose = verbose,
+                            cachePath = paths$cachePath, .functionName = "getStudyArea",
+                            useCloud = FALSE,
+                            cacheSaveFormat = getOption("reproducible.cacheSaveFormat", "rds")),
+        error = function(e) eval(theCall)
+      )
     else
       studyArea <- eval(theCall)
   }

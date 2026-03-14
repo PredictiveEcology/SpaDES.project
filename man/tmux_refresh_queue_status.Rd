@@ -19,6 +19,18 @@ tmux_refresh_queue_status(
 
 \item{timeout_min}{Numeric. Minutes of inactivity before a task is
 considered stale. Defaults to 20.}
+
+\item{runNameLabel}{A quoted expression to derive a run label from the queue. Default uses first two columns.}
+
+\item{statusCalculate}{A quoted expression to compute job status from output files.
+Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
+
+\item{folderWithIterInFilename}{A quoted expression for a folder with iteration info in filenames.
+Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
+
+\item{recheckDone}{Logical. If \code{TRUE}, re-evaluate DONE status. Default \code{FALSE}.}
+
+\item{activeRunningPath}{Directory for "running" flag files. See \code{activeRunningPathForTmux}.}
 }
 \value{
 A data.frame (the updated queue), invisibly.

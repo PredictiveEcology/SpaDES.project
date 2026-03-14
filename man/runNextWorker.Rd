@@ -27,6 +27,14 @@ runNextWorker(
 \item{runNameLabel}{A quoted expression (possibly of \code{q}, which is the result of \code{q <- readRDS(queue_path)}).
 Default is the first 2 column names of \code{q}. These will be concatenated and used as
 labels for various things including the \code{activeRunningPath} file(s).}
+
+\item{statusCalculate}{A quoted expression to compute job status from output files.
+Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
+
+\item{folderWithIterInFilename}{A quoted expression for a folder containing iteration
+info in filenames. Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
+
+\item{activeRunningPath}{Directory for "running" flag files. See \code{activeRunningPathForTmux}.}
 }
 \value{
 "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()

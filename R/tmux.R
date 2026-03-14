@@ -56,23 +56,31 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   injecting assignments + `source(global_path)`. Default `60.0`.
 #' @param stagger_by Numeric. Extra seconds added per subsequent pane beyond pane 2, so pane i>1 waits
 #'   `delay_before_source + (i-2)*stagger_by` inside R. Default `0.0`.
-#' @param activeRunningPath. The directory where the "running" flag will be written. 
+#' @param activeRunningPath The directory where the "running" flag will be written.
 #'   This flag (a file) should only be present while an ELF is running. At the end
 #'   or at failure, it should be removed automatically. If it is not (because of a
 #'   bad crash), then it MUST be manually deleted. Default is derived via
-#'   `SpaDES.project:::activeRunningPathForTmux` and is  
-#'   `file.path("logs/", queue_path)`
-#' @param folderWithIterInFilename. A string or call using optionally `runName`, e.g., 
+#'   `activeRunningPathForTmux` as `file.path("logs/", queue_path)`.
+#' @param folderWithIterInFilename A string or call using optionally `runName`, e.g.,
 #'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))`.
-#'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
-#'    Ineffective otherwise. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`,
-#' @param statusCalculate A string or call using optionally `runName`, e.g., 
-#'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))`.
-#'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
-#'    Defaults to `getOption("spades.statusCalculate", NULL)`
-#'    Ineffective otherwise.
-#'    
-#' @param set_mouse Logical. If `TRUE`, enables tmux mouse support via `tmux_set_mouse(TRUE)`. Default `TRUE`. [1](https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute)
+#'    Currently only effective for `fireSense_SpreadFit` outputs.
+#'    Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
+#' @param statusCalculate A string or call using optionally `runName`, e.g.,
+#'    `statusCalculate = quote(file.path("outputs", runName, "figures", "objFun"))`.
+#'    Currently only effective for `fireSense_SpreadFit` outputs.
+#'    Defaults to `getOption("spades.statusCalculate", NULL)`.
+#' @param continue Logical. If `TRUE` (default), workers loop through the queue until empty.
+#' @param queue_path Character. Path to the `.rds` queue file. Defaults to
+#'   `file.path(dirname(global_path), "tmux_queue.rds")`.
+#' @param on_interrupt Character. Action when a job is interrupted: `"requeue"` (default)
+#'   or `"fail"`.
+#' @param ss_id Optional Google Drive folder/sheet ID for queue syncing. `NULL` disables.
+#' @param email Optional email for Google authentication.
+#' @param cache_path Optional path for gargle OAuth cache.
+#' @param workersToMonitor Character vector of worker names to monitor.
+#' @param runNameLabel A quoted expression to derive a run label from the queue data frame.
+#' @param ... Additional arguments (currently unused).
+#' @param set_mouse Logical. If `TRUE`, enables tmux mouse support. Default `TRUE`.
 #'
 #' @return Invisibly returns the character vector of tmux **pane IDs** for the workers.
 #' @export
@@ -154,7 +162,7 @@ experimentTmux <- function(df,
     # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
     
     if (!is.null(ss_id)) {
-      isDir <- reproducible:::isGoogleDriveDirectory(ss_id)
+      isDir <- isGoogleDriveDirectory(ss_id)
       if (isTRUE(isDir)) {
         reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
         # googledrive::drive_auth()
@@ -208,7 +216,7 @@ experimentTmux <- function(df,
       #   # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
       #   
       if (!is.null(ss_id)) {
-        #     isDir <- reproducible:::isGoogleDriveDirectory(ss_id)
+        #     isDir <- isGoogleDriveDirectory(ss_id)
         #     if (isTRUE(isDir)) {
         #       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
         #       # googledrive::drive_auth()
@@ -435,6 +443,11 @@ experimentTmux <- function(df,
 #' @param runNameLabel A quoted expression (possibly of `q`, which is the result of `q <- readRDS(queue_path)`).
 #'   Default is the first 2 column names of `q`. These will be concatenated and used as
 #'   labels for various things including the `activeRunningPath` file(s).
+#' @param statusCalculate A quoted expression to compute job status from output files.
+#'   Defaults to `getOption("spades.statusCalculate", NULL)`.
+#' @param folderWithIterInFilename A quoted expression for a folder containing iteration
+#'   info in filenames. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
+#' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
 #' @export
 runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
@@ -564,7 +577,7 @@ runNextWorker <- function(queue_path, global_path,
   }
   saveRDS(q, queue_path)
   filelock::unlock(lck)
-  if (!is.null(hb_thread)) try(parallel::pskill(hb_thread$pid), silent = TRUE)
+  if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
   outcome
 }
 
@@ -801,7 +814,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #     current_elfind <- q[[".ELFind"]][i]
 # 
 #     if (!is.null(hb_thread)) {
-#       try(parallel::pskill(hb_thread$pid), silent = TRUE)
+#       try(tools::pskill(hb_thread$pid), silent = TRUE)
 #       try(parallel::mccollect(hb_thread, wait = FALSE), silent = TRUE)
 #     }
 # 
@@ -850,7 +863,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #     filelock::unlock(lck)
 #     if (identical(outcome, "interrupt")) break
 #   }
-#   if (!is.null(hb_thread)) try(parallel::pskill(hb_thread$pid), silent = TRUE)
+#   if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
 #   )-"
 # 
 #   # Now run sprintf with exactly 5 arguments
@@ -873,6 +886,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' Assess simulation status from PNG outputs
 #' @param runName Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
+#' @param statusCalculate A quoted expression to compute job status from output files.
+#'   Defaults to `getOption("spades.statusCalculate", NULL)`.
 assessDoneInFigure <- function(runName, timeout_min = 20, 
                                statusCalculate = getOption("spades.statusCalculate")) {
                                # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
@@ -939,6 +954,13 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' @param queue_path Character. Absolute path to the `experiment_queue.rds` file.
 #' @param timeout_min Numeric. Minutes of inactivity before a task is
 #'   considered stale. Defaults to 20.
+#' @param runNameLabel A quoted expression to derive a run label from the queue. Default uses first two columns.
+#' @param statusCalculate A quoted expression to compute job status from output files.
+#'   Defaults to `getOption("spades.statusCalculate", NULL)`.
+#' @param folderWithIterInFilename A quoted expression for a folder with iteration info in filenames.
+#'   Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
+#' @param recheckDone Logical. If `TRUE`, re-evaluate DONE status. Default `FALSE`.
+#' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
 #'
 #' @return A data.frame (the updated queue), invisibly.
 #'   As a side effect, updates the RDS file on disk.
@@ -1272,6 +1294,11 @@ txtRunning <- "RUNNING"
 #' 
 #' Just a default path.
 #' 
+#' @param activeRunningPath Optional character path. If `NULL` (default), derived from
+#'   `prefix` and `queue_path`.
+#' @param queue_path Character. Path to the queue `.rds` file, used to derive the default path.
+#' @param prefix Character. Directory prefix for the path. Default `"logs"`.
+#' @param suffix Character. Suffix used in the path. Defaults to `queue_path`.
 #' @return The default path.
 #' @export
 activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
