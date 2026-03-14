@@ -4239,10 +4239,19 @@ errorIfTooLong <- function(stStart, val, tryError = list("")) {
 
 pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", "cachePath")) {
   # First check if entire projectPath is also in temp; then skip override if it is:
-  ppCommonWithTmpdir <- fs::path_common(c(paths$projectPath, tempdir()))
-  if (identical(basename(ppCommonWithTmpdir), basename(tempdir())))
+  # Use fs::path_has_parent for robust cross-platform check (avoids issues with
+  # Windows root not being "/" and Require's nested tempdir sessions)
+  projInTemp <- tryCatch(
+    fs::path_has_parent(paths$projectPath, tempdir()),
+    error = function(e) {
+      # Fallback: compare basename of common path (original approach)
+      ppCommonWithTmpdir <- fs::path_common(c(paths$projectPath, tempdir()))
+      identical(basename(ppCommonWithTmpdir), basename(tempdir()))
+    }
+  )
+  if (isTRUE(projInTemp))
     return(invisible())
-  
+
   for (ovr in override) {
     if (isTRUE(any(grepl("cache", ovr)))) {
       optionPath <- paste0("reproducible.", ovr)
@@ -4250,8 +4259,17 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
       optionPath <- paste0("spades.", ovr)
     }
     if (!is.null(getOption(optionPath))) {
-      commonWithTmpdir <- fs::path_common(c(getOption(optionPath), tempdir()))
-      if (!identical(dirname(commonWithTmpdir), "/") && is.null(paths[[ovr]])) {
+      # Check if the option path is inside tempdir using fs::path_has_parent
+      optInTemp <- tryCatch(
+        fs::path_has_parent(getOption(optionPath), tempdir()),
+        error = function(e) {
+          # Fallback: use dirname-of-common approach, but handle Windows root
+          commonWithTmpdir <- fs::path_common(c(getOption(optionPath), tempdir()))
+          commonParent <- dirname(commonWithTmpdir)
+          !identical(commonParent, "/") && !grepl("^[A-Za-z]:/?$", commonParent)
+        }
+      )
+      if (isTRUE(optInTemp) && is.null(paths[[ovr]])) {
         message("getOption(reproducible.cachePath) was already set to a folder in the tempdir();\n",
                 "--> Changing this to SpaDES.project default: ", defaultsSPO[[optionPath]])
         list(defaultsSPO[[optionPath]]) |>
