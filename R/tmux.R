@@ -66,10 +66,10 @@ tmux_set_mouse <- function(on = TRUE) {
 #'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))`.
 #'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
 #'    Ineffective otherwise. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`,
-#' @param doneAndFinishedTimeIndicator A string or call using optionally `runName`, e.g., 
+#' @param statusCalculate A string or call using optionally `runName`, e.g., 
 #'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))`.
 #'    Currently, this will only work for outputs that are in `fireSense_SpreadFit`. 
-#'    Defaults to `getOption("spades.doneAndFinishedTimeIndicator", NULL)`
+#'    Defaults to `getOption("spades.statusCalculate", NULL)`
 #'    Ineffective otherwise.
 #'    
 #' @param set_mouse Logical. If `TRUE`, enables tmux mouse support via `tmux_set_mouse(TRUE)`. Default `TRUE`. [1](https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute)
@@ -107,7 +107,7 @@ experimentTmux <- function(df,
                            delay_before_source = 60,
                            stagger_by = delay_before_source,
                            set_mouse = TRUE,
-                           doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
+                           statusCalculate = getOption("spades.statusCalculate"),
                            # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
                            folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                            # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
@@ -141,7 +141,7 @@ experimentTmux <- function(df,
   q <- readRDS(queue_path)
   runNameLabel <- eval(runNameLabel)
   
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath)
   if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
   if (!file.exists(global_path)) {
@@ -271,26 +271,26 @@ experimentTmux <- function(df,
         # 2. Prepare the command as a SINGLE line to prevent shell splitting
         # Use deparse1() and force ss_id to character
         sync_cmd <- sprintf(
-          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, doneAndFinishedTimeIndicator=quote(%s), cache_path=%s)",
+          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, statusCalculate=quote(%s), cache_path=%s)",
           deparse1(email),
-          # deparse1(getOption("spades.doneAndFinishedTimeIndicator")),
+          # deparse1(getOption("spades.statusCalculate")),
           deparse1(normalizePath(queue_path)),
           deparse1(as.character(ss_id)),
           deparse1(email),
           deparse1(runNameLabel),
-          deparse1(doneAndFinishedTimeIndicator, collapse = "\n"),
+          deparse1(statusCalculate, collapse = "\n"),
           deparse1(normalizePath(cache_path))
         )
         
         ndots <- length(...names())
         extraArgs <- NULL
+        aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
         if (ndots) {
           dots <- list(...)
           dots <- lapply(dots, deparse1)  
           extraArgs <- paste(paste(names(dots), "=", unname(unlist(dots))  ), collapse = "; ")
-          sync_cmd <- sprintf(paste0("%s;", sync_cmd), extraArgs)
+          sync_cmd <- out <- paste0(extraArgs, ";", sync_cmd)
         }
-        
         
         
         # 3. Send keys to the specific ID
@@ -379,7 +379,7 @@ experimentTmux <- function(df,
     # q <- readRDS(queue_path)
     # runNameLabel <- eval(runNameLabel)
     # 
-    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
+    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
     #                           activeRunningPath = activeRunningPath)
     # 
     
@@ -440,7 +440,7 @@ runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
                           runNameLabel = quote(colnames(q)[1:2]),
-                          doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
+                          statusCalculate = getOption("spades.statusCalculate"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
                           folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
@@ -457,7 +457,7 @@ runNextWorker <- function(queue_path, global_path,
   
   # update queue file from log files
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator,
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath)
   # claim a row (unchanged)
   lck <- filelock::lock(LOCKF, timeout = Inf)
@@ -874,7 +874,7 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
 #' @param runName Directory containing the figures/hists
 #' @param timeout_min Threshold for inactivity (e.g., 20)
 assessDoneInFigure <- function(runName, timeout_min = 20, 
-                               doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator")) {
+                               statusCalculate = getOption("spades.statusCalculate")) {
                                # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
 
   # startedFiles <- dir(activeRunningPath, pattern = txtRunning, ignore.case = TRUE)
@@ -883,15 +883,15 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
   #   return(txtRunning)
   # }
 
-  if (!is.null(doneAndFinishedTimeIndicator)) {
+  if (!is.null(statusCalculate)) {
     
-    if (is.call(doneAndFinishedTimeIndicator))
-      doneAndFinishedTimeIndicator <- eval(doneAndFinishedTimeIndicator)
-    # doneAndFinishedTimeIndicator <- file.path("outputs", runName, "figures", "objFun")
-    if (length(doneAndFinishedTimeIndicator) == 0 || !dir.exists(doneAndFinishedTimeIndicator)) return(txtPending)
+    if (is.call(statusCalculate))
+      statusCalculate <- eval(statusCalculate)
+    # statusCalculate <- file.path("outputs", runName, "figures", "objFun")
+    if (length(statusCalculate) == 0 || !dir.exists(statusCalculate)) return(txtPending)
     
     # Find most recent PNG
-    png_files <- list.files(doneAndFinishedTimeIndicator, pattern = "\\.png$", full.names = TRUE)
+    png_files <- list.files(statusCalculate, pattern = "\\.png$", full.names = TRUE)
     if (length(png_files) == 0) return(txtPending)
     
     # Get most recent file
@@ -953,9 +953,9 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
 #' }
 tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
-                                      doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
+                                      statusCalculate = getOption("spades.statusCalculate"),
                                       folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
-                                      recheckDone = FALSE, #!is.null(doneAndFinishedTimeIndicator),
+                                      recheckDone = FALSE, #!is.null(statusCalculate),
                                       activeRunningPath = getOption("spades.activeRunningPath")) {
   
   if (file.exists(queue_path)) {
@@ -1028,17 +1028,22 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       }
       
       done <- FALSE
-      if (!is.null(doneAndFinishedTimeIndicator)) {
+      if (exists("aaaa", envir = .GlobalEnv)) browser()
+      if (!is.null(statusCalculate)) {
         
-        evaled <- try(eval(doneAndFinishedTimeIndicator))
+        evaled <- try(eval(statusCalculate))
         if (is(evaled, "try-error")) {
-          doneAndFinishedTimeIndicator <- NULL
+          statusCalculate <- NULL
         } else {
           cn <- meta_cols
           for (cc in cn) {
             q[[cc]][i] <- NA
             if (exists(cc, inherits = FALSE)) {
-              q[[cc]][i] <- get(cc, inherits = FALSE)
+              outHere <- get(cc, inherits = FALSE)
+              if (length(outHere) > 0) # browser()
+              # if (is(outHere, "try-error")) browser()
+                q[[cc]][i] <- outHere
+              
             }
           }
         }
@@ -1050,7 +1055,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
           #new_status <- txtDone
         #} # else {
         #   new_status <- assessDoneInFigure(runName = runName, timeout_min = timeout_min, 
-        #                                    doneAndFinishedTimeIndicator = doneAndFinishedTimeIndicator)#, 
+        #                                    statusCalculate = statusCalculate)#, 
         #   #activeRunningPath = activeRunningPath)
         # }
         hb <- NA
@@ -1281,4 +1286,37 @@ activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefi
 
 getRunName <- function(queue, i, runNameLabel) {
   queue[i, runNameLabel] |> paste(collapse = "-")
+}
+
+
+
+statusCalculator <- function(type = "fireSense") {
+  
+  if (identical(type, "fireSense")) {
+    calc <- quote({
+      dirWithUpdatedElf <- gsub("4.3", strsplit(runName, "-")[[1]][[1]], outputPath)
+      dirWithUpdatedElf <- gsub("rep1", paste0("rep", strsplit(runName, "-")[[1]][[2]]), dirWithUpdatedElf)
+      dd <- dir(dirWithUpdatedElf, recursive = TRUE, full.names = TRUE)
+      ee <- grep(value = TRUE, pattern = "burnMap.*tif$", dd)
+      done <- grepl(paste0("year", endTime), ee)
+      if (done %in% FALSE) {
+        runningFile <- dir(activeRunningPathForTmux(queue_path = queue_path), pattern = runName, full.names = TRUE)
+        fi <- file.info(runningFile)
+        started_at <- format(fi[, "mtime"])
+        ff <- grep(value = TRUE, pattern = "Annual Fire Maps", dd)
+        fi2 <- file.info(ff)
+        mostRecentFile <- tail(ff[fi2[, "mtime"] > fi[, "mtime"]], 1)
+        heartbeat_at <- if (length(mostRecentFile) > 0) format(file.info(mostRecentFile)[, "mtime"]) else NA
+        heartbeat_iter <- gsub(".+Maps ([[:digit:]]{4,4}).+", "\\1", mostRecentFile)
+      }
+      finishedFile <- ee[done]
+      if (length(finishedFile)) {
+        iterationsTotal <- gsub(".+year([[:digit:]]{4,4}).+", "\\1", finishedFile)
+        finished_at <- if (length(finishedFile) > 0) format(file.info(finishedFile)[, "mtime"]) else NA
+        done <- any(done)
+      }
+    })
+  }
+ 
+  return(calc) 
 }

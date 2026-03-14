@@ -14,7 +14,7 @@ experimentTmux(
   delay_before_source = 60,
   stagger_by = delay_before_source,
   set_mouse = TRUE,
-  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator"),
+  statusCalculate = getOption("spades.statusCalculate"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
   activeRunningPath = getOption("spades.activeRunningPath"),
   continue = TRUE,
@@ -53,10 +53,10 @@ injecting assignments + \code{source(global_path)}. Default \code{60.0}.}
 
 \item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support via \code{tmux_set_mouse(TRUE)}. Default \code{TRUE}. \href{https://www.rdocumentation.org/packages/rstudioapi/versions/0.17.0/topics/terminalExecute}{1}}
 
-\item{doneAndFinishedTimeIndicator}{A string or call using optionally \code{runName}, e.g.,
+\item{statusCalculate}{A string or call using optionally \code{runName}, e.g.,
 \code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "objFun"))}.
 Currently, this will only work for outputs that are in \code{fireSense_SpreadFit}.
-Defaults to \code{getOption("spades.doneAndFinishedTimeIndicator", NULL)}
+Defaults to \code{getOption("spades.statusCalculate", NULL)}
 Ineffective otherwise.}
 
 \item{activeRunningPath.}{The directory where the "running" flag will be written.

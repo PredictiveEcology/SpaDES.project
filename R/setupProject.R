@@ -2078,7 +2078,6 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           startIndex <- endIndex - parts + 1
           objNew <- list()
           for (i in seq_along(parts)) {
-            browser()
             if (identical(notNamed[!isChanged], i)) {
               nextBit <- obj[startIndex[i]:endIndex[i]]
             } else {
@@ -4075,7 +4074,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 
 
 setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
-  if (exists("aaaa", envir = .GlobalEnv)) browser()
+  # if (exists("aaaa", envir = .GlobalEnv)) browser()
   if (is.null(curBr))
     curBr <- gert::git_branch()
   for (trySetUpstream in 1:2) {

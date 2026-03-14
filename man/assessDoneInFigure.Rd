@@ -7,7 +7,7 @@
 assessDoneInFigure(
   runName,
   timeout_min = 20,
-  doneAndFinishedTimeIndicator = getOption("spades.doneAndFinishedTimeIndicator")
+  statusCalculate = getOption("spades.statusCalculate")
 )
 }
 \arguments{
