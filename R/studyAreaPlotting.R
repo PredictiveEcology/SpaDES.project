@@ -48,7 +48,7 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
                     minArea = 7e11) {
 
   pkgs <- c("tidyterra", "reproducible", "terra", "RColorBrewer",
-            "sf", "ggpubr", "ggplot2")
+            "sf", "patchwork", "ggplot2")
   requireNamespaces(pkgs)
 
   llPlus <- makeListToPlot(ll, include, exclude, ...)
@@ -166,9 +166,10 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
     }
   }
 
-  gg <- ggpubr::ggarrange(plotlist = g)
-  gg <- ggpubr::annotate_figure(
-    gg, top = ggpubr::text_grob(title, size = 14))
+  gg <- patchwork::wrap_plots(g)
+  gg <- gg + patchwork::plot_annotation(
+    title = title,
+    theme = ggplot2::theme(plot.title = ggplot2::element_text(size = 14)))
   gg
 }
 
