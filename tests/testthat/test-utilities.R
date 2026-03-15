@@ -357,6 +357,7 @@ test_that(".libPathDefault produces consistent paths", {
 test_that("spadesProjectOptions scratchPath uses tempdir()", {
   withr::local_options(list("spades.projectPath" = NULL))
   opts <- spadesProjectOptions()
-  expect_true(startsWith(opts$spades.scratchPath, normalizePath(tempdir(), winslash = "/")))
+  expect_true(startsWith(normalizePath(opts$spades.scratchPath, mustWork = FALSE, winslash = "/"),
+                         normalizePath(tempdir(), winslash = "/")))
   withr::local_options(list("spades.projectPath" = NULL))
 })
