@@ -17,13 +17,13 @@ setupProject(
   config,
   require = NULL,
   studyArea = NULL,
-  Restart = getOption("SpaDES.project.Restart", FALSE),
-  useGit = getOption("SpaDES.project.useGit", FALSE),
-  setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
-  standAlone = getOption("SpaDES.project.standAlone", TRUE),
+  Restart = getOption("SpaDES.project.Restart"),
+  useGit = getOption("SpaDES.project.useGit"),
+  setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
+  standAlone = getOption("SpaDES.project.standAlone"),
   libPaths = NULL,
-  updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
-  overwrite = getOption("SpaDES.project.overwrite", FALSE),
+  updateRprofile = getOption("SpaDES.project.updateRprofile"),
+  overwrite = getOption("SpaDES.project.overwrite"),
   verbose = getOption("Require.verbose", 1L),
   defaultDots,
   envir = parent.frame(),
@@ -44,7 +44,7 @@ Each of these has a sensible default, which will be overridden but any user
 supplied values.
 See \link{setup}.}
 
-\item{modules}{a character string of modules to pass to \code{getModule}. These
+\item{modules}{a character vector of modules to pass to \code{getModule}. These
 should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
 in the \code{paths[["modulePath"]]}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
 \code{"PredictiveEcology/Biomass_core@development"}); or a character vector that identifies
@@ -52,7 +52,14 @@ one or more module folders (local or GitHub) (not the module .R script).
 If the entire project is a git repository,
 then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.
-See \link{setup}.}
+For convenience, these can also be 2 other url formats:
+\enumerate{
+\item the raw.githubusercontent.com url that points to the main module file or the folder e.g.,
+\code{"https://raw.githubusercontent.com/PredictiveEcology/Biomass_core/refs/heads/main/Biomass_core.R"}
+\item The github.com url used for cloning a git repository, with optional "@branch" specified:
+\code{"https://github.com/PredictiveEcology/Biomass_speciesParameters.git@development"}
+See \link{setup}.
+}}
 
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
@@ -319,6 +326,18 @@ values, such as paths.
   \}
 )
 }\if{html}{\out{</div>}}
+
+\subsection{Argument order}{
+Arguments that are \emph{not} the named arguments (i.e., the ones passed in \code{...})
+are evaluated in the order they are written. Subsequent arguments can use the
+previous arguments. If "dot" arguments are declared before the first
+standard arguments (the "formals") of the function, then they will be evaluated
+prior to the \code{formals}. If they are after a single standard argument (i.e., not
+necessarily after \emph{all} the named arguments), then they will be evaluated after
+all standard arguments. The exception to this is \code{params}, which will be evaluated
+like the \code{...} arguments, i.e., in order.
+
+}
 
 \subsection{Values and/or files}{
 The arguments, \code{paths}, \code{options}, and \code{params}, can all

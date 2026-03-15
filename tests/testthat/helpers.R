@@ -12,7 +12,13 @@
 
 setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = FALSE) {
 
-  Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
+  options(Map(o = names(spadesProjectOptions()), function(o) NULL))
+
+  origLibPaths <- get0("origLibPaths", envir = envir)
+  if (is.null(origLibPaths))
+    origLibPaths <- .libPaths()
+  withr::local_libpaths(origLibPaths)
+  # Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
   warns <- capture_warnings({
     # withr::local_package("googledrive", .local_envir = envir)
     # withr::local_package("curl", .local_envir = envir)
@@ -30,13 +36,12 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
     #   withr::local_package("terra", .local_envir = envir)
   })
 
-  # if (user("emcintir")) {
-  #   if (!googledrive::drive_has_token()) {
-  #     options(gargle_oauth_cache = "/home/emcintir/.secret",
-  #             gargle_oauth_email = "eliotmcintire@gmail.com")
-  #     googledrive::drive_auth()
-  #   }
-  # }
+  if (isNamespaceLoaded("googledrive"))
+    if ((!googledrive::drive_has_token())) {
+      if (nzchar(Sys.getenv("GOOGLEDRIVE_AUTH"))) {
+        googledrive::drive_auth(path = Sys.getenv("GOOGLEDRIVE_AUTH"))
+      }
+    }
 
   if (!missing(pkgs)) {
     lapply(pkgs, function(pk) {

@@ -12,3 +12,9 @@ coverage:
         target: auto
         threshold: 1%
         informational: true
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      GOOGLEDRIVE_AUTH: ${{ secrets.ELIOT_GOOGLE_AUTHENTICATION }}
+      CODECOV_TOKEN: 499b0c9f-9687-46ef-bdc0-21b061648a4a
+
+

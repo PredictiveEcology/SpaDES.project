@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2024-05-31
-Version: 0.1.0
+Date: 2026-03-13
+Version: 0.1.4.9019
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -18,32 +18,48 @@ Authors@R: c(
            role = c("ctb"), comment = c(ORCID = ""))
     )
 Depends:
-    R (>= 4.2)
+    R (>= 4.3)
 Imports:
     data.table,
+    filelock,
     fs,
+    grDevices,
+    magick,
     methods,
-    Require (>= 0.3.1.9082),
+    Require (>= 1.0.0),
     rprojroot,
     rstudioapi,
+    stats,
     tools,
-    utils
+    utils,
+    withr
 Suggests:
+    cli,
     covr,
     crayon,
     digest,
     ellipsis,
-    filelock,
+    furrr,
+    future,
     geodata,
     gert,
+    ggplot2,
+    patchwork,
     gh,
     gitcreds,
     googledrive,
+    googlesheets4,
     httr,
     igraph,
     knitr,
+    leaflet,
+    leafem,
     pkgload,
+    processx,
+    qs2,
     raster,
+    RColorBrewer,
+    rematch2,
     remotes,
     reproducible,
     rmarkdown,
@@ -52,29 +68,30 @@ Suggests:
     SpaDES.core,
     terra,
     testthat (>= 3.0.0),
+    tidyterra,
     usethis,
     visNetwork,
-    waldo,
-    withr
+    waldo
 Remotes: 
     PredictiveEcology/SpaDES.config@development,
-    PredictiveEcology/Require@simplify4,
-    PredictiveEcology/SpaDES.core@useCache2,
-    rspatial/geodata
+    PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
 VignetteBuilder: knitr, rmarkdown
 BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3
 Collate: 
+    'SpaDES.projectOptions.R'
     'environment.R'
+    'experiment.R'
     'fileEdit.R'
     'imports.R'
     'getModule.R'
+    'googlesheets.R'
     'helpers.R'
     'listModules.R'
     'makeDESCRIPTION.R'
@@ -83,4 +100,8 @@ Collate:
     'pkgload2.R'
     'setupProject.R'
     'spades-project-package.R'
+    'studyAreaPlotting.R'
+    'tmux-queue.R'
+    'tmux.R'
+    'txt.R'
     'zzz.R'

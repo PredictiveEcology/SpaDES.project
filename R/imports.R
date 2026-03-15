@@ -15,6 +15,9 @@ messageDF <- utils::getFromNamespace("messageDF", "Require")
 yellow <- utils::getFromNamespace("yellow", "Require")
 
 #' @rdname imports
+red <- utils::getFromNamespace("red", "Require")
+
+#' @rdname imports
 blue <- utils::getFromNamespace("blue", "Require")
 
 #' @rdname imports
@@ -69,8 +72,28 @@ DESCRIPTIONFileVersionV <- getFromNamespace("DESCRIPTIONFileVersionV", ns = "Req
 #' @rdname imports
 .rndstr <- getFromNamespace(".rndstr", ns = "Require")
 
+#' @rdname imports
+singularPlural <- utils::getFromNamespace("singularPlural", "Require")
+
+#' @rdname imports
+getInStack <- utils::getFromNamespace("getInStack", "Require")
+
+#' @rdname imports
+setdiffNamed <- utils::getFromNamespace("setdiffNamed", "Require")
 
 
+
+#' @rdname imports
+googledriveIDtoHumanURL <- tryCatch(
+  utils::getFromNamespace("googledriveIDtoHumanURL", "reproducible"),
+  error = function(e) function(id) paste0("https://drive.google.com/file/d/", id)
+)
+
+#' @rdname imports
+isGoogleDriveDirectory <- tryCatch(
+  utils::getFromNamespace("isGoogleDriveDirectory", "reproducible"),
+  error = function(e) function(url) grepl("folders", url)
+)
 
 #' @rdname imports
 .spatialPkgs <- tryCatch({

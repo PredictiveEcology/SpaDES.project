@@ -42,7 +42,7 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
       modPath <- file.path(modulePath, mod, paste0(mod, ".R"))
       feMP <- file.exists(modPath)
       if (!feMP)
-        modulePath <- "."
+        modPath <- dir(modulePath, recursive = TRUE, pattern = paste0(mod, ".R"))
       else
         break
     }

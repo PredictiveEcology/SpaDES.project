@@ -85,7 +85,7 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
   if (missing(keywords))
     keywords <- ""
   outs <- lapply(accounts, function(account) {
-    url <- paste0("https://api.github.com/users/", account, "/repos?per_page=500")
+    url <- file.path(apiGithubDotCom, "users", account, "repos?per_page=500")
     names(url) <- account
 
     tf <- tempfile()
@@ -108,7 +108,6 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
         messageVerbose("searching keyword: ", mg, " in ", account, verbose = verbose)
       else
         messageVerbose("searching for all SpaDES modules in ", account, verbose = verbose)
-      # if (grepl("PredictiveEcology", url) && mg == "scfm") browser()
 
       patt <- if (hasKeyword) mg else account
 
@@ -174,7 +173,6 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
   if (!requireNamespace("SpaDES.core")) stop("Need to install SpaDES.core")
   obs <- lapply(modsFlat, function(mod) {
     # If modules have errors, let them pass
-    # if (mod %in% "mapBins") browser()
     io <- try(SpaDES.core::inputObjects(module = mod, path = modulePath), silent = TRUE)
     if (is(io, "try-error")) {
       message(io); io = list(list()); names(io) <- mod
@@ -339,7 +337,7 @@ listModules2 <- function(keywords, accounts, subfolder = TRUE, includeForks = FA
   outs <- lapply(accounts, function(account) {
     out <- lapply(keywords, function(kw) {
 
-      url <- file.path("https://api.github.com/repos",account, kw, "git/trees/main?recursive=1")
+      url <- file.path(apiGithubDotCom, "repos",account, kw, "git/trees/main?recursive=1")
       names(url) <- account
 
       tf <- tempfile()

@@ -4,6 +4,7 @@
 \name{messageDF}
 \alias{messageDF}
 \alias{yellow}
+\alias{red}
 \alias{blue}
 \alias{green}
 \alias{whereInStack}
@@ -22,6 +23,11 @@
 \alias{trimRedundancies}
 \alias{DESCRIPTIONFileVersionV}
 \alias{.rndstr}
+\alias{singularPlural}
+\alias{getInStack}
+\alias{setdiffNamed}
+\alias{googledriveIDtoHumanURL}
+\alias{isGoogleDriveDirectory}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
 \format{
@@ -33,6 +39,8 @@ An object of class \code{character} of length 9.
 messageDF(df, round, verbose = getOption("Require.verbose"), verboseLevel = 1)
 
 yellow(...)
+
+red(...)
 
 blue(...)
 
@@ -94,6 +102,16 @@ trimRedundancies(
 DESCRIPTIONFileVersionV(file, purge = getOption("Require.purge", FALSE))
 
 .rndstr(n = 1, len = 8)
+
+singularPlural(singPlur, l, v)
+
+getInStack(obj)
+
+setdiffNamed(l1, l2, missingFill)
+
+googledriveIDtoHumanURL(id)
+
+isGoogleDriveDirectory(url)
 
 .spatialPkgs
 }

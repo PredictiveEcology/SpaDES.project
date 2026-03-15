@@ -10,6 +10,7 @@
 \alias{setupParams}
 \alias{setupGitIgnore}
 \alias{setupStudyArea}
+\alias{setupFiles}
 \title{Individual \verb{setup*} functions that are contained within \code{setupProject}}
 \usage{
 setupPaths(
@@ -22,6 +23,7 @@ setupPaths(
   Restart = getOption("SpaDES.project.Restart", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   useGit = getOption("SpaDES.project.useGit", FALSE),
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -36,6 +38,7 @@ setupFunctions(
   paths,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -49,6 +52,7 @@ setupSideEffects(
   times,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -62,6 +66,7 @@ setupOptions(
   times,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -78,6 +83,7 @@ setupModules(
   useGit = getOption("SpaDES.project.useGit", FALSE),
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   gitUserName,
   verbose = getOption("Require.verbose", 1L),
   dots,
@@ -95,6 +101,7 @@ setupPackages(
   setLinuxBinaryRepo = TRUE,
   standAlone,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose"),
   dots,
   defaultDots,
@@ -110,6 +117,7 @@ setupParams(
   options,
   overwrite = FALSE,
   envir = parent.frame(),
+  callingEnv = sys.frame(-2),
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
@@ -125,7 +133,15 @@ setupGitIgnore(
 setupStudyArea(
   studyArea,
   paths,
-  envir,
+  envir = parent.frame(),
+  callingEnv = sys.frame(-2),
+  verbose = getOption("Require.verbose", 1L)
+)
+
+setupFiles(
+  files,
+  paths,
+  envir = parent.frame(),
   verbose = getOption("Require.verbose", 1L)
 )
 }
@@ -183,6 +199,10 @@ a user can just manually delete a file, then rerun.}
 the function should use its own internal environment. If called from another
 function, e.g., \code{setupProject}, then the \code{envir} should be the internal
 transient environment of that function.}
+
+\item{callingEnv}{The environment from which the function was called. Defaults to \code{sys.frame(-2)}
+which represents the case where the inner \verb{setup*} functions are called inside
+\code{setupProject}, which was called by a user.}
 
 \item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
 can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
@@ -263,7 +283,7 @@ behaviour (need them set before e.g., \code{Require::require} is run; but many p
 also change \code{options} at startup. See details.
 See \link{setup}.}
 
-\item{modules}{a character string of modules to pass to \code{getModule}. These
+\item{modules}{a character vector of modules to pass to \code{getModule}. These
 should be one of: simple name (e.g., \code{fireSense}) which will be searched for locally
 in the \code{paths[["modulePath"]]}; or a GitHub repo with branch (\code{GitHubAccount/Repo@branch} e.g.,
 \code{"PredictiveEcology/Biomass_core@development"}); or a character vector that identifies
@@ -271,7 +291,14 @@ one or more module folders (local or GitHub) (not the module .R script).
 If the entire project is a git repository,
 then it will not try to re-get these modules; instead it will rely on the user
 managing their git status outside of this function.
-See \link{setup}.}
+For convenience, these can also be 2 other url formats:
+\enumerate{
+\item the raw.githubusercontent.com url that points to the main module file or the folder e.g.,
+\code{"https://raw.githubusercontent.com/PredictiveEcology/Biomass_core/refs/heads/main/Biomass_core.R"}
+\item The github.com url used for cloning a git repository, with optional "@branch" specified:
+\code{"https://github.com/PredictiveEcology/Biomass_speciesParameters.git@development"}
+See \link{setup}.
+}}
 
 \item{gitUserName}{The GitHub account name. Used with git clone git@github.com:\emph{gitHuserName}/name}
 
@@ -307,6 +334,8 @@ will be passed to \code{gadm}. 2 additional named elements can be passed for
 convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
 reproject the \code{studyArea}. See examples.}
+
+\item{files}{A vector or list of files to parse. These can be remote github.com files.}
 }
 \value{
 \code{setupPaths} returns a list of paths that are created. \code{projectPath} will be
@@ -358,6 +387,8 @@ used in a \verb{read only} manner.
 
 \code{setupStudyArea} will return an \code{sf} class object coming from \code{geodata::gadm},
 with subregion specification as described in the \code{studyArea} argument.fsu
+
+\code{setupFiles} a named list with each element that was parsed.
 }
 \description{
 These functions will allow more user control, though in most circumstances,
@@ -410,6 +441,14 @@ that matches the columns in the \code{sf} object, including e.g., \code{NAME_1} 
 is specified, then \code{NAME_2}.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
+}\if{html}{\out{</div>}}
+
+\code{setupFiles} is a convenience function intended for interactive use to verify the files being parsed.
+This is similar to \code{parse}, but each element must be a named list or a named object, such as a function.
+It uses the same specification for \url{https://github.com}
+files as \code{setupProject}, i.e., using \code{@} for branch.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{setupFiles("PredictiveEcology/PredictiveEcology.org@main/tutos/castorExample/params.R")
 }\if{html}{\out{</div>}}
 }
 \section{Paths}{

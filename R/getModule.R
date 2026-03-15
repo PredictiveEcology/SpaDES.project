@@ -1,6 +1,6 @@
 utils::globalVariables(c(
   c("Account", "GitSubFolder", "Repo", "destFile", "filepath",
-    "hasSubFolder", "repoLocation",
+    "hasSubFolder", "repoLocation", "isGH", "canDownload", "OKtoDL",
     "downloaded", "hasVersionSpec", "inequ", "moduleFullName",
     "needDownload", "pkg", "status", "sufficient", "versionSpec",
     "modulesNoVersion")
@@ -32,12 +32,17 @@ utils::globalVariables(c(
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
 
-
   modulePath <- normPath(modulePath)
   modulePath <- checkPath(modulePath, create = TRUE)
   modulesOrig <- modules
   modNam <- extractPkgName(modules)
-  localExists <- dir.exists(file.path(modulePath, modNam))
+  m <- fileRelPathFromFullGHpath(modulesOrig)
+
+  modulesOrigPkgName <- extractPkgName(modulesOrig)
+  modulesOrigNestedName <- extractModName(modulesOrig)
+
+  localExists <- dir.exists(file.path(modulePath, modulesOrigNestedName)) # |
+    # dir.exists(file.path(modulePath, m))
 
   stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
                         versionSpec = extractVersionNumber(modules),
@@ -72,44 +77,64 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
   }
   stateDT[localExists %in% FALSE | sufficient %in% FALSE, needDownload := TRUE]
+
   if (any(stateDT$needDownload %in% TRUE)) {
+    modsToDL <- stateDT[stateDT$needDownload %in% TRUE]
     tmpdir <- file.path(tempdir(), .rndstr(1))
     Require::checkPath(tmpdir, create = TRUE)
     od <- setwd(tmpdir)
     on.exit(setwd(od))
 
-    stateDT[needDownload %in% TRUE, c("acct", "repo", "br") := {
-      a <- splitGitRepo(modulesNoVersion)
-      a[["versionSpec"]] <- NULL
-      lapply(a, unlist)
-    }
-    ]
+    noAt <- stateDT[["needDownload"]] %in% TRUE & isGitHub(stateDT[["moduleFullName"]]) &
+      !grepl("@", stateDT[["moduleFullName"]])
+    if (any(noAt))
+      stateDT[noAt %in% TRUE, moduleFullName := paste0(moduleFullName, "@HEAD")]
+    stateDT[needDownload %in% TRUE,
+            isGH := isGitHub(moduleFullName) & grepl("@", moduleFullName)] # the default isGitHub allows no branch]
+    stateDT[, canDownload := needDownload %in% TRUE & isGH %in% TRUE]
+    stateDT[needDownload %in% TRUE, OKtoDL := canDownload %in% TRUE]
 
-    stateDT[needDownload %in% TRUE, {
-      downloadGHRepoOuter(modToDL = moduleFullName[[1]],
-                          overwrite = needDownload[[1]],
-                          modulePath = modulePath,
-                          verbose = verbose)
-    }
-    , by = c("acct", "repo")] # if there is one large repository with many SpaDES modules, download only once
+    if (any(stateDT$OKtoDL %in% TRUE)) {
+      stateDT[OKtoDL %in% TRUE, c("acct", "repo", "br") := {
+        a <- splitGitRepo(modulesNoVersion)
+        a[["versionSpec"]] <- NULL
+        lapply(a, unlist)
+      }
+      ]
 
-    stateDT[needDownload %in% TRUE, downloaded :=
-              Require::extractPkgName(moduleFullName) %in% dir(modulePath)]
+      stateDT[OKtoDL %in% TRUE, {
+        downloadGHRepoOuter(modToDL = moduleFullName[[1]],
+                            overwrite = OKtoDL[[1]],
+                            modulePath = modulePath,
+                            verbose = verbose)
+      }
+      , by = c("acct", "repo")] # if there is one large repository with many SpaDES modules, download only once
 
-    if (any(stateDT$downloaded %in% TRUE)) {
-      messageVerbose("Downloaded copies: ", verbose = verbose)
-      downloadedDT <- split(stateDT, by = "downloaded")
-      downloadedDT[["TRUE"]] <- checkModuleVersion(downloadedDT[["TRUE"]], modulePath, verbose = getOption("Require.verbose"))
-      stateDT <- rbindlist(downloadedDT)
+      stateDT[OKtoDL %in% TRUE, downloaded :=
+                Require::extractPkgName(moduleFullName) %in% dir(modulePath)]
+
+      if (any(stateDT$downloaded %in% TRUE)) {
+        messageVerbose("Downloaded copies: ", verbose = verbose)
+        downloadedDT <- split(stateDT, by = "downloaded")
+        downloadedDT[["TRUE"]] <- checkModuleVersion(downloadedDT[["TRUE"]], modulePath, verbose = getOption("Require.verbose"))
+        stateDT <- rbindlist(downloadedDT)
+      }
+      stateDT[sufficient %in% TRUE & downloaded %in% TRUE, status := "downloaded"]
+      stateDT[sufficient %in% FALSE & downloaded %in% TRUE, status := "downloaded but incorrect version"]
+      stateDT[sufficient %in% FALSE & !downloaded %in% TRUE, status := "failed"]
     }
-    stateDT[sufficient %in% TRUE & downloaded %in% TRUE, status := "downloaded"]
-    stateDT[sufficient %in% FALSE & downloaded %in% TRUE, status := "downloaded but incorrect version"]
-    stateDT[sufficient %in% FALSE & !downloaded %in% TRUE, status := "failed"]
+
+    if (any(stateDT$OKtoDL %in% FALSE)) {
+      stop("These modules -- ", green(paste0(stateDT$moduleFullName[stateDT$OKtoDL %in% FALSE], collapse = ", ")),
+           " -- do not exist locally and are not specified as GitHub repositories (with an '@' for branch);\n",
+           "Please point to existing local modules or correct the GitHub specification")
+    }
   }
 
   successes <- stateDT$moduleFullName[stateDT$sufficient %in% TRUE]
   failed <- stateDT$moduleFullName[!stateDT$sufficient %in% TRUE]
-  df <- stateDT[, list(moduleFullName, status)][, modulePath := modulePath]
+  stateDT[, modulePath := file.path(modulePath, modulesOrigNestedName)]
+  df <- stateDT[, list(moduleFullName, status, modulePath)]
   messageDF(df, verbose = verbose)
 
   return(list(success = successes, failed = failed))
@@ -195,7 +220,8 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
     } else {
       gr$br
     }
-    url <- file.path("https://raw.githubusercontent.com/", ar, br, file)
+
+    url <- file.path(rawGithubDotCom, ar, br, file)
     tf <- tempfile()
     out <- suppressWarnings(
       try(
