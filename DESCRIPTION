@@ -5,7 +5,7 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2026-03-13
+Date: 2026-03-14
 Version: 1.0.0
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
@@ -72,9 +72,8 @@ Suggests:
     usethis,
     visNetwork,
     waldo
-Remotes: 
-    PredictiveEcology/SpaDES.config@development,
-    PredictiveEcology/SpaDES.core@development
+Remotes:
+    PredictiveEcology/SpaDES.config@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
