@@ -8,6 +8,8 @@
 test_that("test setupProject - actually simplest", {
   skip_on_cran()
   setupTest() # setwd, sets .libPaths() to a temp
+  libPathsOrig <- .libPaths()
+  on.exit(.libPaths(libPathsOrig), add = TRUE)
 
   ## simplest case; just creates folders
   defaults <- spadesProjectOptions()
@@ -594,4 +596,61 @@ test_that("test mix git repos for modules and non-gitrepos", {
                 "PredictiveEcology/spades_ws3@dev",
                 "bogus_fire")
   )
+})
+
+
+test_that("test check if all args are used", {
+  skip_on_cran()
+  setupTest() # setwd, sets .libPaths() to a temp
+  # skip_on_ci()
+  myProjectPath <- "hi3"
+  simTimes <- list(start = 1, end = 2)
+  expr <- quote(SpaDES.project::setupProject(
+    #    Restart = TRUE,
+    updateRprofile = TRUE,
+    useGit = FALSE,
+    paths = list(projectPath = basename(name),
+                 modulePath = "modules"),
+    modules = c("PredictiveEcology/Biomass_core@main"),
+    times = simTimes,
+    params = list(),
+    options = list(
+      spades.allowSequentialCaching = FALSE, #TRUE
+      spades.moduleCodeChecks = FALSE,
+      spades.recoveryMode = 1
+    ),
+    name = "FireSenseTesting",
+    packages = "reproducible",
+    sideEffects = FALSE,
+    functions = "hi",
+    config = FALSE,
+    require = "reproducible",
+    studyArea = FALSE,
+    Restart = FALSE,
+    setLinuxBinaryRepo = FALSE, standAlone = FALSE, libPaths = .libPaths(),
+    overwrite = FALSE, verbose = -2, defaultDots= list(),
+    envir = .GlobalEnv, dots = list(),
+    1,
+    2,
+    hello = 3
+  ))
+  out <- capture_error(do.call(SpaDES.project::setupProject, eval(expr)))
+  expect_match(out$message, "must be named")
+  names(expr)[!nzchar(names(expr))] <- c("", "first", "second")
+  mess <- capture_messages(
+    warns <- capture_warnings(out <- do.call(SpaDES.project::setupProject, eval(expr)))
+  )
+  expect_match(warns, "libPath.+deprecated", all = FALSE)
+  expect_true(!is.null(out$hello))
+  expect_true(out$hello == 3)
+  expr[setdiff(names(expr)[-1], formalArgs(setupProject))] <- NULL
+  err <- capture_error(
+    mess <- capture_messages(
+      warns <- capture_warnings(
+        out <- do.call(SpaDES.project::setupProject, eval(expr))
+      )
+    )
+  )
+  expect_null(err)
+  
 })

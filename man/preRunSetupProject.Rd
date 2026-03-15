@@ -4,7 +4,7 @@
 \alias{preRunSetupProject}
 \title{Partially or Fully Run \code{setupProject}}
 \usage{
-preRunSetupProject(file = "global.R", upTo = "paths", envir = parent.frame())
+preRunSetupProject(file = "global.R", upTo = TRUE, envir = parent.frame())
 }
 \arguments{
 \item{file}{Character string. Path to the R script containing the setup code.

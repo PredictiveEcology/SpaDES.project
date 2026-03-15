@@ -40,6 +40,8 @@ dependencies).}
 in \code{preRunSetupProject}. Default is \code{packages}, so that key packages are
 installed for use. This will also include \code{paths}.}
 
+\item{logFiles}{A list describing which objects to log. Default logs \code{expt} and \code{"time"}.}
+
 \item{clearSimEnv}{Logical. Default \code{TRUE}. This has the potential to be VERY
 large. Returning it from all the threads or cores may be very inefficient. In
 general, the user should define the \code{outputs} that they want so that individual
@@ -61,6 +63,8 @@ filename.}
 \item{tmuxName}{Character string. This command will print a message with a tmux
 command that can be used by a user to follow the multiple logs in a bash
 command prompt. The name of the tmux window will be this.}
+
+\item{delay}{Numeric. Seconds to wait between starting workers. Default \code{60}.}
 
 \item{...}{Any other objects to be made available to the \code{global.R}. These will
 be added to the \code{.GlobalEnv} of the workers.}

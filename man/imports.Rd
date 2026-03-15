@@ -26,6 +26,8 @@
 \alias{singularPlural}
 \alias{getInStack}
 \alias{setdiffNamed}
+\alias{googledriveIDtoHumanURL}
+\alias{isGoogleDriveDirectory}
 \alias{.spatialPkgs}
 \title{non-exported objects and functions from other packages}
 \format{
@@ -106,6 +108,10 @@ singularPlural(singPlur, l, v)
 getInStack(obj)
 
 setdiffNamed(l1, l2, missingFill)
+
+googledriveIDtoHumanURL(id)
+
+isGoogleDriveDirectory(url)
 
 .spatialPkgs
 }

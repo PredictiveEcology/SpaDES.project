@@ -465,6 +465,9 @@ setupProject <- function(name, paths, modules, packages,
       firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
     }
     dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
+    if (any(nzchar(names(dotsSUB)) %in% FALSE)) {
+      stop("Any non-formal arguments must be named, i.e., the ... must be named")
+    }
     dotsLater <- dotsSUB
     defaultDotsSUB <- defaultDotsSUBOrig <- substitute(defaultDots)
     functionsSUB <- functionsSUBOrig <- substitute(functions)
@@ -474,7 +477,7 @@ setupProject <- function(name, paths, modules, packages,
     pathsSUB <- pathsSUBOrig <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
     sideEffectsSUB <- sideEffectsSUBOrig <- substitute(sideEffects)
     libPaths <- libPathsOrig <- substitute(libPaths)
-
+    
     for (fullAttempt in 1:2) {
       if (fullAttempt == 2) {
         messageVerbose("Starting setupProject again with new packages installed", verbose = verbose)
@@ -503,7 +506,7 @@ setupProject <- function(name, paths, modules, packages,
         #envir = envir,
         #callingEnv = envir)
       }
-
+      
       if (missing(times))
         times <- list(start = 0, end = 1)
 
@@ -519,6 +522,9 @@ setupProject <- function(name, paths, modules, packages,
 
       # setupOptions is run twice -- because package startup often changes options
       addNewObjsToProxy(envirCur, envir, proxy)
+
+      # This needs to be set to default before running setupOptions as it will unset it there if needed
+      base::options("spades.useRequireOverride" = FALSE)
       optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
                                 envir = envirCur, useGit = useGit,
                                 updateRprofile = updateRprofile,
@@ -585,7 +591,7 @@ setupProject <- function(name, paths, modules, packages,
       # The longer unique(...) commented next is much slower; they are identical results
       # allPkgs <- unique(Require::extractPkgName(c(packages, unname(unlist(modulePackages)))))
       allPkgs <- c(packages, unname(unlist(modulePackages)))
-      if (any(grepl("\\<terra\\>", allPkgs))) {
+      if (any(grepl("\\<terra\\>", allPkgs)) && requireNamespace("terra", quietly = TRUE)) {
         terra::terraOptions(tempdir = paths$terraPath)
       }
       addNewObjsToProxy(envirCur, envir, proxy)
@@ -603,7 +609,11 @@ setupProject <- function(name, paths, modules, packages,
         message("Using fast options:")
         df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
         df <- df[!sapply(df, is.null)]
-        reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
+        if (requireNamespace("reproducible", quietly = TRUE) && 
+            requireNamespace("qs2", quietly = TRUE))
+          reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
+        else
+          print(data.frame(option = names(df), val = unlist(df)))
       }
 
       options <- opts[["newOptions"]] # put into this environment so parsing can access
@@ -1147,17 +1157,24 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
   if (!missing(sideEffects)) {
     messageVerbose(yellow(paste0(.txtSettingUp, " sideEffects...")), verbose = verbose, verboseLevel = 0)
 
+    # 
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envirCur, envir2 = envir)
 
-    if (!is.character(sideEffects)) { # this is because I wrote this second;
-      tf <- tempfile()
-      writeLines(format(sideEffects[-1]), con = tf)
-      sideEffects <- tf
-    }
-
+    # if (!is.character(sideEffects)) { # this is because I wrote this second;
+    #   tf <- tempfile()
+    #   writeLines(format(sideEffects[-1]), con = tf)
+    #   sideEffects <- tf
+    # }
+    
+    # parseFileLists needs paths, so must do this
+    pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
+    pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
+    paths <- setupPaths(paths = pathsSUB, # defaultDots = defaultDots,
+                        verbose = verbose - 2)
+    
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
-                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose - 1)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
   }
 
@@ -1242,6 +1259,13 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
     }
     messageVerbose(yellow("  done setting up options"), verbose = verbose, verboseLevel = 0)
   }
+
+  if (isTRUE(getOption("spades.useRequireOverride"))) {
+    messageVerbose("Package request is identical to a previous request, setting `options(spades.useRequire = FALSE)`",
+                   verbose = verbose)
+    base::options(spades.useRequire = FALSE)
+  }
+
   return(invisible(list(newOptions = newValuesComplete, oldOptions = oldValuesComplete, updates = updates)))
 }
 
@@ -1573,6 +1597,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
             out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
                                     path = localPathRelative))
+            checkPath(localPath, create = TRUE)
+            aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
             setwd(localPath)
             gert::git_branch_checkout(split$br)
             curBr <- gert::git_branch()
@@ -1768,54 +1794,94 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         }
         if (!any(grepl("SpaDES.core", extractPkgName(mp))))
           mp <- c(mp, "SpaDES.core")
-        # requireToTry <- unique(c(mp, require))
         packagesToTry <- c(packages, mp, require)
         packagesToTry <- packagesToTry[!duplicated(packagesToTry)]
         areFilesWithPackages <- endsWith(tolower(packagesToTry), ".r") # & grepl("@", packagesToTry) # the default isGitHub allows no branch
         if (any(areFilesWithPackages)) {
-          remoteFiles <- areFilesWithPackages & grepl("@", packagesToTry) # the default isGitHub allows no branch
-          aa <- parseFileLists(trimVersionNumber(packagesToTry[remoteFiles]), paths = paths,
-                               envir = envir, namedList = FALSE)
-          packagesToTry <- c(packagesToTry[-remoteFiles], unname(unlist(aa)))
+          isGH <- grepl("@", packagesToTry)
+          elementsToRm <- pkgsInFiles <- ptt <- remoteLocalFiles <- list()
+          for (ii in c("remote", "local")) {
+            remoteLocalFiles[[ii]] <- areFilesWithPackages & isGH %in% (ii %in% "remote")# the default isGitHub allows no branch
+            # remoteFiles <- areFilesWithPackages & isGH # the default isGitHub allows no branch
+            if (sum(remoteLocalFiles[[ii]])) {
+              pkgsInFiles[[ii]] <- parseFileLists(trimVersionNumber(packagesToTry[remoteLocalFiles[[ii]]]), 
+                                                  paths = paths,
+                                                  envir = envir, namedList = FALSE)
+              elementsToRm[[ii]] <- which(remoteLocalFiles[[ii]])
+              # ptt[[ii]] <- c(packagesToTry[-remoteLocalFiles[[ii]]], unname(unlist(pkgsInFiles[[ii]])))
+            }
+          }
+          packagesToTry <- c(packagesToTry[-unname(unlist(elementsToRm))],
+                            unname(unlist(pkgsInFiles)))
         }
 
         requirePkgNames <- Require::extractPkgName(require)
 
         warns <- list()
 
-        withCallingHandlers(
-          out <-
-            Require::Require(packagesToTry, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                             standAlone = standAlone,
-                             libPaths = libPaths,
-                             verbose = verbose)
-          , warning = function(w) {
-            if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
-              sc <- sys.calls()
-              pkgDT <- getInStack("pkgDT")
-              packageFail <- try(getInStack("packageFullName"), silent = TRUE)
-              if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
-                thisSha <- try(getInStack("shas"))
-                pkgDTfail <- pkgDT[shas %in% thisSha]
-
-                a <- "Package";
-                obj <- get(a, whereInStack(a))
-                # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
-                b <- pkgDT[Package %in% obj]
-                wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
-                ptt <- packagesToTry[wh]
-                whPackages <- sapply(modulePackages, function(mp) {
-                  whp <- mp %in% ptt
-                  mp[which(whp)]
-                })
-                whPkg <- unlist(whPackages)
-                warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
-              }
-              invokeRestart("muffleWarning")
-
+        ip <- installed.packages()
+        nonHEADs <- grep("\\(HEAD\\)", packagesToTry, value = TRUE, invert = TRUE)
+        needToAssessPoss <- grep("\\(HEAD\\)", packagesToTry, value = TRUE)
+        # needToAssessPoss <- unique(c(needToAssessPoss, requirePkgNames))
+        needToAssessPoss <- c(needToAssessPoss, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
+        ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
+        needToAssess <- unique(c(needToAssessPoss, nonHEADs))
+        if (requireNamespace("reproducible", quietly = TRUE) && 
+             requireNamespace("qs2", quietly = TRUE)) {
+          # run annonymous function to see if it is new list; Cache needs a function
+          ll <- reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire")
+          if (!isTRUE(attr(ll, ".Cache")$newCache)) {
+            message("Package requirements are identical to previous")
+            haveHEAD <- grepl("HEAD", needToAssessPoss)
+            if (any(haveHEAD)) {
+              message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
+                      "checking/installing if needed ...")
+            } else {
+              message("...skipping Require...")
             }
+            needToAssess <- needToAssessPoss # revert to using the smaller list
+          } 
+        } 
+        # needToAssess <- packagesToTry
 
-          })
+        if (sum(nzchar(needToAssess))) {
+          withCallingHandlers(
+            out <-
+              Require::Require(needToAssess, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
+                               standAlone = standAlone,
+                               libPaths = libPaths,
+                               verbose = verbose)
+            , warning = function(w) {
+              if (any(grepl("cannot open", w$message)) && !any(grepl("404 Not Found", w$message))) {
+                sc <- sys.calls()
+                pkgDT <- getInStack("pkgDT")
+                packageFail <- try(getInStack("packageFullName"), silent = TRUE)
+                if (!is(packageFail, "try-error")) { # it may fail on the DESCRIPTION file cache
+                  thisSha <- try(getInStack("shas"))
+                  pkgDTfail <- pkgDT[shas %in% thisSha]
+
+                  a <- "Package";
+                  obj <- get(a, whereInStack(a))
+                  # d <- "packageFullName"; obj2 <- get(d, whereInStack(d))
+                  b <- pkgDT[Package %in% obj]
+                  wh <- which(packagesToTry %in% pkgDTfail$packageFullName)
+                  ptt <- packagesToTry[wh]
+                  whPackages <- sapply(modulePackages, function(mp) {
+                    whp <- mp %in% ptt
+                    mp[which(whp)]
+                  })
+                  whPkg <- unlist(whPackages)
+                  warns <<- append(warns, list(warning = w$message, packageFail = packageFail, whPkg = whPkg))
+                }
+                invokeRestart("muffleWarning")
+
+              }
+
+            })
+        } else {
+          out <- vapply(requirePkgNames, base::require, character.only = TRUE, FUN.VALUE = logical(1))
+          base::options("spades.useRequireOverride" = TRUE)
+        }
 
         if (length(warns)) {
           warns <- warns[!duplicated(warns)]
@@ -2005,21 +2071,23 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           y})
 
       if (any(!isChanged)) {
-        # we have a problem... need to splice
-        parts <- rle(named)$lengths
-        endIndex <- cumsum(parts)
-        startIndex <- endIndex - parts + 1
-        objNew <- list()
-        for (i in seq_along(parts)) {
-          if (identical(notNamed[!isChanged], i)) {
-            nextBit <- obj[startIndex[i]:endIndex[i]]
-          } else {
-            nextBit <- Reduce(f = modifyList, obj[startIndex[i]:endIndex[i]])
+        if (any(named)) {
+          # we have a problem... need to splice
+          parts <- rle(named)$lengths
+          endIndex <- cumsum(parts)
+          startIndex <- endIndex - parts + 1
+          objNew <- list()
+          for (i in seq_along(parts)) {
+            if (identical(notNamed[!isChanged], i)) {
+              nextBit <- obj[startIndex[i]:endIndex[i]]
+            } else {
+              nextBit <- Reduce(f = modifyList, obj[startIndex[i]:endIndex[i]])
+            }
+            objNew <- append(objNew, nextBit)
           }
-          objNew <- append(objNew, nextBit)
+          obj <- objNew
+          
         }
-        obj <- objNew
-
       } else {
         obj <- Reduce(f = modifyList, obj)
       }
@@ -2299,7 +2367,6 @@ evalSUB <- function(val, valObjName, envir, envir2) {
     }
     onlyNamedOnes <- nzchar(namesToEval)
     namesToEval <- namesToEval[onlyNamedOnes]
-    # browser()
     # Sequential evaluation
     if (length(namesToEval)) {
       Map(nam = namesToEval, function(nam) {
@@ -2625,7 +2692,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 
       namsDD <- setdiff(names(defaultDots), "")
       defaultDotsNotNeeded <- mapply(dd = namsDD, function(dd)
-        exists(dd, callingEnv) || exists(dd, envir), SIMPLIFY = TRUE)
+        exists(dd, callingEnv, inherits = FALSE) || exists(dd, envir, inherits = FALSE), SIMPLIFY = TRUE)
       putInEnv <- names(defaultDotsNotNeeded)[defaultDotsNotNeeded %in% FALSE]
       if (length(putInEnv)) {
         ll <- list()
@@ -2775,9 +2842,14 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
     theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
     if (requireNamespace("reproducible", quietly = TRUE))
       # Cache doesn't evaluate the `theCall` inside eval, so need .cacheExtra to identify the actual contents
-      studyArea <- reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
-                                       omitArgs = c("enclos", "envir"), verbose = verbose,
-                                       cachePath = paths$cachePath, .functionName = "getStudyArea")
+      studyArea <- tryCatch(
+        reproducible::Cache(eval(theCall), .cacheExtra = list(studyArea, getStudyArea),
+                            omitArgs = c("enclos", "envir"), verbose = verbose,
+                            cachePath = paths$cachePath, .functionName = "getStudyArea",
+                            useCloud = FALSE,
+                            cacheSaveFormat = getOption("reproducible.cacheSaveFormat", "rds")),
+        error = function(e) eval(theCall)
+      )
     else
       studyArea <- eval(theCall)
   }
@@ -2790,13 +2862,14 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          origGetWd, verbose = getOption("Require.verbose")) {
 
+  isRstudioLocal <- isRstudio()
   if (isTRUE(updateRprofile)) {
 
     inTmpProject <- inTempProject(paths)
     if (isTRUE(inTmpProject)) {
       warning(.txtUpdateProfileIsTRUE)
     } else {
-      if (isRstudio()) {
+      if (isRstudioLocal) {
         inCorrectRstudioProj <- isInRstudioProj(name)
         if (!inProject || !inCorrectRstudioProj) { # either wrong Rstudio or not in project
           if (isFALSE(Restart)) {
@@ -2810,11 +2883,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
   }
 
-  if (!isRstudio()) {
+  if (!isRstudioLocal) {
     Restart <- FALSE
   }
 
-  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudio() ||
+  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudioLocal ||
        !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
 
     # on.exit(setwd(origGetWd), add = TRUE)
@@ -2826,20 +2899,27 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     isGitProject <- is_git_root$testfun[[1]](pp)
     needsToBeGitProject <- !useGit %in% FALSE
 
-    if (!(useGit %in% FALSE) && isRstudio() && !inProject && !isGitProject) {
+    if (!(useGit %in% FALSE) && isRstudioLocal && !inProject && !isGitProject) {
       messageVerbose("Because useGit is TRUE or a character string, changing Restart to TRUE", verbose = verbose)
       Restart = TRUE
     }
 
-    isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
-    if (isRstudio()) {
-      curRstudioProj <- rstudioapi::getActiveProject()
-      isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+    isRstudioProj <- FALSE
+    if (isRstudioLocal) {
+      # could be rstudio terminal --> which needs own test
+      isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
+      curRstudioProj <- tryCatch(rstudioapi::getActiveProject(), error = function(e) FALSE)
+      if (isFALSE(curRstudioProj)) {
+        isRstudioLocal <- FALSE
+        isRstudioProj <- FALSE
+      } else {
+        isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+      }
     }
     # inProject <- isInProject(name)
 
     if ((!inProject || !isRstudioProj) || (!isGitProject && needsToBeGitProject)) {
-      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudio() ) {
+      if (requireNamespace("rstudioapi", lib.loc = paths[["packagePath"]]) && isRstudioLocal ) {
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
         if (!inProject || !isRstudioProj) {
@@ -3055,7 +3135,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         #   githubRepoExists <- usethis::use_github(gitUserName) # This will fail if not an organization
         # }
       }
-      if (isRstudio()) {
+      if (isRstudioLocal) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
         message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
         stop_quietly(mess = "Restarting...")
@@ -3066,7 +3146,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     }
   } else {
     if (!Restart %in% FALSE) {
-      if (isRstudio())
+      if (isRstudioLocal)
         messageVerbose("Restart is not FALSE, but this session is not Rstudio, ignoring...",
                        verbose = verbose)
     }
@@ -3336,9 +3416,12 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
     if (NROW(a)) {
       messageVerbose(yellow("  options changed:"), verbose = verbose, verboseLevel = 0)
       if (!is.null(b)) {
-        a[unlist(lapply(newValue, is.null)), newValue := i.newValue]
-        a[, oldValue := i.oldValue]
-        a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+        anyNew <- which(unlist(lapply(a$newValue, is.null)))
+        if (length(anyNew)) {
+          a[anyNew, newValue := i.newValue]
+          a[anyNew, oldValue := i.oldValue]
+          a[, `:=`(i.newValue = NULL, i.oldValue = NULL)]
+        }
       }
       messageDF(a, verbose = verbose)
     }
@@ -3435,6 +3518,7 @@ getStudyArea <- function(studyArea, paths, verbose = verbose) {
     if (isTRUE(studyAreaOrig[["country"]] %in% "CAN")) {
       "https://drive.google.com/file/d/1OhYZymGc9VlLg-X0ZlBalBNjDrzT9XtP/view?usp=sharing"
       message("Because the country is Canada, will try manually hosted file that represents level 2 ")
+      if (!requireNamespace("reproducible")) stop("Please install `reproducible` to continue with setupStudyArea")
       studyArea <- reproducible::prepInputs(url = "https://drive.google.com/file/d/1DdtWeFYEhSRxXcAaJ_J6i8hP8YbfoC1q/view?usp=drive_link",
                                             destinationPath = paths$inputPath)
 
@@ -3594,7 +3678,7 @@ fastOptions <- function() {
        spades.useRequire = FALSE,
        spades.allowSequentialCaching = FALSE,
        reproducible.memoisePersist = TRUE,
-       reproducible.cacheSaveFormat = "qs",
+       reproducible.cacheSaveFormat = "qs2",
        LandR.assertions = FALSE,
        reproducible.cacheSpeed = "fast",
        reproducible.gdalwarp = TRUE,
@@ -3604,7 +3688,7 @@ fastOptions <- function() {
 
 makeUpdateRprofileSticky <- function(updateRprofile) {
   if (isTRUE(updateRprofile) && !getOption("Require.updateRprofile") %in% TRUE)
-    options(Require.updateRprofile = updateRprofile)
+    base::options(Require.updateRprofile = updateRprofile)
 }
 
 
@@ -3761,6 +3845,8 @@ DEFAULT <- "DEFAULT"
 
 studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL,
                            params = NULL, verbose = getOption("Require.verbose")) {
+  if (!is.null(studyArea) && !requireNamespace("reproducible", quietly = TRUE))
+    stop("Please install `reproducible` to continue with setupStudyArea")
   sa  <- if (!is.null(studyArea))     reproducible::.robustDigest(studyArea)
   rtm <- if (!is.null(rasterToMatch)) paste0(terra::ncell(rasterToMatch), "pix")
 
@@ -3992,6 +4078,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 
 
 setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
+  # if (exists("aaaa", envir = .GlobalEnv)) browser()
   if (is.null(curBr))
     curBr <- gert::git_branch()
   for (trySetUpstream in 1:2) {
@@ -4122,9 +4209,9 @@ dirExistsButNotAGitFolder <- function(projectPath, modPath, localPath, localPath
 gitEvalWithGitConfigOnError <- function(expr, tryError) {
   for (iii in 1:2) {
     bbb <- try(eval(expr))
-    gitConfigOnError(tryError)
-    if (is(tryError, "try-error")) {
-      if (any(grepl("user.name", tryError))) {
+    # gitConfigOnError(tryError)
+    if (is(bbb, "try-error")) {
+      if (any(grepl("user.name", bbb))) {
         message("Your git account is missing information; either quit",
                 "and set username and email in the git global config, or specify here:",
                 "What is your git username: ")
@@ -4151,6 +4238,20 @@ errorIfTooLong <- function(stStart, val, tryError = list("")) {
 }
 
 pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", "cachePath")) {
+  # First check if entire projectPath is also in temp; then skip override if it is:
+  # Use fs::path_has_parent for robust cross-platform check (avoids issues with
+  # Windows root not being "/" and Require's nested tempdir sessions)
+  projInTemp <- tryCatch(
+    fs::path_has_parent(paths$projectPath, tempdir()),
+    error = function(e) {
+      # Fallback: compare basename of common path (original approach)
+      ppCommonWithTmpdir <- fs::path_common(c(paths$projectPath, tempdir()))
+      identical(basename(ppCommonWithTmpdir), basename(tempdir()))
+    }
+  )
+  if (isTRUE(projInTemp))
+    return(invisible())
+
   for (ovr in override) {
     if (isTRUE(any(grepl("cache", ovr)))) {
       optionPath <- paste0("reproducible.", ovr)
@@ -4158,12 +4259,21 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
       optionPath <- paste0("spades.", ovr)
     }
     if (!is.null(getOption(optionPath))) {
-      commonWithTmpdir <- fs::path_common(c(getOption(optionPath), tempdir()))
-      if (!identical(dirname(commonWithTmpdir), "/") && is.null(paths[[ovr]])) {
+      # Check if the option path is inside tempdir using fs::path_has_parent
+      optInTemp <- tryCatch(
+        fs::path_has_parent(getOption(optionPath), tempdir()),
+        error = function(e) {
+          # Fallback: use dirname-of-common approach, but handle Windows root
+          commonWithTmpdir <- fs::path_common(c(getOption(optionPath), tempdir()))
+          commonParent <- dirname(commonWithTmpdir)
+          !identical(commonParent, "/") && !grepl("^[A-Za-z]:/?$", commonParent)
+        }
+      )
+      if (isTRUE(optInTemp) && is.null(paths[[ovr]])) {
         message("getOption(reproducible.cachePath) was already set to a folder in the tempdir();\n",
                 "--> Changing this to SpaDES.project default: ", defaultsSPO[[optionPath]])
         list(defaultsSPO[[optionPath]]) |>
-          setNames(optionPath) |> options()
+          setNames(optionPath) |> base::options()
       }
     }
   }
@@ -4204,34 +4314,53 @@ build_proxy <- function(cur, caller, expose_dot_pronouns = TRUE) {
     bind_forward(nm, cur, exec)
   }
 
-  # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
-  makeActiveBinding(
-    "...",
-    local({
-      function(val) {
-        if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
-        get("...", envir = cur, inherits = FALSE)
-      }
-    }),
-    exec
+  idx <- sys.parent()  # the frame where build_proxy was called from
+  mc  <- match.call(
+    definition  = sys.function(idx),  # the function object 'f'
+    call        = sys.call(idx),      # the call that invoked 'f'
+    expand.dots = FALSE
   )
+  userSupplied <- names(sys.call(idx))
+  deprecated <- "libPaths"
+  onlyFromDefault <- setdiff(names(mc)[-1], c(userSupplied, "..."))
+  onlyFromDefault <- intersect(onlyFromDefault, deprecated)
+  mc[onlyFromDefault] <- NULL
+  allObjs <- ls(envir = cur, all.names = TRUE)
+  namedArgs <- intersect(names(mc), allObjs)
+  haveDots <- !is.null(mc[["..."]])
+  
+  # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
+  if (isTRUE(haveDots)) {
+    makeActiveBinding(
+      "...",
+      local({
+        function(val) {
+          if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
+          get("...", envir = cur, inherits = FALSE)
+        }
+      }),
+      exec
+    )
+  }
 
   # 3) Optional: positional pronouns ..1, ..2, ... (read-only)
-  if (expose_dot_pronouns) {
-    dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
-    for (i in seq_along(dots)) {
-      pronoun <- paste0("..", i)
-      makeActiveBinding(
-        pronoun,
-        local({
-          idx <- i
-          function(val) {
-            if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
-            get("...", envir = cur, inherits = FALSE)[[idx]]
-          }
-        }),
-        exec
-      )
+  if (isTRUE(haveDots)) {
+    if (expose_dot_pronouns) {
+      dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
+      for (i in seq_along(dots)) {
+        pronoun <- paste0("..", i)
+        makeActiveBinding(
+          pronoun,
+          local({
+            idx <- i
+            function(val) {
+              if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
+              get("...", envir = cur, inherits = FALSE)[[idx]]
+            }
+          }),
+          exec
+        )
+      }
     }
   }
 
