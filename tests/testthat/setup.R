@@ -1,4 +1,5 @@
 origLibPaths <- .libPaths()
+covrLibPaths <- .libPaths()  # capture early, before any modification (includes covr's temp path if running under covr)
 if (tryCatch(packageVersion("crayon") > "0", error = function(e) FALSE))
   withr::local_package("crayon", .local_envir = teardown_env())
 if (tryCatch(packageVersion("waldo") > "0", error = function(e) FALSE))

@@ -17,6 +17,9 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
   origLibPaths <- get0("origLibPaths", envir = envir)
   if (is.null(origLibPaths))
     origLibPaths <- .libPaths()
+  # Also include covr's instrumented temp lib paths so coverage tracking is not lost
+  covrPaths <- get0("covrLibPaths", .GlobalEnv, inherits = TRUE)
+  origLibPaths <- unique(c(covrPaths, origLibPaths))
   withr::local_libpaths(origLibPaths)
   # Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
   warns <- capture_warnings({
