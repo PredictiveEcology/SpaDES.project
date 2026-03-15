@@ -16,7 +16,7 @@ test_that("test setupProject - actually simplest", {
   optsOrig <- options()
   warns <- capture_warnings( #
     mess <- capture_messages({
-      out <- setupProject()
+      out <- setupProject(paths = list(packagePath = .libPaths()[1L]))
     })
   )
   optsAfter <- options()
@@ -39,7 +39,7 @@ test_that("test setupProject - actually simplest", {
   options("spades.projectPath" = projPth)
   warns <- capture_warnings( #
     mess <- capture_messages({
-      out <- setupProject(name = basename(projPth))
+      out <- setupProject(name = basename(projPth), paths = list(packagePath = .libPaths()[1L]))
     })
   )
 
@@ -54,7 +54,7 @@ test_that("test setupProject - actually simplest", {
           "spades.inputPath" = inputPth)
   warns <- capture_warnings( #
     mess <- capture_messages({
-      out <- setupProject(name = basename(projPth))
+      out <- setupProject(name = basename(projPth), paths = list(packagePath = .libPaths()[1L]))
     })
   )
 
@@ -72,6 +72,7 @@ test_that("test setupProject - simplest", {
     mess <- capture_messages({
       out <- setupProject(
         name = paste0("test_SpaDES_project_", .rndstr(1)),
+        paths = list(packagePath = .libPaths()[1L]),
       )
     })
   )
@@ -89,7 +90,7 @@ test_that("test setupProject - relative paths and modules", {
     mess <- capture_messages({
       out <- setupProject(
         name = nam,
-        paths = list(projectPath = name,
+        paths = list(packagePath = .libPaths()[1L], projectPath = name,
                      modulePath = "m",
                      scratchPath = tempdir()),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development",
@@ -115,7 +116,7 @@ test_that("test setupProject - options and params", {
         # name = "test_SpaDES_project",
         options = list(reproducible.useTerra = TRUE),
         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development",
         packages = NULL
@@ -139,7 +140,7 @@ test_that("test setupProject - remote options file", {
         # options = "inst/options.R",
         options = c("PredictiveEcology/SpaDES.project@development/inst/options.R"),
         params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development",
         packages = NULL
@@ -173,6 +174,7 @@ test_that("test setupProject - arbitrary arguments", {
       defaultDots = list(mode = mod,
                          studyAreaName = jur),
       packages = NULL,
+      paths = list(packagePath = .libPaths()[1L]),
       updateRprofile = FALSE,
       mode = mode, studyAreaName = studyAreaName,
     )
@@ -196,7 +198,7 @@ test_that("test setupProject - args from global envir -- allow pkg installs", {
   studyAreaName <- "AB"
   mess <- capture_messages({
     out <- setupProject(
-      paths = list(projectPath = "LandWeb"),
+      paths = list(packagePath = .libPaths()[1L], projectPath = "LandWeb"),
       modules = "PredictiveEcology/Biomass_borealDataPrep@development",
       defaultDots = list(mode = "development",
                          studyAreaName = "MB"),
@@ -218,7 +220,7 @@ test_that("test setupProject - mixture of named list elements", {
                      "PredictiveEcology/SpaDES.project@development/inst/options.R",
                      system.file("authentication.R", package = "SpaDES.project")), # local file
       params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-      paths = list(modulePath = "m", # projectPath = "test",
+      paths = list(packagePath = .libPaths()[1L], modulePath = "m", # projectPath = "test",
                    scratchPath = tempdir()),
       modules = "PredictiveEcology/Biomass_borealDataPrep@development",
       packages = NULL
@@ -233,7 +235,7 @@ test_that("test setupProject - load packages using require argument", {
   ## load packages using `require` argument -- now loads SpaDES.core & reproducible
   mess <- capture_messages({
     out <- setupProject(
-      paths = list(projectPath = paste0("MEE_Paper", .rndstr(1))), # will deduce name of project from projectPath
+      paths = list(packagePath = .libPaths()[1L], projectPath = paste0("MEE_Paper", .rndstr(1))), # will deduce name of project from projectPath
       standAlone = TRUE,
       require = c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
                   "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
@@ -254,7 +256,7 @@ test_that("test setupProject - pass modules as a list", {
   warns <- capture_warnings( # updateRprofile is TRUE, but the projectPath is the tempdir()
     mess <- capture_messages({
       out <- setupProject(
-        paths = list(projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
+        paths = list(packagePath = .libPaths()[1L], projectPath = paste0("testList", .rndstr(1))), # will deduce name of project from projectPath
         modules = c("PredictiveEcology/Biomass_speciesData@master",
                     "PredictiveEcology/Biomass_borealDataPrep@development"),
         packages = NULL)
@@ -265,7 +267,7 @@ test_that("test setupProject - pass modules as a list", {
   warns <- capture_warnings( # updateRprofile is TRUE, but the projectPath is the tempdir()
     errs <- capture_error({
     out <- setupProject(
-      paths = list(projectPath = paste0("testList2", .rndstr(1))), # will deduce name of project from projectPath
+      paths = list(packagePath = .libPaths()[1L], projectPath = paste0("testList2", .rndstr(1))), # will deduce name of project from projectPath
       modules = list("PredictiveEcology/Biomass_speciesData@master",
                   "PredictiveEcology/Biomass_borealDataPrep@development"),
       packages = NULL)
@@ -284,7 +286,7 @@ test_that("test setupProject - studyArea in lonlat", {
   ## example with studyArea, left in long-lat, for Alberta and British Columbia, Canada
   mess <- capture_messages(
     out <- setupProject(studyArea = list(jurs), updateRprofile = FALSE, verbose = -2,
-                        packages = "googledrive")
+                        paths = list(packagePath = .libPaths()[1L]), packages = "googledrive")
   )
 
   expect_true(length(mess) == 0)   ## failing. verbose = -2 not suppressing messages completely.
@@ -307,7 +309,7 @@ test_that("test setupProject -studyArea using CRS", {
   warns <- capture_warnings(
     mess <- capture_messages({
       out <- setupProject(studyArea = list("Al|Brit|Sas", level = 2, epsg = epsg),
-                          packages = "googledrive")
+                          paths = list(packagePath = .libPaths()[1L]), packages = "googledrive")
     }))
   expect_true(!is.null(out$studyArea))
   expect_true(is(out$studyArea, "SpatVector"))
@@ -324,7 +326,8 @@ test_that("projectPath is in a tempdir", {
   setupTest(pkgs = "terra")
 
   warns <- capture_warnings(
-    out <- setupProject(package = "terra", updateRprofile = TRUE, verbose = -1))
+    out <- setupProject(package = "terra", updateRprofile = TRUE, verbose = -1,
+                       paths = list(packagePath = .libPaths()[1L])))
 
   expect_true(sum(grepl("but the projectPath is the tempdir", warns)) == 1)
 })
@@ -338,7 +341,7 @@ test_that("projectPath is in a tempdir", {
   err <- capture_error({
     mess <- capture_messages({
       out <- setupProject(
-        paths = list(projectPath = paste0("test_LandWeb", .rndstr(1))),
+        paths = list(packagePath = .libPaths()[1L], projectPath = paste0("test_LandWeb", .rndstr(1))),
         modules = "PredictiveEcology/Biomass_borealDataPrep@development",
         packages = NULL,
         config = "LandWeb",
@@ -358,7 +361,7 @@ test_that("test setupProject - nested GH modules", {
     mess <- capture_messages({
       out <- setupProject(
         name = paste0("test_SpaDES_project_", .rndstr(1)),
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = "bcgov/dataCastor@main",
         packages = NULL
@@ -371,7 +374,7 @@ test_that("test setupProject - nested GH modules", {
     mess <- capture_messages({
       out <- setupProject(
         name = paste0("test_SpaDES_project_", .rndstr(1)),
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_borealDataPrep@development"),
@@ -391,7 +394,7 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
     mess <- capture_messages({
       out <- setupProject(
         name = nam,
-        paths = list(projectPath = name,
+        paths = list(packagePath = .libPaths()[1L], projectPath = name,
                      modulePath = "m"),
         modules = c("PredictiveEcology/Biomass_borealDataPrep@development",
                     file.path("PredictiveEcology/scfm@development/modules",
@@ -436,6 +439,7 @@ test_that("test setupProject - nested modulePath castorExamples", {
                                        "roadCastor"),
                                      "@main"
                             )),
+                          paths = list(packagePath = .libPaths()[1L]),
                           packages = NULL)
 
 
@@ -484,7 +488,7 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
     mess <- capture_messages({
       out <- setupProject(
         name = projName,
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = c("bcgov/dataCastor@main",
                     "bcgov/blockingCastor@main",
@@ -506,7 +510,7 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
     mess <- capture_messages({
       out <- setupProject(
         name = projName,
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_core@development",
@@ -528,7 +532,7 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
     mess <- capture_messages({
       out <- setupProject(
         name = projName,
-        paths = list(modulePath = "m",
+        paths = list(packagePath = .libPaths()[1L], modulePath = "m",
                      scratchPath = tempdir()),
         modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_core@development",
@@ -559,10 +563,12 @@ test_that("test sideEffects that are not in sideEffect", {
   nam <- "hi"
   out <- setupProject(
     name = nam,
+    paths = list(packagePath = .libPaths()[1L]),
     lala = fn(1) # This used to fail with `dotsLater[ar]`;
   )
   out2 <- setupProject(
     name = nam,
+    paths = list(packagePath = .libPaths()[1L]),
     sideEffect = fn(1) # This would not fail; but check that it does not put something in out2
   )
 
@@ -586,7 +592,7 @@ test_that("test mix git repos for modules and non-gitrepos", {
   out <- SpaDES.project::setupProject(
     Restart = FALSE,
     useGit = "eliotmcintire",
-    paths = list(projectPath = "cccandies-demo-test2",
+    paths = list(packagePath = .libPaths()[1L], projectPath = "cccandies-demo-test2",
                  modulePath = 'modules',
                  inputPath = 'input',
                  outputPath = 'output',
@@ -609,7 +615,7 @@ test_that("test check if all args are used", {
     #    Restart = TRUE,
     updateRprofile = TRUE,
     useGit = FALSE,
-    paths = list(projectPath = basename(name),
+    paths = list(packagePath = .libPaths()[1L], projectPath = basename(name),
                  modulePath = "modules"),
     modules = c("PredictiveEcology/Biomass_core@main"),
     times = simTimes,
