@@ -72,8 +72,9 @@ Suggests:
     usethis,
     visNetwork,
     waldo
-Remotes:
-    PredictiveEcology/SpaDES.config@development
+Remotes: 
+    PredictiveEcology/SpaDES.config@development,
+    PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
