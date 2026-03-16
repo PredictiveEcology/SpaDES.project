@@ -357,7 +357,10 @@ test_that(".libPathDefault produces consistent paths", {
 test_that("spadesProjectOptions scratchPath uses tempdir()", {
   withr::local_options(list("spades.projectPath" = NULL))
   opts <- spadesProjectOptions()
-  expect_true(startsWith(normalizePath(opts$spades.scratchPath, mustWork = FALSE, winslash = "/"),
-                         normalizePath(tempdir(), winslash = "/")))
-  withr::local_options(list("spades.projectPath" = NULL))
+  # Compare dirname(scratchPath) to tempdir() — both exist so normalizePath resolves
+  # symlinks consistently on all platforms (e.g. /var -> /private/var on macOS).
+  expect_equal(
+    normalizePath(dirname(opts$spades.scratchPath), winslash = "/"),
+    normalizePath(tempdir(), winslash = "/")
+  )
 })
