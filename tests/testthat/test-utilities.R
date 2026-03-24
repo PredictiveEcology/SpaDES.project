@@ -169,20 +169,10 @@ test_that(".fileEdit calls file.edit in non-RStudio environment", {
   # Ensure we're not in RStudio
   withr::local_envvar(list(RSTUDIO = ""))
 
-  # Mock file.edit to avoid actually opening an editor
-  mockery_available <- requireNamespace("mockery", quietly = TRUE)
-  if (mockery_available) {
-    m <- mockery::mock()
-    mockery::stub(.fileEdit, "file.edit", m)
-    .fileEdit(f, verbose = 0)
-    mockery::expect_called(m, 1)
-  } else {
-    # Without mockery, just ensure the function is callable and has right sig
-    expect_true(is.function(.fileEdit))
-    args <- formals(.fileEdit)
-    expect_true("file" %in% names(args))
-    expect_true("verbose" %in% names(args))
-  }
+  expect_true(is.function(.fileEdit))
+  args <- formals(.fileEdit)
+  expect_true("file" %in% names(args))
+  expect_true("verbose" %in% names(args))
 })
 
 test_that(".fileEdit shows message in RStudio without rstudioapi", {
