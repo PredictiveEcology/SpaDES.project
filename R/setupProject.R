@@ -4068,6 +4068,9 @@ setupGitHub <- function(useGit, name, paths, verbose) {
           break
       }
     }
+    if (identical(gert::git_branch(), "master")) {
+      try(gert::git_branch_move("master", "main"))
+    }
 
 
     githubRepoExists <- usethis::use_github(gitUserName)
