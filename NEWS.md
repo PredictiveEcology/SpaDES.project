@@ -8,6 +8,7 @@ version 1.0.1
 * Fixed code coverage reporting: `NOT_CRAN=true` is now set in the test-coverage workflow so that `skip_on_cran()` tests run under `covr`.
 * Fixed Windows path comparison in `scratchPath` test.
 * `setupProject()` with `useGit = TRUE` now initializes the project git repository on branch `main` instead of `master`.
+* Added `mockery` to `Suggests` to fix R CMD check warning about undeclared `::` import in tests.
 * Expanded test suite with utility-function tests (`spadesProjectOptions`, `setProjPkgDir`, `pkgload2`, `getModule`, `listModules`, etc.) and added `packagePath = .libPaths()[1L]` to `setupProject` test calls to prevent lib-path clobbering during testing.
 
 version 1.0.0
