@@ -481,8 +481,8 @@ runNextWorker <- function(queue_path, global_path,
   
   # Take the first one on the list that is PENDING or INTERRUPTED
   pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
-  
-  if (length(pending_idx) == 0) {
+
+  if (is.na(pending_idx)) {
     filelock::unlock(lck)
     return("empty")
   }
