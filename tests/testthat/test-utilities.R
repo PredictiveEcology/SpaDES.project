@@ -148,7 +148,8 @@ test_that("pkgload2 assigns .prevDigs to envir", {
   expect_null(get0(".prevDigs", envir = e))
 
   # This will attempt load_all which may fail on minimal skeleton; wrap in try
-  suppressMessages(try(pkgload2(depsPaths = pkg_dir, envir = e), silent = TRUE))
+  # suppressWarnings: pkgload may warn about non-portable paths (> 100 bytes) on macOS/Windows
+  suppressWarnings(suppressMessages(try(pkgload2(depsPaths = pkg_dir, envir = e), silent = TRUE)))
 
   # .prevDigs should have been assigned (even if empty after error in load_all)
   # The important thing is the function ran far enough to process paths

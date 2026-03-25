@@ -459,6 +459,7 @@ test_that("test setupProject - nested modulePath castorExamples", {
 
 test_that("test setupProject - install pkgs from .R script", {
   skip_on_cran()
+  skip_on_os(c("windows", "mac")) # Require@development has a data.table::rbindlist bug on these platforms
   nam <- "test_SpaDES_project3"
   setupTest(name = nam) # setwd, sets .libPaths() to a temp
   withr::local_options("spades.useRequire" = TRUE)

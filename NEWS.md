@@ -9,6 +9,8 @@ version 1.0.1
 * Fixed Windows path comparison in `scratchPath` test.
 * `setupProject()` with `useGit = TRUE` now initializes the project git repository on branch `main` instead of `master`.
 * Removed `mockery` dependency from tests.
+* Fixed test warnings about non-portable paths (> 100 bytes) on macOS/Windows by suppressing in `pkgload2` test.
+* Skipped `setupProject` package-installation test on Windows/macOS due to upstream `Require@development`/`data.table` incompatibility.
 * Expanded test suite with utility-function tests (`spadesProjectOptions`, `setProjPkgDir`, `pkgload2`, `getModule`, `listModules`, etc.) and added `packagePath = .libPaths()[1L]` to `setupProject` test calls to prevent lib-path clobbering during testing.
 
 version 1.0.0
