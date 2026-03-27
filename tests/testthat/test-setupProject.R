@@ -642,7 +642,7 @@ test_that("test check if all args are used", {
     hello = 3
   ))
   out <- capture_error(do.call(SpaDES.project::setupProject, eval(expr)))
-  expect_match(out$message, "must be named")
+  expect_match(out$message, "must be named|zero-length variable name")
   names(expr)[!nzchar(names(expr))] <- c("", "first", "second")
   mess <- capture_messages(
     warns <- capture_warnings(out <- do.call(SpaDES.project::setupProject, eval(expr)))
@@ -660,4 +660,43 @@ test_that("test check if all args are used", {
   )
   expect_null(err)
   
+})
+
+
+test_that("test setupProject - with multiple objects being passed in with defaultDots", {
+  setupTest() # setwd, sets .libPaths() to a temp
+  withr::local_options("SpaDES.project.updateRprofile" = FALSE)
+  libPathsOrig <- .libPaths()
+  on.exit(.libPaths(libPathsOrig), add = TRUE)
+
+  ## simplest case; just creates folders
+  defaults <- spadesProjectOptions()
+  optsOrig <- options()
+  defaultRep <- 1
+  secondRep <- 2
+  defaultELF <- "3"
+  secondELF <- "5"
+
+  # rm(list = ".rep", ".ELF")
+  for (i in 1:2) {
+    # warns# <- capture_warnings( # this is about updateProfile is TRUE
+      out <- setupProject(
+        paths = list(packagePath = .libPaths()[1L]),
+        .ELF = .ELF,
+        .rep = .rep,
+        defaultDots = list(.ELF = defaultELF, .rep = defaultRep)
+      )
+    # )
+    if (identical(i, 1L)) {
+      expect_identical(out$.rep, defaultRep)
+      expect_identical(out$.ELF, defaultELF)
+      .rep <- secondRep
+      .ELF <- secondELF
+    } else {
+      expect_identical(out$.rep, secondRep)
+      expect_identical(out$.ELF, secondELF)
+      
+    }
+  }
+
 })
