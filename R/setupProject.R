@@ -142,12 +142,12 @@ utils::globalVariables(c(
 #'        reproject the `studyArea`. See examples.
 #' @param overwrite Logical vector or character vector, however, only `getModule` will respond
 #'   to a vector of values. If length-one `TRUE`, then all files that were previously downloaded
-#'   will be overwritten throughout the sequence of `setupProject`. If a vector of
-#'   logical or character, these will be passed to `getModule`: only the named
+#'   will be overwritten throughout the sequence of `setupProject` -- including those downloaded via `sideEffects`.
+#'   If a length > 1 logical or character vector, these will be passed to `getModule`: only the named
 #'   modules will be overwritten or the logical vector of the modules.
-#'   NOTE: if a vector, no other file specified anywhere in `setupProject` will be
-#'   overwritten except a module that/those names, because
-#'   only `setupModules` is currently responsive to a vector. To have fine grained control,
+#'   NOTE: if length > 1, no other file specified anywhere in `setupProject` will be
+#'   overwritten except a module matching the vector `names()` (because
+#'   only `setupModules` is currently responsive to a vector). To have fine grained control,
 #'   a user can just manually delete a file, then rerun.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects.
@@ -2867,10 +2867,13 @@ stopMessForRequireFail <- function(pkg) {
 #' @importFrom rstudioapi getActiveProject getSourceEditorContext
 #'
 #' @details
+#' `setupStudyArea` calls `[geodata::gadm()]` to get an `sf` polygon or set of polygons
+#' of a country or a subdivision of a country. The user can pass a named `list` of character elements
+#' that match entries in the columns "NAME_1" and "NAME_2" of the `sf` object. If passing
+#' `NAME_2`, the user must pass `level = 2`. If passing `NAME_1` and `level = 2` all subdivision polygons under 
+#' `NAME_1` will be returned, which can be useful to explore subdivision names.                                     
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
-#' be passed to `path` argument of `gadm`. User can pass any named list element
-#' that matches the columns in the `sf` object, including e.g., `NAME_1` and, if `level = 2`,
-#' is specified, then `NAME_2`.
+#' be passed to `path` argument of `gadm`. 
 #'
 #' ```
 #' setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
