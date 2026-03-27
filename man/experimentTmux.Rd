@@ -7,7 +7,8 @@
 experimentTmux(
   df,
   global_path = "global.R",
-  n_workers = 4,
+  cores = NULL,
+  n_workers = if (is.null(cores)) 4L else length(cores),
   delay_after_split = 0.4,
   delay_after_layout = 0.4,
   delay_between_R_start = 0,
@@ -23,8 +24,7 @@ experimentTmux(
   ss_id = NULL,
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
-  workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco", "core",
-    "dougfir", "fire", "mpb", "sbw", "mega", "acer", "abies", "pinus"),
+  workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
   runNameLabel = quote(colnames(q)[1:2]),
   ...
 )
@@ -35,6 +35,12 @@ from each row are assigned prior to sourcing \code{global_path}.}
 
 \item{global_path}{Character scalar. Path to the script to \code{source()} in each pane.
 Prefer an \strong{absolute path} if worker panes start in a different directory.}
+
+\item{cores}{Character vector of machine names to run workers on. Each element is either
+\code{"localhost"} (run R in the pane directly) or a hostname reachable via \verb{ssh <host>}
+(the pane will open an SSH session and start R there). When supplied, its length
+determines the number of worker panes unless \code{n_workers} is also specified explicitly.
+Default \code{NULL} runs all workers on localhost.}
 
 \item{n_workers}{Integer. Number of worker panes to spawn. Default \code{4}.}
 

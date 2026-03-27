@@ -77,6 +77,11 @@ tmux_set_mouse <- function(on = TRUE) {
 #' @param ss_id Optional Google Drive folder/sheet ID for queue syncing. `NULL` disables.
 #' @param email Optional email for Google authentication.
 #' @param cache_path Optional path for gargle OAuth cache.
+#' @param cores Character vector of machine names to run workers on. Each element is either
+#'   `"localhost"` (run R in the pane directly) or a hostname reachable via `ssh <host>`
+#'   (the pane will open an SSH session and start R there). When supplied, its length
+#'   determines the number of worker panes unless `n_workers` is also specified explicitly.
+#'   Default `NULL` runs all workers on localhost.
 #' @param workersToMonitor Character vector of worker names to monitor.
 #' @param runNameLabel A quoted expression to derive a run label from the queue data frame.
 #' @param ... Additional arguments (currently unused).
@@ -108,7 +113,8 @@ tmux_set_mouse <- function(on = TRUE) {
 #' }
 experimentTmux <- function(df,
                            global_path = "global.R",
-                           n_workers = 4,
+                           cores = NULL,
+                           n_workers = if (is.null(cores)) 4L else length(cores),
                            delay_after_split = 0.4,
                            delay_after_layout = 0.4,
                            delay_between_R_start = 0.0,
@@ -127,8 +133,7 @@ experimentTmux <- function(df,
                            ss_id = NULL,
                            email = getOption("gargle_oauth_email"),
                            cache_path = getOption("gargle_oauth_cache"),
-                           workersToMonitor = c("birds","biomass","camas","carbon","caribou","coco",
-                                                "core","dougfir","fire","mpb","sbw","mega","acer","abies","pinus"),
+                           workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
                            runNameLabel = quote(colnames(q)[1:2]),
                            ...) {
   
@@ -350,10 +355,11 @@ experimentTmux <- function(df,
     workers <- workers[seq_len(n_workers)]
     
     # 3. Now send the R commands to the clean, tiled panes
-    start_cmd <- "R"
-    
-    for (pid in worker_ids) {
-      .tmux_run("send-keys", "-t", pid, start_cmd, "C-m")
+    if (is.null(cores)) cores <- rep("localhost", n_workers)
+    start_cmds <- ifelse(cores == "localhost", "R", paste0("ssh -t ", cores, " R"))
+
+    for (i in seq_along(worker_ids)) {
+      .tmux_run("send-keys", "-t", worker_ids[i], start_cmds[i], "C-m")
       # Your existing staggered start delay
       Sys.sleep(0.1)
     }
