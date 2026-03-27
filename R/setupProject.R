@@ -3771,7 +3771,7 @@ extractModName <- function(modules) {
 
 #' @author Ceres Barros
 .extractModName <- function(modules) {
-  if (tools::file_ext(modules) != "") {
+  if (toupper(tools::file_ext(modules)) == "R") {
     stop("Expecting local or GitHub path to the module *folder* not .R file.")
   }
 
