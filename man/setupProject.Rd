@@ -353,7 +353,7 @@ path), plus download and read the cloud-hosted file.
 \if{html}{\out{<div class="sourceCode">}}\preformatted{setupProject(
    options = list(reproducible.useTerra = TRUE,
                   "inst/options.R",
-                  "PredictiveEcology/SpaDES.project@transition/inst/options.R")
+                  "PredictiveEcology/SpaDES.project@development/inst/options.R")
                  )
    )
 }\if{html}{\out{</div>}}

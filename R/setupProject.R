@@ -287,7 +287,7 @@ utils::globalVariables(c(
 #' setupProject(
 #'    options = list(reproducible.useTerra = TRUE,
 #'                   "inst/options.R",
-#'                   "PredictiveEcology/SpaDES.project@transition/inst/options.R")
+#'                   "PredictiveEcology/SpaDES.project@development/inst/options.R")
 #'                  )
 #'    )
 #' ```
@@ -1351,9 +1351,12 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
     #   need reassess
     hasName <- lapply(llOuter, function(x) !is.null(names(x)))
     if (all(unlist(hasName))) namedList <- TRUE
-    if (isTRUE(namedList))
-      os <- Reduce(modifyList, llOuter)
-    else
+    if (isTRUE(namedList)) {
+      llOuter <- Filter(is.list, llOuter)
+      os <- if (length(llOuter) > 1) Reduce(modifyList, llOuter)
+            else if (length(llOuter) == 1) llOuter[[1]]
+            else list()
+    } else
       os <- tail(llOuter, 1)[[1]][[1]]
   }
 
@@ -1794,7 +1797,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
   dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (isTRUE(setLinuxBinaryRepo))
-    Require::setLinuxBinaryRepo()
+    tryCatch(Require::setLinuxBinaryRepo(), error = function(e) NULL)
 
   if (missing(packages))
     packages <- character()
@@ -2121,7 +2124,13 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
           
         }
       } else {
-        obj <- Reduce(f = modifyList, obj)
+        obj <- Filter(is.list, obj)
+        if (length(obj) > 1)
+          obj <- Reduce(f = modifyList, obj)
+        else if (length(obj) == 1)
+          obj <- obj[[1]]
+        else
+          obj <- list()
       }
     }
   }

@@ -961,6 +961,7 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #'   Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
 #' @param recheckDone Logical. If `TRUE`, re-evaluate DONE status. Default `FALSE`.
 #' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
+#' @param ... Additional arguments (currently unused).
 #'
 #' @return A data.frame (the updated queue), invisibly.
 #'   As a side effect, updates the RDS file on disk.

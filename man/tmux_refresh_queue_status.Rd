@@ -11,7 +11,8 @@ tmux_refresh_queue_status(
   statusCalculate = getOption("spades.statusCalculate"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
   recheckDone = FALSE,
-  activeRunningPath = getOption("spades.activeRunningPath")
+  activeRunningPath = getOption("spades.activeRunningPath"),
+  ...
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
 \item{recheckDone}{Logical. If \code{TRUE}, re-evaluate DONE status. Default \code{FALSE}.}
 
 \item{activeRunningPath}{Directory for "running" flag files. See \code{activeRunningPathForTmux}.}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
 A data.frame (the updated queue), invisibly.

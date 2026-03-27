@@ -126,13 +126,13 @@ In addition to its capability to specify paths, options, and parameters for the 
 
 The first important advantage of `setupProject()` is the type of inputs for arguments it can take, which can be lists of, and/or paths. For most arguments, the values can be either named lists or character vectors consisting of strings ending in `.R`, representing `urls` to cloud or local R scripts to be sourced. More specifically, the function arguments `paths`, `options`, and `params`, can all understand lists of named values, character vectors, or a mixture by using a list where named elements are values and unnamed elements are character strings/vectors. *Any unnamed character string/vector will be treated as a file path.* If that file path has an @ symbol, it will be assumed to be a file that exists on ⁠https://github.com. So a user can pass values, or pointers to remote and/or local paths that, themselves, have values.
 
-The following will set an option as declared (i.e., `reproducible.useTerra = TRUE`), plus read the local `inst/options.R` file (with relative path), plus download and read the cloud-hosted `PredictiveEcology/SpaDES.project@transition/inst/options.R` file.
+The following will set an option as declared (i.e., `reproducible.useTerra = TRUE`), plus read the local `inst/options.R` file (with relative path), plus download and read the cloud-hosted `PredictiveEcology/SpaDES.project@development/inst/options.R` file.
 
 ```{r versatile,message=FALSE}
 out <- setupProject(
   options = list(reproducible.useTerra = TRUE,
                  "inst/options.R",
-                 "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+                 "PredictiveEcology/SpaDES.project@development/inst/options.R"
   )
 )
 attr(out, "projectOptions")
@@ -353,7 +353,7 @@ In this first example, `options` is set by parsing a file that is at a remote lo
 ```{r example_4,error=FALSE}
 out <- setupProject(
   options = c(
-    "PredictiveEcology/SpaDES.project@transition/inst/options.R"
+    "PredictiveEcology/SpaDES.project@development/inst/options.R"
   ),
   params = list(
     Biomass_borealDataPrep = list(.plots = "screen")
@@ -381,7 +381,7 @@ Require::setLibPaths(origLibPath, updateRprofile = FALSE)
 out <- setupProject(
   name = "example_5", # puts in a folder with this name
   modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-  sideEffects = "PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R",
+  sideEffects = "PredictiveEcology/SpaDES.project@development/inst/sideEffects.R",
 
   # if mode and studyAreaName are not available in the .GlobalEnv, then will use these
   defaultDots = list(mode = "development",
