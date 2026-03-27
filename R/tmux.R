@@ -39,16 +39,19 @@ tmux_set_mouse <- function(on = TRUE) {
   rel_dir       <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
   remote_dir    <- paste0("~/", rel_dir)   # e.g. ~/GitHub/FireSenseTesting
 
+  # Double-quote wrapper for shell: safe when expr contains single quotes
+  dq <- function(s) paste0('"', gsub('"', '\\"', s, fixed = TRUE), '"')
+
   # Internal helper: run an R expression on remote, setwd'd into remote_dir
   .ssh_r <- function(expr, intern = FALSE) {
     full <- paste0("setwd(path.expand('", remote_dir, "')); ", expr)
-    system(paste0("ssh ", host, " Rscript -e ", shQuote(full)), intern = intern)
+    system(paste0("ssh ", host, " Rscript -e ", dq(full)), intern = intern)
   }
 
   # 1. Create remote directory, scp global_path into it
   system(paste0("ssh ", host, " Rscript -e ",
-                shQuote(paste0("dir.create(path.expand('", remote_dir,
-                               "'), showWarnings = FALSE, recursive = TRUE)"))))
+                dq(paste0("dir.create(path.expand('", remote_dir,
+                          "'), showWarnings = FALSE, recursive = TRUE)"))))
   scp_ret <- system(paste0("scp ", shQuote(normalizePath(global_path)),
                             " ", host, ":", remote_dir, "/"))
   if (scp_ret != 0L)
