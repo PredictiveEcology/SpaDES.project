@@ -150,7 +150,7 @@ experimentTmux <- function(df,
   runNameLabel <- eval(runNameLabel)
   
   tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-                            activeRunningPath = activeRunningPath)
+                            activeRunningPath = activeRunningPath, ...)
   if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
   if (!file.exists(global_path)) {
     warning("global_path not found from master R working directory: ", global_path)
@@ -978,7 +978,8 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
                                       statusCalculate = getOption("spades.statusCalculate"),
                                       folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                                       recheckDone = FALSE, #!is.null(statusCalculate),
-                                      activeRunningPath = getOption("spades.activeRunningPath")) {
+                                      activeRunningPath = getOption("spades.activeRunningPath"),
+                                      ...) {
   
   if (file.exists(queue_path)) {
     lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
@@ -1007,7 +1008,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     for (i in to_check) {
       new_status <- txtPending
       runName <- getRunName(q, i, runNameLabel)# 
-      runNameSimples <- sapply(runNameLabel, function(rnl) q[i, rnl])
+      runNameSimples <- sapply(runNameLabel, function(rnl) q[i, ..rnl])
       
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
@@ -1052,7 +1053,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       done <- FALSE
       if (exists("aaaa", envir = .GlobalEnv)) browser()
       if (!is.null(statusCalculate)) {
-        
         evaled <- try(eval(statusCalculate))
         if (is(evaled, "try-error")) {
           statusCalculate <- NULL
@@ -1312,7 +1312,7 @@ activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefi
 
 
 getRunName <- function(queue, i, runNameLabel) {
-  queue[i, runNameLabel] |> paste(collapse = "-")
+  queue[i, ..runNameLabel] |> paste(collapse = "-")
 }
 
 
