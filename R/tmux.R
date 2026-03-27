@@ -27,6 +27,85 @@ tmux_set_mouse <- function(on = TRUE) {
   invisible(on)
 }
 
+# ------------------------------------------------------------------
+# Internal helper: prepare a remote machine before launching a worker
+# ------------------------------------------------------------------
+.setup_remote_machine <- function(host, global_path) {
+  message("Setting up remote machine: ", host)
+
+  # Derive remote working directory: same relative path from ~ as local
+  local_home    <- path.expand("~")
+  local_abs_dir <- dirname(normalizePath(global_path))
+  rel_dir       <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
+  remote_dir    <- paste0("~/", rel_dir)   # e.g. ~/GitHub/FireSenseTesting
+
+  # Internal helper: run an R expression on remote, setwd'd into remote_dir
+  .ssh_r <- function(expr, intern = FALSE) {
+    full <- paste0("setwd(path.expand('", remote_dir, "')); ", expr)
+    system(paste0("ssh ", host, " Rscript -e ", shQuote(full)), intern = intern)
+  }
+
+  # 1. Create remote directory, scp global_path into it
+  system(paste0("ssh ", host, " Rscript -e ",
+                shQuote(paste0("dir.create(path.expand('", remote_dir,
+                               "'), showWarnings = FALSE, recursive = TRUE)"))))
+  scp_ret <- system(paste0("scp ", shQuote(normalizePath(global_path)),
+                            " ", host, ":", remote_dir, "/"))
+  if (scp_ret != 0L)
+    stop("scp of global_path to '", host, "' failed.", call. = FALSE)
+
+  # 2. Verify Require matches local installation (version + source)
+  local_lib     <- .libPaths()[1]
+  local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
+  local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
+  if (identical(local_req_dsc$RemoteType, "github")) {
+    local_req_src <- paste0(local_req_dsc$RemoteUsername, "/", local_req_dsc$RemoteRepo)
+    if (!is.null(local_req_dsc$RemoteRef))
+      local_req_src <- paste0(local_req_src, "@", local_req_dsc$RemoteRef)
+  } else {
+    local_req_src <- "CRAN"
+  }
+
+  remote_req_ver <- trimws(paste(collapse = "",
+    .ssh_r("cat(as.character(packageVersion('Require')))", intern = TRUE)))
+
+  if (!identical(remote_req_ver, local_req_ver)) {
+    message("  Installing Require ", local_req_ver, " (", local_req_src, ") on ", host)
+    if (local_req_src == "CRAN") {
+      req_expr <- paste0("Require::Install('Require (== ", local_req_ver, ")')")
+    } else {
+      req_expr <- paste0("Require::Install('", local_req_src, " (>= ", local_req_ver, ")')")
+    }
+    .ssh_r(req_expr)
+  }
+
+  # 3. Install usethis
+  .ssh_r("Require::Install('usethis')")
+
+  # 4. Check git credentials
+  creds_out <- trimws(paste(collapse = "",
+    .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error = function(e) cat('none'))",
+           intern = TRUE)))
+
+  if (!grepl("ok", creds_out, fixed = TRUE))
+    stop(
+      "No GitHub credentials found on '", host, "'. ",
+      "On that machine run: usethis::create_github_token() then gitcreds::gitcreds_set()",
+      call. = FALSE
+    )
+
+  # 5 & 6. Determine local SpaDES.project version and install >= that on remote
+  local_sp_ver <- as.character(packageVersion("SpaDES.project"))
+  sp_expr <- paste0(
+    "Require::Install('PredictiveEcology/SpaDES.project@development (>= ", local_sp_ver, ")')"
+  )
+  ret <- .ssh_r(sp_expr)
+  if (ret != 0L)
+    stop("SpaDES.project installation failed on '", host, "'.", call. = FALSE)
+
+  invisible(TRUE)
+}
+
 #' Spawn tmux worker panes, start R, assign objects from a data.frame, and source a script (pane-internal delay)
 #'
 #' @description
@@ -201,7 +280,13 @@ experimentTmux <- function(df,
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
   
   inTmux <- Sys.getenv("TMUX") != ""
-  
+
+  # Resolve cores and set up any remote machines before spawning panes
+  if (is.null(cores)) cores <- rep("localhost", n_workers)
+  for (.host in setdiff(unique(cores), "localhost")) {
+    .setup_remote_machine(.host, global_path)
+  }
+
   if (inTmux) {
     #stop("Not inside tmux. Start/attach to a tmux session first.", call. = FALSE)
     #}
@@ -355,7 +440,6 @@ experimentTmux <- function(df,
     workers <- workers[seq_len(n_workers)]
     
     # 3. Now send the R commands to the clean, tiled panes
-    if (is.null(cores)) cores <- rep("localhost", n_workers)
     start_cmds <- ifelse(cores == "localhost", "R", paste0("ssh -t ", cores, " R"))
 
     for (i in seq_along(worker_ids)) {
