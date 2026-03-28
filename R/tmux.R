@@ -39,19 +39,29 @@ tmux_set_mouse <- function(on = TRUE) {
   rel_dir       <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
   remote_dir    <- paste0("~/", rel_dir)   # e.g. ~/GitHub/FireSenseTesting
 
-  # Double-quote wrapper for shell: safe when expr contains single quotes
-  dq <- function(s) paste0('"', gsub('"', '\\"', s, fixed = TRUE), '"')
+  # Repos: local option + r-universe prepended (remote machines won't have this set)
+  install_repos <- unique(c("https://predictiveecology.r-universe.dev", getOption("repos")))
 
-  # Internal helper: run an R expression on remote, setwd'd into remote_dir
+  # Internal helper: write R code to a local temp file, scp it to remote,
+  # run it with Rscript (no shell quoting of R expressions needed), then delete.
+  # Every script sets repos and cwd before running expr.
   .ssh_r <- function(expr, intern = FALSE) {
-    full <- paste0("setwd(path.expand('", remote_dir, "')); ", expr)
-    system(paste0("ssh ", host, " Rscript -e ", dq(full)), intern = intern)
+    tmp <- tempfile(fileext = ".R")
+    on.exit(unlink(tmp))
+    writeLines(c(
+      paste0("options(repos = ", deparse1(install_repos), ")"),
+      paste0("setwd(path.expand('", remote_dir, "'))"),
+      expr
+    ), tmp)
+    remote_tmp <- paste0("/tmp/", basename(tmp))
+    system(paste0("scp -q ", shQuote(tmp), " ", host, ":", remote_tmp))
+    system2("ssh", c(host, paste0("Rscript ", remote_tmp, "; rm -f ", remote_tmp)),
+            stdout = intern, stderr = "")
   }
 
   # 1. Create remote directory, scp global_path into it
-  system(paste0("ssh ", host, " Rscript -e ",
-                dq(paste0("dir.create(path.expand('", remote_dir,
-                          "'), showWarnings = FALSE, recursive = TRUE)"))))
+  .ssh_r(paste0("dir.create(path.expand('", remote_dir,
+                "'), showWarnings = FALSE, recursive = TRUE)"))
   scp_ret <- system(paste0("scp ", shQuote(normalizePath(global_path)),
                             " ", host, ":", remote_dir, "/"))
   if (scp_ret != 0L)
@@ -65,6 +75,8 @@ tmux_set_mouse <- function(on = TRUE) {
     local_req_src <- paste0(local_req_dsc$RemoteUsername, "/", local_req_dsc$RemoteRepo)
     if (!is.null(local_req_dsc$RemoteRef))
       local_req_src <- paste0(local_req_src, "@", local_req_dsc$RemoteRef)
+  } else if (!is.null(local_req_dsc$Repository)) {
+    local_req_src <- local_req_dsc$Repository  # e.g. https://predictiveecology.r-universe.dev
   } else {
     local_req_src <- "CRAN"
   }
@@ -74,12 +86,7 @@ tmux_set_mouse <- function(on = TRUE) {
 
   if (!identical(remote_req_ver, local_req_ver)) {
     message("  Installing Require ", local_req_ver, " (", local_req_src, ") on ", host)
-    if (local_req_src == "CRAN") {
-      req_expr <- paste0("Require::Install('Require (== ", local_req_ver, ")')")
-    } else {
-      req_expr <- paste0("Require::Install('", local_req_src, " (>= ", local_req_ver, ")')")
-    }
-    .ssh_r(req_expr)
+    .ssh_r("install.packages('Require')")
   }
 
   # 3. Install usethis
