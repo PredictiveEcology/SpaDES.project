@@ -507,18 +507,28 @@ experimentTmux <- function(df,
     warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
   }
   
+  # Convert a local absolute path to its remote equivalent (same path relative to ~)
+  .to_remote_path <- function(p) {
+    if (is.null(p)) return(p)
+    sub(paste0("^", path.expand("~")), "~", normalizePath(p, mustWork = FALSE))
+  }
+
   # Build a pane payload that **calls functions** instead of source()ing files.
   # Default preserves previous behavior (loop); if you want single-shot workers, swap to runNextWorker().
-  
+
   for (i in seq_along(workers)) {
     pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
+    is_remote <- cores[i] != "localhost"
+    qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
+    gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
+    arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
     payload <- sprintf(
       "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s, activeRunningPath=%s)",
-      deparse1(queue_path),
-      deparse1(global_path),
+      deparse1(qp),
+      deparse1(gp),
       deparse1(match.arg(on_interrupt)),
       deparse1(runNameLabel),
-      deparse1(activeRunningPath)
+      deparse1(arp)
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     if (inTmux) {
