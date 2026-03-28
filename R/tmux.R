@@ -88,7 +88,7 @@ tmux_set_mouse <- function(on = TRUE) {
   remote_req_ver <- trimws(paste(collapse = "",
     .ssh_r("cat(as.character(packageVersion('Require')))", intern = TRUE)))
 
-  if (!identical(remote_req_ver, local_req_ver)) {
+  if (numeric_version(remote_req_ver) < numeric_version(local_req_ver)) {
     message("  Installing Require ", local_req_ver, " (", local_req_src, ") on ", host)
     .ssh_r("install.packages('Require')")
   }
