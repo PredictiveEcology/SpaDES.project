@@ -30,7 +30,7 @@ tmux_set_mouse <- function(on = TRUE) {
 # ------------------------------------------------------------------
 # Internal helper: prepare a remote machine before launching a worker
 # ------------------------------------------------------------------
-.setup_remote_machine <- function(host, global_path) {
+.setup_remote_machine <- function(host, global_path, queue_path) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
@@ -66,6 +66,10 @@ tmux_set_mouse <- function(on = TRUE) {
                             " ", host, ":", remote_dir, "/"))
   if (scp_ret != 0L)
     stop("scp of global_path to '", host, "' failed.", call. = FALSE)
+  scp_ret <- system(paste0("scp ", shQuote(normalizePath(queue_path)),
+                            " ", host, ":", remote_dir, "/"))
+  if (scp_ret != 0L)
+    stop("scp of queue_path to '", host, "' failed.", call. = FALSE)
 
   # 2. Verify Require matches local installation (version + source)
   local_lib     <- .libPaths()[1]
@@ -294,7 +298,7 @@ experimentTmux <- function(df,
   # Resolve cores and set up any remote machines before spawning panes
   if (is.null(cores)) cores <- rep("localhost", n_workers)
   for (.host in setdiff(unique(cores), "localhost")) {
-    .setup_remote_machine(.host, global_path)
+    .setup_remote_machine(.host, global_path, queue_path)
   }
 
   if (inTmux) {
