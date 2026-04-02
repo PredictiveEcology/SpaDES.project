@@ -160,19 +160,25 @@ tmux_set_mouse <- function(on = TRUE) {
   }
 
   # 6. Ensure SpaDES.project's dependencies are present on the remote.
-  # Include Suggests: remote worker machines need the full runtime stack
-  # (e.g. googlesheets4, googledrive, cli are in Suggests but required for
-  # the tmux/GS workflow). Require::Install is idempotent — skips what's installed.
-  # Split on commas only so "R (>= 4.3)" stays one token before version-stripping.
-  .ssh_r(paste0(
-    "dsc  <- read.dcf(system.file('DESCRIPTION', package = 'SpaDES.project'),",
-    "                 fields = c('Imports', 'Depends', 'LinkingTo', 'Suggests')); ",
-    "raw  <- paste(dsc[!is.na(dsc)], collapse = ','); ",
-    "pkgs <- trimws(unlist(strsplit(raw, ','))); ",
-    "pkgs <- trimws(sub('\\\\s*\\\\(.*', '', pkgs)); ",  # strip ' (>= 1.2)' etc.
-    "pkgs <- pkgs[nzchar(pkgs) & pkgs != 'R']; ",
-    "Require::Install(pkgs)"
-  ))
+  # For Imports/Depends/LinkingTo: install all (they are hard requirements).
+  # For Suggests: only install those that are installed on localhost — this avoids
+  # pulling in dev/test packages (testthat, knitr, …) that the user never installed,
+  # while still propagating runtime Suggests like googlesheets4/googledrive/cli.
+  # Require::Install is idempotent so repeated calls are cheap.
+  .parse_desc_pkgs <- function(fields) {
+    dsc <- read.dcf(system.file("DESCRIPTION", package = "SpaDES.project"),
+                    fields = fields)
+    raw  <- paste(dsc[!is.na(dsc)], collapse = ",")
+    pkgs <- trimws(unlist(strsplit(raw, ",")))
+    pkgs <- trimws(sub("\\s*\\(.*", "", pkgs))
+    pkgs[nzchar(pkgs) & pkgs != "R"]
+  }
+  hard_pkgs    <- .parse_desc_pkgs(c("Imports", "Depends", "LinkingTo"))
+  suggests_all <- .parse_desc_pkgs("Suggests")
+  local_inst   <- rownames(utils::installed.packages())
+  suggests_local <- intersect(suggests_all, local_inst)
+  all_pkgs <- unique(c(hard_pkgs, suggests_local))
+  .ssh_r(paste0("Require::Install(", deparse1(all_pkgs), ")"))
 
   invisible(TRUE)
 }
