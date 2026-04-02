@@ -181,7 +181,7 @@ tmux_set_mouse <- function(on = TRUE) {
   bin_pkgs  <- setdiff(all_pkgs, src_pkgs)
   if (length(src_pkgs) > 0L) {
     message("  Compiling from source on ", host, ": ", paste(src_pkgs, collapse = ", "))
-    .ssh_r(paste0("install.packages(", deparse1(src_pkgs), ", type = 'source')"))
+    .ssh_r(paste0("Require::Install(", deparse1(src_pkgs), ", type = 'source')"))
   }
   message("  Installing ", length(bin_pkgs), " dependency packages on ", host)
   .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(bin_pkgs), ")"))
