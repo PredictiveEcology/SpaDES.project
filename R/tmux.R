@@ -178,7 +178,7 @@ tmux_set_mouse <- function(on = TRUE) {
   local_inst   <- rownames(utils::installed.packages())
   suggests_local <- intersect(suggests_all, local_inst)
   all_pkgs <- unique(c(hard_pkgs, suggests_local))
-  .ssh_r(paste0("Require::Install(", deparse1(all_pkgs), ")"))
+  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(all_pkgs), ")"))
 
   invisible(TRUE)
 }
