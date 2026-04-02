@@ -143,10 +143,11 @@ tmux_set_mouse <- function(on = TRUE) {
   if (rsync_ret != 0L)
     stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
 
-  # 7. Rsync SpaDES.project's dependencies from local_lib to remote lib.
-  # For Imports/Depends/LinkingTo: include all.
-  # For Suggests: only those installed on localhost (avoids dev/test packages
-  # like testthat/knitr while propagating runtime Suggests like googlesheets4).
+  # 7. Install SpaDES.project's dependencies on remote via Require::Install.
+  # For Imports/Depends/LinkingTo: install all (hard requirements).
+  # For Suggests: only those installed on localhost — avoids pulling in dev/test
+  # packages (testthat, knitr, …) while still propagating runtime Suggests like
+  # googlesheets4/googledrive/cli.
   .parse_desc_pkgs <- function(fields) {
     dsc <- read.dcf(system.file("DESCRIPTION", package = "SpaDES.project"),
                     fields = fields)
@@ -160,24 +161,8 @@ tmux_set_mouse <- function(on = TRUE) {
   local_inst     <- rownames(utils::installed.packages(lib.loc = local_lib))
   suggests_local <- intersect(suggests_all, local_inst)
   all_pkgs       <- unique(c(hard_pkgs, suggests_local))
-
-  # Find the paths in local_lib for each package and rsync them all in one call.
-  pkg_paths <- vapply(all_pkgs, function(p) {
-    tryCatch(find.package(p, lib.loc = local_lib), error = function(e) NA_character_)
-  }, character(1L))
-  pkg_paths <- pkg_paths[!is.na(pkg_paths)]
-
-  if (length(pkg_paths) > 0L) {
-    message("  rsyncing ", length(pkg_paths), " dependency packages to ", host, ":", local_lib, "/")
-    rsync_src <- paste(vapply(pkg_paths, function(p) {
-      shQuote(normalizePath(p))
-    }, character(1L)), collapse = " ")
-    dep_rsync_ret <- system(paste0(
-      "rsync -a ", rsync_src, " ", host, ":", local_lib, "/"
-    ))
-    if (dep_rsync_ret != 0L)
-      warning("rsync of some dependency packages to '", host, "' may have failed.")
-  }
+  message("  Installing ", length(all_pkgs), " dependency packages on ", host)
+  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(all_pkgs), ")"))
 
   # 8. Rsync Require package binary cache to speed up future installations on remote.
   local_cache <- Require::cachePkgDir()
