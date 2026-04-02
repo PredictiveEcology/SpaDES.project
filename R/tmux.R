@@ -30,7 +30,7 @@ tmux_set_mouse <- function(on = TRUE) {
 # ------------------------------------------------------------------
 # Internal helper: prepare a remote machine before launching a worker
 # ------------------------------------------------------------------
-.setup_remote_machine <- function(host, global_path, queue_path) {
+.setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
@@ -70,6 +70,13 @@ tmux_set_mouse <- function(on = TRUE) {
                             " ", host, ":", remote_dir, "/"))
   if (scp_ret != 0L)
     stop("scp of queue_path to '", host, "' failed.", call. = FALSE)
+
+  if (!is.null(extra_args_path) && file.exists(extra_args_path)) {
+    scp_ret <- system(paste0("scp ", shQuote(normalizePath(extra_args_path)),
+                              " ", host, ":", remote_dir, "/"))
+    if (scp_ret != 0L)
+      warning("scp of extra_args_path to '", host, "' failed.", call. = FALSE)
+  }
 
   # 2. Verify Require matches local installation (version + source)
   local_lib     <- .libPaths()[1]
@@ -223,7 +230,9 @@ experimentTmux <- function(df,
                            continue = TRUE,
                            queue_path = NULL,
                            on_interrupt = c("requeue", "fail"),
+                           pane_mode = c("killAndNewPane", "reuse"),
                            ss_id = NULL,
+                           forceLocalQueueToGS = FALSE,
                            email = getOption("gargle_oauth_email"),
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
@@ -236,6 +245,7 @@ experimentTmux <- function(df,
   }
   
   on_interrupt <- match.arg(on_interrupt)
+  pane_mode    <- match.arg(pane_mode)
   # on_error     <- match.arg(on_error)
   
   # -- preconditions
@@ -245,17 +255,24 @@ experimentTmux <- function(df,
   }
   tmux_prepare_queue_from_df(df, queue_path)
   q <- readRDS(queue_path)
-  runNameLabel <- eval(runNameLabel)
-  
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-                            activeRunningPath = activeRunningPath, ...)
-  if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
-  if (!file.exists(global_path)) {
-    warning("global_path not found from master R working directory: ", global_path)
+
+  # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
+  dots_path <- file.path(dirname(normalizePath(queue_path)), ".tmux_dots.rds")
+  if (length(list(...)) > 0L) {
+    saveRDS(list(...), dots_path)
+  } else if (file.exists(dots_path)) {
+    unlink(dots_path)
   }
-  
-  if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
-  
+  data.table::setDT(q)
+  # list2env(as.list(q[, -..meta_cols]), envir = environment())
+  # runNameLabel <- eval(runNameLabel)
+
+  if (!is.null(ss_id)) {
+    if (!is.null(email))      options(gargle_oauth_email = email)
+    if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+    options(gargle_oauth_client_type = "web")
+  }
+  # GS sync: check for existing sheet state before overwriting
   if (!is.null(queue_path)) {
     # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
     
@@ -267,7 +284,7 @@ experimentTmux <- function(df,
         
         # 1. Derive the name from the local queue file
         sheet_name <- gsub("\\.rds$", "", basename(queue_path))
-
+        
         # 2. Check if it already exists in that folder to avoid duplicates
         existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
         
@@ -277,8 +294,8 @@ experimentTmux <- function(df,
           reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
           # googlesheets4::gs4_auth()
           # 3. Create the sheet (defaults to root) then move it to the folder
-          googlesheets4::gs4_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
-          googledrive::drive_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+          googlesheets4::gs4_auth()
+          googledrive::drive_auth()
           # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
           # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
           
@@ -291,6 +308,115 @@ experimentTmux <- function(df,
     }
   }
   
+  if (!is.null(ss_id)) {
+    # if (!is.null(email))      options(gargle_oauth_email = email)
+    # if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+    gs_q <- try(.gs_read_queue(ss_id), silent = TRUE) 
+
+    if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
+      q <- data.table::setDT(gs_q)
+      # GS has existing state — merge rather than overwrite
+      # data_cols <- gsub("^.", "", data_cols)
+      # data.table::setnames(q, new = gsub("^\\.", "", names(q)), old = names(q))
+      # runNameLabel <- gsub("^\\.", "", runNameLabel)
+      # for (rn in runNameLabel) {
+      #   if (!is.character(q[[rn]])) {
+      #     set(q, NULL, rn, as.character(q[[rn]]))
+      #   }
+      # }
+      
+      # data_cols  <- setdiff(names(q), meta_cols)
+      # gs_dcols   <- intersect(data_cols, names(gs_q))
+      # browser()
+      # 
+      # # any rows not represented
+      # newRows <- gs_q[!q, on = runNameLabel]
+      # localRowThatisDifftOnGS <- q[!gs_q, on = runNameLabel]
+      # if (NROW(newRows)) {
+      #   q <- rbindlist(list())
+      # }
+      # 
+      # # Row-matching keys from data columns
+      # local_keys <- apply(q[,  ..data_cols, drop = FALSE], 1, paste, collapse = "\t")
+      # gs_keys    <- apply(gs_q[, ..gs_dcols, drop = FALSE], 1, paste, collapse = "\t")
+      # 
+      # # For rows present in local df: use GS metadata where row matches
+      # for (j in seq_len(nrow(q))) {
+      #   gs_match <- which(gs_keys == local_keys[j])
+      #   if (length(gs_match) > 0L) {
+      #     gs_row <- gs_q[gs_match[1L], ]
+      #     for (mc in intersect(meta_cols, names(gs_q)))
+      #       q[[mc]][j] <- gs_row[[mc]]
+      #   }
+      #   # No match → row is new in this run, stays PENDING
+      # }
+      # 
+      # # Append GS rows not present in local df (history from prior runs)
+      # gs_only <- which(!gs_keys %in% local_keys)
+      # if (length(gs_only) > 0L) {
+      #   gs_extra <- gs_q[gs_only, , drop = FALSE]
+      #   # Align columns to local schema; fill missing with NA
+      #   for (col in setdiff(names(q), names(gs_extra)))
+      #     gs_extra[[col]] <- NA
+      #   q <- rbind(q, gs_extra[, names(q), drop = FALSE])
+      # }
+
+      saveRDS(q, queue_path)
+    }
+
+    # Push merged (or fresh) queue to GS
+    q_sync        <- as.data.frame(lapply(q, as.character))
+    names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
+    try(googlesheets4::with_gs4_quiet(
+      googlesheets4::range_write(ss = ss_id, data = q_sync,
+                                  sheet = "Status", range = "A1", reformat = FALSE)
+    ), silent = TRUE)
+  }
+  
+  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
+                            activeRunningPath = activeRunningPath, ...)
+  if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
+  if (!file.exists(global_path)) {
+    warning("global_path not found from master R working directory: ", global_path)
+  }
+  
+  if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
+  
+  # if (!is.null(queue_path)) {
+  #   # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+  #   
+  #   if (!is.null(ss_id)) {
+  #     isDir <- isGoogleDriveDirectory(ss_id)
+  #     if (isTRUE(isDir)) {
+  #       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
+  #       # googledrive::drive_auth()
+  #       
+  #       # 1. Derive the name from the local queue file
+  #       sheet_name <- gsub("\\.rds$", "", basename(queue_path))
+  # 
+  #       # 2. Check if it already exists in that folder to avoid duplicates
+  #       existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
+  #       
+  #       if (nrow(existing) > 0) {
+  #         ss_id <- existing$id[1]
+  #       } else {
+  #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
+  #         # googlesheets4::gs4_auth()
+  #         # 3. Create the sheet (defaults to root) then move it to the folder
+  #         googlesheets4::gs4_auth(email = email, cache = cache_path)
+  #         googledrive::drive_auth(email = email, cache = cache_path)
+  #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+  #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+  #         
+  #         new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
+  #         googledrive::drive_mv(file = googledrive::as_id(new_sheet),
+  #                               path = googledrive::as_id(ss_id))
+  #         ss_id <- as.character(googledrive::as_id(new_sheet))
+  #       }
+  #     }
+  #   }
+  # }
+  
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
   
   inTmux <- Sys.getenv("TMUX") != ""
@@ -298,7 +424,8 @@ experimentTmux <- function(df,
   # Resolve cores and set up any remote machines before spawning panes
   if (is.null(cores)) cores <- rep("localhost", n_workers)
   for (.host in setdiff(unique(cores), "localhost")) {
-    .setup_remote_machine(.host, global_path, queue_path)
+    .setup_remote_machine(.host, global_path, queue_path,
+                          extra_args_path = if (file.exists(dots_path)) dots_path else NULL)
   }
 
   if (inTmux) {
@@ -337,8 +464,8 @@ experimentTmux <- function(df,
         #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
         #         # googlesheets4::gs4_auth()
         #         # 3. Create the sheet (defaults to root) then move it to the folder
-        #         googlesheets4::gs4_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
-        #         googledrive::drive_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+        #         googlesheets4::gs4_auth(email = email, cache = cache_path)
+        #         googledrive::drive_auth(email = email, cache = cache_path)
         #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
         #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
         #         
@@ -381,11 +508,17 @@ experimentTmux <- function(df,
         .tmux_run("select-layout", "-t", target_win, "tiled")
         
         # 2. Prepare the command as a SINGLE line to prevent shell splitting
-        # Use deparse1() and force ss_id to character
+        # Load ... args from RDS so complex objects (lists, etc.) reach statusCalculate
+        dots_preamble_sync <- if (file.exists(dots_path)) {
+          sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
+                  deparse1(dots_path), deparse1(dots_path))
+        } else ""
+
         sync_cmd <- sprintf(
-          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, statusCalculate=quote(%s), cache_path=%s)",
+          "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
+          dots_preamble_sync,
           deparse1(email),
-          # deparse1(getOption("spades.statusCalculate")),
+          deparse1(normalizePath(cache_path)),
           deparse1(normalizePath(queue_path)),
           deparse1(as.character(ss_id)),
           deparse1(email),
@@ -393,16 +526,6 @@ experimentTmux <- function(df,
           deparse1(statusCalculate, collapse = "\n"),
           deparse1(normalizePath(cache_path))
         )
-        
-        ndots <- length(...names())
-        extraArgs <- NULL
-        aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
-        if (ndots) {
-          dots <- list(...)
-          dots <- lapply(dots, deparse1)  
-          extraArgs <- paste(paste(names(dots), "=", unname(unlist(dots))  ), collapse = "; ")
-          sync_cmd <- out <- paste0(extraArgs, ";", sync_cmd)
-        }
         
         
         # 3. Send keys to the specific ID
@@ -522,13 +645,18 @@ experimentTmux <- function(df,
     qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
     gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
     arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
-    payload <- sprintf(
-      "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s, activeRunningPath=%s)",
-      deparse1(qp),
-      deparse1(gp),
-      deparse1(match.arg(on_interrupt)),
-      deparse1(runNameLabel),
-      deparse1(arp)
+    dp  <- if (is_remote) .to_remote_path(dots_path)         else dots_path
+    payload <- .build_worker_r_expr(
+      queue_path        = qp,
+      global_path       = gp,
+      on_interrupt      = on_interrupt,
+      runNameLabel      = runNameLabel,
+      activeRunningPath = arp,
+      ss_id             = ss_id,
+      pane_mode         = pane_mode,
+      email             = email,
+      cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+      dots_path         = if (file.exists(dots_path)) dp else NULL
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     if (inTmux) {
@@ -571,40 +699,110 @@ runNextWorker <- function(queue_path, global_path,
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
                           folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
-                          activeRunningPath = getOption("spades.activeRunningPath")) {
+                          activeRunningPath = getOption("spades.activeRunningPath"),
+                          ss_id = NULL) {
   if (missing(global_path))
     global_path <- "global.R"
-  stopifnot(file.exists(queue_path), file.exists(global_path))
+  stopifnot(file.exists(global_path))
   on_interrupt <- match.arg(on_interrupt)
+
+  PANE      <- Sys.getenv("TMUX_PANE")
+  use_gs    <- !is.null(ss_id)
+
+  # ---- Google Sheets backend ----
+  if (use_gs) {
+    worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
+    claimed   <- .gs_claim_next_job(ss_id, worker_id)
+    if (is.null(claimed)) return("empty")   # queue empty or race lost — caller retries
+
+    row_i     <- claimed$row_index
+    sheet_row <- claimed$sheet_row
+    col_pos   <- claimed$col_positions
+    q         <- claimed$data
+    data.table::setDT(q)
+    q <- revertDotNames(q)
+    
+    # runNameLabel <- eval(runNameLabel)
+    data_cols    <- setdiff(names(q), meta_cols)
+
+    # if (is.null(runNameLabel)) runNameLabel <- data_cols[1L]
+
+    for (nm in data_cols) {
+      # try parsing as it could be an expression written/recoreded as a character
+      newPoss <- tryCatch(eval(parse(text = q[[nm]][1L])), error = function(err) q[[nm]][1L], silent = TRUE)
+      assign(nm, newPoss, envir = .GlobalEnv)
+    }
+
+    # current_run <- paste(q[1L, ..runNameLabel], collapse = "-")
+    # runName     <- gsub("[^[:alnum:]_.:-]", "-", current_run)
+
+    if (nzchar(PANE))
+      try({
+        if (exists(".tmux_run", mode = "function"))
+          .tmux_run("select-pane", "-t", PANE, "-T", runName)
+        else
+          processx::run("tmux", c("select-pane", "-t", PANE, "-T", runName),
+                        echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
+      }, silent = TRUE)
+    
+    # Heartbeat: write directly to GS
+    if (FALSE) {
+      hb_thread <- try(parallel::mcparallel({
+        repeat {
+          Sys.sleep(heartbeat_interval_s)
+          hb_vals <- get_latest_heartbeat(current_run, folderWithIterInFilename = folderWithIterInFilename)
+          .gs_write_cells(ss_id, sheet_row,
+                          updates       = list(heartbeat_at = hb_vals$ts, heartbeat_iter = hb_vals$iter),
+                          col_positions = col_pos)
+        }
+      }), silent = TRUE)
+    }
+
+    outcome <- tryCatch({
+      source(global_path, local = .GlobalEnv)
+      "ok"
+    }, interrupt = function(e) "interrupt")
+
+    # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
+
+    now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    final <- if (outcome == "ok") {
+      list(status = txtDone, finished_at = now)
+    } else if (on_interrupt == "requeue") {
+      list(status = txtPending, claimed_by = NA_character_)
+    } else {
+      list(status = "FAILED", finished_at = now)
+    }
+    .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
+    return(outcome)
+  }
+
+  # ---- File-based backend (original) ----
+  stopifnot(file.exists(queue_path))
   if (!requireNamespace("filelock", quietly = TRUE))
     stop("Package 'filelock' is required.")
-  
-  PANE  <- Sys.getenv("TMUX_PANE")
+
   LOCKF <- paste0(queue_path, ".lock")
-  
-  # update queue file from log files
+
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
   tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath)
-  # claim a row (unchanged)
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
+  q <- revertDotNames(q)
   
-  runNameLabel <- eval(runNameLabel)
-  
-  # Take the first one on the list that is PENDING or INTERRUPTED
-  pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
+  runNameLabel <- eval(runNameLabel, envir = environment())
 
+  pending_idx <- which(q$status %in% c(txtInterrupted, txtPending))[1]
   if (is.na(pending_idx)) {
     filelock::unlock(lck)
     return("empty")
   }
   i <- pending_idx
-  
-  # derive data_cols for defaulting runNameLabel
+
   data_cols <- setdiff(names(q), meta_cols)
-  
+
   if (is.null(runNameLabel)) {
     if (length(data_cols) == 0L)
       stop("No data columns available to infer 'runNameLabel'.")
@@ -612,13 +810,10 @@ runNextWorker <- function(queue_path, global_path,
   }
   if (!all(runNameLabel %in% names(q)))
     stop(sprintf("runNameLabel '%s' is not a column in the queue.", runNameLabel))
-  
-  # inject globals (unchanged)
-  for (nm in data_cols) {
+
+  for (nm in data_cols)
     assign(nm, q[[nm]][i], envir = .GlobalEnv)
-  }
-  
-  # status bookkeeping (unchanged)
+
   q$status[i]       <- txtRunning
   q$claimed_by[i]   <- PANE
   q$started_at[i]   <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -626,54 +821,52 @@ runNextWorker <- function(queue_path, global_path,
   q$process_id[i]   <- Sys.getpid()
   saveRDS(q, queue_path)
   filelock::unlock(lck)
-  
-  # --- Pane title uses runName ---
-  
-  current_run <- getRunName(q, i, runNameLabel)# q[i, runNameLabel] |> paste(collapse = "-")
-  
-  runName <- as.character(current_run)
-  runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
+
+  current_run <- getRunName(q, i, runNameLabel)
+  runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
   try({
-    if (exists(".tmux_run", mode = "function")) {
+    if (exists(".tmux_run", mode = "function"))
       .tmux_run("select-pane", "-t", PANE, "-T", runName)
-    } else {
-      processx::run("tmux", c("select-pane","-t", PANE, "-T", runName),
+    else
+      processx::run("tmux", c("select-pane", "-t", PANE, "-T", runName),
                     echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
-    }
   }, silent = TRUE)
-  
+
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
   startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
   reproducible::checkPath(dirname(startedFile), create = TRUE)
   saveRDS(runName, file = startedFile)
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
 
-  # --- Heartbeat now tracks runNameLabel-based location ---
-  hb_thread <- try(parallel::mcparallel({
-    repeat {
-      Sys.sleep(heartbeat_interval_s)
-      hb_vals <- get_latest_heartbeat(current_run, folderWithIterInFilename = folderWithIterInFilename)
-      l2 <- filelock::lock(LOCKF, timeout = 10)
-      on.exit(try(filelock::unlock(l2), silent = TRUE), add = TRUE)
-      if (!is.null(l2)) {
-        q2 <- readRDS(queue_path)
-        idx <- which(q2$status == txtRunning & q2$claimed_by == PANE)
-        if (length(idx)) {
-          q2$heartbeat_at[idx]   <- hb_vals$ts
-          q2$heartbeat_iter[idx] <- hb_vals$iter
-          saveRDS(q2, queue_path)
-        }
-        filelock::unlock(l2)
-      }
-    }
-  }), silent = TRUE)
   
+  if (FALSE) {
+    hb_thread <- try(parallel::mcparallel({
+      repeat {
+        Sys.sleep(heartbeat_interval_s)
+        hb_vals <- get_latest_heartbeat(current_run, folderWithIterInFilename = folderWithIterInFilename)
+        l2 <- filelock::lock(LOCKF, timeout = 10)
+        on.exit(try(filelock::unlock(l2), silent = TRUE), add = TRUE)
+        if (!is.null(l2)) {
+          q2  <- readRDS(queue_path)
+          q2 <- revertDotNames(q2)
+          
+          idx <- which(q2$status == txtRunning & q2$claimed_by == PANE)
+          if (length(idx)) {
+            q2$heartbeat_at[idx]   <- hb_vals$ts
+            q2$heartbeat_iter[idx] <- hb_vals$iter
+            saveRDS(q2, queue_path)
+          }
+          filelock::unlock(l2)
+        }
+      }
+    }), silent = TRUE)
+  }
+
   outcome <- tryCatch({
     source(global_path, local = .GlobalEnv)
     "ok"
   }, interrupt = function(e) "interrupt")
-  
-  # finalize (unchanged except for return)
+
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
@@ -682,7 +875,7 @@ runNextWorker <- function(queue_path, global_path,
     q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   } else if (outcome == "interrupt") {
     if (on_interrupt == "requeue") {
-      q$status[i]    <- txtPending
+      q$status[i]     <- txtPending
       q$claimed_by[i] <- NA_character_
     } else {
       q$status[i]      <- "FAILED"
@@ -691,7 +884,7 @@ runNextWorker <- function(queue_path, global_path,
   }
   saveRDS(q, queue_path)
   filelock::unlock(lck)
-  if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
+  # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
   outcome
 }
 
@@ -699,21 +892,80 @@ runNextWorker <- function(queue_path, global_path,
 #'
 #' @inheritParams runNextWorker
 #' @param stop_file optional path; if present, stop after current iteration
+#' @param pane_mode Character. `"reuse"` (default) loops inside the same R session.
+#'   `"killAndNewPane"` runs one job, spawns a fresh replacement pane, retiles the
+#'   tmux window, then kills the current pane — freeing all R memory between jobs.
+#' @param email gargle OAuth email; forwarded to replacement panes in `killAndNewPane` mode.
+#' @param cache_path gargle OAuth cache path; forwarded to replacement panes.
+#' @param dots_path Path to `.tmux_dots.rds` holding extra `...` args; forwarded to
+#'   replacement panes so they can reload complex objects before sourcing.
 #' @return invisibly TRUE
 #' @export
 runWorkerLoop <- function(queue_path, global_path,
-                          on_interrupt = c("requeue","fail"),
+                          on_interrupt = c("requeue", "fail"),
                           heartbeat_interval_s = 60,
                           stop_file = NULL,
                           activeRunningPath = getOption("spades.activeRunningPath"),
-                          runNameLabel = quote(colnames(q)[1:2])) {
+                          runNameLabel = quote(colnames(q)[1:2]),
+                          ss_id = NULL,
+                          pane_mode = c("reuse", "killAndNewPane"),
+                          email = getOption("gargle_oauth_email"),
+                          cache_path = getOption("gargle_oauth_cache"),
+                          dots_path = NULL) {
   on_interrupt <- match.arg(on_interrupt)
+  pane_mode    <- match.arg(pane_mode)
+  # Set gargle options from our own params — no need to bake them into the payload
+  options(gargle_oauth_client_type = "web")
+  if (!is.null(email))      options(gargle_oauth_email = email)
+  if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+
+  if (missing(global_path)) global_path <- "global.R"
+
+  # ------------------------------------------------------------------
+  # killAndNewPane: run one job, respawn this pane in-place, die.
+  # respawn-pane -k replaces the current pane's process with a fresh
+  # Rscript — same tmux position, no split/retile needed.
+  # ------------------------------------------------------------------
+  if (pane_mode == "killAndNewPane") {
+    if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) return(invisible(TRUE))
+
+    res <- runNextWorker(queue_path, global_path, on_interrupt,
+                         heartbeat_interval_s, runNameLabel = runNameLabel,
+                         activeRunningPath = activeRunningPath, ss_id = ss_id)
+
+    should_respawn <- !identical(res, "empty") &&
+                      !(identical(res, "interrupt") && on_interrupt == "fail") &&
+                      nzchar(Sys.getenv("TMUX"))
+
+    if (should_respawn) {
+      PANE        <- Sys.getenv("TMUX_PANE")
+      respawn_cmd <- sprintf("Rscript -e %s",
+                             shQuote(.build_worker_r_expr(
+                               queue_path        = queue_path,
+                               global_path       = global_path,
+                               on_interrupt      = on_interrupt,
+                               runNameLabel      = runNameLabel,
+                               activeRunningPath = activeRunningPath,
+                               ss_id             = ss_id,
+                               pane_mode         = "killAndNewPane",
+                               email             = email,
+                               cache_path        = cache_path,
+                               dots_path         = dots_path
+                             )))
+      # Kill current process, start fresh Rscript in the same pane position
+      .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
+    }
+    return(invisible(TRUE))
+  }
+
+  # ------------------------------------------------------------------
+  # reuse (default): loop inside the same R session
+  # ------------------------------------------------------------------
   repeat {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
-    if (missing(global_path))
-      global_path <- "global.R"
     res <- runNextWorker(queue_path, global_path, on_interrupt,
-                         heartbeat_interval_s, runNameLabel = runNameLabel, activeRunningPath = activeRunningPath)
+                         heartbeat_interval_s, runNameLabel = runNameLabel,
+                         activeRunningPath = activeRunningPath, ss_id = ss_id)
     if (identical(res, "empty")) break
     if (identical(res, "interrupt") && on_interrupt == "fail") break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
@@ -746,6 +998,29 @@ tmux_kill_panes <- function(panes) {
 }
 
 # ---- internal helpers --------------------------------------------------
+
+# Build the R expression string that launches a worker pane.
+# Returns a character(1) suitable for send-keys (interactive R) or
+# wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
+# No options() preamble — runWorkerLoop() sets gargle options from its params.
+.build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
+                                  activeRunningPath, ss_id, pane_mode, email, cache_path,
+                                  dots_path) {
+  dots_pre <- if (!is.null(dots_path) && file.exists(dots_path))
+    sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
+            deparse1(dots_path), deparse1(dots_path))
+  else ""
+  sprintf(
+    paste0("%sSpaDES.project::runWorkerLoop(",
+           "queue_path=%s, global_path=%s, on_interrupt=%s,",
+           " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
+    dots_pre,
+    deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
+    deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
+    deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
+  )
+}
 
 #' @keywords internal
 #' @noRd
@@ -1014,8 +1289,9 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 
   if (!is.null(statusCalculate)) {
     
+    browser()
     if (is.call(statusCalculate))
-      statusCalculate <- eval(statusCalculate)
+      statusCalculate <- eval(statusCalculate, envir = environment())
     # statusCalculate <- file.path("outputs", runName, "figures", "objFun")
     if (length(statusCalculate) == 0 || !dir.exists(statusCalculate)) return(txtPending)
     
@@ -1102,6 +1378,10 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     if (is.null(lck)) stop("Could not lock queue for refresh.")
 
     q <- try(readRDS(queue_path))
+    q <- revertDotNames(q)
+    # remove initial dot -- googlesheets can't handle starting dot; so remove all
+    # data.table::setnames(q, new = gsub("^\\.", dotTxt, names(q)), old = names(q))
+    
     if (is(q, "try-error")) {
       unlink(queue_path)
       return(invisible(NULL))
@@ -1115,15 +1395,21 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     }
       # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
-    runNameLabel <- eval(runNameLabel)
-    if (missing(runNameLabel) || is.null(runNameLabel)) {
-      runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
-    }
     activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
     for (i in to_check) {
       new_status <- txtPending
-      runName <- getRunName(q, i, runNameLabel)# 
-      runNameSimples <- sapply(runNameLabel, function(rnl) q[i, ..rnl])
+      
+      # put the values from the q columns into this environment so runNameLabel can use them
+      list2env(as.list(q[i, -..meta_cols]), envir = environment())
+      
+      runNameLabel <- eval(runNameLabel, envir = environment())
+      if (missing(runNameLabel) || is.null(runNameLabel)) {
+        runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
+      }
+      
+      runName <- runNameLabel
+      # runName <- getRunName(q, i, runNameLabel)# 
+      # runNameSimples <- sapply(runNameLabel, function(rnl) q[i, ..rnl])
       
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
@@ -1137,6 +1423,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       
       is_running <- sapply(strsplit(runningFiles, "_"), function(x) runName %in% x)
       if (any(is_running)) {
+        browser()
         # confirm that they are still running using pids
         filename <- runningFilesFull[is_running]
         if (length(filename)) {
@@ -1166,10 +1453,14 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       }
       
       done <- FALSE
-      if (exists("aaaa", envir = .GlobalEnv)) browser()
       if (!is.null(statusCalculate)) {
-        evaled <- try(eval(statusCalculate))
-        if (is(evaled, "try-error")) {
+        # Unpack ... into local scope so statusCalculate can reference them by name
+        dots <- list(...)
+        if (length(dots)) list2env(dots, envir = environment())
+        # put the values from the q columns into this environment so runNameLabel can use them
+        list2env(as.list(q[i, -..meta_cols]), envir = environment())
+        evaled <- try(eval(statusCalculate, envir = environment()))
+        if (is(evaled, "try-error") || is.null(evaled)) {
           statusCalculate <- NULL
         } else {
           cn <- meta_cols
@@ -1177,7 +1468,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
             q[[cc]][i] <- NA
             if (exists(cc, inherits = FALSE)) {
               outHere <- get(cc, inherits = FALSE)
-              if (length(outHere) > 0) # browser()
+              if (length(outHere) > 0) 
               # if (is(outHere, "try-error")) browser()
                 q[[cc]][i] <- outHere
               
@@ -1197,6 +1488,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         # }
         hb <- NA
         if (!is.null(folderWithIterInFilename)) {
+          browser()
           hb <- get_latest_heartbeat(runName, folderWithIterInFilename = folderWithIterInFilename)
           elapsedTime <- hb$elapsed
         } 
@@ -1462,3 +1754,12 @@ statusCalculator <- function(type = "fireSense") {
  
   return(calc) 
 }
+
+revertDotNames <- function(q) {
+  dotCols <- grep(dotTxt, names(q), value = TRUE)
+  dotColsGsub <- gsub(dotTxt, ".", dotCols)
+  data.table::setnames(q, old = dotCols, new = dotColsGsub)
+  q[]
+}
+
+dotTxt <- "dot"
