@@ -159,13 +159,14 @@ tmux_set_mouse <- function(on = TRUE) {
       stop("R CMD INSTALL of SpaDES.project on '", host, "' failed.", call. = FALSE)
   }
 
-  # 6. Ensure SpaDES.project's Imports/Depends are present on the remote.
-  # Require::Install is idempotent — already-installed packages are skipped.
-  # Split on commas only so that "R (>= 4.3)" stays as one token before stripping
-  # the version spec; splitting on spaces first produces broken tokens like "4.3)".
+  # 6. Ensure SpaDES.project's dependencies are present on the remote.
+  # Include Suggests: remote worker machines need the full runtime stack
+  # (e.g. googlesheets4, googledrive, cli are in Suggests but required for
+  # the tmux/GS workflow). Require::Install is idempotent — skips what's installed.
+  # Split on commas only so "R (>= 4.3)" stays one token before version-stripping.
   .ssh_r(paste0(
     "dsc  <- read.dcf(system.file('DESCRIPTION', package = 'SpaDES.project'),",
-    "                 fields = c('Imports', 'Depends', 'LinkingTo')); ",
+    "                 fields = c('Imports', 'Depends', 'LinkingTo', 'Suggests')); ",
     "raw  <- paste(dsc[!is.na(dsc)], collapse = ','); ",
     "pkgs <- trimws(unlist(strsplit(raw, ','))); ",
     "pkgs <- trimws(sub('\\\\s*\\\\(.*', '', pkgs)); ",  # strip ' (>= 1.2)' etc.
