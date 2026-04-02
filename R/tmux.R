@@ -173,8 +173,18 @@ tmux_set_mouse <- function(on = TRUE) {
   local_inst     <- rownames(utils::installed.packages(lib.loc = local_lib))
   suggests_local <- intersect(suggests_all, local_inst)
   all_pkgs       <- unique(c(hard_pkgs, suggests_local))
-  message("  Installing ", length(all_pkgs), " dependency packages on ", host)
-  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(all_pkgs), ")"))
+  # Packages whose pre-compiled binaries link against specific system library
+  # versions (e.g. libgdal.so.37) that may differ on the remote — compile from
+  # source so they link against whatever version the remote actually has.
+  src_pkgs  <- c("terra", "sf", "rgdal", "rgeos", "lwgeom")
+  src_pkgs  <- intersect(src_pkgs, all_pkgs)
+  bin_pkgs  <- setdiff(all_pkgs, src_pkgs)
+  if (length(src_pkgs) > 0L) {
+    message("  Compiling from source on ", host, ": ", paste(src_pkgs, collapse = ", "))
+    .ssh_r(paste0("install.packages(", deparse1(src_pkgs), ", type = 'source')"))
+  }
+  message("  Installing ", length(bin_pkgs), " dependency packages on ", host)
+  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(bin_pkgs), ")"))
 
   # 10. Rsync Require package binary cache to speed up future installations on remote.
   local_cache <- Require::cachePkgDir()
