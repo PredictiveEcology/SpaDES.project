@@ -49,6 +49,7 @@ tmux_set_mouse <- function(on = TRUE) {
     tmp <- tempfile(fileext = ".R")
     on.exit(unlink(tmp))
     writeLines(c(
+      paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))"),
       paste0("options(repos = ", deparse1(install_repos), ")"),
       paste0("setwd(path.expand('", remote_dir, "'))"),
       expr
@@ -761,7 +762,8 @@ experimentTmux <- function(df,
       pane_mode         = pane_mode,
       email             = email,
       cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
-      dots_path         = if (file.exists(dots_path)) dp else NULL
+      dots_path         = if (file.exists(dots_path)) dp else NULL,
+      lib_path          = .libPaths()[1L]
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     if (inTmux) {
@@ -1055,7 +1057,8 @@ runWorkerLoop <- function(queue_path, global_path,
                                pane_mode         = "killAndNewPane",
                                email             = email,
                                cache_path        = cache_path,
-                               dots_path         = dots_path
+                               dots_path         = dots_path,
+                               lib_path          = .libPaths()[1L]
                              )))
       # Kill current process, start fresh Rscript in the same pane position
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
@@ -1110,7 +1113,9 @@ tmux_kill_panes <- function(panes) {
 # No options() preamble — runWorkerLoop() sets gargle options from its params.
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
-                                  dots_path) {
+                                  dots_path, lib_path = .libPaths()[1L]) {
+  # Ensure project lib is first so correct package versions are loaded
+  lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
@@ -1119,11 +1124,11 @@ tmux_kill_panes <- function(panes) {
             deparse1(dots_path), deparse1(dots_path))
   else ""
   sprintf(
-    paste0("%s%sSpaDES.project::runWorkerLoop(",
+    paste0("%s%s%sSpaDES.project::runWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
-           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
-    wd_pre, dots_pre,
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s); quit(save='no')"),
+    lib_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
