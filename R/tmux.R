@@ -128,10 +128,13 @@ tmux_set_mouse <- function(on = TRUE) {
   # 6. Install system libraries required by spatial R packages (terra, sf, etc.).
   #    Binary R packages from r2u/PPM are compiled against specific versions of
   #    libgdal, libgeos, libproj — those runtime libs must exist on the remote.
-  message("  Installing system spatial libraries on ", host)
+  sys_pkgs <- "libgdal-dev libgeos-dev libproj-dev libsqlite3-dev libudunits2-dev"
+  message("  Installing system spatial libraries on ", host,
+          "\n  (if this fails, run on ", host, ": ",
+          "sudo apt-get install -y --no-install-recommends ", sys_pkgs, ")")
   system2("ssh", c(host, paste0(
     "DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends ",
-    "libgdal-dev libgeos-dev libproj-dev libsqlite3-dev libudunits2-dev"
+    sys_pkgs
   )))
 
   # 8. Ensure remote lib path exists (must match localhost so installed paths are identical).
