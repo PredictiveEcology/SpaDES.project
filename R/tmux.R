@@ -169,7 +169,25 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("rsync of some dependency packages to '", host, "' may have failed.")
   }
 
-  # 7. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
+  # 7. Rsync Require package binary cache to speed up future installations on remote.
+  local_cache <- Require::cachePkgDir()
+  if (nzchar(local_cache) && dir.exists(local_cache)) {
+    message("  Ensuring remote Require cache exists: ", local_cache)
+    system2("ssh", c(host, paste0(
+      "R_REQUIRE_CACHE=", shQuote(local_cache),
+      " Rscript -e ", shQuote("Require::cachePkgDir(create=TRUE)")
+    )))
+    message("  rsyncing Require package cache to ", host, ":", local_cache)
+    cache_rsync_ret <- system(paste0(
+      "rsync -a ",
+      shQuote(paste0(local_cache, "/")),
+      " ", host, ":", local_cache, "/"
+    ))
+    if (cache_rsync_ret != 0L)
+      warning("rsync of Require cache to '", host, "' may have failed.")
+  }
+
+  # 9. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
   gargle_cache <- getOption("gargle_oauth_cache")
   if (!is.null(gargle_cache) && !isFALSE(gargle_cache)) {
     gargle_cache <- normalizePath(gargle_cache, mustWork = FALSE)
