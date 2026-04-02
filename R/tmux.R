@@ -132,19 +132,31 @@ tmux_set_mouse <- function(on = TRUE) {
     if (ret != 0L)
       stop("SpaDES.project installation failed on '", host, "'.", call. = FALSE)
   } else {
-    # Local / devtools install: rsync the installed package tree directly.
-    # This handles feature branches, local patches, etc. that aren't on GitHub yet.
-    remote_lib <- trimws(paste(collapse = "",
-      .ssh_r("cat(.libPaths()[1])", intern = TRUE)))
-    message("  rsyncing SpaDES.project (", local_sp_ver, ") to ",
-            host, ":", remote_lib, "/SpaDES.project/")
+    # Local / devtools install: rsync the *source* tree and R CMD INSTALL on remote.
+    # Rsyncing the installed directory fails because compiled lazy-load databases
+    # (.rdb/.rdx) and Meta/package.rds are built by R CMD INSTALL and must be
+    # regenerated on the target machine, not copied.
+    src_path <- if (identical(local_sp_dsc$RemoteType, "local") &&
+                     !is.null(local_sp_dsc$RemoteUrl) &&
+                     dir.exists(local_sp_dsc$RemoteUrl)) {
+      local_sp_dsc$RemoteUrl   # devtools::install() records the source path here
+    } else {
+      local_sp_path             # last-resort: installed dir (may not work)
+    }
+    remote_src <- "/tmp/SpaDES.project_src"
+    message("  rsyncing SpaDES.project source (", local_sp_ver, ") to ",
+            host, ":", remote_src, " then R CMD INSTALL")
     rsync_ret <- system(paste0(
-      "rsync -a --delete ",
-      shQuote(paste0(normalizePath(local_sp_path), "/")),
-      " ", host, ":", remote_lib, "/SpaDES.project/"
+      "rsync -a --delete --exclude='.git' --exclude='*.tar.gz' --exclude='*.o' ",
+      shQuote(paste0(normalizePath(src_path), "/")),
+      " ", host, ":", remote_src, "/"
     ))
     if (rsync_ret != 0L)
-      stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
+      stop("rsync of SpaDES.project source to '", host, "' failed.", call. = FALSE)
+    install_ret <- system2("ssh", c(host,
+      paste0("R CMD INSTALL --no-build-vignettes --no-multiarch ", remote_src)))
+    if (install_ret != 0L)
+      stop("R CMD INSTALL of SpaDES.project on '", host, "' failed.", call. = FALSE)
   }
 
   # 6. Ensure SpaDES.project's Imports/Depends are present on the remote.
