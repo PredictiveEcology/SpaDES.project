@@ -115,14 +115,48 @@ tmux_set_mouse <- function(on = TRUE) {
       call. = FALSE
     )
 
-  # 5 & 6. Determine local SpaDES.project version and install >= that on remote
-  local_sp_ver <- as.character(packageVersion("SpaDES.project"))
-  sp_expr <- paste0(
-    "Require::Install('PredictiveEcology/SpaDES.project@development (>= ", local_sp_ver, ")')"
-  )
-  ret <- .ssh_r(sp_expr)
-  if (ret != 0L)
-    stop("SpaDES.project installation failed on '", host, "'.", call. = FALSE)
+  # 5. Install SpaDES.project on remote, matching the local source exactly.
+  local_sp_dsc  <- packageDescription("SpaDES.project")
+  local_sp_ver  <- as.character(packageVersion("SpaDES.project"))
+  local_sp_path <- find.package("SpaDES.project")
+
+  if (identical(local_sp_dsc$RemoteType, "github")) {
+    # GitHub install: use the exact ref (branch/tag/SHA) that is installed locally
+    sp_ref  <- if (!is.null(local_sp_dsc$RemoteRef)) local_sp_dsc$RemoteRef else "development"
+    sp_repo <- paste0(local_sp_dsc$RemoteUsername, "/", local_sp_dsc$RemoteRepo)
+    message("  Installing SpaDES.project ", local_sp_ver,
+            " (", sp_repo, "@", sp_ref, ") on ", host)
+    ret <- .ssh_r(paste0(
+      "Require::Install('", sp_repo, "@", sp_ref, " (>= ", local_sp_ver, ")')"
+    ))
+    if (ret != 0L)
+      stop("SpaDES.project installation failed on '", host, "'.", call. = FALSE)
+  } else {
+    # Local / devtools install: rsync the installed package tree directly.
+    # This handles feature branches, local patches, etc. that aren't on GitHub yet.
+    remote_lib <- trimws(paste(collapse = "",
+      .ssh_r("cat(.libPaths()[1])", intern = TRUE)))
+    message("  rsyncing SpaDES.project (", local_sp_ver, ") to ",
+            host, ":", remote_lib, "/SpaDES.project/")
+    rsync_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(normalizePath(local_sp_path), "/")),
+      " ", host, ":", remote_lib, "/SpaDES.project/"
+    ))
+    if (rsync_ret != 0L)
+      stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
+  }
+
+  # 6. Ensure SpaDES.project's Imports/Depends are present on the remote.
+  # Require::Install is idempotent — already-installed packages are skipped.
+  .ssh_r(paste0(
+    "dsc  <- read.dcf(system.file('DESCRIPTION', package = 'SpaDES.project'),",
+    "                 fields = c('Imports', 'Depends', 'LinkingTo')); ",
+    "pkgs <- unlist(strsplit(paste(dsc[!is.na(dsc)], collapse = ','), '[[:space:],]+')); ",
+    "pkgs <- sub('\\\\(.*', '', trimws(pkgs)); ",   # strip version specs like (>= 1.2)
+    "pkgs <- pkgs[nzchar(pkgs) & pkgs != 'R']; ",
+    "Require::Install(pkgs)"
+  ))
 
   invisible(TRUE)
 }
