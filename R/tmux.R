@@ -682,12 +682,19 @@ experimentTmux <- function(df,
     }
     workers <- workers[seq_len(n_workers)]
     
-    # 3. Now send the R commands to the clean, tiled panes
-    start_cmds <- ifelse(cores == "localhost", "R", paste0("ssh -t ", cores, " R"))
+    # 3. Now send the R commands to the clean, tiled panes.
+    # Remote killAndNewPane workers use a bash while-loop so the local pane
+    # re-SSHes after each job (respawn-pane can't be called from within the
+    # remote R session). Other workers start an interactive R/ssh session.
+    start_cmds <- vapply(cores, function(core) {
+      if (core == "localhost") "R"
+      else if (pane_mode == "killAndNewPane") ""   # bash loop sent in payload step
+      else paste0("ssh -t ", core, " R")
+    }, character(1L))
 
     for (i in seq_along(worker_ids)) {
-      .tmux_run("send-keys", "-t", worker_ids[i], start_cmds[i], "C-m")
-      # Your existing staggered start delay
+      if (nzchar(start_cmds[i]))
+        .tmux_run("send-keys", "-t", worker_ids[i], start_cmds[i], "C-m")
       Sys.sleep(0.1)
     }
     
@@ -765,10 +772,25 @@ experimentTmux <- function(df,
       dots_path         = if (file.exists(dots_path)) dp else NULL,
       lib_path          = .libPaths()[1L]
     )
-    code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     if (inTmux) {
-      .tmux_run("send-keys", "-t", workers[i], code, "C-m")
+      if (is_remote && pane_mode == "killAndNewPane") {
+        # Bash while-loop: first run includes pre_sleep for staggering; subsequent
+        # runs skip it (jobs finish at different times so staggering is not needed).
+        first_expr <- if (pre_sleep > 0)
+          sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
+        else payload
+        rscript_first <- sprintf("Rscript -e %s", shQuote(first_expr))
+        rscript_loop  <- sprintf("Rscript -e %s", shQuote(payload))
+        bash_cmd <- sprintf("ssh -t %s %s && while ssh -t %s %s; do :; done",
+                            cores[i], shQuote(rscript_first),
+                            cores[i], shQuote(rscript_loop))
+        .tmux_run("send-keys", "-t", workers[i], bash_cmd, "C-m")
+      } else {
+        code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
+        .tmux_run("send-keys", "-t", workers[i], code, "C-m")
+      }
     } else {
+      code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
       message("running:\n")
       message(code)
       eval(parse(text = code))
@@ -1040,11 +1062,12 @@ runWorkerLoop <- function(queue_path, global_path,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
 
-    should_respawn <- !identical(res, "empty") &&
-                      !(identical(res, "interrupt") && on_interrupt == "fail") &&
-                      nzchar(Sys.getenv("TMUX"))
+    should_continue <- !identical(res, "empty") &&
+                       !(identical(res, "interrupt") && on_interrupt == "fail")
 
-    if (should_respawn) {
+    if (should_continue && nzchar(Sys.getenv("TMUX"))) {
+      # Local tmux pane: respawn-pane replaces this process with a fresh Rscript.
+      # (Remote workers are handled by the bash while-loop in the local pane.)
       PANE        <- Sys.getenv("TMUX_PANE")
       respawn_cmd <- sprintf("Rscript -e %s",
                              shQuote(.build_worker_r_expr(
@@ -1060,10 +1083,11 @@ runWorkerLoop <- function(queue_path, global_path,
                                dots_path         = dots_path,
                                lib_path          = .libPaths()[1L]
                              )))
-      # Kill current process, start fresh Rscript in the same pane position
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
-    return(invisible(TRUE))
+    # Exit with status 0 (job ran → remote bash while-loop should continue)
+    # or status 1 (queue empty / failed → bash while-loop stops).
+    quit(save = "no", status = if (should_continue) 0L else 1L)
   }
 
   # ------------------------------------------------------------------
