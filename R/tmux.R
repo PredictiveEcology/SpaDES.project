@@ -686,11 +686,13 @@ experimentTmux <- function(df,
     # Remote killAndNewPane workers use a bash while-loop so the local pane
     # re-SSHes after each job (respawn-pane can't be called from within the
     # remote R session). Other workers start an interactive R/ssh session.
-    start_cmds <- vapply(cores, function(core) {
-      if (core == "localhost") "R"
-      else if (pane_mode == "killAndNewPane") ""   # bash loop sent in payload step
-      else paste0("ssh -t ", core, " R")
-    }, character(1L))
+    # Recycle cores to n_workers length (mirrors ifelse recycling behaviour).
+    cores_full <- rep_len(cores, n_workers)
+    start_cmds <- ifelse(
+      cores_full == "localhost",
+      "R",
+      ifelse(pane_mode == "killAndNewPane", "", paste0("ssh -t ", cores_full, " R"))
+    )
 
     for (i in seq_along(worker_ids)) {
       if (nzchar(start_cmds[i]))
@@ -754,7 +756,7 @@ experimentTmux <- function(df,
 
   for (i in seq_along(workers)) {
     pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
-    is_remote <- cores[i] != "localhost"
+    is_remote <- cores_full[i] != "localhost"
     qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
     gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
     arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
@@ -782,8 +784,8 @@ experimentTmux <- function(df,
         rscript_first <- sprintf("Rscript -e %s", shQuote(first_expr))
         rscript_loop  <- sprintf("Rscript -e %s", shQuote(payload))
         bash_cmd <- sprintf("ssh -t %s %s && while ssh -t %s %s; do :; done",
-                            cores[i], shQuote(rscript_first),
-                            cores[i], shQuote(rscript_loop))
+                            cores_full[i], shQuote(rscript_first),
+                            cores_full[i], shQuote(rscript_loop))
         .tmux_run("send-keys", "-t", workers[i], bash_cmd, "C-m")
       } else {
         code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
