@@ -299,9 +299,13 @@ experimentTmux <- function(df,
   
   # -- preconditions
   
+  # Normalize to absolute paths immediately so worker panes launched via
+  # `Rscript -e "..."` (which start in ~) can always locate these files.
+  global_path <- normalizePath(global_path, mustWork = FALSE)
   if (is.null(queue_path)) {
-    queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
+    queue_path <- file.path(dirname(global_path), "tmux_queue.rds")
   }
+  queue_path <- normalizePath(queue_path, mustWork = FALSE)
   tmux_prepare_queue_from_df(df, queue_path)
   q <- readRDS(queue_path)
 
@@ -1055,16 +1059,19 @@ tmux_kill_panes <- function(panes) {
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path) {
+  # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
+  wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
+  wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
   dots_pre <- if (!is.null(dots_path) && file.exists(dots_path))
     sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
             deparse1(dots_path), deparse1(dots_path))
   else ""
   sprintf(
-    paste0("%sSpaDES.project::runWorkerLoop(",
+    paste0("%s%sSpaDES.project::runWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
            " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
-    dots_pre,
+    wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
