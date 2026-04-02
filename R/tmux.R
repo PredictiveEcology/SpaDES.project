@@ -125,7 +125,16 @@ tmux_set_mouse <- function(on = TRUE) {
       call. = FALSE
     )
 
-  # 6. Ensure remote lib path exists (must match localhost so installed paths are identical).
+  # 6. Install system libraries required by spatial R packages (terra, sf, etc.).
+  #    Binary R packages from r2u/PPM are compiled against specific versions of
+  #    libgdal, libgeos, libproj — those runtime libs must exist on the remote.
+  message("  Installing system spatial libraries on ", host)
+  system2("ssh", c(host, paste0(
+    "DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends ",
+    "libgdal-dev libgeos-dev libproj-dev libsqlite3-dev libudunits2-dev"
+  )))
+
+  # 8. Ensure remote lib path exists (must match localhost so installed paths are identical).
   message("  Ensuring remote lib path exists: ", local_lib)
   system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_lib))))
 
@@ -143,7 +152,7 @@ tmux_set_mouse <- function(on = TRUE) {
   if (rsync_ret != 0L)
     stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
 
-  # 7. Install SpaDES.project's dependencies on remote via Require::Install.
+  # 9. Install SpaDES.project's dependencies on remote via Require::Install.
   # For Imports/Depends/LinkingTo: install all (hard requirements).
   # For Suggests: only those installed on localhost — avoids pulling in dev/test
   # packages (testthat, knitr, …) while still propagating runtime Suggests like
@@ -164,7 +173,7 @@ tmux_set_mouse <- function(on = TRUE) {
   message("  Installing ", length(all_pkgs), " dependency packages on ", host)
   .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(all_pkgs), ")"))
 
-  # 8. Rsync Require package binary cache to speed up future installations on remote.
+  # 10. Rsync Require package binary cache to speed up future installations on remote.
   local_cache <- Require::cachePkgDir()
   if (nzchar(local_cache) && dir.exists(local_cache)) {
     message("  Ensuring remote Require cache exists: ", local_cache)
@@ -182,7 +191,7 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("rsync of Require cache to '", host, "' may have failed.")
   }
 
-  # 9. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
+  # 11. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
   gargle_cache <- getOption("gargle_oauth_cache")
   if (!is.null(gargle_cache) && !isFALSE(gargle_cache)) {
     gargle_cache <- normalizePath(gargle_cache, mustWork = FALSE)
