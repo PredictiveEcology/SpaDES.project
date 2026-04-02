@@ -169,6 +169,27 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("rsync of some dependency packages to '", host, "' may have failed.")
   }
 
+  # 7. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
+  gargle_cache <- getOption("gargle_oauth_cache")
+  if (!is.null(gargle_cache) && !isFALSE(gargle_cache)) {
+    gargle_cache <- normalizePath(gargle_cache, mustWork = FALSE)
+    if (dir.exists(gargle_cache)) {
+      cache_parent <- dirname(gargle_cache)
+      message("  Ensuring remote gargle cache parent exists: ", cache_parent)
+      system2("ssh", c(host, paste0("mkdir -p ", shQuote(cache_parent))))
+      message("  rsyncing gargle OAuth cache to ", host, ":", gargle_cache)
+      cache_rsync_ret <- system(paste0(
+        "rsync -a --delete ",
+        shQuote(paste0(gargle_cache, "/")),
+        " ", host, ":", gargle_cache, "/"
+      ))
+      if (cache_rsync_ret != 0L)
+        warning("rsync of gargle OAuth cache to '", host, "' may have failed.")
+    } else {
+      message("  gargle_oauth_cache path does not exist locally, skipping: ", gargle_cache)
+    }
+  }
+
   invisible(TRUE)
 }
 
