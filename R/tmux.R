@@ -149,11 +149,14 @@ tmux_set_mouse <- function(on = TRUE) {
 
   # 6. Ensure SpaDES.project's Imports/Depends are present on the remote.
   # Require::Install is idempotent — already-installed packages are skipped.
+  # Split on commas only so that "R (>= 4.3)" stays as one token before stripping
+  # the version spec; splitting on spaces first produces broken tokens like "4.3)".
   .ssh_r(paste0(
     "dsc  <- read.dcf(system.file('DESCRIPTION', package = 'SpaDES.project'),",
     "                 fields = c('Imports', 'Depends', 'LinkingTo')); ",
-    "pkgs <- unlist(strsplit(paste(dsc[!is.na(dsc)], collapse = ','), '[[:space:],]+')); ",
-    "pkgs <- sub('\\\\(.*', '', trimws(pkgs)); ",   # strip version specs like (>= 1.2)
+    "raw  <- paste(dsc[!is.na(dsc)], collapse = ','); ",
+    "pkgs <- trimws(unlist(strsplit(raw, ','))); ",
+    "pkgs <- trimws(sub('\\\\s*\\\\(.*', '', pkgs)); ",  # strip ' (>= 1.2)' etc.
     "pkgs <- pkgs[nzchar(pkgs) & pkgs != 'R']; ",
     "Require::Install(pkgs)"
   ))
