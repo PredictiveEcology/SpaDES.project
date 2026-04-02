@@ -115,56 +115,28 @@ tmux_set_mouse <- function(on = TRUE) {
       call. = FALSE
     )
 
-  # 5. Install SpaDES.project on remote, matching the local source exactly.
-  local_sp_dsc  <- packageDescription("SpaDES.project")
-  local_sp_ver  <- as.character(packageVersion("SpaDES.project"))
-  local_sp_path <- find.package("SpaDES.project")
+  # 5. Ensure remote lib path exists (must match localhost so installed paths are identical).
+  message("  Ensuring remote lib path exists: ", local_lib)
+  system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_lib))))
 
-  if (identical(local_sp_dsc$RemoteType, "github")) {
-    # GitHub install: use the exact ref (branch/tag/SHA) that is installed locally
-    sp_ref  <- if (!is.null(local_sp_dsc$RemoteRef)) local_sp_dsc$RemoteRef else "development"
-    sp_repo <- paste0(local_sp_dsc$RemoteUsername, "/", local_sp_dsc$RemoteRepo)
-    message("  Installing SpaDES.project ", local_sp_ver,
-            " (", sp_repo, "@", sp_ref, ") on ", host)
-    ret <- .ssh_r(paste0(
-      "Require::Install('", sp_repo, "@", sp_ref, " (>= ", local_sp_ver, ")')"
-    ))
-    if (ret != 0L)
-      stop("SpaDES.project installation failed on '", host, "'.", call. = FALSE)
-  } else {
-    # Local / devtools install: rsync the *source* tree and R CMD INSTALL on remote.
-    # Rsyncing the installed directory fails because compiled lazy-load databases
-    # (.rdb/.rdx) and Meta/package.rds are built by R CMD INSTALL and must be
-    # regenerated on the target machine, not copied.
-    src_path <- if (identical(local_sp_dsc$RemoteType, "local") &&
-                     !is.null(local_sp_dsc$RemoteUrl) &&
-                     dir.exists(local_sp_dsc$RemoteUrl)) {
-      local_sp_dsc$RemoteUrl   # devtools::install() records the source path here
-    } else {
-      local_sp_path             # last-resort: installed dir (may not work)
-    }
-    remote_src <- "/tmp/SpaDES.project_src"
-    message("  rsyncing SpaDES.project source (", local_sp_ver, ") to ",
-            host, ":", remote_src, " then R CMD INSTALL")
-    rsync_ret <- system(paste0(
-      "rsync -a --delete --exclude='.git' --exclude='*.tar.gz' --exclude='*.o' ",
-      shQuote(paste0(normalizePath(src_path), "/")),
-      " ", host, ":", remote_src, "/"
-    ))
-    if (rsync_ret != 0L)
-      stop("rsync of SpaDES.project source to '", host, "' failed.", call. = FALSE)
-    install_ret <- system2("ssh", c(host,
-      paste0("R CMD INSTALL --no-build-vignettes --no-multiarch ", remote_src)))
-    if (install_ret != 0L)
-      stop("R CMD INSTALL of SpaDES.project on '", host, "' failed.", call. = FALSE)
-  }
+  # Rsync SpaDES.project installed directory to remote lib.
+  # Both machines share the same platform, so the compiled lazy-load databases
+  # and binary files are compatible — no R CMD INSTALL needed on the remote.
+  local_sp_path <- find.package("SpaDES.project", lib.loc = local_lib)
+  local_sp_ver  <- as.character(packageVersion("SpaDES.project", lib.loc = local_lib))
+  message("  rsyncing SpaDES.project (", local_sp_ver, ") to ", host, ":", local_lib, "/")
+  rsync_ret <- system(paste0(
+    "rsync -a --delete ",
+    shQuote(paste0(normalizePath(local_sp_path), "/")),
+    " ", host, ":", file.path(local_lib, "SpaDES.project"), "/"
+  ))
+  if (rsync_ret != 0L)
+    stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
 
-  # 6. Ensure SpaDES.project's dependencies are present on the remote.
-  # For Imports/Depends/LinkingTo: install all (they are hard requirements).
-  # For Suggests: only install those that are installed on localhost — this avoids
-  # pulling in dev/test packages (testthat, knitr, …) that the user never installed,
-  # while still propagating runtime Suggests like googlesheets4/googledrive/cli.
-  # Require::Install is idempotent so repeated calls are cheap.
+  # 6. Rsync SpaDES.project's dependencies from local_lib to remote lib.
+  # For Imports/Depends/LinkingTo: include all.
+  # For Suggests: only those installed on localhost (avoids dev/test packages
+  # like testthat/knitr while propagating runtime Suggests like googlesheets4).
   .parse_desc_pkgs <- function(fields) {
     dsc <- read.dcf(system.file("DESCRIPTION", package = "SpaDES.project"),
                     fields = fields)
@@ -173,12 +145,29 @@ tmux_set_mouse <- function(on = TRUE) {
     pkgs <- trimws(sub("\\s*\\(.*", "", pkgs))
     pkgs[nzchar(pkgs) & pkgs != "R"]
   }
-  hard_pkgs    <- .parse_desc_pkgs(c("Imports", "Depends", "LinkingTo"))
-  suggests_all <- .parse_desc_pkgs("Suggests")
-  local_inst   <- rownames(utils::installed.packages())
+  hard_pkgs      <- .parse_desc_pkgs(c("Imports", "Depends", "LinkingTo"))
+  suggests_all   <- .parse_desc_pkgs("Suggests")
+  local_inst     <- rownames(utils::installed.packages(lib.loc = local_lib))
   suggests_local <- intersect(suggests_all, local_inst)
-  all_pkgs <- unique(c(hard_pkgs, suggests_local))
-  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(all_pkgs), ")"))
+  all_pkgs       <- unique(c(hard_pkgs, suggests_local))
+
+  # Find the paths in local_lib for each package and rsync them all in one call.
+  pkg_paths <- vapply(all_pkgs, function(p) {
+    tryCatch(find.package(p, lib.loc = local_lib), error = function(e) NA_character_)
+  }, character(1L))
+  pkg_paths <- pkg_paths[!is.na(pkg_paths)]
+
+  if (length(pkg_paths) > 0L) {
+    message("  rsyncing ", length(pkg_paths), " dependency packages to ", host, ":", local_lib, "/")
+    rsync_src <- paste(vapply(pkg_paths, function(p) {
+      shQuote(normalizePath(p))
+    }, character(1L)), collapse = " ")
+    dep_rsync_ret <- system(paste0(
+      "rsync -a ", rsync_src, " ", host, ":", local_lib, "/"
+    ))
+    if (dep_rsync_ret != 0L)
+      warning("rsync of some dependency packages to '", host, "' may have failed.")
+  }
 
   invisible(TRUE)
 }
