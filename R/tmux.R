@@ -78,7 +78,17 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("scp of extra_args_path to '", host, "' failed.", call. = FALSE)
   }
 
-  # 2. Verify Require matches local installation (version + source)
+  # 2. Persist repos option in ~/.Rprofile on remote so all R sessions (including
+  #    worker loops) use the same repositories as localhost.
+  repos_line <- paste0("options(repos = ", deparse1(install_repos), ")")
+  .ssh_r(paste0(
+    "rprof <- path.expand('~/.Rprofile'); ",
+    "existing <- if (file.exists(rprof)) readLines(rprof, warn = FALSE) else character(0); ",
+    "existing <- existing[!grepl('^options\\\\(repos', existing)]; ",
+    "writeLines(c(existing, ", deparse1(repos_line), "), rprof)"
+  ))
+
+  # 3. Verify Require matches local installation (version + source)
   local_lib     <- .libPaths()[1]
   local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
   local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
@@ -100,10 +110,10 @@ tmux_set_mouse <- function(on = TRUE) {
     .ssh_r("install.packages('Require')")
   }
 
-  # 3. Install usethis
+  # 4. Install usethis
   .ssh_r("Require::Install('usethis')")
 
-  # 4. Check git credentials
+  # 5. Check git credentials
   creds_out <- trimws(paste(collapse = "",
     .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error = function(e) cat('none'))",
            intern = TRUE)))
@@ -115,7 +125,7 @@ tmux_set_mouse <- function(on = TRUE) {
       call. = FALSE
     )
 
-  # 5. Ensure remote lib path exists (must match localhost so installed paths are identical).
+  # 6. Ensure remote lib path exists (must match localhost so installed paths are identical).
   message("  Ensuring remote lib path exists: ", local_lib)
   system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_lib))))
 
@@ -133,7 +143,7 @@ tmux_set_mouse <- function(on = TRUE) {
   if (rsync_ret != 0L)
     stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
 
-  # 6. Rsync SpaDES.project's dependencies from local_lib to remote lib.
+  # 7. Rsync SpaDES.project's dependencies from local_lib to remote lib.
   # For Imports/Depends/LinkingTo: include all.
   # For Suggests: only those installed on localhost (avoids dev/test packages
   # like testthat/knitr while propagating runtime Suggests like googlesheets4).
@@ -169,7 +179,7 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("rsync of some dependency packages to '", host, "' may have failed.")
   }
 
-  # 7. Rsync Require package binary cache to speed up future installations on remote.
+  # 8. Rsync Require package binary cache to speed up future installations on remote.
   local_cache <- Require::cachePkgDir()
   if (nzchar(local_cache) && dir.exists(local_cache)) {
     message("  Ensuring remote Require cache exists: ", local_cache)
