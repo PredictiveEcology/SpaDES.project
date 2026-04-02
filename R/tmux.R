@@ -41,6 +41,7 @@ tmux_set_mouse <- function(on = TRUE) {
 
   # Repos: local option + r-universe prepended (remote machines won't have this set)
   install_repos <- unique(c("https://predictiveecology.r-universe.dev", getOption("repos")))
+  local_lib     <- .libPaths()[1L]
 
   # Internal helper: write R code to a local temp file, scp it to remote,
   # run it with Rscript (no shell quoting of R expressions needed), then delete.
@@ -90,7 +91,6 @@ tmux_set_mouse <- function(on = TRUE) {
   ))
 
   # 3. Verify Require matches local installation (version + source)
-  local_lib     <- .libPaths()[1]
   local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
   local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
   if (identical(local_req_dsc$RemoteType, "github")) {
