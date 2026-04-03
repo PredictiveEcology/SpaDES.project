@@ -229,153 +229,153 @@ tmux_set_mouse <- function(on = TRUE) {
   invisible(TRUE)
 }
 
-#’ Spawn tmux worker panes and process a job queue
-#’
-#’ @description
-#’ Creates `n_workers` tmux panes in the current window, tiles them, and starts
-#’ a worker loop in each one that claims and runs jobs from a file-backed queue
-#’ (`queue_path`).  Control returns immediately to the **master pane**; all work
-#’ happens asynchronously inside the worker panes.
-#’
-#’ ## Worker loop modes (`pane_mode`)
-#’
-#’ ### `"killAndNewPane"` (default)
-#’ Each worker runs **one job per R session**, then exits.  A fresh R session
-#’ starts automatically for the next job, freeing all memory between runs.
-#’
-#’ - **localhost panes**: After each job, `runWorkerLoop()` calls
-#’   `tmux respawn-pane -k`, which replaces the current pane’s process
-#’   in-place with a new `Rscript` invocation.  No retiling needed.
-#’ - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
-#’   while-loop: `ssh host Rscript -e "..."`.  Each `Rscript` exits with
-#’   status 0 (job ran — loop continues) or status 1 (queue empty / fatal
-#’   error — loop stops).  `ssh` is used *without* `-t` so that `Rscript`
-#’   remains non-interactive and exit status is forwarded cleanly.
-#’
-#’ ### `"reuse"`
-#’ Each worker loops inside a single R session (`repeat { runNextWorker() }`).
-#’ Memory accumulates across jobs — useful for lightweight simulations.
-#’
-#’ ## Remote machines (`cores`)
-#’ Supplying a hostname in `cores` triggers `.setup_remote_machine()` before
-#’ workers start.  This step:
-#’ 1. Creates the remote working directory and copies queue/global files.
-#’ 2. Persists `options(repos = ...)` in `~/.Rprofile` on the remote.
-#’ 3. Verifies/installs `Require` on the remote.
-#’ 4. Checks for GitHub credentials (`gitcreds`).
-#’ 5. Installs system spatial libraries (`libgdal-dev`, etc.) via `apt-get`.
-#’ 6. Rsyncs `SpaDES.project` from the local installed library to the same
-#’    path on the remote (both machines must share the same platform/R version).
-#’ 7. Installs `SpaDES.project` dependencies via `Require::Install()`.
-#’    Packages with compiled system-library dependencies (`terra`, `sf`, etc.)
-#’    are installed from source so they link against the remote’s actual GDAL/GEOS.
-#’ 8. Rsyncs the `Require` binary package cache (`Require::cachePkgDir()`) to
-#’    speed up future installations.
-#’ 9. Rsyncs the gargle OAuth token cache so the remote can authenticate with
-#’    Google APIs without a browser prompt.
-#’
-#’ The remote R session sets `.libPaths(c(local_lib, .libPaths()))` at startup
-#’ so the project library takes precedence over system libraries.
-#’
-#’ ## Staggered starts
-#’ Pane 1 starts immediately.  Pane `i > 1` waits
-#’ `delay_before_source + (i - 2) * stagger_by` seconds inside R before
-#’ claiming its first job, avoiding simultaneous queue contention at startup.
-#’ For remote workers in `killAndNewPane` mode the stagger only applies to the
-#’ first SSH invocation; subsequent loop iterations start immediately.
-#’
-#’ ## Restarting a broken pane
-#’ If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
-#’ prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
-#’ The full command is always in the pane’s bash history:
-#’ - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
-#’   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#’ - **remote**: `ssh host Rscript -e "..." && while ssh host Rscript -e "..."; do :; done`
-#’   (restarts the bash while-loop from scratch).
-#’
-#’ @param df A `data.frame`. Column names become object names in worker panes; values
-#’   from each row are assigned prior to sourcing `global_path`.
-#’ @param global_path Character scalar. Absolute path to the script sourced for each job.
-#’ @param n_workers Integer. Number of worker panes to spawn. Defaults to `length(cores)`
-#’   if `cores` is supplied, otherwise `4`.
-#’ @param delay_after_split Numeric. Seconds to wait after each `split-window`. Default `2`.
-#’ @param delay_after_layout Numeric. Seconds to wait after `select-layout`. Default `0.2`.
-#’ @param delay_between_R_start Numeric. Seconds to wait after starting R in each pane.
-#’   Default `0.1`.
-#’ @param delay_before_source Numeric. Seconds panes 2..n wait before claiming their first
-#’   job. Default `60`.
-#’ @param stagger_by Numeric. Additional seconds per pane beyond pane 2:
-#’   pane `i > 1` waits `delay_before_source + (i - 2) * stagger_by`. Default `delay_before_source`.
-#’ @param activeRunningPath Directory for "running" flag files written while a job is
-#’   active. Must be cleaned up manually if a job crashes without removing its flag.
-#’   Default: `file.path("logs/", basename(queue_path))`.
-#’ @param folderWithIterInFilename A quoted expression (optionally using `runName`) for a
-#’   folder whose filenames encode iteration info. Currently used by `fireSense_SpreadFit`.
-#’   Default `getOption("spades.folderWithIterInFilename", NULL)`.
-#’ @param statusCalculate A quoted expression (optionally using `runName`) that evaluates
-#’   to a path containing job-status output files. Currently used by `fireSense_SpreadFit`.
-#’   Default `getOption("spades.statusCalculate", NULL)`.
-#’ @param continue Logical. Reserved for future single-shot mode; currently ignored.
-#’ @param queue_path Character. Path to the `.rds` queue file. Defaults to
-#’   `file.path(dirname(global_path), "tmux_queue.rds")`.
-#’ @param on_interrupt `"requeue"` (default) or `"fail"`. Action when a job errors:
-#’   requeue it for another worker, or mark it failed and stop this worker.
-#’ @param ss_id Optional Google Drive spreadsheet/folder ID for live status syncing via
-#’   `googlesheets4`. `NULL` disables syncing.
-#’ @param email Optional email address for gargle/Google OAuth authentication.
-#’ @param cache_path Optional path to the gargle OAuth token cache directory.
-#’ @param pane_mode `"killAndNewPane"` (default) or `"reuse"`. See **Worker loop modes**
-#’   above.
-#’ @param cores Character vector of machine hostnames, recycled to `n_workers`. Use
-#’   `"localhost"` for the local machine or a bare hostname (e.g. `"sbw"`) for a remote
-#’   machine reachable via passwordless SSH. When any remote hosts are listed,
-#’   `.setup_remote_machine()` is called for each unique hostname before workers start.
-#’   Default `NULL` (all localhost).
-#’ @param workersToMonitor Character vector of pane titles to monitor (currently unused).
-#’ @param runNameLabel A quoted expression evaluated against the queue `data.frame` to
-#’   produce a human-readable job label used in log files and Google Sheet status updates.
-#’ @param dots_path Path to an `.rds` file containing extra named objects to load into
-#’   each worker’s global environment before sourcing `global_path`. Useful for passing
-#’   large objects that cannot easily be serialised into the queue row.
-#’ @param set_mouse Logical. Enable tmux mouse support (pane selection, scroll). Default `TRUE`.
-#’ @param ... Additional arguments passed to `.setup_remote_machine()`.
-#’
-#’ @return Invisibly returns a character vector of tmux pane IDs for the spawned workers.
-#’   Pass these to `tmux_kill_panes()` to tear down all workers at once.
-#’ @export
-#’
-#’ @examples
-#’ \dontrun{
-#’ # --- Basic local usage ---
-#’ workers <- experimentTmux(
-#’   global_path         = "/abs/path/to/global.R",
-#’   queue_path          = "/abs/path/to/queue.rds",
-#’   n_workers           = 4,
-#’   pane_mode           = "killAndNewPane",
-#’   delay_before_source = 60,
-#’   stagger_by          = 60,
-#’   set_mouse           = TRUE
-#’ )
-#’
-#’ # --- Mixed local + remote ---
-#’ # Runs 2 workers on localhost and 2 on remote host "sbw".
-#’ # .setup_remote_machine("sbw", ...) is called automatically before workers start.
-#’ workers <- experimentTmux(
-#’   global_path = "/abs/path/to/global.R",
-#’   queue_path  = "/abs/path/to/queue.rds",
-#’   cores       = c("localhost", "localhost", "sbw", "sbw"),
-#’   pane_mode   = "killAndNewPane",
-#’   email       = "you@example.com",
-#’   cache_path  = "/abs/path/to/.secret",
-#’   ss_id       = "your-google-sheet-id"
-#’ )
-#’
-#’ # --- Tear down all workers ---
-#’ tmux_kill_panes(workers)
-#’
-#’ # --- Restart a single broken pane ---
-#’ # In the broken pane, press Up then Enter to re-run the last command.
-#’ }
+#' Spawn tmux worker panes and process a job queue
+#'
+#' @description
+#' Creates `n_workers` tmux panes in the current window, tiles them, and starts
+#' a worker loop in each one that claims and runs jobs from a file-backed queue
+#' (`queue_path`).  Control returns immediately to the **master pane**; all work
+#' happens asynchronously inside the worker panes.
+#'
+#' ## Worker loop modes (`pane_mode`)
+#'
+#' ### `"killAndNewPane"` (default)
+#' Each worker runs **one job per R session**, then exits.  A fresh R session
+#' starts automatically for the next job, freeing all memory between runs.
+#'
+#' - **localhost panes**: After each job, `runWorkerLoop()` calls
+#'   `tmux respawn-pane -k`, which replaces the current pane’s process
+#'   in-place with a new `Rscript` invocation.  No retiling needed.
+#' - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
+#'   while-loop: `ssh host Rscript -e "..."`.  Each `Rscript` exits with
+#'   status 0 (job ran — loop continues) or status 1 (queue empty / fatal
+#'   error — loop stops).  `ssh` is used *without* `-t` so that `Rscript`
+#'   remains non-interactive and exit status is forwarded cleanly.
+#'
+#' ### `"reuse"`
+#' Each worker loops inside a single R session (`repeat { runNextWorker() }`).
+#' Memory accumulates across jobs — useful for lightweight simulations.
+#'
+#' ## Remote machines (`cores`)
+#' Supplying a hostname in `cores` triggers `.setup_remote_machine()` before
+#' workers start.  This step:
+#' 1. Creates the remote working directory and copies queue/global files.
+#' 2. Persists `options(repos = ...)` in `~/.Rprofile` on the remote.
+#' 3. Verifies/installs `Require` on the remote.
+#' 4. Checks for GitHub credentials (`gitcreds`).
+#' 5. Installs system spatial libraries (`libgdal-dev`, etc.) via `apt-get`.
+#' 6. Rsyncs `SpaDES.project` from the local installed library to the same
+#'    path on the remote (both machines must share the same platform/R version).
+#' 7. Installs `SpaDES.project` dependencies via `Require::Install()`.
+#'    Packages with compiled system-library dependencies (`terra`, `sf`, etc.)
+#'    are installed from source so they link against the remote’s actual GDAL/GEOS.
+#' 8. Rsyncs the `Require` binary package cache (`Require::cachePkgDir()`) to
+#'    speed up future installations.
+#' 9. Rsyncs the gargle OAuth token cache so the remote can authenticate with
+#'    Google APIs without a browser prompt.
+#'
+#' The remote R session sets `.libPaths(c(local_lib, .libPaths()))` at startup
+#' so the project library takes precedence over system libraries.
+#'
+#' ## Staggered starts
+#' Pane 1 starts immediately.  Pane `i > 1` waits
+#' `delay_before_source + (i - 2) * stagger_by` seconds inside R before
+#' claiming its first job, avoiding simultaneous queue contention at startup.
+#' For remote workers in `killAndNewPane` mode the stagger only applies to the
+#' first SSH invocation; subsequent loop iterations start immediately.
+#'
+#' ## Restarting a broken pane
+#' If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
+#' prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
+#' The full command is always in the pane’s bash history:
+#' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
+#'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
+#' - **remote**: `ssh host Rscript -e "..." && while ssh host Rscript -e "..."; do :; done`
+#'   (restarts the bash while-loop from scratch).
+#'
+#' @param df A `data.frame`. Column names become object names in worker panes; values
+#'   from each row are assigned prior to sourcing `global_path`.
+#' @param global_path Character scalar. Absolute path to the script sourced for each job.
+#' @param n_workers Integer. Number of worker panes to spawn. Defaults to `length(cores)`
+#'   if `cores` is supplied, otherwise `4`.
+#' @param delay_after_split Numeric. Seconds to wait after each `split-window`. Default `2`.
+#' @param delay_after_layout Numeric. Seconds to wait after `select-layout`. Default `0.2`.
+#' @param delay_between_R_start Numeric. Seconds to wait after starting R in each pane.
+#'   Default `0.1`.
+#' @param delay_before_source Numeric. Seconds panes 2..n wait before claiming their first
+#'   job. Default `60`.
+#' @param stagger_by Numeric. Additional seconds per pane beyond pane 2:
+#'   pane `i > 1` waits `delay_before_source + (i - 2) * stagger_by`. Default `delay_before_source`.
+#' @param activeRunningPath Directory for "running" flag files written while a job is
+#'   active. Must be cleaned up manually if a job crashes without removing its flag.
+#'   Default: `file.path("logs/", basename(queue_path))`.
+#' @param folderWithIterInFilename A quoted expression (optionally using `runName`) for a
+#'   folder whose filenames encode iteration info. Currently used by `fireSense_SpreadFit`.
+#'   Default `getOption("spades.folderWithIterInFilename", NULL)`.
+#' @param statusCalculate A quoted expression (optionally using `runName`) that evaluates
+#'   to a path containing job-status output files. Currently used by `fireSense_SpreadFit`.
+#'   Default `getOption("spades.statusCalculate", NULL)`.
+#' @param continue Logical. Reserved for future single-shot mode; currently ignored.
+#' @param queue_path Character. Path to the `.rds` queue file. Defaults to
+#'   `file.path(dirname(global_path), "tmux_queue.rds")`.
+#' @param on_interrupt `"requeue"` (default) or `"fail"`. Action when a job errors:
+#'   requeue it for another worker, or mark it failed and stop this worker.
+#' @param ss_id Optional Google Drive spreadsheet/folder ID for live status syncing via
+#'   `googlesheets4`. `NULL` disables syncing.
+#' @param email Optional email address for gargle/Google OAuth authentication.
+#' @param cache_path Optional path to the gargle OAuth token cache directory.
+#' @param pane_mode `"killAndNewPane"` (default) or `"reuse"`. See **Worker loop modes**
+#'   above.
+#' @param cores Character vector of machine hostnames, recycled to `n_workers`. Use
+#'   `"localhost"` for the local machine or a bare hostname (e.g. `"sbw"`) for a remote
+#'   machine reachable via passwordless SSH. When any remote hosts are listed,
+#'   `.setup_remote_machine()` is called for each unique hostname before workers start.
+#'   Default `NULL` (all localhost).
+#' @param workersToMonitor Character vector of pane titles to monitor (currently unused).
+#' @param runNameLabel A quoted expression evaluated against the queue `data.frame` to
+#'   produce a human-readable job label used in log files and Google Sheet status updates.
+#' @param dots_path Path to an `.rds` file containing extra named objects to load into
+#'   each worker’s global environment before sourcing `global_path`. Useful for passing
+#'   large objects that cannot easily be serialised into the queue row.
+#' @param set_mouse Logical. Enable tmux mouse support (pane selection, scroll). Default `TRUE`.
+#' @param ... Additional arguments passed to `.setup_remote_machine()`.
+#'
+#' @return Invisibly returns a character vector of tmux pane IDs for the spawned workers.
+#'   Pass these to `tmux_kill_panes()` to tear down all workers at once.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' # --- Basic local usage ---
+#' workers <- experimentTmux(
+#'   global_path         = "/abs/path/to/global.R",
+#'   queue_path          = "/abs/path/to/queue.rds",
+#'   n_workers           = 4,
+#'   pane_mode           = "killAndNewPane",
+#'   delay_before_source = 60,
+#'   stagger_by          = 60,
+#'   set_mouse           = TRUE
+#' )
+#'
+#' # --- Mixed local + remote ---
+#' # Runs 2 workers on localhost and 2 on remote host "sbw".
+#' # .setup_remote_machine("sbw", ...) is called automatically before workers start.
+#' workers <- experimentTmux(
+#'   global_path = "/abs/path/to/global.R",
+#'   queue_path  = "/abs/path/to/queue.rds",
+#'   cores       = c("localhost", "localhost", "sbw", "sbw"),
+#'   pane_mode   = "killAndNewPane",
+#'   email       = "you@example.com",
+#'   cache_path  = "/abs/path/to/.secret",
+#'   ss_id       = "your-google-sheet-id"
+#' )
+#'
+#' # --- Tear down all workers ---
+#' tmux_kill_panes(workers)
+#'
+#' # --- Restart a single broken pane ---
+#' # In the broken pane, press Up then Enter to re-run the last command.
+#' }
 experimentTmux <- function(df,
                            global_path = "global.R",
                            cores = NULL,
