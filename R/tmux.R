@@ -783,7 +783,9 @@ experimentTmux <- function(df,
         else payload
         rscript_first <- sprintf("Rscript -e %s", shQuote(first_expr))
         rscript_loop  <- sprintf("Rscript -e %s", shQuote(payload))
-        bash_cmd <- sprintf("ssh -t %s %s && while ssh -t %s %s; do :; done",
+        # No -t: Rscript is non-interactive; -t allocates a pseudo-TTY which
+        # makes R think it's interactive (auto-prints values, garbles exit status).
+        bash_cmd <- sprintf("ssh %s %s && while ssh %s %s; do :; done",
                             cores_full[i], shQuote(rscript_first),
                             cores_full[i], shQuote(rscript_loop))
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
