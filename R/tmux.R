@@ -781,13 +781,23 @@ experimentTmux <- function(df,
       )
     }
     # bash snippet: run setup and write flag, or wait for flag (600s timeout)
+    # Probe passwordless SSH; if it fails, copy the local public key to the
+    # remote (~/.ssh/authorized_keys) via ssh-copy-id, which prompts once for
+    # the remote password inside the tmux pane.
+    ssh_ready_bash <- function(host)
+      sprintf(
+        "ssh -o BatchMode=yes -o ConnectTimeout=5 %s true 2>/dev/null || ssh-copy-id %s",
+        host, host
+      )
+
     setup_bash_for <- function(host, first) {
       flag <- shQuote(.setup_flag_path(host))
       if (first)
-        sprintf("Rscript -e %s && touch %s", shQuote(setup_expr_for(host)), flag)
+        sprintf("%s && Rscript -e %s && touch %s",
+                ssh_ready_bash(host), shQuote(setup_expr_for(host)), flag)
       else
-        sprintf("i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
-                flag, flag)
+        sprintf("%s && i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
+                ssh_ready_bash(host), flag, flag)
     }
 
     start_cmds <- vapply(seq_len(n_workers), function(i) {
@@ -1162,10 +1172,18 @@ runWorkerLoop <- function(queue_path, global_path,
                           dots_path = NULL) {
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
-  # Set gargle options from our own params — no need to bake them into the payload
+  # Authenticate with Google before any sheet access.
+  # Setting options alone is not sufficient in a non-interactive Rscript session;
+  # gs4_auth() must be called explicitly so gargle loads the cached token.
   options(gargle_oauth_client_type = "web")
   if (!is.null(email))      options(gargle_oauth_email = email)
   if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+  if (!is.null(ss_id) && !is.null(email) && !is.null(cache_path)) {
+    tryCatch(
+      googlesheets4::gs4_auth(email = email, cache = cache_path),
+      error = function(e) message("gs4_auth warning: ", conditionMessage(e))
+    )
+  }
 
   if (missing(global_path)) global_path <- "global.R"
 
