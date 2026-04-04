@@ -11,7 +11,12 @@ runWorkerLoop(
   heartbeat_interval_s = 60,
   stop_file = NULL,
   activeRunningPath = getOption("spades.activeRunningPath"),
-  runNameLabel = quote(colnames(q)[1:2])
+  runNameLabel = quote(colnames(q)[1:2]),
+  ss_id = NULL,
+  pane_mode = c("reuse", "killAndNewPane"),
+  email = getOption("gargle_oauth_email"),
+  cache_path = getOption("gargle_oauth_cache"),
+  dots_path = NULL
 )
 }
 \arguments{
@@ -30,6 +35,17 @@ runWorkerLoop(
 \item{runNameLabel}{A quoted expression (possibly of \code{q}, which is the result of \code{q <- readRDS(queue_path)}).
 Default is the first 2 column names of \code{q}. These will be concatenated and used as
 labels for various things including the \code{activeRunningPath} file(s).}
+
+\item{pane_mode}{Character. \code{"reuse"} (default) loops inside the same R session.
+\code{"killAndNewPane"} runs one job, spawns a fresh replacement pane, retiles the
+tmux window, then kills the current pane — freeing all R memory between jobs.}
+
+\item{email}{gargle OAuth email; forwarded to replacement panes in \code{killAndNewPane} mode.}
+
+\item{cache_path}{gargle OAuth cache path; forwarded to replacement panes.}
+
+\item{dots_path}{Path to \code{.tmux_dots.rds} holding extra \code{...} args; forwarded to
+replacement panes so they can reload complex objects before sourcing.}
 }
 \value{
 invisibly TRUE

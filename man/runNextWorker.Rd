@@ -12,7 +12,8 @@ runNextWorker(
   runNameLabel = quote(colnames(q)[1:2]),
   statusCalculate = getOption("spades.statusCalculate"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
-  activeRunningPath = getOption("spades.activeRunningPath")
+  activeRunningPath = getOption("spades.activeRunningPath"),
+  ss_id = NULL
 )
 }
 \arguments{

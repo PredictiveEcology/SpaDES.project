@@ -7,12 +7,13 @@
 .sync_loop_internal(
   queue_path,
   ss_id,
-  email,
-  cache_path,
+  email = getOption("gargle_oauth_email"),
+  cache_path = getOption("gargle_oauth_cache"),
   runNameLabel,
   statusCalculate = getOption("spades.statusCalculate"),
   activeRunningPath = getOption("spades.activeRunningPath"),
-  interval = 300
+  interval = 300,
+  ...
 )
 }
 \description{
