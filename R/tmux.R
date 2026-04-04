@@ -605,11 +605,13 @@ experimentTmux <- function(df,
   
   inTmux <- Sys.getenv("TMUX") != ""
 
-  # Resolve cores and set up any remote machines before spawning panes
+  # Resolve cores. Setup runs in parallel inside each pane (see below).
   if (is.null(cores)) cores <- rep("localhost", n_workers)
+
+  # Clean up any stale ready-flags from a previous run
   for (.host in setdiff(unique(cores), "localhost")) {
-    .setup_remote_machine(.host, global_path, queue_path,
-                          extra_args_path = if (file.exists(dots_path)) dots_path else NULL)
+    flag <- .setup_flag_path(.host)
+    if (file.exists(flag)) unlink(flag)
   }
 
   if (inTmux) {
@@ -761,22 +763,50 @@ experimentTmux <- function(df,
     workers <- workers[seq_len(n_workers)]
     
     # 3. Now send the R commands to the clean, tiled panes.
-    # Remote killAndNewPane workers use a bash while-loop so the local pane
-    # re-SSHes after each job (respawn-pane can't be called from within the
-    # remote R session). Other workers start an interactive R/ssh session.
-    # Recycle cores to n_workers length (mirrors ifelse recycling behaviour).
+    # Recycle cores to n_workers length.
     cores_full <- rep_len(cores, n_workers)
-    start_cmds <- ifelse(
-      cores_full == "localhost",
-      "R",
-      ifelse(pane_mode == "killAndNewPane", "", paste0("ssh -t ", cores_full, " R"))
-    )
+
+    # For remote panes, the first pane per unique host runs .setup_remote_machine()
+    # then starts working; subsequent panes for the same host wait for a local
+    # flag file before starting, so all setups happen in parallel across hosts.
+    setup_assigned <- character(0)
+    setup_expr_for <- function(host) {
+      sprintf(
+        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s)",
+        deparse1(host),
+        deparse1(normalizePath(global_path, mustWork = FALSE)),
+        deparse1(normalizePath(queue_path,  mustWork = FALSE)),
+        deparse1(if (!is.null(dots_path) && file.exists(dots_path))
+                   normalizePath(dots_path) else NULL)
+      )
+    }
+    # bash snippet: run setup and write flag, or wait for flag (600s timeout)
+    setup_bash_for <- function(host, first) {
+      flag <- shQuote(.setup_flag_path(host))
+      if (first)
+        sprintf("Rscript -e %s && touch %s", shQuote(setup_expr_for(host)), flag)
+      else
+        sprintf("i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
+                flag, flag)
+    }
+
+    start_cmds <- vapply(seq_len(n_workers), function(i) {
+      core <- cores_full[i]
+      if (core == "localhost") return("R")
+      if (pane_mode == "killAndNewPane") return("")  # bash loop built in payload step
+      # reuse mode: setup preamble + interactive ssh R
+      first <- !core %in% setup_assigned
+      if (first) setup_assigned <<- c(setup_assigned, core)
+      paste0(setup_bash_for(core, first), " && ssh -t ", core, " R")
+    }, character(1L))
 
     for (i in seq_along(worker_ids)) {
       if (nzchar(start_cmds[i]))
         .tmux_run("send-keys", "-t", worker_ids[i], start_cmds[i], "C-m")
       Sys.sleep(0.1)
     }
+    # Reset for use in payload loop below
+    setup_assigned <- character(0)
     
     # ---------- branching: single-shot vs queue mode ----------
     # if (!continue) {
@@ -854,6 +884,12 @@ experimentTmux <- function(df,
     )
     if (inTmux) {
       if (is_remote && pane_mode == "killAndNewPane") {
+        # Setup preamble: first pane per unique host runs .setup_remote_machine()
+        # and writes a flag; subsequent panes for the same host wait for it.
+        first_for_host <- !cores_full[i] %in% setup_assigned
+        if (first_for_host) setup_assigned <- c(setup_assigned, cores_full[i])
+        setup_pre <- paste0(setup_bash_for(cores_full[i], first_for_host), " && ")
+
         # Bash while-loop: first run includes pre_sleep for staggering; subsequent
         # runs skip it (jobs finish at different times so staggering is not needed).
         first_expr <- if (pre_sleep > 0)
@@ -863,7 +899,8 @@ experimentTmux <- function(df,
         rscript_loop  <- sprintf("Rscript -e %s", shQuote(payload))
         # No -t: Rscript is non-interactive; -t allocates a pseudo-TTY which
         # makes R think it's interactive (auto-prints values, garbles exit status).
-        bash_cmd <- sprintf("ssh %s %s && while ssh %s %s; do :; done",
+        bash_cmd <- sprintf("%sssh %s %s && while ssh %s %s; do :; done",
+                            setup_pre,
                             cores_full[i], shQuote(rscript_first),
                             cores_full[i], shQuote(rscript_loop))
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
@@ -1239,6 +1276,12 @@ tmux_kill_panes <- function(panes) {
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
   )
+}
+
+#' @keywords internal
+#' @noRd
+.setup_flag_path <- function(host) {
+  file.path(tempdir(), paste0(".spades_ready_", gsub("[^a-zA-Z0-9]", "_", host)))
 }
 
 #' @keywords internal
