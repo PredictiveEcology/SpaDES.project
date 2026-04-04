@@ -114,17 +114,32 @@ tmux_set_mouse <- function(on = TRUE) {
   # 4. Install usethis
   .ssh_r("Require::Install('usethis')")
 
-  # 5. Check git credentials
-  creds_out <- trimws(paste(collapse = "",
-    .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error = function(e) cat('none'))",
-           intern = TRUE)))
-
-  if (!grepl("ok", creds_out, fixed = TRUE))
-    stop(
-      "No GitHub credentials found on '", host, "'. ",
-      "On that machine run: usethis::create_github_token() then gitcreds::gitcreds_set()",
-      call. = FALSE
+  # 5. Propagate GitHub credentials from localhost to remote.
+  # Read the local token and pipe it into `git credential approve` on the remote
+  # so the remote can clone/install from GitHub without interactive setup.
+  local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
+  if (!is.null(local_creds)) {
+    cred_input <- paste0(
+      "protocol=https\n",
+      "host=github.com\n",
+      "username=", local_creds$username, "\n",
+      "password=", local_creds$password, "\n"
     )
+    message("  Propagating GitHub credentials to ", host)
+    system2("ssh", c(host, "git credential approve"),
+            input = strsplit(cred_input, "\n")[[1]])
+  } else {
+    # Fall back to checking whether the remote already has credentials
+    creds_out <- trimws(paste(collapse = "",
+      .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error=function(e) cat('none'))",
+             intern = TRUE)))
+    if (!grepl("ok", creds_out, fixed = TRUE))
+      stop(
+        "No GitHub credentials found locally or on '", host, "'. ",
+        "Run: usethis::create_github_token() then gitcreds::gitcreds_set()",
+        call. = FALSE
+      )
+  }
 
   # 6. Install system libraries required by spatial R packages (terra, sf, etc.).
   #    Binary R packages from r2u/PPM are compiled against specific versions of
