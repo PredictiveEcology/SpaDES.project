@@ -1868,7 +1868,7 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
   startedFiles <- dir(activeRunningPath, pattern = pattern, ignore.case = TRUE)
   if (length(startedFiles)) {
     startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
-    if (missing(runName) || is.null(runName) || !nzchar(runName)) {
+    if (missing(runName) || is.null(runName) || all(!nzchar(runName))) {
       wh <- seq(NROW(startedFiles))
     } else {
       wh <- which(startedFilesELFind == runName)
