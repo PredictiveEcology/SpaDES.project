@@ -30,7 +30,8 @@ tmux_set_mouse <- function(on = TRUE) {
 # ------------------------------------------------------------------
 # Internal helper: prepare a remote machine before launching a worker
 # ------------------------------------------------------------------
-.setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL) {
+.setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL,
+                                   cache_path = NULL) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
@@ -221,7 +222,9 @@ tmux_set_mouse <- function(on = TRUE) {
   }
 
   # 11. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
-  gargle_cache <- getOption("gargle_oauth_cache")
+  # Use the explicitly-passed cache_path first (must match what the worker uses),
+  # falling back to getOption("gargle_oauth_cache") if not supplied.
+  gargle_cache <- if (!is.null(cache_path)) cache_path else getOption("gargle_oauth_cache")
   if (!is.null(gargle_cache) && !isFALSE(gargle_cache)) {
     gargle_cache <- normalizePath(gargle_cache, mustWork = FALSE)
     if (dir.exists(gargle_cache)) {
@@ -772,12 +775,13 @@ experimentTmux <- function(df,
     setup_assigned <- character(0)
     setup_expr_for <- function(host) {
       sprintf(
-        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s)",
+        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s)",
         deparse1(host),
         deparse1(normalizePath(global_path, mustWork = FALSE)),
         deparse1(normalizePath(queue_path,  mustWork = FALSE)),
         deparse1(if (!is.null(dots_path) && file.exists(dots_path))
-                   normalizePath(dots_path) else NULL)
+                   normalizePath(dots_path) else NULL),
+        deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL)
       )
     }
     # bash snippet: run setup and write flag, or wait for flag (600s timeout)
