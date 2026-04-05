@@ -142,16 +142,29 @@ tmux_set_mouse <- function(on = TRUE) {
       )
   }
 
-  # 6. Install system libraries required by spatial R packages (terra, sf, etc.).
-  #    Binary R packages from r2u/PPM are compiled against specific versions of
-  #    libgdal, libgeos, libproj — those runtime libs must exist on the remote.
-  sys_pkgs <- "libgdal-dev libgeos-dev libproj-dev libsqlite3-dev libudunits2-dev"
-  message("  Installing system spatial libraries on ", host,
-          "\n  (if this fails, run on ", host, ": ",
+  # 6. Install system libraries required by R packages that compile from source.
+  #    Covers: spatial (terra/sf), HTTP (curl/httr), XML, archive, git, fonts, graphics.
+  sys_pkgs <- paste(
+    "libgdal-dev libgeos-dev libproj-dev libsqlite3-dev libudunits2-dev",  # spatial
+    "libssl-dev libcurl4-openssl-dev libxml2-dev",                          # curl/httr/xml2
+    "libarchive-dev",                                                        # archive pkg
+    "libgit2-dev",                                                           # gert/git2r
+    "libfontconfig1-dev libharfbuzz-dev libfribidi-dev",                    # textshaping/ragg
+    "libpng-dev libjpeg-dev libtiff-dev",                                   # graphics devices
+    "libfreetype6-dev",                                                      # freetypeharfbuzz
+    "r-base-dev"                                                             # R compilation headers
+  )
+  message("  Installing system libraries on ", host,
+          "\n  (if this fails, configure passwordless sudo on ", host,
+          " for apt-get, or run manually: ",
           "sudo apt-get install -y --no-install-recommends ", sys_pkgs, ")")
+  # sudo -n: non-interactive (fails immediately if password required, no hang).
+  # || true so a missing sudo/password doesn't abort the whole setup.
   system2("ssh", c(host, paste0(
-    "DEBIAN_FRONTEND=noninteractive sudo apt-get install -y --no-install-recommends ",
-    sys_pkgs
+    "DEBIAN_FRONTEND=noninteractive sudo -n apt-get install -y --no-install-recommends ",
+    sys_pkgs,
+    " || echo 'NOTE: sudo apt-get failed on ", host,
+    " -- passwordless sudo may be needed; continuing anyway'"
   )))
 
   # 8. Ensure remote lib path exists (must match localhost so installed paths are identical).
@@ -198,19 +211,20 @@ tmux_set_mouse <- function(on = TRUE) {
   bin_pkgs  <- setdiff(all_pkgs, src_pkgs)
   if (length(src_pkgs) > 0L) {
     message("  Compiling from source on ", host, ": ", paste(src_pkgs, collapse = ", "))
-    .ssh_r(paste0("Require::Install(", deparse1(src_pkgs), ", type = 'source')"))
+    .ssh_r(paste0("Require::Install(", deparse1(src_pkgs),
+                  ", libPaths = .libPaths()[1L], type = 'source')"))
   }
   message("  Installing ", length(bin_pkgs), " dependency packages on ", host)
-  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(bin_pkgs), ")"))
+  # libPaths = .libPaths()[1L]: restrict search + install target to local_lib only,
+  # so system-lib packages (e.g. purrr 1.0.4) do not masquerade as up-to-date.
+  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(bin_pkgs),
+                ", libPaths = .libPaths()[1L])"))
 
   # 10. Rsync Require package binary cache to speed up future installations on remote.
   local_cache <- Require::cachePkgDir()
   if (nzchar(local_cache) && dir.exists(local_cache)) {
     message("  Ensuring remote Require cache exists: ", local_cache)
-    system2("ssh", c(host, paste0(
-      "R_REQUIRE_CACHE=", shQuote(local_cache),
-      " Rscript -e ", shQuote("Require::cachePkgDir(create=TRUE)")
-    )))
+    system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_cache))))
     message("  rsyncing Require package cache to ", host, ":", local_cache)
     cache_rsync_ret <- system(paste0(
       "rsync -a ",
