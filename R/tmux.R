@@ -219,8 +219,19 @@ tmux_set_mouse <- function(on = TRUE) {
                   ", libPaths = .libPaths()[1L], type = 'source')"))
   }
   message("  Installing ", length(bin_pkgs), " dependency packages on ", host)
-  # libPaths = .libPaths()[1L]: restrict search + install target to local_lib only,
-  # so system-lib packages (e.g. purrr 1.0.4) do not masquerade as up-to-date.
+  # Pre-install packages whose system-lib versions are commonly too old to satisfy
+  # transitive version requirements during compilation.  Require::Install searches
+  # all .libPaths() when deciding what is "already installed", so without explicit
+  # version constraints it would see purrr 1.0.4 in the system lib and skip it —
+  # then furrr's R CMD INSTALL subprocess would find the wrong purrr.
+  # By stating the minimum required version, Require is forced to install a
+  # qualifying version to local_lib before the main batch install runs.
+  .ssh_r(paste0(
+    "Require::setLinuxBinaryRepo(); ",
+    "Require::Install(",
+    "c('purrr (>= 1.2.1)', 'rlang (>= 1.1.7)', 'cli (>= 3.6.0)', 'vctrs (>= 0.6.0)'),",
+    " libPaths = .libPaths()[1L])"
+  ))
   .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(bin_pkgs),
                 ", libPaths = .libPaths()[1L])"))
 
