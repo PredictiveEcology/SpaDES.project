@@ -1056,7 +1056,17 @@ runNextWorker <- function(queue_path, global_path,
     outcome <- tryCatch({
       source(global_path, local = .GlobalEnv)
       "ok"
-    }, interrupt = function(e) "interrupt")
+    }, interrupt = function(e) "interrupt",
+       error = function(e) {
+         # Update GS before re-throwing so the sheet reflects the crash.
+         # stop(e) re-signals the original error; the outer debug tryCatch in
+         # the bash wrapper catches it and keeps R interactive for debugging.
+         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+         try(.gs_write_cells(ss_id, sheet_row,
+                             updates       = list(status = txtInterrupted, finished_at = now),
+                             col_positions = col_pos), silent = TRUE)
+         stop(e)
+       })
 
     # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
 
@@ -1160,7 +1170,21 @@ runNextWorker <- function(queue_path, global_path,
   outcome <- tryCatch({
     source(global_path, local = .GlobalEnv)
     "ok"
-  }, interrupt = function(e) "interrupt")
+  }, interrupt = function(e) "interrupt",
+     error = function(e) {
+       # Update file queue before re-throwing.
+       lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
+       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
+         try({
+           q2 <- readRDS(queue_path)
+           q2$status[i]      <- txtInterrupted
+           q2$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+           saveRDS(q2, queue_path)
+         }, silent = TRUE)
+         try(filelock::unlock(lck2), silent = TRUE)
+       }
+       stop(e)
+     })
 
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
