@@ -938,33 +938,36 @@ experimentTmux <- function(df,
         first_expr <- if (pre_sleep > 0)
           sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
         else payload
-        # Wrap payload so errors drop to an interactive R prompt instead of
-        # quitting.  On success runWorkerLoop() calls quit(status=0/1) directly,
-        # bypassing the tryCatch.  With ssh -t, the allocated pseudo-TTY keeps R
-        # alive when the error handler returns; the user can debug and then call
-        # q(status=0L) to restart the loop or q(status=1L) to stop it.
-        # All strings use double quotes so the expression is single-quote-free.
-        # shQuote() wraps in '...'; if expr already has single quotes the
-        # resulting '"'"' escapes get double-escaped by the outer shQuote(r_first),
-        # mangling the -e argument so R starts with no expression.
-        .wrap_debug <- function(expr)
-          sprintf(paste0(
-            "tryCatch({%s},",
-            " error = function(.e) {",
-            " message(\"\\n!! Worker error on \", Sys.info()[[\"nodename\"]], \":\\n\",",
-            " conditionMessage(.e),",
-            " \"\\n-- Interactive R session open for debugging.\",",
-            " \"\\n-- q(status=0L) to restart loop | q(status=1L) to stop loop\")})"
-          ), expr)
-        r_first <- sprintf("R --no-save --no-restore --interactive -e %s", shQuote(.wrap_debug(first_expr)))
-        r_loop  <- sprintf("R --no-save --no-restore --interactive -e %s", shQuote(.wrap_debug(payload)))
-        # -t allocates a pseudo-TTY so R stays interactive after the tryCatch
-        # error handler runs.  Unlike plain Rscript, `R --no-save --no-restore`
-        # gives a prompt when stdin is a TTY and the session has not called quit().
-        bash_cmd <- sprintf("%sssh -t %s %s && while ssh -t %s %s; do :; done",
-                            setup_pre,
-                            cores_full[i], shQuote(r_first),
-                            cores_full[i], shQuote(r_loop))
+
+        # Write payloads to local temp files and scp them to the remote.
+        # Avoids all shell-quoting of the R expression: -e 'expr' requires two
+        # levels of shQuote (one for -e, one for ssh) which double-escapes single
+        # quotes and mangles the argument.  --file=path has no quoting issues
+        # because the path never contains special characters.
+        # R --interactive --file=path: on error, R's top-level handler prints
+        # the error and leaves an interactive prompt (ssh -t provides the TTY).
+        # On success, runWorkerLoop() calls quit(status=0/1) directly.
+        first_script  <- tempfile(fileext = ".R")
+        writeLines(first_expr, first_script)
+        remote_first  <- paste0("/tmp/", basename(first_script))
+        if (pre_sleep > 0) {
+          loop_script <- tempfile(fileext = ".R")
+          writeLines(payload, loop_script)
+          remote_loop <- paste0("/tmp/", basename(loop_script))
+          scp_pre     <- sprintf("scp -q %s %s:%s && scp -q %s %s:%s",
+                                 shQuote(first_script), cores_full[i], remote_first,
+                                 shQuote(loop_script),  cores_full[i], remote_loop)
+        } else {
+          remote_loop <- remote_first
+          scp_pre     <- sprintf("scp -q %s %s:%s",
+                                 shQuote(first_script), cores_full[i], remote_first)
+        }
+        r_run <- function(rpath)
+          sprintf("ssh -t %s R --no-save --no-restore --interactive --file=%s",
+                  cores_full[i], rpath)
+        bash_cmd <- sprintf("%s%s && %s && while %s; do :; done",
+                            setup_pre, scp_pre,
+                            r_run(remote_first), r_run(remote_loop))
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
       } else {
         code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
