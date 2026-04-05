@@ -927,14 +927,29 @@ experimentTmux <- function(df,
         first_expr <- if (pre_sleep > 0)
           sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
         else payload
-        rscript_first <- sprintf("Rscript -e %s", shQuote(first_expr))
-        rscript_loop  <- sprintf("Rscript -e %s", shQuote(payload))
-        # No -t: Rscript is non-interactive; -t allocates a pseudo-TTY which
-        # makes R think it's interactive (auto-prints values, garbles exit status).
-        bash_cmd <- sprintf("%sssh %s %s && while ssh %s %s; do :; done",
+        # Wrap payload so errors drop to an interactive R prompt instead of
+        # quitting.  On success runWorkerLoop() calls quit(status=0/1) directly,
+        # bypassing the tryCatch.  With ssh -t, the allocated pseudo-TTY keeps R
+        # alive when the error handler returns; the user can debug and then call
+        # q(status=0L) to restart the loop or q(status=1L) to stop it.
+        .wrap_debug <- function(expr)
+          sprintf(paste0(
+            "tryCatch({%s},",
+            " error = function(.e) {",
+            " message('\\n!! Worker error on ', Sys.info()[['nodename']], ':\\n',",
+            " conditionMessage(.e),",
+            " '\\n-- Interactive R session open for debugging.',",
+            " '\\n-- q(status=0L) to restart loop | q(status=1L) to stop loop')})"
+          ), expr)
+        r_first <- sprintf("R --no-save --no-restore -e %s", shQuote(.wrap_debug(first_expr)))
+        r_loop  <- sprintf("R --no-save --no-restore -e %s", shQuote(.wrap_debug(payload)))
+        # -t allocates a pseudo-TTY so R stays interactive after the tryCatch
+        # error handler runs.  Unlike plain Rscript, `R --no-save --no-restore`
+        # gives a prompt when stdin is a TTY and the session has not called quit().
+        bash_cmd <- sprintf("%sssh -t %s %s && while ssh -t %s %s; do :; done",
                             setup_pre,
-                            cores_full[i], shQuote(rscript_first),
-                            cores_full[i], shQuote(rscript_loop))
+                            cores_full[i], shQuote(r_first),
+                            cores_full[i], shQuote(r_loop))
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
       } else {
         code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
