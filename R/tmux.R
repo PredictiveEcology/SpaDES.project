@@ -81,14 +81,18 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("scp of extra_args_path to '", host, "' failed.", call. = FALSE)
   }
 
-  # 2. Persist repos option in ~/.Rprofile on remote so all R sessions (including
-  #    worker loops) use the same repositories as localhost.
-  repos_line <- paste0("options(repos = ", deparse1(install_repos), ")")
+  # 2. Persist repos and .libPaths() in ~/.Rprofile on remote.
+  #    ~/.Rprofile runs at R startup before any packages load, so this ensures
+  #    local_lib is first in .libPaths() from the very first namespace lookup —
+  #    preventing system-lib packages (e.g. purrr 1.0.4) from loading ahead of
+  #    the project versions.
+  repos_line   <- paste0("options(repos = ", deparse1(install_repos), ")")
+  libpath_line <- paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))")
   .ssh_r(paste0(
     "rprof <- path.expand('~/.Rprofile'); ",
     "existing <- if (file.exists(rprof)) readLines(rprof, warn = FALSE) else character(0); ",
-    "existing <- existing[!grepl('^options\\\\(repos', existing)]; ",
-    "writeLines(c(existing, ", deparse1(repos_line), "), rprof)"
+    "existing <- existing[!grepl('^options\\\\(repos|^\\\\.libPaths\\\\(', existing)]; ",
+    "writeLines(c(existing, ", deparse1(libpath_line), ", ", deparse1(repos_line), "), rprof)"
   ))
 
   # 3. Verify Require matches local installation (version + source)
