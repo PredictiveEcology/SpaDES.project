@@ -943,14 +943,18 @@ experimentTmux <- function(df,
         # bypassing the tryCatch.  With ssh -t, the allocated pseudo-TTY keeps R
         # alive when the error handler returns; the user can debug and then call
         # q(status=0L) to restart the loop or q(status=1L) to stop it.
+        # All strings use double quotes so the expression is single-quote-free.
+        # shQuote() wraps in '...'; if expr already has single quotes the
+        # resulting '"'"' escapes get double-escaped by the outer shQuote(r_first),
+        # mangling the -e argument so R starts with no expression.
         .wrap_debug <- function(expr)
           sprintf(paste0(
             "tryCatch({%s},",
             " error = function(.e) {",
-            " message('\\n!! Worker error on ', Sys.info()[['nodename']], ':\\n',",
+            " message(\"\\n!! Worker error on \", Sys.info()[[\"nodename\"]], \":\\n\",",
             " conditionMessage(.e),",
-            " '\\n-- Interactive R session open for debugging.',",
-            " '\\n-- q(status=0L) to restart loop | q(status=1L) to stop loop')})"
+            " \"\\n-- Interactive R session open for debugging.\",",
+            " \"\\n-- q(status=0L) to restart loop | q(status=1L) to stop loop\")})"
           ), expr)
         r_first <- sprintf("R --no-save --no-restore --interactive -e %s", shQuote(.wrap_debug(first_expr)))
         r_loop  <- sprintf("R --no-save --no-restore --interactive -e %s", shQuote(.wrap_debug(payload)))
@@ -1360,7 +1364,7 @@ tmux_kill_panes <- function(panes) {
     paste0("%s%s%sSpaDES.project::runWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
-           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s); quit(save='no')"),
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s); quit(save=\"no\")"),
     lib_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
