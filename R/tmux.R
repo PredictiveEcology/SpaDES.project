@@ -962,8 +962,14 @@ experimentTmux <- function(df,
           scp_pre     <- sprintf("scp -q %s %s:%s",
                                  shQuote(first_script), cores_full[i], remote_first)
         }
+        # R_PROFILE_USER=script.R R --interactive: R sources the script as the
+        # user profile at startup (inside a tryCatch that catches errors and
+        # lets R continue).  On error, session stays alive at '>'.
+        # On success, runWorkerLoop() calls quit(status=0/1) which exits R even
+        # from within the profile tryCatch.  --file= and -e both get overridden
+        # by --interactive so this is the only reliable approach.
         r_run <- function(rpath)
-          sprintf("ssh -t %s R --no-save --no-restore --interactive --file=%s",
+          sprintf("ssh -t %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
                   cores_full[i], rpath)
         bash_cmd <- sprintf("%s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
