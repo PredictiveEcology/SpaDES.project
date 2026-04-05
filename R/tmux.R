@@ -941,8 +941,8 @@ experimentTmux <- function(df,
             " '\\n-- Interactive R session open for debugging.',",
             " '\\n-- q(status=0L) to restart loop | q(status=1L) to stop loop')})"
           ), expr)
-        r_first <- sprintf("R --no-save --no-restore -e %s", shQuote(.wrap_debug(first_expr)))
-        r_loop  <- sprintf("R --no-save --no-restore -e %s", shQuote(.wrap_debug(payload)))
+        r_first <- sprintf("R --no-save --no-restore --interactive -e %s", shQuote(.wrap_debug(first_expr)))
+        r_loop  <- sprintf("R --no-save --no-restore --interactive -e %s", shQuote(.wrap_debug(payload)))
         # -t allocates a pseudo-TTY so R stays interactive after the tryCatch
         # error handler runs.  Unlike plain Rscript, `R --no-save --no-restore`
         # gives a prompt when stdin is a TTY and the session has not called quit().
