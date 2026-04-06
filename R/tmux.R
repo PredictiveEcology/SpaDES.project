@@ -1031,6 +1031,7 @@ experimentTmux <- function(df,
         bash_cmd <- sprintf("%s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
+        .tmux_run("select-pane", "-t", worker_ids[i], "-T", cores_full[i])
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
       } else {
         code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
