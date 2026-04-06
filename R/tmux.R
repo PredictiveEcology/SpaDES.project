@@ -1381,6 +1381,8 @@ runWorkerLoop <- function(queue_path, global_path,
     }
     # Exit with status 0 (job ran → remote bash while-loop should continue)
     # or status 1 (queue empty / failed → bash while-loop stops).
+    if (!should_continue)
+      message("\nWorker stopping: res=", res, " (queue empty or interrupt+fail). Exiting.")
     quit(save = "no", status = if (should_continue) 0L else 1L)
   }
 
