@@ -965,15 +965,44 @@ experimentTmux <- function(df,
         # can press up-arrow to re-run and can see what was executed.
         # deparse1() produces a valid R string literal (internal " escaped as \")
         # so the payload is safely embedded without further quoting.
+        # Build a multi-line R script that:
+        #  1. Loads the main call into readline history (up-arrow to re-run)
+        #  2. Echoes the call so it is visible
+        #  3. Wraps execution in tryCatch + withCallingHandlers so that:
+        #     - withCallingHandlers captures sys.calls() (full stack) before
+        #       the inner GS-update handler in runNextWorker runs
+        #     - tryCatch catches the propagated error, prints it + traceback,
+        #       and returns normally so R stays alive at '>' for debugging
+        #     - On success, runWorkerLoop() calls quit() which exits R even
+        #       from within tryCatch (quit is not an error condition)
+        # R_PROFILE_USER silently swallows errors that reach its startup
+        # tryCatch, so we MUST catch and display here rather than rely on
+        # R's top-level handler.
         .make_script <- function(expr) {
-          c(sprintf(paste0(
-              "local({.h <- tempfile();",
-              " writeLines(%s, .h);",
-              " try(utils::loadhistory(.h), silent = TRUE);",
-              " try(file.remove(.h), silent = TRUE)})"),
-            deparse1(expr)),
-            sprintf("message('Re-runnable call (up-arrow): ', %s)", deparse1(expr)),
-            expr)
+          c(
+            paste0(".wc <- ", deparse1(expr)),
+            "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE)})",
+            'message("\\nWorker call (up-arrow to re-run):\\n", .wc, "\\n")',
+            ".spades_tb <- NULL",
+            "tryCatch(",
+            "  withCallingHandlers({",
+            paste0("    ", expr),
+            "  }, error = function(.e) {",
+            "    .spades_tb <<- sys.calls()",
+            "  }),",
+            "  error = function(.e) {",
+            '    message("\\n!! Worker error on ", Sys.info()[["nodename"]], ":\\n", conditionMessage(.e))',
+            "    if (!is.null(.spades_tb)) {",
+            '      message("\\nFull traceback (innermost call first):")',
+            "      for (.i in rev(seq_along(.spades_tb)))",
+            "        try(message(sprintf('  %d: %s', .i,",
+            "            paste(deparse(.spades_tb[[.i]], nlines = 1L), collapse = ' '))),",
+            "            silent = TRUE)",
+            "    }",
+            '    message("\\nType q(status=0L) to restart loop | q(status=1L) to stop.")',
+            "  }",
+            ")"
+          )
         }
         first_script  <- tempfile(fileext = ".R")
         writeLines(.make_script(first_expr), first_script)
