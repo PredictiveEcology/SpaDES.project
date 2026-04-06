@@ -980,8 +980,12 @@ experimentTmux <- function(df,
         # R's top-level handler.
         .make_script <- function(expr) {
           c(
+            # Source ~/.Rprofile so repos, libPaths, and user settings are
+            # available (R_PROFILE_USER replaces ~/.Rprofile, not supplements it).
+            'local({.rp <- path.expand("~/.Rprofile"); if (file.exists(.rp)) source(.rp)})',
             paste0(".wc <- ", deparse1(expr)),
-            "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE)})",
+            # invisible(NULL) prevents file.remove()'s TRUE return from auto-printing
+            "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
             'message("\\nWorker call (up-arrow to re-run):\\n", .wc, "\\n")',
             ".spades_tb <- NULL",
             "tryCatch(",
