@@ -81,6 +81,20 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("scp of extra_args_path to '", host, "' failed.", call. = FALSE)
   }
 
+  # 1b. Rsync the project R/ folder (user-defined functions sourced by global.R).
+  #     Use rsync --delete so removals on localhost propagate to remote.
+  local_r_dir <- file.path(dirname(normalizePath(global_path)), "R")
+  if (dir.exists(local_r_dir)) {
+    message("  rsyncing R/ folder to ", host, ":", remote_dir, "/R/")
+    rsync_r_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(local_r_dir, "/")),
+      " ", host, ":", file.path(remote_dir, "R"), "/"
+    ))
+    if (rsync_r_ret != 0L)
+      warning("rsync of R/ folder to '", host, "' failed.", call. = FALSE)
+  }
+
   # 2. Persist repos and .libPaths() in ~/.Rprofile on remote.
   #    ~/.Rprofile runs at R startup before any packages load, so this ensures
   #    local_lib is first in .libPaths() from the very first namespace lookup —
