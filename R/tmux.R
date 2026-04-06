@@ -947,12 +947,26 @@ experimentTmux <- function(df,
         # R --interactive --file=path: on error, R's top-level handler prints
         # the error and leaves an interactive prompt (ssh -t provides the TTY).
         # On success, runWorkerLoop() calls quit(status=0/1) directly.
+        # Prepend readline-history and echo lines so after an error the user
+        # can press up-arrow to re-run and can see what was executed.
+        # deparse1() produces a valid R string literal (internal " escaped as \")
+        # so the payload is safely embedded without further quoting.
+        .make_script <- function(expr) {
+          c(sprintf(paste0(
+              "local({.h <- tempfile();",
+              " writeLines(%s, .h);",
+              " try(utils::loadhistory(.h), silent = TRUE);",
+              " try(file.remove(.h), silent = TRUE)})"),
+            deparse1(expr)),
+            sprintf("message('Re-runnable call (up-arrow): ', %s)", deparse1(expr)),
+            expr)
+        }
         first_script  <- tempfile(fileext = ".R")
-        writeLines(first_expr, first_script)
+        writeLines(.make_script(first_expr), first_script)
         remote_first  <- paste0("/tmp/", basename(first_script))
         if (pre_sleep > 0) {
           loop_script <- tempfile(fileext = ".R")
-          writeLines(payload, loop_script)
+          writeLines(.make_script(payload), loop_script)
           remote_loop <- paste0("/tmp/", basename(loop_script))
           scp_pre     <- sprintf("scp -q %s %s:%s && scp -q %s %s:%s",
                                  shQuote(first_script), cores_full[i], remote_first,
