@@ -1031,7 +1031,16 @@ experimentTmux <- function(df,
         bash_cmd <- sprintf("%s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
-        .tmux_run("select-pane", "-t", worker_ids[i], "-T", cores_full[i])
+        remote_node <- tryCatch(
+          trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE,
+                         stderr = FALSE)[1L]),
+          error = function(e) ""
+        )
+        pane_title <- if (nzchar(remote_node) && remote_node != cores_full[i])
+          paste0(cores_full[i], "-", remote_node)
+        else
+          cores_full[i]
+        .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title)
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
       } else {
         code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
