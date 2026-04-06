@@ -767,7 +767,7 @@ experimentTmux <- function(df,
       # MANDATORY: Reset layout immediately so the next split has room
       .tmux_run("select-layout", "-t", target_win, "tiled")
       # was 
-      Sys.sleep(2)
+      Sys.sleep(1)
       #Sys.sleep(0.1)
     }
     
@@ -1091,20 +1091,24 @@ runNextWorker <- function(queue_path, global_path,
       }), silent = TRUE)
     }
 
-    outcome <- tryCatch({
-      source(global_path, local = .GlobalEnv)
-      "ok"
-    }, interrupt = function(e) "interrupt",
-       error = function(e) {
-         # Update GS before re-throwing so the sheet reflects the crash.
-         # stop(e) re-signals the original error; the outer debug tryCatch in
-         # the bash wrapper catches it and keeps R interactive for debugging.
-         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-         try(.gs_write_cells(ss_id, sheet_row,
-                             updates       = list(status = txtInterrupted, finished_at = now),
-                             col_positions = col_pos), silent = TRUE)
-         stop(e)
-       })
+    # withCallingHandlers runs the error handler WITHOUT unwinding the call
+    # stack, so traceback() shows the full chain inside source(global_path).
+    # After the handler returns, the error propagates naturally to R's
+    # top-level handler (interactive session stays alive).
+    # tryCatch(interrupt=) wraps the outside so interrupts are still caught.
+    outcome <- tryCatch(
+      withCallingHandlers({
+        source(global_path, local = .GlobalEnv)
+        "ok"
+      }, error = function(e) {
+        now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        try(.gs_write_cells(ss_id, sheet_row,
+                            updates       = list(status = txtInterrupted, finished_at = now),
+                            col_positions = col_pos), silent = TRUE)
+        # Return NULL; error continues propagating — call stack preserved.
+      }),
+      interrupt = function(e) "interrupt"
+    )
 
     # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
 
@@ -1205,24 +1209,25 @@ runNextWorker <- function(queue_path, global_path,
     }), silent = TRUE)
   }
 
-  outcome <- tryCatch({
-    source(global_path, local = .GlobalEnv)
-    "ok"
-  }, interrupt = function(e) "interrupt",
-     error = function(e) {
-       # Update file queue before re-throwing.
-       lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
-       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
-         try({
-           q2 <- readRDS(queue_path)
-           q2$status[i]      <- txtInterrupted
-           q2$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-           saveRDS(q2, queue_path)
-         }, silent = TRUE)
-         try(filelock::unlock(lck2), silent = TRUE)
-       }
-       stop(e)
-     })
+  outcome <- tryCatch(
+    withCallingHandlers({
+      source(global_path, local = .GlobalEnv)
+      "ok"
+    }, error = function(e) {
+      lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
+      if (!inherits(lck2, "try-error") && !is.null(lck2)) {
+        try({
+          q2 <- readRDS(queue_path)
+          q2$status[i]      <- txtInterrupted
+          q2$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          saveRDS(q2, queue_path)
+        }, silent = TRUE)
+        try(filelock::unlock(lck2), silent = TRUE)
+      }
+      # Return NULL; error propagates with call stack intact.
+    }),
+    interrupt = function(e) "interrupt"
+  )
 
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
