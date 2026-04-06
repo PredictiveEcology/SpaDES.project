@@ -1379,11 +1379,17 @@ runWorkerLoop <- function(queue_path, global_path,
                              )))
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
-    # Exit with status 0 (job ran → remote bash while-loop should continue)
-    # or status 1 (queue empty / failed → bash while-loop stops).
-    if (!should_continue)
-      message("\nWorker stopping: res=", res, " (queue empty or interrupt+fail). Exiting.")
-    quit(save = "no", status = if (should_continue) 0L else 1L)
+    if (should_continue) {
+      # Job ran OK → exit 0 so the remote bash while-loop restarts for the next job.
+      quit(save = "no", status = 0L)
+    } else {
+      # Queue empty or interrupt+fail: stay interactive so the user can debug.
+      # R returns to '>' — the SSH connection (and tmux pane) stays alive.
+      # Type q(status=0L) to let the while-loop restart, q(status=1L) to stop.
+      message("\nWorker idle: res=", res,
+              "\n  q(status=0L) to retry  |  q(status=1L) to stop the loop")
+      return(invisible(res))
+    }
   }
 
   # ------------------------------------------------------------------
@@ -1447,7 +1453,7 @@ tmux_kill_panes <- function(panes) {
     paste0("%s%s%sSpaDES.project::runWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
-           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s); quit(save=\"no\")"),
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
     lib_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
