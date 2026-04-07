@@ -1028,7 +1028,12 @@ experimentTmux <- function(df,
         r_run <- function(rpath)
           sprintf("ssh -t %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
                   cores_full[i], rpath)
-        bash_cmd <- sprintf("%s%s && %s && while %s; do :; done",
+        # trap '' INT: local bash ignores SIGINT so Ctrl-C doesn't kill the SSH
+        # process.  The ^C byte still travels through the PTY to the remote R
+        # session, where R handles it as an interrupt (returns to '>').
+        # Without this, tmux's PTY generates SIGINT for the local process group,
+        # SSH exits, and R gets SIGHUP ("Execution halted").
+        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
