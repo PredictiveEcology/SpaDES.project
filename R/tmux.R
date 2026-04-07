@@ -97,15 +97,19 @@ tmux_set_mouse <- function(on = TRUE) {
     "  be <- path.expand(be);",
     "  if (!file.exists(be)) return(invisible(NULL));",
     "  lines <- readLines(be, warn = FALSE);",
-    "  if (any(grepl('spades_guard', lines, fixed = TRUE))) return(invisible(NULL));",
+    # Already has the subshell wrapper — nothing to do.
+    "  if (any(grepl('spades_guard_v2', lines, fixed = TRUE))) return(invisible(NULL));",
+    # Strip the old v1 'set +e' prepend if present (same spades_guard tag,
+    # different approach — replace it with the subshell wrapper below).
+    "  lines <- lines[!grepl('spades_guard', lines, fixed = TRUE)];",
     "  wrapped <- c(",
-    "    '# spades_guard: original content wrapped in subshell so exit/failures cannot abort outer bash',",
+    "    '# spades_guard_v2: original content wrapped in subshell so exit/failures cannot abort outer bash',",
     "    'set +e',",
     "    '(',",
     "    lines,",
     "    ') 2>/dev/null || true');",
     "  writeLines(wrapped, be);",
-    "  message('  Wrapped BASH_ENV in subshell guard: ', be)",
+    "  message('  Wrapped BASH_ENV in subshell guard (v2): ', be)",
     "})"
   ))
 
