@@ -968,8 +968,20 @@ experimentTmux <- function(df,
             paste0(".wc <- ", deparse1(expr)),
             # invisible(NULL) prevents file.remove()'s TRUE return from auto-printing
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
-            # Visual separator so session boundaries are obvious in the pane
-            'message("\\n", strrep("-", 60), "\\n[", format(Sys.time(), "%H:%M:%S"), "] New worker session")',
+            # Visual separator + PID so session boundaries and process identity
+            # are obvious in the pane.
+            # OSC 2 escape updates the tmux pane title via the PTY; works when
+            # tmux option 'allow-passthrough' or 'set-titles' is on.
+            "local({",
+            "  .node  <- Sys.info()[[\"nodename\"]]",
+            "  .pid   <- Sys.getpid()",
+            "  .title <- paste0(.node, \"-\", .pid)",
+            "  # Attempt to update the tmux pane title via terminal escape sequence",
+            "  cat(sprintf(\"\\033]2;%s\\007\", .title))",
+            "  message(\"\\n\", strrep(\"-\", 60))",
+            "  message(\"[\", format(Sys.time(), \"%H:%M:%S\"), \"] New worker session\",",
+            "          \"  node: \", .node, \"  PID: \", .pid)",
+            "})",
             'message("\\nWorker call (up-arrow to re-run):\\n", .wc, "\\n")',
             ".spades_tb <- NULL",
             "tryCatch(",
