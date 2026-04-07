@@ -1024,12 +1024,17 @@ experimentTmux <- function(df,
 
         # Use R_PROFILE_USER=path R (bash variable-prefix syntax) rather than
         # "env R_PROFILE_USER=path R" to avoid ambiguity when env is called
-        # with no trailing command.  Use plain "bash -c" (no --login) to
-        # avoid running remote login scripts (/etc/profile.d/, ~/.bash_profile)
-        # which can have side-effects (e.g. sleep calls with unset variables).
-        # SSL cert paths (CURL_CA_BUNDLE / SSL_CERT_FILE) are now written to
+        # with no trailing command.
+        # Use "bash --login --noprofile -c":
+        #   --login   : makes bash act as a login shell, which means it does
+        #               NOT check $BASH_ENV (plain "bash -c" checks BASH_ENV,
+        #               and if BASH_ENV points to a script with "sleep $UNSET"
+        #               that causes "sleep: missing operand" on the remote).
+        #   --noprofile: suppresses sourcing of /etc/profile, ~/.bash_profile
+        #               etc., avoiding login-script side-effects.
+        # SSL cert paths (CURL_CA_BUNDLE / SSL_CERT_FILE) are written to
         # ~/.Rprofile on the remote during .setup_remote_machine() so libcurl
-        # finds them without needing a login shell.
+        # finds CA certs without needing login-profile scripts.
         # sleep N (bash level, not Sys.sleep in R) keeps R from starting
         # until the stagger delay is done; trap '' INT prevents Ctrl-C from
         # killing the local SSH process (^C still reaches remote R via PTY).
@@ -1037,7 +1042,7 @@ experimentTmux <- function(df,
           inner <- sprintf("R_PROFILE_USER=%s R --no-save --no-restore --interactive",
                            rpath)
           cmd   <- if (isTRUE(sleep > 0)) sprintf("sleep %d && %s", as.integer(sleep), inner) else inner
-          sprintf("ssh -t %s bash -c %s", cores_full[i], shQuote(cmd))
+          sprintf("ssh -t %s bash --login --noprofile -c %s", cores_full[i], shQuote(cmd))
         }
         bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
