@@ -170,6 +170,7 @@ tmux_set_mouse <- function(on = TRUE) {
     "libfontconfig1-dev libharfbuzz-dev libfribidi-dev",                    # textshaping/ragg
     "libpng-dev libjpeg-dev libtiff-dev",                                   # graphics devices
     "libfreetype6-dev",                                                      # freetypeharfbuzz
+    "libabsl-dev",                                                           # abseil (grpc/protobuf deps)
     "r-base-dev"                                                             # R compilation headers
   )
   message("  Installing system libraries on ", host,
