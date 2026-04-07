@@ -72,10 +72,50 @@
   invisible(NULL)
 }
 
+# Reclaim RUNNING rows whose R process is no longer alive on this machine.
+# Uses /proc/<pid> (Linux) to test liveness.  Called before each claim attempt
+# so rows stuck in RUNNING by a crashed worker become INTERRUPTED and are
+# re-queued.  Reads the sheet once and writes only the dead rows.
+.gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
+  nodename <- Sys.info()[["nodename"]]
+  q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
+  if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
+
+  running_idx <- which(
+    q$status == "RUNNING" &
+    !is.na(q$machine_name) & q$machine_name == nodename &
+    !is.na(q$process_id)
+  )
+  if (length(running_idx) == 0L) return(invisible(NULL))
+
+  col_pos <- setNames(seq_along(names(q)), names(q))
+  now     <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+
+  for (idx in running_idx) {
+    pid   <- suppressWarnings(as.integer(q$process_id[idx]))
+    if (is.na(pid)) next
+    alive <- file.exists(paste0("/proc/", pid))
+    if (!alive) {
+      sheet_row <- idx + 1L   # +1 for header row
+      try(.gs_write_cells(ss_id, sheet_row,
+                          updates       = list(status = "INTERRUPTED",
+                                               finished_at = now),
+                          col_positions = col_pos,
+                          sheet         = sheet), silent = TRUE)
+      message("Reclaimed stale RUNNING job row ", idx,
+              " (PID ", pid, " not found on ", nodename, ")")
+    }
+  }
+  invisible(NULL)
+}
+
 # Attempt to claim the next PENDING/INTERRUPTED job from the sheet.
 # Uses optimistic concurrency: write claim, wait, re-read to verify.
 # Returns list(row_index, sheet_row, col_positions, data) or NULL (empty / lost race).
 .gs_claim_next_job <- function(ss_id, worker_id, sheet = "Status") {
+  # Reclaim any RUNNING rows whose process died on this machine before scanning.
+  .gs_reclaim_dead_jobs(ss_id, sheet)
+
   q <- .gs_read_queue(ss_id, sheet)
   if (nrow(q) == 0L) return(NULL)
 

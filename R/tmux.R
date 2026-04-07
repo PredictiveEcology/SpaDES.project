@@ -968,6 +968,8 @@ experimentTmux <- function(df,
             paste0(".wc <- ", deparse1(expr)),
             # invisible(NULL) prevents file.remove()'s TRUE return from auto-printing
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
+            # Visual separator so session boundaries are obvious in the pane
+            'message("\\n", strrep("-", 60), "\\n[", format(Sys.time(), "%H:%M:%S"), "] New worker session")',
             'message("\\nWorker call (up-arrow to re-run):\\n", .wc, "\\n")',
             ".spades_tb <- NULL",
             "tryCatch(",
