@@ -911,10 +911,17 @@ experimentTmux <- function(df,
         # tryCatch, so we MUST catch and display here.
         .make_script <- function(expr, pre_sleep = 0) {
           c(
-            # Stagger delay: Sys.sleep runs before any worker code so the first
-            # job claim is spread across panes.  This is R-level sleep rather than
-            # a bash-level "sleep N &&" prefix so no shell expansion can corrupt it.
-            if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
+            # Stagger delay: only sleep on the FIRST run of this R_PROFILE_USER
+            # script.  A flag file (script path + ".started") is created after the
+            # first sleep so that subsequent loop iterations (same script, same
+            # R_PROFILE_USER path) start immediately without sleeping again.
+            # Sys.getenv("R_PROFILE_USER") reads the path set by the caller.
+            if (pre_sleep > 0) c(
+              "local({",
+              "  .flag <- paste0(Sys.getenv('R_PROFILE_USER'), '.started')",
+              sprintf("  if (!file.exists(.flag)) { Sys.sleep(%g); writeLines('', .flag) }", pre_sleep),
+              "})"
+            ) else NULL,
             paste0(".wc <- ", deparse1(expr)),
             # invisible(NULL) prevents file.remove()'s TRUE return from auto-printing
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
@@ -953,17 +960,15 @@ experimentTmux <- function(df,
             ")"
           )
         }
-        # first_script includes the stagger Sys.sleep; remote_loop does not (starts
-        # immediately for subsequent jobs after the first finishes).
+        # Single script for both first run and subsequent loop iterations.
+        # The flag-based Sys.sleep inside .make_script ensures the stagger delay
+        # fires only once (first run); subsequent runs skip it via the flag file.
         first_script <- tempfile(fileext = ".R")
-        loop_script  <- tempfile(fileext = ".R")
         writeLines(.make_script(payload, pre_sleep = pre_sleep), first_script)
-        writeLines(.make_script(payload), loop_script)
         remote_first <- paste0("/tmp/", basename(first_script))
-        remote_loop  <- paste0("/tmp/", basename(loop_script))
-        scp_pre      <- sprintf("scp -q %s %s:%s && scp -q %s %s:%s",
-                                shQuote(first_script), cores_full[i], remote_first,
-                                shQuote(loop_script),  cores_full[i], remote_loop)
+        remote_loop  <- remote_first
+        scp_pre      <- sprintf("scp -q %s %s:%s",
+                                shQuote(first_script), cores_full[i], remote_first)
 
         # ssh command: no shell sleep, no BASH_ENV concerns.
         # R_PROFILE_USER=path R starts R with our startup script directly.
