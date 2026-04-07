@@ -1176,7 +1176,7 @@ runNextWorker <- function(queue_path, global_path,
     } else if (on_interrupt == "requeue") {
       list(status = txtPending, claimed_by = NA_character_)
     } else {
-      list(status = "FAILED", finished_at = now)
+      list(status = txtInterrupted, finished_at = now)
     }
     .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
     return(outcome)
@@ -1298,7 +1298,7 @@ runNextWorker <- function(queue_path, global_path,
       q$status[i]     <- txtPending
       q$claimed_by[i] <- NA_character_
     } else {
-      q$status[i]      <- "FAILED"
+      q$status[i]      <- txtInterrupted
       q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
     }
   }
