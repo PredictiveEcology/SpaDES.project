@@ -948,37 +948,21 @@ experimentTmux <- function(df,
         if (first_for_host) setup_assigned <- c(setup_assigned, cores_full[i])
         setup_pre <- paste0(setup_bash_for(cores_full[i], first_for_host), " && ")
 
-        # Bash while-loop: first run includes pre_sleep for staggering; subsequent
-        # runs skip it (jobs finish at different times so staggering is not needed).
-        first_expr <- if (pre_sleep > 0)
-          sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
-        else payload
-
-        # Write payloads to local temp files and scp them to the remote.
-        # Avoids all shell-quoting of the R expression: -e 'expr' requires two
-        # levels of shQuote (one for -e, one for ssh) which double-escapes single
-        # quotes and mangles the argument.  --file=path has no quoting issues
-        # because the path never contains special characters.
-        # R --interactive --file=path: on error, R's top-level handler prints
-        # the error and leaves an interactive prompt (ssh -t provides the TTY).
-        # On success, runWorkerLoop() calls quit(status=0/1) directly.
-        # Prepend readline-history and echo lines so after an error the user
-        # can press up-arrow to re-run and can see what was executed.
-        # deparse1() produces a valid R string literal (internal " escaped as \")
-        # so the payload is safely embedded without further quoting.
-        # Build a multi-line R script that:
-        #  1. Loads the main call into readline history (up-arrow to re-run)
-        #  2. Echoes the call so it is visible
-        #  3. Wraps execution in tryCatch + withCallingHandlers so that:
-        #     - withCallingHandlers captures sys.calls() (full stack) before
-        #       the inner GS-update handler in runNextWorker runs
-        #     - tryCatch catches the propagated error, prints it + traceback,
-        #       and returns normally so R stays alive at '>' for debugging
-        #     - On success, runWorkerLoop() calls quit() which exits R even
-        #       from within tryCatch (quit is not an error condition)
+        # Write the payload to a local temp file and scp to the remote.
+        # Avoids all shell-quoting of the R expression.
+        # No Sys.sleep in the R script: stagger delay is in bash (sleep N &&)
+        # so R never starts until the delay is done — no PTY-buffering confusion
+        # where the user types during Sys.sleep and input lands in the next job.
+        # Build a multi-line R script sourced via R_PROFILE_USER that:
+        #  1. Loads the worker call into readline history (up-arrow to re-run)
+        #  2. Echoes it so it is visible in the pane
+        #  3. Wraps execution in tryCatch + withCallingHandlers:
+        #     - withCallingHandlers captures sys.calls() while stack is intact
+        #     - tryCatch error handler shows the error and keeps R at '>'
+        #     - On success runWorkerLoop() calls quit(0) → bash while-loop
+        #       restarts for the next job
         # R_PROFILE_USER silently swallows errors that reach its startup
-        # tryCatch, so we MUST catch and display here rather than rely on
-        # R's top-level handler.
+        # tryCatch, so we MUST catch and display here.
         .make_script <- function(expr) {
           c(
             paste0(".wc <- ", deparse1(expr)),
@@ -1005,38 +989,30 @@ experimentTmux <- function(df,
             ")"
           )
         }
-        first_script  <- tempfile(fileext = ".R")
-        writeLines(.make_script(first_expr), first_script)
-        remote_first  <- paste0("/tmp/", basename(first_script))
-        if (pre_sleep > 0) {
-          loop_script <- tempfile(fileext = ".R")
-          writeLines(.make_script(payload), loop_script)
-          remote_loop <- paste0("/tmp/", basename(loop_script))
-          scp_pre     <- sprintf("scp -q %s %s:%s && scp -q %s %s:%s",
-                                 shQuote(first_script), cores_full[i], remote_first,
-                                 shQuote(loop_script),  cores_full[i], remote_loop)
-        } else {
-          remote_loop <- remote_first
-          scp_pre     <- sprintf("scp -q %s %s:%s",
-                                 shQuote(first_script), cores_full[i], remote_first)
+        first_script <- tempfile(fileext = ".R")
+        writeLines(.make_script(payload), first_script)
+        remote_first <- paste0("/tmp/", basename(first_script))
+        remote_loop  <- remote_first          # same script for every iteration
+        scp_pre      <- sprintf("scp -q %s %s:%s",
+                                shQuote(first_script), cores_full[i], remote_first)
+
+        # Use bash --login so the remote shell sources /etc/profile and
+        # ~/.bash_profile — this picks up SSL cert paths, CURL_CA_BUNDLE,
+        # proxy settings, etc. that are only set in login shells.  Without
+        # this, libcurl inside R cannot find CA certificates and HTTPS
+        # downloads stall or fail silently.
+        # sleep N (bash level, not Sys.sleep in R) keeps R from starting
+        # until the stagger delay is done; trap '' INT prevents Ctrl-C from
+        # killing the local SSH process (^C still reaches remote R via PTY).
+        r_run <- function(rpath, sleep = 0L) {
+          inner <- sprintf("env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+                           rpath)
+          cmd   <- if (sleep > 0) sprintf("sleep %d && %s", sleep, inner) else inner
+          sprintf("ssh -t %s bash --login -c %s", cores_full[i], shQuote(cmd))
         }
-        # R_PROFILE_USER=script.R R --interactive: R sources the script as the
-        # user profile at startup (inside a tryCatch that catches errors and
-        # lets R continue).  On error, session stays alive at '>'.
-        # On success, runWorkerLoop() calls quit(status=0/1) which exits R even
-        # from within the profile tryCatch.  --file= and -e both get overridden
-        # by --interactive so this is the only reliable approach.
-        r_run <- function(rpath)
-          sprintf("ssh -t %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
-                  cores_full[i], rpath)
-        # trap '' INT: local bash ignores SIGINT so Ctrl-C doesn't kill the SSH
-        # process.  The ^C byte still travels through the PTY to the remote R
-        # session, where R handles it as an interrupt (returns to '>').
-        # Without this, tmux's PTY generates SIGINT for the local process group,
-        # SSH exits, and R gets SIGHUP ("Execution halted").
         bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
-                            r_run(remote_first), r_run(remote_loop))
+                            r_run(remote_first, pre_sleep), r_run(remote_loop))
         remote_node <- tryCatch(
           trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE,
                          stderr = FALSE)[1L]),
