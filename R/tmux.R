@@ -909,8 +909,12 @@ experimentTmux <- function(df,
         #       restarts for the next job
         # R_PROFILE_USER silently swallows errors that reach its startup
         # tryCatch, so we MUST catch and display here.
-        .make_script <- function(expr) {
+        .make_script <- function(expr, pre_sleep = 0) {
           c(
+            # Stagger delay: Sys.sleep runs before any worker code so the first
+            # job claim is spread across panes.  This is R-level sleep rather than
+            # a bash-level "sleep N &&" prefix so no shell expansion can corrupt it.
+            if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
             paste0(".wc <- ", deparse1(expr)),
             # invisible(NULL) prevents file.remove()'s TRUE return from auto-printing
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
@@ -949,39 +953,32 @@ experimentTmux <- function(df,
             ")"
           )
         }
+        # first_script includes the stagger Sys.sleep; remote_loop does not (starts
+        # immediately for subsequent jobs after the first finishes).
         first_script <- tempfile(fileext = ".R")
-        writeLines(.make_script(payload), first_script)
+        loop_script  <- tempfile(fileext = ".R")
+        writeLines(.make_script(payload, pre_sleep = pre_sleep), first_script)
+        writeLines(.make_script(payload), loop_script)
         remote_first <- paste0("/tmp/", basename(first_script))
-        remote_loop  <- remote_first          # same script for every iteration
-        scp_pre      <- sprintf("scp -q %s %s:%s",
-                                shQuote(first_script), cores_full[i], remote_first)
+        remote_loop  <- paste0("/tmp/", basename(loop_script))
+        scp_pre      <- sprintf("scp -q %s %s:%s && scp -q %s %s:%s",
+                                shQuote(first_script), cores_full[i], remote_first,
+                                shQuote(loop_script),  cores_full[i], remote_loop)
 
-        # Build the ssh command that starts R on the remote.
-        # Key decisions:
-        # - R_PROFILE_USER=path R: bash variable-prefix syntax sets R_PROFILE_USER
-        #   for just this command without printing all env vars (unlike "env VAR=x R").
-        # - "env -u BASH_ENV bash --noprofile -c CMD": 'env -u BASH_ENV' removes
-        #   BASH_ENV from the environment before bash sees it, so bash never reads
-        #   the BASH_ENV startup file.  This is unconditional and does not depend on
-        #   bash's own --login/--noprofile BASH_ENV suppression logic, which varies
-        #   across bash versions and may still fire on PTY sessions (ssh -t) because
-        #   [ -t 1 ] is true inside the BASH_ENV file.  --noprofile additionally
-        #   skips /etc/profile and ~/.bash_profile.
-        # - SSL cert paths (CURL_CA_BUNDLE / SSL_CERT_FILE) are written to
-        #   ~/.Rprofile during .setup_remote_machine() so libcurl finds CA certs
-        #   without needing any login-profile scripts.
-        # - sleep N at bash level keeps R from starting until the stagger delay is
-        #   done; trap '' INT prevents Ctrl-C from killing the local SSH process
-        #   (^C still reaches remote R via the PTY).
-        r_run <- function(rpath, sleep = 0L) {
-          inner <- sprintf("R_PROFILE_USER=%s R --no-save --no-restore --interactive",
-                           rpath)
-          cmd   <- if (isTRUE(sleep > 0)) sprintf("sleep %d && %s", as.integer(sleep), inner) else inner
-          sprintf("ssh -t %s env -u BASH_ENV bash --noprofile -c %s", cores_full[i], shQuote(cmd))
+        # ssh command: no shell sleep, no BASH_ENV concerns.
+        # R_PROFILE_USER=path R starts R with our startup script directly.
+        # env -u BASH_ENV removes the variable before bash sees it so the
+        # BASH_ENV startup file is never read, regardless of bash version or
+        # whether the session has a PTY.  --noprofile skips /etc/profile etc.
+        # trap '' INT keeps Ctrl-C from killing the local SSH process.
+        r_run <- function(rpath) {
+          sprintf("ssh -t %s env -u BASH_ENV bash --noprofile -c %s", cores_full[i],
+                  shQuote(sprintf("R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+                                  rpath)))
         }
         bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
-                            r_run(remote_first, pre_sleep), r_run(remote_loop))
+                            r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
           trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE,
                          stderr = FALSE)[1L]),
