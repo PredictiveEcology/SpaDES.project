@@ -69,12 +69,27 @@ tmux_set_mouse <- function(on = TRUE) {
   }
 
   # 0. Guard BASH_ENV file on remote.
-  #    Non-PTY SSH shells check $BASH_ENV but terminal checks inside the file
-  #    ([ -t 1 ]) are false, so 'sleep $UNSET' is skipped and setup works.
-  #    PTY SSH (ssh -t, used by the worker loop) has a real terminal, so the
-  #    terminal check passes, 'sleep $UNSET' fires, and the shell may exit
-  #    before our command runs.  Prepend 'set +e' once so any such failure is
-  #    non-fatal.
+  #
+  #    Problem: when sshd runs a command it invokes the user's login shell as
+  #      /bin/bash -c "OUR_COMMAND"
+  #    That outer bash is a non-login, non-interactive shell, so it reads
+  #    $BASH_ENV before executing OUR_COMMAND.  If BASH_ENV contains a failing
+  #    'sleep $UNSET_VAR' (or an explicit 'exit') the outer bash may exit
+  #    *before* OUR_COMMAND runs:
+  #      - With set -e (bash default on some systems): exit non-zero → while
+  #        loop stops (ok), but R never started.
+  #      - With set +e / explicit 'exit 0': exit zero → while loop continues
+  #        → infinite "Connection to ... closed." spam.
+  #
+  #    Fix: wrap the *entire* original BASH_ENV content in a subshell:
+  #      set +e
+  #      ( <original content> ) 2>/dev/null || true
+  #    A subshell's 'exit' cannot kill the parent shell.  '|| true' ensures
+  #    even a non-zero subshell exit is absorbed.  After this wrapper runs
+  #    (harmlessly), the outer bash proceeds to execute OUR_COMMAND.
+  #
+  #    Our 'env -u BASH_ENV bash ...' in OUR_COMMAND then strips BASH_ENV so
+  #    the inner bash we launch never reads the file at all.
   .ssh_r(paste0(
     "local({",
     "  be <- Sys.getenv('BASH_ENV');",
@@ -83,8 +98,14 @@ tmux_set_mouse <- function(on = TRUE) {
     "  if (!file.exists(be)) return(invisible(NULL));",
     "  lines <- readLines(be, warn = FALSE);",
     "  if (any(grepl('spades_guard', lines, fixed = TRUE))) return(invisible(NULL));",
-    "  writeLines(c('set +e  # spades_guard: prevent failures from aborting bash', lines), be);",
-    "  message('  Added set+e guard to BASH_ENV file: ', be)",
+    "  wrapped <- c(",
+    "    '# spades_guard: original content wrapped in subshell so exit/failures cannot abort outer bash',",
+    "    'set +e',",
+    "    '(',",
+    "    lines,",
+    "    ') 2>/dev/null || true');",
+    "  writeLines(wrapped, be);",
+    "  message('  Wrapped BASH_ENV in subshell guard: ', be)",
     "})"
   ))
 
