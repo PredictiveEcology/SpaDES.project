@@ -35,6 +35,12 @@ tmux_set_mouse <- function(on = TRUE) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
+  # NOTE: steps below use .ssh_r() which runs Rscript via non-PTY SSH.
+  # Non-PTY SSH shells check $BASH_ENV; if BASH_ENV calls 'sleep $UNSET'
+  # with set -e, it fails silently (non-PTY shell continues).
+  # PTY SSH (ssh -t, used for interactive R) has a controlling terminal so
+  # BASH_ENV terminal-checks ([ -t 1 ]) succeed → sleep fires → shell exits.
+  # Fix: add 'set +e' guard to the BASH_ENV file so failures are non-fatal.
   local_home    <- path.expand("~")
   local_abs_dir <- dirname(normalizePath(global_path))
   rel_dir       <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
@@ -61,6 +67,26 @@ tmux_set_mouse <- function(on = TRUE) {
     system2("ssh", c(host, paste0("Rscript ", remote_tmp, "; rm -f ", remote_tmp)),
             stdout = intern, stderr = "")
   }
+
+  # 0. Guard BASH_ENV file on remote.
+  #    Non-PTY SSH shells check $BASH_ENV but terminal checks inside the file
+  #    ([ -t 1 ]) are false, so 'sleep $UNSET' is skipped and setup works.
+  #    PTY SSH (ssh -t, used by the worker loop) has a real terminal, so the
+  #    terminal check passes, 'sleep $UNSET' fires, and the shell may exit
+  #    before our command runs.  Prepend 'set +e' once so any such failure is
+  #    non-fatal.
+  .ssh_r(paste0(
+    "local({",
+    "  be <- Sys.getenv('BASH_ENV');",
+    "  if (!nzchar(be)) return(invisible(NULL));",
+    "  be <- path.expand(be);",
+    "  if (!file.exists(be)) return(invisible(NULL));",
+    "  lines <- readLines(be, warn = FALSE);",
+    "  if (any(grepl('spades_guard', lines, fixed = TRUE))) return(invisible(NULL));",
+    "  writeLines(c('set +e  # spades_guard: prevent failures from aborting bash', lines), be);",
+    "  message('  Added set+e guard to BASH_ENV file: ', be)",
+    "})"
+  ))
 
   # 1. Create remote directory, scp global_path into it
   .ssh_r(paste0("dir.create(path.expand('", remote_dir,
@@ -664,6 +690,13 @@ experimentTmux <- function(df,
   
   inTmux <- Sys.getenv("TMUX") != ""
 
+  # Convert a local absolute path to its remote equivalent (same relative to ~).
+  # Used in both the tmux pane loop and the non-tmux fallback.
+  .to_remote_path <- function(p) {
+    if (is.null(p)) return(p)
+    sub(paste0("^", path.expand("~")), "~", normalizePath(p, mustWork = FALSE))
+  }
+
   # Resolve cores. Setup runs in parallel inside each pane (see below).
   if (is.null(cores)) cores <- rep("localhost", n_workers)
 
@@ -784,45 +817,7 @@ experimentTmux <- function(df,
       }
     }
     
-    # -- create worker panes
-    worker_ids <- character()
-    for (i in seq_len(n_workers)) {
-      # Create detached so focus stays on Master
-      new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-      worker_ids <- c(worker_ids, new_id)
-      
-      # MANDATORY: Reset layout immediately so the next split has room
-      .tmux_run("select-layout", "-t", target_win, "tiled")
-      # was 
-      Sys.sleep(1)
-      #Sys.sleep(0.1)
-    }
-    
-    # -- arrange evenly
-    # 2. Force the window into a tiled grid layout
-    # This fixes the "tiny sliver" problem immediately
-    # .tmux_run("select-layout", "-t", target_win, "tiled")
-    # if (delay_after_layout > 0) Sys.sleep(delay_after_layout)
-    
-    # -- mouse on, if requested
-    if (set_mouse) tmux_set_mouse(TRUE)
-    
-    # -- collect new worker panes
-    post <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
-    if (length(post) == 0L) stop("tmux list-panes returned no panes.", call. = FALSE)
-    
-    master  <- Sys.getenv("TMUX_PANE")
-    workers <- setdiff(post, pre)
-    workers <- setdiff(workers, master)
-    
-    if (length(workers) < n_workers) {
-      stop(sprintf("Expected %d new worker panes, found %d. Check tmux version/layout.",
-                   n_workers, length(workers)), call. = FALSE)
-    }
-    workers <- workers[seq_len(n_workers)]
-    
-    # 3. Now send the R commands to the clean, tiled panes.
-    # Recycle cores to n_workers length.
+    # -- Recycle cores; define helpers used per-iteration in the merged loop.
     cores_full <- rep_len(cores, n_workers)
 
     # For remote panes, the first pane per unique host runs .setup_remote_machine()
@@ -840,16 +835,14 @@ experimentTmux <- function(df,
         deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL)
       )
     }
-    # bash snippet: run setup and write flag, or wait for flag (600s timeout)
+    # bash snippet: run setup and write flag, or wait for flag (600s timeout).
     # Probe passwordless SSH; if it fails, copy the local public key to the
-    # remote (~/.ssh/authorized_keys) via ssh-copy-id, which prompts once for
-    # the remote password inside the tmux pane.
+    # remote (~/.ssh/authorized_keys) via ssh-copy-id.
     ssh_ready_bash <- function(host)
       sprintf(
         "ssh -o BatchMode=yes -o ConnectTimeout=5 %s true 2>/dev/null || ssh-copy-id %s",
         host, host
       )
-
     setup_bash_for <- function(host, first) {
       flag <- shQuote(.setup_flag_path(host))
       if (first)
@@ -860,99 +853,40 @@ experimentTmux <- function(df,
                 ssh_ready_bash(host), flag, flag)
     }
 
-    start_cmds <- vapply(seq_len(n_workers), function(i) {
-      core <- cores_full[i]
-      if (core == "localhost") return("R")
-      if (pane_mode == "killAndNewPane") return("")  # bash loop built in payload step
-      # reuse mode: setup preamble + interactive ssh R
-      first <- !core %in% setup_assigned
-      if (first) setup_assigned <<- c(setup_assigned, core)
-      paste0(setup_bash_for(core, first), " && ssh -t ", core, " R")
-    }, character(1L))
+    # -- Merged loop: create each pane, retile, and immediately send its
+    # startup command.  Pane 1's remote setup starts running while pane 2 is
+    # still being created — no waiting for all N panes before work begins.
+    worker_ids <- character()
+    for (i in seq_len(n_workers)) {
+      # 1. Create pane detached so focus stays on Master
+      new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+      worker_ids <- c(worker_ids, new_id)
+      # MANDATORY: reset layout immediately so the next split has room
+      .tmux_run("select-layout", "-t", target_win, "tiled")
+      Sys.sleep(delay_after_split)
 
-    for (i in seq_along(worker_ids)) {
-      if (nzchar(start_cmds[i]))
-        .tmux_run("send-keys", "-t", worker_ids[i], start_cmds[i], "C-m")
-      Sys.sleep(0.1)
-    }
-    # Reset for use in payload loop below
-    setup_assigned <- character(0)
-    
-    # ---------- branching: single-shot vs queue mode ----------
-    # if (!continue) {
-    #   # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
-    #   n_send <- min(n_workers, nrow(df))
-    #   for (i in seq_len(n_send)) {
-    #     # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
-    #     runName <- as.character(df[[runNameLabel]][i])
-    #     runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
-    #     code <- sprintf(
-    #       "Sys.sleep(%s); system2('tmux', c('select-pane','-t', Sys.getenv('TMUX_PANE'), '-T', %s)); %s",
-    #       pre_sleep,
-    #       deparse(runName),
-    #       .make_assignment_code(df, i, global_path, pre_sleep = 0)
-    #     )
-    #     .tmux_run("send-keys", "-t", workers[i], code, "C-m")
-    #     
-    #     # No orchestrator sleeps—control returns immediately to master
-    #   }
-    # } else {
-    # ---- queue mode: file-backed queue & **direct function invocation** (no source()) ----
-    # if (is.null(queue_path)) {
-    #   queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
-    # }
-    
-    
-    # tmux_prepare_queue_from_df(df, queue_path)
-    # q <- readRDS(queue_path)
-    # runNameLabel <- eval(runNameLabel)
-    # 
-    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-    #                           activeRunningPath = activeRunningPath)
-    # 
-    
-    
-  } else {
-    warning("Not running in tmux; running just 1 worker... ")
-    n_workers <- 1
-    workers <- seq_along(n_workers)
-  }
-  
-  # Warn if filelock missing (workers will error in panes if not installed)
-  if (!requireNamespace("filelock", quietly = TRUE)) {
-    warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
-  }
-  
-  # Convert a local absolute path to its remote equivalent (same path relative to ~)
-  .to_remote_path <- function(p) {
-    if (is.null(p)) return(p)
-    sub(paste0("^", path.expand("~")), "~", normalizePath(p, mustWork = FALSE))
-  }
+      # 2. Per-worker paths and payload expression
+      pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
+      is_remote <- cores_full[i] != "localhost"
+      qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
+      gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
+      arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
+      dp  <- if (is_remote) .to_remote_path(dots_path)         else dots_path
+      payload <- .build_worker_r_expr(
+        queue_path        = qp,
+        global_path       = gp,
+        on_interrupt      = on_interrupt,
+        runNameLabel      = runNameLabel,
+        activeRunningPath = arp,
+        ss_id             = ss_id,
+        pane_mode         = pane_mode,
+        email             = email,
+        cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+        dots_path         = if (file.exists(dots_path)) dp else NULL,
+        lib_path          = .libPaths()[1L]
+      )
 
-  # Build a pane payload that **calls functions** instead of source()ing files.
-  # Default preserves previous behavior (loop); if you want single-shot workers, swap to runNextWorker().
-
-  for (i in seq_along(worker_ids)) {
-    pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
-    is_remote <- cores_full[i] != "localhost"
-    qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
-    gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
-    arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
-    dp  <- if (is_remote) .to_remote_path(dots_path)         else dots_path
-    payload <- .build_worker_r_expr(
-      queue_path        = qp,
-      global_path       = gp,
-      on_interrupt      = on_interrupt,
-      runNameLabel      = runNameLabel,
-      activeRunningPath = arp,
-      ss_id             = ss_id,
-      pane_mode         = pane_mode,
-      email             = email,
-      cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
-      dots_path         = if (file.exists(dots_path)) dp else NULL,
-      lib_path          = .libPaths()[1L]
-    )
-    if (inTmux) {
+      # 3. Send startup command immediately to the freshly created pane
       if (is_remote && pane_mode == "killAndNewPane") {
         # Setup preamble: first pane per unique host runs .setup_remote_machine()
         # and writes a flag; subsequent panes for the same host wait for it.
@@ -1062,15 +996,31 @@ experimentTmux <- function(df,
         code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
         .tmux_run("send-keys", "-t", worker_ids[i], code, "C-m")
       }
-    } else {
-      code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
-      message("running:\n")
-      message(code)
-      eval(parse(text = code))
-    }
-  }
+    }  # end merged loop
 
-  # }
+    if (length(worker_ids) < n_workers)
+      stop(sprintf("Expected %d new worker panes, found %d.", n_workers, length(worker_ids)))
+
+  } else {
+    # Not inside tmux: run first job inline in this R session.
+    worker_ids <- NA_character_
+    warning("Not inside a tmux session; running first job sequentially in this R session.",
+            call. = FALSE)
+    pre_sleep <- 0
+    payload <- .build_worker_r_expr(
+      queue_path = queue_path, global_path = global_path,
+      on_interrupt = on_interrupt, runNameLabel = runNameLabel,
+      activeRunningPath = activeRunningPath, ss_id = ss_id,
+      pane_mode = pane_mode, email = email,
+      cache_path = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+      dots_path = if (file.exists(dots_path)) dots_path else NULL,
+      lib_path = .libPaths()[1L]
+    )
+    code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
+    message("running:\n")
+    message(code)
+    eval(parse(text = code))
+  }
 
   invisible(worker_ids)
 }
