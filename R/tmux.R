@@ -95,18 +95,30 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("rsync of R/ folder to '", host, "' failed.", call. = FALSE)
   }
 
-  # 2. Persist repos and .libPaths() in ~/.Rprofile on remote.
+  # 2. Persist repos, .libPaths(), and SSL env vars in ~/.Rprofile on remote.
   #    ~/.Rprofile runs at R startup before any packages load, so this ensures
   #    local_lib is first in .libPaths() from the very first namespace lookup —
   #    preventing system-lib packages (e.g. purrr 1.0.4) from loading ahead of
   #    the project versions.
+  #    SSL vars (CURL_CA_BUNDLE / SSL_CERT_FILE) are set here so that libcurl
+  #    inside R can find CA certificates for HTTPS downloads, even when R is
+  #    launched via a non-login SSH session where /etc/profile.d/ is not sourced.
   repos_line   <- paste0("options(repos = ", deparse1(install_repos), ")")
   libpath_line <- paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))")
+  ssl_line     <- paste0(
+    "local({",
+    "  ca <- c('/etc/ssl/certs/ca-certificates.crt',",   # Debian/Ubuntu
+    "          '/etc/pki/tls/certs/ca-bundle.crt',",      # CentOS/RHEL
+    "          '/etc/ssl/cert.pem');",                     # macOS/Alpine
+    "  ca <- ca[file.exists(ca)];",
+    "  if (length(ca)) Sys.setenv(CURL_CA_BUNDLE = ca[1L], SSL_CERT_FILE = ca[1L])",
+    "})"
+  )
   .ssh_r(paste0(
     "rprof <- path.expand('~/.Rprofile'); ",
     "existing <- if (file.exists(rprof)) readLines(rprof, warn = FALSE) else character(0); ",
-    "existing <- existing[!grepl('^options\\\\(repos|^\\\\.libPaths\\\\(', existing)]; ",
-    "writeLines(c(existing, ", deparse1(libpath_line), ", ", deparse1(repos_line), "), rprof)"
+    "existing <- existing[!grepl('^options\\\\(repos|^\\\\.libPaths\\\\(|^local\\\\(\\\\{.*ca <-', existing)]; ",
+    "writeLines(c(existing, ", deparse1(libpath_line), ", ", deparse1(repos_line), ", ", deparse1(ssl_line), "), rprof)"
   ))
 
   # 3. Verify Require matches local installation (version + source)
@@ -1010,19 +1022,22 @@ experimentTmux <- function(df,
         scp_pre      <- sprintf("scp -q %s %s:%s",
                                 shQuote(first_script), cores_full[i], remote_first)
 
-        # Use bash --login so the remote shell sources /etc/profile and
-        # ~/.bash_profile — this picks up SSL cert paths, CURL_CA_BUNDLE,
-        # proxy settings, etc. that are only set in login shells.  Without
-        # this, libcurl inside R cannot find CA certificates and HTTPS
-        # downloads stall or fail silently.
+        # Use R_PROFILE_USER=path R (bash variable-prefix syntax) rather than
+        # "env R_PROFILE_USER=path R" to avoid ambiguity when env is called
+        # with no trailing command.  Use plain "bash -c" (no --login) to
+        # avoid running remote login scripts (/etc/profile.d/, ~/.bash_profile)
+        # which can have side-effects (e.g. sleep calls with unset variables).
+        # SSL cert paths (CURL_CA_BUNDLE / SSL_CERT_FILE) are now written to
+        # ~/.Rprofile on the remote during .setup_remote_machine() so libcurl
+        # finds them without needing a login shell.
         # sleep N (bash level, not Sys.sleep in R) keeps R from starting
         # until the stagger delay is done; trap '' INT prevents Ctrl-C from
         # killing the local SSH process (^C still reaches remote R via PTY).
         r_run <- function(rpath, sleep = 0L) {
-          inner <- sprintf("env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+          inner <- sprintf("R_PROFILE_USER=%s R --no-save --no-restore --interactive",
                            rpath)
-          cmd   <- if (sleep > 0) sprintf("sleep %d && %s", sleep, inner) else inner
-          sprintf("ssh -t %s bash --login -c %s", cores_full[i], shQuote(cmd))
+          cmd   <- if (isTRUE(sleep > 0)) sprintf("sleep %d && %s", as.integer(sleep), inner) else inner
+          sprintf("ssh -t %s bash -c %s", cores_full[i], shQuote(cmd))
         }
         bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do :; done",
                             setup_pre, scp_pre,
