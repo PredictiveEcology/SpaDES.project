@@ -995,18 +995,16 @@ experimentTmux <- function(df,
         scp_pre      <- sprintf("scp -q %s %s:%s",
                                 shQuote(first_script), cores_full[i], remote_first)
 
-        # ssh command: no shell sleep, no BASH_ENV concerns.
-        # R_PROFILE_USER=path R starts R with our startup script directly.
-        # env -u BASH_ENV removes the variable before bash sees it so the
-        # BASH_ENV startup file is never read, regardless of bash version or
-        # whether the session has a PTY.  --noprofile skips /etc/profile etc.
+        # Set BASH_ENV="" in the LOCAL environment and forward the empty value
+        # via ssh SendEnv so that sshd's outer bash (which invokes our command)
+        # finds no BASH_ENV file to source.  env(1) then sets R_PROFILE_USER
+        # without needing a bash -c wrapper, bypassing shell variable expansion.
         # trap '' INT keeps Ctrl-C from killing the local SSH process.
         r_run <- function(rpath) {
-          sprintf("ssh -t %s env -u BASH_ENV bash --noprofile -c %s", cores_full[i],
-                  shQuote(sprintf("R_PROFILE_USER=%s R --no-save --no-restore --interactive",
-                                  rpath)))
+          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+                  cores_full[i], shQuote(rpath))
         }
-        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do :; done",
+        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do sleep 2; done",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
