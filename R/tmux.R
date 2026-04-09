@@ -1484,7 +1484,9 @@ runWorkerLoop <- function(queue_path, global_path,
       # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) →
       # exit 0 so the remote bash while-loop restarts for the next job.
       message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
-              " — restarting R session for next job (sleep 2s)")
+              " — restarting R session for next job")
+      flush(stderr()); flush(stdout())
+      Sys.sleep(0.5)   # let PTY flush before SSH connection drops
       quit(save = "no", status = 0L)
     } else {
       # Queue empty or interrupt+fail: stay interactive so the user can debug.
