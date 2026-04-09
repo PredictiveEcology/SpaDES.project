@@ -1035,12 +1035,17 @@ experimentTmux <- function(df,
         scp_pre      <- sprintf("scp -q %s %s:%s",
                                 shQuote(first_script), cores_full[i], remote_first)
 
-        # nohup: R ignores SIGHUP → makeClusterPSOCK workers can't kill the session.
         # ssh -t: PTY for interactive R (readline, OSC 2, Ctrl+C).
+        # SIGHUP fix: `trap '' HUP` in bash sets SIGHUP→SIG_IGN; `exec` replaces
+        # bash with R and POSIX guarantees SIG_IGN is preserved across exec.
+        # makeClusterPSOCK workers that inherit and close the PTY slave fd can no
+        # longer kill R via SIGHUP.  stdout stays on the PTY (no nohup.out redirect).
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
-          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s nohup R --no-save --no-restore --interactive",
-                  cores_full[i], shQuote(rpath))
+          inner <- sprintf("trap '' HUP; exec env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+                           rpath)
+          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
+                  cores_full[i], shQuote(inner))
         }
         bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do sleep 2; done",
                             setup_pre, scp_pre,
