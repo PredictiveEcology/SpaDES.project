@@ -167,16 +167,16 @@ testRemoteCluster <- function(host, workers = 32L) {
     remote_r, logf
   )
 
-  pane_id <- system2("tmux", c("new-window", "-P", "-F", "#{pane_id}",
-                                "-n", "mcp_test"), stdout = TRUE)
-  system2("tmux", c("send-keys", "-t", pane_id,
+  win <- "mcp_test"
+  system2("tmux", c("new-window", "-n", win))
+  system2("tmux", c("send-keys", "-t", win,
                     sprintf("ssh -t %s bash --norc --noprofile -c %s",
                             host, shQuote(bash_cmd)),
                     "Enter"))
 
-  message("Test running in tmux window 'mcp_test' (pane ", pane_id, ")")
+  message("Test running in tmux window '", win, "'")
   message("Read result: system2('ssh', c('", host, "', 'cat ", logf, "'))")
-  invisible(pane_id)
+  invisible(win)
 }
 
 # Patch parallelly::makeClusterPSOCK so workers don't inherit the PTY slave
