@@ -144,6 +144,8 @@ testRemoteCluster <- function(host, workers = 32L) {
   writeLines(c(
     'message("[mcp_test] PID=", Sys.getpid(),',
     '        "  SSH_TTY=\'", Sys.getenv("SSH_TTY"), "\'")',
+    '# Apply the same patch experimentTmux applies in R_PROFILE_USER',
+    'SpaDES.project:::.patch_makecluster_pty()',
     sprintf('message("[mcp_test] calling makeClusterPSOCK(%d)...")', workers),
     '# Exact args from the real global.R:',
     sprintf('cl <- tryCatch(parallelly::makeClusterPSOCK(%dL,', workers),
@@ -218,7 +220,10 @@ testRemoteCluster <- function(host, workers = 32L) {
     ww <- w
     patched <- function(...) {
       args <- list(...)
-      if (!"rscript" %in% names(args)) args[["rscript"]] <- ww
+      if (!"rscript" %in% names(args))
+        # c("bash", path) so the script is interpreted by bash, not exec'd
+        # directly — avoids failure when /tmp is mounted noexec.
+        args[["rscript"]] <- c("bash", ww)
       do.call(orig, args)
     }
     environment(patched) <- list2env(list(orig = orig, ww = ww), parent = baseenv())
