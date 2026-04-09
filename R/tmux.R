@@ -983,15 +983,9 @@ experimentTmux <- function(df,
         # Rscript.  Workers never hold PTY slave fds; PSOCK communication is via
         # sockets so stdin/stdout/stderr are not needed by workers.
         # See SpaDES.project:::.patch_makecluster_pty().
-        .make_script <- function(expr, pre_sleep = 0, host_label = NULL,
-                                 lib_path = NULL) {
+        .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
           hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
           c(
-            # Set lib path first — R_PROFILE_USER replaces ~/.Rprofile so the
-            # .libPaths() written there by .setup_remote_machine is never
-            # sourced; we must re-emit it here before SpaDES.project is used.
-            if (!is.null(lib_path))
-              sprintf(".libPaths(c(%s, .libPaths()))", deparse1(lib_path)),
             # Patch makeClusterPSOCK before any user code runs so the hook is
             # registered before parallelly is loaded (or patched immediately if
             # it is already loaded).
@@ -1040,9 +1034,7 @@ experimentTmux <- function(df,
           )
         }
         first_script <- tempfile(fileext = ".R")
-        writeLines(.make_script(payload, pre_sleep = pre_sleep,
-                                host_label = cores_full[i],
-                                lib_path   = .libPaths()[1L]), first_script)
+        writeLines(.make_script(payload, pre_sleep = pre_sleep, host_label = cores_full[i]), first_script)
         remote_first <- paste0("/tmp/", basename(first_script))
         remote_loop  <- remote_first
         scp_pre      <- sprintf("scp -q %s %s:%s",
