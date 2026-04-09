@@ -1193,21 +1193,34 @@ runNextWorker <- function(queue_path, global_path,
 
     # on.exit guard: if quit() is called from inside source(global_path) —
     # e.g. pak::pak() restarting after a package update — it bypasses all
-    # tryCatch handlers but DOES run on.exit().  Detect this by checking whether
-    # .gs_job_outcome_recorded was set; if not, mark the GS row INTERRUPTED so
-    # it doesn't stay stuck as RUNNING indefinitely.
-    .gs_job_outcome_recorded <- FALSE
-    on.exit({
-      if (!isTRUE(.gs_job_outcome_recorded)) {
-        message("\nWARNING: R session is exiting before job outcome was recorded.",
-                "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
-                "\n  Marking '", runName, "' as INTERRUPTED in GS.")
-        now2 <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        try(.gs_write_cells(ss_id, sheet_row,
-                            updates       = list(status = txtInterrupted, finished_at = now2),
-                            col_positions = col_pos), silent = TRUE)
+    # Guard against quit() being called from inside source(global_path).
+    # quit() bypasses tryCatch and function-frame on.exit() entirely, but
+    # reg.finalizer(..., onexit=TRUE) IS called by R before it exits.
+    # Store job state in a standalone environment so it outlives this frame.
+    .guard_env           <- new.env(parent = emptyenv())
+    .guard_env$done      <- FALSE
+    .guard_env$ss_id     <- ss_id
+    .guard_env$sheet_row <- sheet_row
+    .guard_env$col_pos   <- col_pos
+    .guard_env$runName   <- runName
+    reg.finalizer(globalenv(), function(ge) {
+      ge2 <- tryCatch(get(".spades_guard_env", envir = ge, inherits = FALSE),
+                      error = function(e) NULL)
+      if (!is.null(ge2) && !isTRUE(ge2$done)) {
+        try(message(
+          "\nWARNING: R exiting before job outcome recorded for '", ge2$runName, "'.",
+          "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
+          "\n  Marking INTERRUPTED in GS."
+        ), silent = TRUE)
+        try(SpaDES.project:::.gs_write_cells(
+          ge2$ss_id, ge2$sheet_row,
+          updates       = list(status = SpaDES.project:::txtInterrupted,
+                               finished_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
+          col_positions = ge2$col_pos
+        ), silent = TRUE)
       }
-    }, add = TRUE)
+    }, onexit = TRUE)
+    assign(".spades_guard_env", .guard_env, envir = globalenv())
 
     if (nzchar(PANE))
       try({
@@ -1261,7 +1274,7 @@ runNextWorker <- function(queue_path, global_path,
       list(status = txtInterrupted, finished_at = now)
     }
     .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
-    .gs_job_outcome_recorded <- TRUE
+    .guard_env$done <- TRUE   # disarm the reg.finalizer quit() guard
     return(outcome)
   }
 
