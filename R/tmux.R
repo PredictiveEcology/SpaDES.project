@@ -547,8 +547,8 @@ experimentTmux <- function(df,
     queue_path <- file.path(dirname(global_path), "tmux_queue.rds")
   }
   queue_path <- normalizePath(queue_path, mustWork = FALSE)
-  tmux_prepare_queue_from_df(df, queue_path)
-  q <- readRDS(queue_path)
+  #tmux_prepare_queue_from_df(df, queue_path)
+  #q <- readRDS(queue_path)
 
   # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
   dots_path <- file.path(dirname(normalizePath(queue_path)), ".tmux_dots.rds")
@@ -557,7 +557,7 @@ experimentTmux <- function(df,
   } else if (file.exists(dots_path)) {
     unlink(dots_path)
   }
-  data.table::setDT(q)
+  # data.table::setDT(q)
   # list2env(as.list(q[, -..meta_cols]), envir = environment())
   # runNameLabel <- eval(runNameLabel)
 
@@ -666,7 +666,6 @@ experimentTmux <- function(df,
                                   sheet = "Status", range = "A1", reformat = FALSE)
     ), silent = TRUE)
   }
-  
   tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath, ...)
   if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
@@ -1030,8 +1029,8 @@ experimentTmux <- function(df,
   } else {
     # Not inside tmux: run first job inline in this R session.
     worker_ids <- NA_character_
-    warning("Not inside a tmux session; running first job sequentially in this R session.",
-            call. = FALSE)
+    message("Not inside a tmux session; running first job sequentially in this R session.",
+             call. = FALSE)
     pre_sleep <- 0
     payload <- .build_worker_r_expr(
       queue_path = queue_path, global_path = global_path,
