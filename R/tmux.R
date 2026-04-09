@@ -1156,19 +1156,21 @@ runNextWorker <- function(queue_path, global_path,
     data.table::setDT(q)
     q <- revertDotNames(q)
     
-    # runNameLabel <- eval(runNameLabel)
     data_cols    <- setdiff(names(q), meta_cols)
 
-    # if (is.null(runNameLabel)) runNameLabel <- data_cols[1L]
-
     for (nm in data_cols) {
-      # try parsing as it could be an expression written/recoreded as a character
+      # try parsing as it could be an expression written/recorded as a character
       newPoss <- tryCatch(eval(parse(text = q[[nm]][1L])), error = function(err) q[[nm]][1L], silent = TRUE)
       assign(nm, newPoss, envir = .GlobalEnv)
     }
 
-    # current_run <- paste(q[1L, ..runNameLabel], collapse = "-")
-    # runName     <- gsub("[^[:alnum:]_.:-]", "-", current_run)
+    # Compute runName from runNameLabel now that data cols are in .GlobalEnv
+    runName <- tryCatch({
+      raw <- eval(runNameLabel, envir = .GlobalEnv)
+      gsub("[^[:alnum:]_.:-]", "-", paste(as.character(raw), collapse = "-"))
+    }, error = function(e) paste(q[[data_cols[1L]]][1L], collapse = "-"))
+
+    message("\n[", format(Sys.time(), "%H:%M:%S"), "] Claimed job: ", runName)
 
     if (nzchar(PANE))
       try({
@@ -1211,10 +1213,10 @@ runNextWorker <- function(queue_path, global_path,
       interrupt = function(e) "interrupt"
     )
 
-    # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
-
     now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-    final <- if (outcome == "ok") {
+    message("[", now, "] Job finished: ", runName, "  outcome=", outcome)
+
+    final <- if (isTRUE(outcome == "ok")) {
       list(status = txtDone, finished_at = now)
     } else if (on_interrupt == "requeue") {
       list(status = txtPending, claimed_by = NA_character_)
@@ -1428,7 +1430,10 @@ runWorkerLoop <- function(queue_path, global_path,
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
     if (should_continue) {
-      # Job ran OK → exit 0 so the remote bash while-loop restarts for the next job.
+      # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) →
+      # exit 0 so the remote bash while-loop restarts for the next job.
+      message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
+              " — restarting R session for next job (sleep 2s)")
       quit(save = "no", status = 0L)
     } else {
       # Queue empty or interrupt+fail: stay interactive so the user can debug.
