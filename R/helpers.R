@@ -123,6 +123,54 @@ node <- machine
 #' @export
 inSshPty <- function() nzchar(Sys.getenv("SSH_TTY"))
 
+# Patch parallelly::makeClusterPSOCK so workers don't inherit the PTY slave
+# fds.  Called from R_PROFILE_USER when SSH_TTY is set.
+#
+# How it works:
+#   parallelly::makeClusterPSOCK accepts a `rscript` argument — a path to an
+#   executable that is called with the same args as Rscript.  We write a tiny
+#   shell wrapper that closes fd 0/1/2 (the PTY slave) with exec redirections
+#   before exec'ing Rscript.  Workers never hold PTY slave fds, so no
+#   reference-count change from their side can trigger SIGHUP.
+#
+#   Because `parallelly` may or may not be loaded when R_PROFILE_USER runs, we
+#   register a packageEvent hook AND patch immediately if already loaded.
+.patch_makecluster_pty <- function() {
+  if (!nzchar(Sys.getenv("SSH_TTY"))) return(invisible(NULL))
+
+  w <- tempfile(fileext = ".sh")
+  writeLines(c("#!/bin/sh",
+               "exec 0</dev/null 1>/dev/null 2>/dev/null",
+               "exec Rscript \"$@\""), w)
+  Sys.chmod(w, "755")
+
+  do_patch <- function(...) {
+    ns <- tryCatch(asNamespace("parallelly"), error = function(e) NULL)
+    if (is.null(ns)) return()
+    if (!exists("makeClusterPSOCK", envir = ns, inherits = FALSE)) return()
+    orig <- get("makeClusterPSOCK", envir = ns, inherits = FALSE)
+    ww <- w
+    patched <- function(...) {
+      args <- list(...)
+      if (!"rscript" %in% names(args)) args[["rscript"]] <- ww
+      do.call(orig, args)
+    }
+    environment(patched) <- list2env(list(orig = orig, ww = ww), parent = baseenv())
+    tryCatch({
+      unlockBinding("makeClusterPSOCK", ns)
+      assign("makeClusterPSOCK", patched, envir = ns)
+      lockBinding("makeClusterPSOCK", ns)
+    }, error = function(e) NULL)
+  }
+
+  setHook(packageEvent("parallelly", "onLoad"), do_patch)
+  if (isNamespaceLoaded("parallelly")) do_patch()
+
+  message("[SpaDES.project] SSH PTY: makeClusterPSOCK patched — workers will",
+          " not inherit PTY fds")
+  invisible(NULL)
+}
+
 #' @note not intended to be called by users
 #'
 #' @param prjPaths character vector of paths to be removed
