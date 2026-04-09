@@ -123,6 +123,62 @@ node <- machine
 #' @export
 inSshPty <- function() nzchar(Sys.getenv("SSH_TTY"))
 
+#' Diagnostic: does makeClusterPSOCK survive in an ssh -t PTY?
+#'
+#' Opens a new tmux window that `ssh -t`'s to `host`, starts R with
+#' `R_PROFILE_USER` (matching `experimentTmux` exactly), calls
+#' `makeClusterPSOCK(workers)`, and logs R's exit status to `/tmp/mcp_test.log`
+#' on the remote so you can tell whether R died from a signal (exit >= 129,
+#' e.g. SIGHUP = 129) or exited cleanly (0).
+#'
+#' @param host character; SSH hostname used in `experimentTmux`
+#' @param workers integer; number of PSOCK workers (default 32)
+#' @return invisibly the tmux pane id; call
+#'   `system2("ssh", c(host, "cat /tmp/mcp_test.log"))` afterwards to read the
+#'   result.
+#' @export
+testRemoteCluster <- function(host, workers = 32L) {
+  logf <- "/tmp/mcp_test.log"
+
+  tmp <- tempfile(fileext = ".R")
+  writeLines(c(
+    'message("[mcp_test] PID=", Sys.getpid(),',
+    '        "  SSH_TTY=\'", Sys.getenv("SSH_TTY"), "\'")',
+    sprintf('message("[mcp_test] calling makeClusterPSOCK(%d)...")', workers),
+    sprintf('cl <- tryCatch(parallelly::makeClusterPSOCK(%dL),', workers),
+    '  error = function(e) { message("[mcp_test] ERROR: ", e$message); NULL })',
+    'if (!is.null(cl)) {',
+    '  message("[mcp_test] SUCCESS -- stopping cluster")',
+    '  parallel::stopCluster(cl)',
+    '} else {',
+    '  message("[mcp_test] FAILED (cl is NULL)")',
+    '}',
+    'message("[mcp_test] calling quit(0)")',
+    'quit(save = "no", status = 0L)'
+  ), tmp)
+
+  remote_r <- paste0("/tmp/", basename(tmp))
+  system2("scp", c("-q", tmp, paste0(host, ":", remote_r)))
+
+  # bash (not exec) so exit status is captured after R exits.
+  # R_PROFILE_USER matches the experimentTmux startup path exactly.
+  bash_cmd <- sprintf(
+    "R_PROFILE_USER=%s R --no-save --no-restore --interactive; echo R_EXIT:$? | tee -a %s",
+    remote_r, logf
+  )
+
+  pane_id <- system2("tmux", c("new-window", "-P", "-F", "#{pane_id}",
+                                "-n", "mcp_test"), stdout = TRUE)
+  system2("tmux", c("send-keys", "-t", pane_id,
+                    sprintf("ssh -t %s bash --norc --noprofile -c %s",
+                            host, shQuote(bash_cmd)),
+                    "Enter"))
+
+  message("Test running in tmux window 'mcp_test' (pane ", pane_id, ")")
+  message("Read result: system2('ssh', c('", host, "', 'cat ", logf, "'))")
+  invisible(pane_id)
+}
+
 # Patch parallelly::makeClusterPSOCK so workers don't inherit the PTY slave
 # fds.  Called from R_PROFILE_USER when SSH_TTY is set.
 #
