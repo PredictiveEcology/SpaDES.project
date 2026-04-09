@@ -976,20 +976,15 @@ experimentTmux <- function(df,
         # Remote worker: ssh -t allocates a PTY so R is fully interactive
         # (readline, OSC 2 pane-title escapes, Ctrl+C, traceback).
         # Problem: makeClusterPSOCK spawns Rscript workers that inherit the PTY
-        # slave fds; R resets its SIGHUP handler during startup so inherited
-        # SIG_IGN (nohup/trap) is overridden; eventually SIGHUP kills R silently.
-        # Fix: patch makeClusterPSOCK (via R_PROFILE_USER) to launch workers
-        # through a tiny shell wrapper that closes fd 0/1/2 before exec'ing
-        # Rscript.  Workers never hold PTY slave fds; PSOCK communication is via
-        # sockets so stdin/stdout/stderr are not needed by workers.
-        # See SpaDES.project:::.patch_makecluster_pty().
+        # slave fd; when they close it on exec the PTY reference count can reach
+        # zero, generating SIGHUP → R dies silently.
+        # Fix: prefix R with `nohup`.  nohup sets SIGHUP→SIG_IGN before exec'ing
+        # R; all children R forks/execs inherit that ignore disposition, so PTY
+        # hangup never kills the session.  Because stdout is a PTY (isatty=true)
+        # nohup does NOT redirect it to nohup.out — display is unaffected.
         .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
           hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
           c(
-            # Patch makeClusterPSOCK before any user code runs so the hook is
-            # registered before parallelly is loaded (or patched immediately if
-            # it is already loaded).
-            "SpaDES.project:::.patch_makecluster_pty()",
             # Stagger delay (pane 2+): only fires on the FIRST R session for this
             # pane.  A flag file (R_PROFILE_USER path + ".started") is created
             # after sleeping so that subsequent while-loop iterations skip it.
