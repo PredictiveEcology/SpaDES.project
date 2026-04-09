@@ -988,12 +988,17 @@ experimentTmux <- function(df,
             # Stagger delay (pane 2+): only fires on the FIRST R session for this
             # pane.  A flag file (R_PROFILE_USER path + ".started") is created
             # after sleeping so that subsequent while-loop iterations skip it.
+            # NOTE: must run BEFORE Sys.unsetenv('R_PROFILE_USER') below because
+            # the flag file path is derived from R_PROFILE_USER.
             if (pre_sleep > 0) c(
               "local({",
               "  .flag <- paste0(Sys.getenv('R_PROFILE_USER'), '.started')",
               sprintf("  if (!file.exists(.flag)) { Sys.sleep(%g); writeLines('', .flag) }", pre_sleep),
               "})"
             ) else NULL,
+            # Unset R_PROFILE_USER so Rscript workers spawned by makeClusterPSOCK
+            # don't inherit it and re-source this startup script.
+            "Sys.unsetenv('R_PROFILE_USER')",
             paste0(".wc <- ", deparse1(expr)),
             # Load worker call into readline history so up-arrow re-runs it.
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
