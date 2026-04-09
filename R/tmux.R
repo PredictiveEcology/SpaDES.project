@@ -973,7 +973,8 @@ experimentTmux <- function(df,
         #       restarts for the next job
         # R_PROFILE_USER silently swallows errors that reach its startup
         # tryCatch, so we MUST catch and display here.
-        .make_script <- function(expr, pre_sleep = 0) {
+        .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
+          hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
           c(
             # Stagger delay: only sleep on the FIRST run of this R_PROFILE_USER
             # script.  A flag file (script path + ".started") is created after the
@@ -994,9 +995,10 @@ experimentTmux <- function(df,
             # OSC 2 escape updates the tmux pane title via the PTY; works when
             # tmux option 'allow-passthrough' or 'set-titles' is on.
             "local({",
+            paste0("  .host  <- ", deparse1(hl)),
             "  .node  <- Sys.info()[[\"nodename\"]]",
             "  .pid   <- Sys.getpid()",
-            "  .title <- paste0(.node, \"-\", .pid)",
+            "  .title <- if (nzchar(.host)) paste0(.host, \"-\", .node, \"-\", .pid) else paste0(.node, \"-\", .pid)",
             "  # Attempt to update the tmux pane title via terminal escape sequence",
             "  cat(sprintf(\"\\033]2;%s\\007\", .title))",
             "  message(\"\\n\", strrep(\"-\", 60))",
@@ -1028,7 +1030,7 @@ experimentTmux <- function(df,
         # The flag-based Sys.sleep inside .make_script ensures the stagger delay
         # fires only once (first run); subsequent runs skip it via the flag file.
         first_script <- tempfile(fileext = ".R")
-        writeLines(.make_script(payload, pre_sleep = pre_sleep), first_script)
+        writeLines(.make_script(payload, pre_sleep = pre_sleep, host_label = cores_full[i]), first_script)
         remote_first <- paste0("/tmp/", basename(first_script))
         remote_loop  <- remote_first
         scp_pre      <- sprintf("scp -q %s %s:%s",
