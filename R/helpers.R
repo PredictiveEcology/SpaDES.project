@@ -160,19 +160,24 @@ testRemoteCluster <- function(host, workers = 32L) {
   remote_r <- paste0("/tmp/", basename(tmp))
   system2("scp", c("-q", tmp, paste0(host, ":", remote_r)))
 
-  # bash (not exec) so exit status is captured after R exits.
+  # Remote bash command (not exec so exit status is captured after R exits).
   # R_PROFILE_USER matches the experimentTmux startup path exactly.
-  bash_cmd <- sprintf(
+  remote_bash <- sprintf(
     "R_PROFILE_USER=%s R --no-save --no-restore --interactive; echo R_EXIT:$? | tee -a %s",
     remote_r, logf
   )
 
+  # Write a local shell script so tmux just receives a plain file path —
+  # no quoting issues from system2() going through a shell.
+  local_sh <- tempfile(fileext = ".sh")
+  writeLines(c(
+    "#!/bin/bash",
+    sprintf("ssh -t %s bash --norc --noprofile -c %s", host, shQuote(remote_bash))
+  ), local_sh)
+  Sys.chmod(local_sh, "755")
+
   win <- "mcp_test"
-  system2("tmux", c("new-window", "-n", win))
-  system2("tmux", c("send-keys", "-t", win,
-                    sprintf("ssh -t %s bash --norc --noprofile -c %s",
-                            host, shQuote(bash_cmd)),
-                    "Enter"))
+  system2("tmux", c("new-window", "-n", win, local_sh))
 
   message("Test running in tmux window '", win, "'")
   message("Read result: system2('ssh', c('", host, "', 'cat ", logf, "'))")
