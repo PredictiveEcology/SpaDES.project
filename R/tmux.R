@@ -1017,9 +1017,43 @@ experimentTmux <- function(df,
           cores_full[i]
         .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title)
         .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
+      } else if (is_remote) {
+        # Remote + reuse mode: single SSH session; R loops internally.
+        # Write a minimal R script and run it via R_PROFILE_USER so the session
+        # is interactive (OSC 2 title updates work, errors stay at '>').
+        remote_script  <- tempfile(fileext = ".R")
+        remote_path    <- paste0("/tmp/", basename(remote_script))
+        writeLines(c(
+          if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
+          payload
+        ), remote_script)
+        scp_cmd <- sprintf("scp -q %s %s:%s",
+                           shQuote(remote_script), cores_full[i], remote_path)
+        ssh_cmd <- sprintf(
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+          cores_full[i], shQuote(remote_path)
+        )
+        remote_node2 <- tryCatch(
+          trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE, stderr = FALSE)[1L]),
+          error = function(e) ""
+        )
+        pane_title2 <- if (nzchar(remote_node2) && remote_node2 != cores_full[i])
+          paste0(cores_full[i], "-", remote_node2)
+        else
+          cores_full[i]
+        .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title2)
+        .tmux_run("send-keys", "-t", worker_ids[i],
+                  paste(scp_cmd, "&&", ssh_cmd), "C-m")
       } else {
-        code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
-        .tmux_run("send-keys", "-t", worker_ids[i], code, "C-m")
+        # Local worker: start Rscript non-interactively so R runs the payload
+        # and exits (respawn-pane handles killAndNewPane; runWorkerLoop loops for reuse).
+        local_script <- tempfile(fileext = ".R")
+        writeLines(c(
+          if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
+          payload
+        ), local_script)
+        .tmux_run("send-keys", "-t", worker_ids[i],
+                  sprintf("Rscript %s", shQuote(local_script)), "C-m")
       }
     }  # end merged loop
 
