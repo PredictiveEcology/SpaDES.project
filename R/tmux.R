@@ -1172,6 +1172,24 @@ runNextWorker <- function(queue_path, global_path,
 
     message("\n[", format(Sys.time(), "%H:%M:%S"), "] Claimed job: ", runName)
 
+    # on.exit guard: if quit() is called from inside source(global_path) —
+    # e.g. pak::pak() restarting after a package update — it bypasses all
+    # tryCatch handlers but DOES run on.exit().  Detect this by checking whether
+    # .gs_job_outcome_recorded was set; if not, mark the GS row INTERRUPTED so
+    # it doesn't stay stuck as RUNNING indefinitely.
+    .gs_job_outcome_recorded <- FALSE
+    on.exit({
+      if (!isTRUE(.gs_job_outcome_recorded)) {
+        message("\nWARNING: R session is exiting before job outcome was recorded.",
+                "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
+                "\n  Marking '", runName, "' as INTERRUPTED in GS.")
+        now2 <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        try(.gs_write_cells(ss_id, sheet_row,
+                            updates       = list(status = txtInterrupted, finished_at = now2),
+                            col_positions = col_pos), silent = TRUE)
+      }
+    }, add = TRUE)
+
     if (nzchar(PANE))
       try({
         if (exists(".tmux_run", mode = "function"))
@@ -1224,6 +1242,7 @@ runNextWorker <- function(queue_path, global_path,
       list(status = txtInterrupted, finished_at = now)
     }
     .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
+    .gs_job_outcome_recorded <- TRUE
     return(outcome)
   }
 
