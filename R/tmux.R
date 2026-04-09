@@ -172,15 +172,19 @@ tmux_set_mouse <- function(on = TRUE) {
     "writeLines(c(existing, ", deparse1(libpath_line), ", ", deparse1(repos_line), ", ", deparse1(ssl_line), "), rprof)"
   ))
 
-  # 3. Verify Require matches local installation (version + source)
+  # 3. Verify Require matches local installation (version + RemoteSha).
+  #    RemoteSha is the git commit SHA recorded at install time — it changes
+  #    on every development push even when version and ref stay the same.
   local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
   local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
+  local_req_sha <- local_req_dsc$RemoteSha
+  if (is.null(local_req_sha)) local_req_sha <- ""   # "" for CRAN installs
   if (identical(local_req_dsc$RemoteType, "github")) {
     local_req_src <- paste0(local_req_dsc$RemoteUsername, "/", local_req_dsc$RemoteRepo)
     if (!is.null(local_req_dsc$RemoteRef))
       local_req_src <- paste0(local_req_src, "@", local_req_dsc$RemoteRef)
   } else if (!is.null(local_req_dsc$Repository)) {
-    local_req_src <- local_req_dsc$Repository  # e.g. https://predictiveecology.r-universe.dev
+    local_req_src <- local_req_dsc$Repository
   } else {
     local_req_src <- "CRAN"
   }
@@ -189,28 +193,41 @@ tmux_set_mouse <- function(on = TRUE) {
     .ssh_r(paste0(
       "dsc <- packageDescription('Require');",
       "ver <- as.character(packageVersion('Require'));",
+      "sha <- if (!is.null(dsc$RemoteSha)) dsc$RemoteSha else '';",
       "src <- if (identical(dsc$RemoteType, 'github')) {",
       "  ref <- paste0(dsc$RemoteUsername, '/', dsc$RemoteRepo);",
       "  if (!is.null(dsc$RemoteRef)) ref <- paste0(ref, '@', dsc$RemoteRef);",
       "  ref",
       "} else if (!is.null(dsc$Repository)) dsc$Repository else 'CRAN';",
-      "cat(ver, src)"
+      "cat(ver, sha, src)"
     ), intern = TRUE)))
   remote_req_parts <- strsplit(trimws(remote_req_info), "\\s+")[[1L]]
   remote_req_ver   <- if (length(remote_req_parts) >= 1L) remote_req_parts[1L] else "0"
-  remote_req_src   <- if (length(remote_req_parts) >= 2L) remote_req_parts[2L] else "CRAN"
+  remote_req_sha   <- if (length(remote_req_parts) >= 2L) remote_req_parts[2L] else ""
+  remote_req_src   <- if (length(remote_req_parts) >= 3L) remote_req_parts[3L] else "CRAN"
 
   needs_install <- tryCatch(
     numeric_version(remote_req_ver) < numeric_version(local_req_ver),
     error = function(e) TRUE
-  ) || !identical(remote_req_src, local_req_src)
+  ) || !identical(remote_req_src, local_req_src) ||
+    (nzchar(local_req_sha) && !identical(remote_req_sha, local_req_sha))
 
   if (needs_install) {
-    message("  Installing Require ", local_req_ver, " (", local_req_src, ") on ", host,
-            "\n  (remote has: ", remote_req_ver, " / ", remote_req_src, ")")
+    message("  Installing Require ", local_req_ver, " (", local_req_src,
+            " sha=", substr(local_req_sha, 1L, 7L), ") on ", host,
+            "\n  (remote has: ", remote_req_ver,
+            " sha=", substr(remote_req_sha, 1L, 7L),
+            " / ", remote_req_src, ")")
     if (grepl("/", local_req_src)) {
-      # GitHub source: install via pak so the exact ref is respected
-      .ssh_r(paste0("pak::pak(", deparse1(local_req_src), ")"))
+      # GitHub source: rsync the installed directory directly — faster than
+      # re-cloning via pak, and guarantees byte-for-byte identity with local.
+      local_req_path <- find.package("Require", lib.loc = local_lib)
+      message("  rsyncing Require (", local_req_ver, ") to ", host, ":", local_lib, "/")
+      system(paste0(
+        "rsync -a --delete ",
+        shQuote(paste0(normalizePath(local_req_path), "/")),
+        " ", host, ":", file.path(local_lib, "Require"), "/"
+      ))
     } else {
       .ssh_r("install.packages('Require')")
     }
