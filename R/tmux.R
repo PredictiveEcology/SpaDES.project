@@ -973,39 +973,28 @@ experimentTmux <- function(df,
         #       restarts for the next job
         # R_PROFILE_USER silently swallows errors that reach its startup
         # tryCatch, so we MUST catch and display here.
-        .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
+        # Remote worker script: run via `Rscript script.R` (NO -t / PTY).
+        # Using ssh -t (PTY) caused makeClusterPSOCK to kill the R session
+        # silently: PSOCK workers inherit/conflict with the PTY file descriptors.
+        # Without a PTY, Rscript runs as a plain batch process — parallel workers
+        # can spawn freely.  OSC 2 title sequences require a PTY so we drop them;
+        # the pane title is set once from the local side via tmux select-pane.
+        # Stagger delay is moved to bash `sleep` so the R script needs no flag file.
+        .make_script <- function(expr, host_label = NULL) {
           hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
           c(
-            # Stagger delay: only sleep on the FIRST run of this R_PROFILE_USER
-            # script.  A flag file (script path + ".started") is created after the
-            # first sleep so that subsequent loop iterations (same script, same
-            # R_PROFILE_USER path) start immediately without sleeping again.
-            # Sys.getenv("R_PROFILE_USER") reads the path set by the caller.
-            if (pre_sleep > 0) c(
-              "local({",
-              "  .flag <- paste0(Sys.getenv('R_PROFILE_USER'), '.started')",
-              sprintf("  if (!file.exists(.flag)) { Sys.sleep(%g); writeLines('', .flag) }", pre_sleep),
-              "})"
-            ) else NULL,
-            paste0(".wc <- ", deparse1(expr)),
-            # invisible(NULL) prevents file.remove()'s TRUE return from auto-printing
-            "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
-            # Visual separator + PID so session boundaries and process identity
-            # are obvious in the pane.
-            # OSC 2 escape updates the tmux pane title via the PTY; works when
-            # tmux option 'allow-passthrough' or 'set-titles' is on.
+            # Session header — visible in the tmux pane so job boundaries are clear.
             "local({",
             paste0("  .host  <- ", deparse1(hl)),
             "  .node  <- Sys.info()[[\"nodename\"]]",
             "  .pid   <- Sys.getpid()",
-            "  .title <- if (nzchar(.host)) paste0(.host, \"-\", .node, \"-\", .pid) else paste0(.node, \"-\", .pid)",
-            "  # Attempt to update the tmux pane title via terminal escape sequence",
-            "  cat(sprintf(\"\\033]2;%s\\007\", .title))",
             "  message(\"\\n\", strrep(\"-\", 60))",
             "  message(\"[\", format(Sys.time(), \"%H:%M:%S\"), \"] New worker session\",",
-            "          \"  node: \", .node, \"  PID: \", .pid)",
+            "          \"  \", if (nzchar(.host)) paste0(.host, \"-\") else \"\",",
+            "          \"node: \", .node, \"  PID: \", .pid)",
             "})",
-            'message("\\nWorker call (up-arrow to re-run):\\n", .wc, "\\n")',
+            # Run the worker; capture traceback on error and exit non-zero so
+            # the bash while-loop stops (consistent with on_interrupt = 'fail').
             ".spades_tb <- NULL",
             "tryCatch(",
             "  withCallingHandlers({",
@@ -1014,39 +1003,34 @@ experimentTmux <- function(df,
             "    .spades_tb <<- sys.calls()",
             "  }),",
             "  error = function(.e) {",
-            # Standard R error format: "Error in CALL :\n  MESSAGE"
             "    .cl <- conditionCall(.e)",
             "    if (!is.null(.cl))",
             '      message("Error in ", deparse(.cl, nlines = 1L), " :\\n  ", conditionMessage(.e))',
             "    else",
             '      message("Error: ", conditionMessage(.e))',
-            '    message("\\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")',
-            '    message("\\nq(status=0L) to restart loop | q(status=1L) to stop.")',
+            '    message("\\n(traceback in .spades_tb)")',
+            "    quit(save = 'no', status = 1L)",
             "  }",
             ")"
           )
         }
-        # Single script for both first run and subsequent loop iterations.
-        # The flag-based Sys.sleep inside .make_script ensures the stagger delay
-        # fires only once (first run); subsequent runs skip it via the flag file.
         first_script <- tempfile(fileext = ".R")
-        writeLines(.make_script(payload, pre_sleep = pre_sleep, host_label = cores_full[i]), first_script)
+        writeLines(.make_script(payload, host_label = cores_full[i]), first_script)
         remote_first <- paste0("/tmp/", basename(first_script))
         remote_loop  <- remote_first
         scp_pre      <- sprintf("scp -q %s %s:%s",
                                 shQuote(first_script), cores_full[i], remote_first)
 
-        # Set BASH_ENV="" in the LOCAL environment and forward the empty value
-        # via ssh SendEnv so that sshd's outer bash (which invokes our command)
-        # finds no BASH_ENV file to source.  env(1) then sets R_PROFILE_USER
-        # without needing a bash -c wrapper, bypassing shell variable expansion.
-        # trap '' INT keeps Ctrl-C from killing the local SSH process.
+        # No -t: Rscript runs without a PTY so parallel workers (makeClusterPSOCK
+        # etc.) can spawn without PTY conflicts.
+        # Stagger delay is a bash sleep before the first Rscript invocation only.
         r_run <- function(rpath) {
-          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+          sprintf("BASH_ENV= ssh -o SendEnv=BASH_ENV %s Rscript --no-save --no-restore %s",
                   cores_full[i], shQuote(rpath))
         }
-        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do sleep 2; done",
-                            setup_pre, scp_pre,
+        stagger_bash <- if (pre_sleep > 0) sprintf(" && sleep %g", pre_sleep) else ""
+        bash_cmd <- sprintf("trap '' INT; %s%s%s && %s && while %s; do sleep 2; done",
+                            setup_pre, scp_pre, stagger_bash,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
           trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE,
@@ -1489,11 +1473,14 @@ runWorkerLoop <- function(queue_path, global_path,
       Sys.sleep(0.5)   # let PTY flush before SSH connection drops
       quit(save = "no", status = 0L)
     } else {
-      # Queue empty or interrupt+fail: stay interactive so the user can debug.
-      # R returns to '>' — the SSH connection (and tmux pane) stays alive.
-      # Type q(status=0L) to let the while-loop restart, q(status=1L) to stop.
-      message("\nWorker idle: res=", res,
-              "\n  q(status=0L) to retry  |  q(status=1L) to stop the loop")
+      # Queue empty or interrupt+fail.
+      message("\nWorker idle: res=", res)
+      if (!interactive()) {
+        # Non-interactive (Rscript, no PTY): exit 1 so the bash while-loop stops.
+        quit(save = "no", status = 1L)
+      }
+      # Interactive R session: stay at '>' so the user can debug.
+      message("  q(status=0L) to retry  |  q(status=1L) to stop the loop")
       return(invisible(res))
     }
   }
