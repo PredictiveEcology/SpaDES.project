@@ -494,9 +494,9 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   `ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive'`.
 #'   `ssh -t` allocates a PTY so R runs interactively (readline, OSC 2 title
 #'   updates, Ctrl+C propagation).  A startup script injected via
-#'   `R_PROFILE_USER` runs one job then exits; `q(status = 0L)` (job done or
-#'   queue empty) lets the while-loop start a fresh R session, any non-zero
-#'   exit stops the loop.  `R_PROFILE_USER` is unset inside R immediately
+#'   `R_PROFILE_USER` runs one job then exits; `q(status = 1L)` (job done or
+#'   queue empty) lets the while-loop start a fresh R session, `q()` (status 0)
+#'   stops the loop.  `R_PROFILE_USER` is unset inside R immediately
 #'   after startup so workers spawned by `makeClusterPSOCK()` do not inherit
 #'   it and inadvertently re-run the startup script.
 #'
@@ -578,7 +578,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' The full command is always in the pane's bash history:
 #' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
 #'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#' - **remote**: the full `ssh -t host bash -c ‘...' && while ssh -t host bash -c ‘...'; do sleep 2; done`
+#’ - **remote**: the full `ssh -t host bash -c ‘...’ && while ! ssh -t host bash -c ‘...’; do sleep 2; done`
 #'   command (restarts the bash while-loop from scratch).
 #'
 #' @param df A `data.frame`. Column names become object names in worker panes; values
@@ -1186,7 +1186,7 @@ experimentTmux <- function(df,
             "    else",
             '      message("Error: ", conditionMessage(.e))',
             '    message("\\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")',
-            '    message("\\nq(status=0L) to restart loop | q(status=1L) to stop.")',
+            '    message("\\nq(status=1L) to restart loop | q() to stop.")',
             "  }",
             ")"
           )
@@ -1211,7 +1211,7 @@ experimentTmux <- function(df,
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
                   cores_full[i], shQuote(inner))
         }
-        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while %s; do sleep 2; done",
+        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while ! %s; do sleep 2; done",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
@@ -1654,16 +1654,16 @@ runWorkerLoop <- function(queue_path, global_path,
     }
     if (should_continue) {
       # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) →
-      # exit 0 so the remote bash while-loop restarts for the next job.
+      # exit 1 so the remote bash `while !` condition fails → loop continues.
       message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
               " — restarting R session for next job")
       flush(stderr()); flush(stdout())
       Sys.sleep(0.5)   # let PTY flush before SSH connection drops
-      quit(save = "no", status = 0L)
+      quit(save = "no", status = 1L)
     } else {
       # Queue empty or interrupt+fail: stay at '>' so the user can debug.
       message("\nWorker idle: res=", res,
-              "\n  q(status=0L) to retry  |  q(status=1L) to stop the loop")
+              "\n  q(status=1L) to retry  |  q() to stop the loop")
       return(invisible(res))
     }
   }
