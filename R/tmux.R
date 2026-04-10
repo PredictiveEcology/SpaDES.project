@@ -2195,18 +2195,11 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
     for (i in to_check) {
       new_status <- txtPending
-      
+
       # put the values from the q columns into this environment so runNameLabel can use them
       list2env(as.list(q[i, -..meta_cols]), envir = environment())
-      
-      runNameLabel <- eval(runNameLabel, envir = environment())
-      if (missing(runNameLabel) || is.null(runNameLabel)) {
-        runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
-      }
-      
-      runName <- runNameLabel
-      # runName <- getRunName(q, i, runNameLabel)# 
-      # runNameSimples <- sapply(runNameLabel, function(rnl) q[i, ..rnl])
+
+      runName <- eval(runNameLabel, envir = environment())
       
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
