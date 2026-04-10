@@ -1597,8 +1597,14 @@ tmux_kill_panes <- function(panes) {
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths()[1L]) {
-  # Ensure project lib is first so correct package versions are loaded
-  lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
+  # Ensure project lib is first so correct package versions are loaded.
+  # Also re-attach utils if Rprofile.site on the remote detached it — this
+  # guarantees install.packages() and other utils functions are always available
+  # inside global.R regardless of the remote machine's site configuration.
+  lib_pre <- sprintf(
+    "if (!'package:utils' %%in%% search()) library(utils); .libPaths(c(%s, .libPaths())); ",
+    deparse1(lib_path)
+  )
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
