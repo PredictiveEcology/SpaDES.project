@@ -1067,11 +1067,13 @@ experimentTmux <- function(df,
             # Load worker call into readline history so up-arrow re-runs it.
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
             # Session header + OSC 2 pane-title (requires PTY; works via ssh -t).
+            # Store the prefix in an option so runNextWorker can append runName.
             "local({",
             paste0("  .host  <- ", deparse1(hl)),
             "  .node  <- Sys.info()[[\"nodename\"]]",
             "  .pid   <- Sys.getpid()",
             "  .title <- if (nzchar(.host)) paste0(.host, \"-\", .node, \"-\", .pid) else paste0(.node, \"-\", .pid)",
+            "  options(.spades_pane_prefix = .title)",
             "  cat(sprintf(\"\\033]2;%s\\007\", .title))",
             "  message(\"\\n\", strrep(\"-\", 60))",
             "  message(\"[\", format(Sys.time(), \"%H:%M:%S\"), \"] New worker session\",",
@@ -1296,10 +1298,13 @@ runNextWorker <- function(queue_path, global_path,
 
     if (nzchar(PANE))
       try({
+        .prefix <- getOption(".spades_pane_prefix", "")
+        .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
+        cat(sprintf("\033]2;%s\007", .pane_title))
         if (exists(".tmux_run", mode = "function"))
-          .tmux_run("select-pane", "-t", PANE, "-T", runName)
+          .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
         else
-          processx::run("tmux", c("select-pane", "-t", PANE, "-T", runName),
+          processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
                         echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
       }, silent = TRUE)
     
@@ -1398,10 +1403,13 @@ runNextWorker <- function(queue_path, global_path,
   current_run <- getRunName(q, i, runNameLabel)
   runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
   try({
+    .prefix <- getOption(".spades_pane_prefix", "")
+    .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
+    cat(sprintf("\033]2;%s\007", .pane_title))
     if (exists(".tmux_run", mode = "function"))
-      .tmux_run("select-pane", "-t", PANE, "-T", runName)
+      .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
     else
-      processx::run("tmux", c("select-pane", "-t", PANE, "-T", runName),
+      processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
                     echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
   }, silent = TRUE)
 
