@@ -261,8 +261,19 @@ tmux_set_mouse <- function(on = TRUE) {
       "password=", local_creds$password, "\n"
     )
     message("  Propagating GitHub credentials to ", host)
+    # Store via git credential system (used by git clone/fetch).
     system2("ssh", c(host, "git credential approve"),
             input = strsplit(cred_input, "\n")[[1]])
+    # Also write GITHUB_PAT to ~/.Renviron so pak / GitHub API calls find the
+    # token directly.  git credential approve alone is not always read by pak
+    # (e.g. when the remote's credential helper differs from gitcreds).
+    pat_line <- paste0("GITHUB_PAT=", local_creds$password)
+    .ssh_r(paste0(
+      "renv <- path.expand('~/.Renviron');",
+      "existing <- if (file.exists(renv)) readLines(renv, warn = FALSE) else character(0L);",
+      "existing <- existing[!grepl('^GITHUB_PAT=', existing)];",
+      "writeLines(c(existing, ", deparse1(pat_line), "), renv)"
+    ))
   } else {
     # Fall back to checking whether the remote already has credentials
     creds_out <- trimws(paste(collapse = "",
