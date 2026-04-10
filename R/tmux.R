@@ -1175,6 +1175,17 @@ experimentTmux <- function(df,
         # R; all children R forks/execs inherit that ignore disposition, so PTY
         # hangup never kills the session.  Because stdout is a PTY (isatty=true)
         # nohup does NOT redirect it to nohup.out — display is unaffected.
+        # PAT reader injected into every worker script.
+        # ~/.Rprofile is bypassed when R_PROFILE_USER is set, so the reader we
+        # wrote to ~/.Rprofile during setup never fires.  Embed it here instead.
+        # Path mirrors local_lib (same on localhost and remote by design).
+        .remote_pat_file <- file.path(.libPaths()[1L], ".spades_github_pat")
+        .pat_reader_line  <- paste0(
+          "local({f<-", deparse1(.remote_pat_file), ";",
+          "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
+          "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
+        )
+
         .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
           hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
           c(
@@ -1184,6 +1195,9 @@ experimentTmux <- function(df,
             # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
             # set it here too — not just in ~/.Rprofile written by setup.)
             "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
+            # Load GITHUB_PAT from the file written during setup so pak/gh can
+            # authenticate even though ~/.Rprofile is skipped here.
+            .pat_reader_line,
             # Stagger delay (pane 2+): only fires on the FIRST R session for this
             # pane.  A flag file (R_PROFILE_USER path + ".started") is created
             # after sleeping so that subsequent while-loop iterations skip it.
