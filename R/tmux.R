@@ -260,16 +260,34 @@ tmux_set_mouse <- function(on = TRUE) {
   local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
   if (!is.null(local_creds)) {
     message("  Propagating GitHub credentials to ", host)
-    # Both calls must go through .ssh_r()-style setup so the FireSenseTesting
-    # lib path is on the search path and gitcreds is found.
+    # 5a. Write PAT to a file inside local_lib on the remote (avoids touching
+    #     ~/.Renviron).  ~/.Rprofile (which we already manage) reads this file
+    #     and calls Sys.setenv(GITHUB_PAT=) so pak/gh find it even in
+    #     non-interactive SSH sessions where libsecret/keyring is unavailable.
+    pat_file     <- file.path(local_lib, ".spades_github_pat")
+    pat_tmp_local <- tempfile()
+    on.exit(unlink(pat_tmp_local), add = TRUE)
+    writeLines(local_creds$password, pat_tmp_local)
+    system(paste0("scp -q ", shQuote(pat_tmp_local), " ", host, ":", pat_file))
+    # Add/refresh the reader line in ~/.Rprofile.
+    pat_read_line <- paste0(
+      "local({f<-", deparse1(pat_file), ";",
+      "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
+      "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
+    )
+    .ssh_r(paste0(
+      "rprof<-path.expand('~/.Rprofile');",
+      "lines<-if(file.exists(rprof))readLines(rprof,warn=FALSE) else character(0);",
+      "lines<-lines[!grepl('spades_github_pat',lines,fixed=TRUE)];",
+      "writeLines(c(lines,", deparse1(pat_read_line), "),rprof)"
+    ))
+    # 5b. Also propagate via gitcreds_set() for git operations.
     has_cred <- isTRUE(tryCatch({
       out <- .ssh_r(
         "tryCatch({gitcreds::gitcreds_get();cat('yes')},error=function(e)cat('no'))",
         intern = TRUE)
       trimws(paste(out, collapse = "")) == "yes"
     }, error = function(e) FALSE))
-    # Write the gitcreds_set() script with libpath preamble, scp, then run
-    # with stdin piped so gitcreds_set() receives the responses non-interactively.
     gs_script <- tempfile(fileext = ".R")
     on.exit(unlink(gs_script), add = TRUE)
     writeLines(c(
