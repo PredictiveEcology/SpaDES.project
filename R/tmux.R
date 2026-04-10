@@ -267,10 +267,23 @@ tmux_set_mouse <- function(on = TRUE) {
     tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
   if (!is.null(local_pat) && nzchar(local_pat)) {
     message("  Propagating GitHub credentials to ", host)
-    # 5a. Write PAT to a file inside local_lib on the remote (avoids touching
-    #     ~/.Renviron).  ~/.Rprofile (which we already manage) reads this file
-    #     and calls Sys.setenv(GITHUB_PAT=) so pak/gh find it even in
-    #     non-interactive SSH sessions where libsecret/keyring is unavailable.
+    # 5a. Write the correct GITHUB_PAT to ~/.Renviron on the remote.
+    #     ~/.Renviron is read by every R subprocess at startup (including pak's
+    #     callr subprocess) and overrides anything the parent set via Sys.setenv().
+    #     If a stale GITHUB_PAT is already there, this replaces it; if absent, it
+    #     adds it.  chmod 0600 keeps it owner-readable only.
+    .ssh_r(paste0(
+      "local({",
+      "  renv<-path.expand('~/.Renviron');",
+      "  lines<-if(file.exists(renv))readLines(renv,warn=FALSE) else character(0);",
+      "  lines<-lines[!grepl('^GITHUB_PAT=|^GITHUB_TOKEN=|^GH_TOKEN=',lines)];",
+      "  writeLines(c(lines,paste0('GITHUB_PAT=',", deparse1(local_pat), ")),renv);",
+      "  Sys.chmod(renv,'0600')",
+      "})"
+    ))
+    # Also write PAT to a file inside local_lib for the worker startup script
+    # (which reads it before Sys.unsetenv('R_PROFILE_USER') and before any
+    # callr subprocesses are started).
     pat_file     <- file.path(local_lib, ".spades_github_pat")
     pat_tmp_local <- tempfile()
     on.exit(unlink(pat_tmp_local), add = TRUE)
