@@ -250,29 +250,24 @@ tmux_set_mouse <- function(on = TRUE) {
   .ssh_r("Require::Install('usethis')")
 
   # 5. Propagate GitHub credentials from localhost to remote.
-  # Read the local token and pipe it into `git credential approve` on the remote
-  # so the remote can clone/install from GitHub without interactive setup.
+  # Use gitcreds::gitcreds_approve() on the remote — the same function that
+  # gitcreds_set() calls internally.  This is critical: raw `git credential
+  # approve` writes to whichever helper the git binary uses, which may differ
+  # from what gitcreds_get() reads (e.g. libgit2/gert vs git binary on the
+  # same machine).  gitcreds_approve() always writes to the backend that
+  # gitcreds_get() will subsequently read, so they are guaranteed consistent.
   local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
   if (!is.null(local_creds)) {
-    cred_input <- paste0(
-      "protocol=https\n",
-      "host=github.com\n",
-      "username=", local_creds$username, "\n",
-      "password=", local_creds$password, "\n"
-    )
     message("  Propagating GitHub credentials to ", host)
-    # Reject any existing credential first so stale/expired entries don't
-    # take priority over the newly approved one.  Some credential helpers
-    # (gnome-libsecret, osxkeychain) return the *oldest* matching entry on
-    # `git credential fill` rather than the most-recently-approved one.
-    # Rejecting with protocol+host only removes ALL github.com entries.
-    reject_input <- "protocol=https\nhost=github.com\n"
-    system2("ssh", c(host, "git credential reject"),
-            input = strsplit(reject_input, "\n")[[1]])
-    system2("ssh", c(host, "git credential approve"),
-            input = strsplit(cred_input, "\n")[[1]])
+    .ssh_r(paste0(
+      "gitcreds::gitcreds_approve(list(",
+      "  protocol = 'https', host = 'github.com',",
+      "  username = ", deparse1(local_creds$username), ",",
+      "  password = ", deparse1(local_creds$password),
+      "))"
+    ))
   } else {
-    # Fall back to checking whether the remote already has credentials
+    # Fall back to checking whether the remote already has valid credentials.
     creds_out <- trimws(paste(collapse = "",
       .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error=function(e) cat('none'))",
              intern = TRUE)))
@@ -1023,12 +1018,6 @@ experimentTmux <- function(df,
       }
     }
 
-    # Get the local GitHub PAT so we can inject it into worker startup scripts.
-    # This bypasses whatever git credential helper is configured on the remote
-    # (which may return an expired token) and ensures the correct token is set
-    # as GITHUB_PAT in every worker R session — which is what pak/gitcreds read.
-    .github_pat <- tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
-
     setup_expr_for <- function(host) {
       sprintf(
         "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s)",
@@ -1133,12 +1122,6 @@ experimentTmux <- function(df,
             # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
             # set it here too — not just in ~/.Rprofile written by setup.)
             "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
-            # Inject the local GitHub PAT so pak/gitcreds always use the correct
-            # (non-expired) token, regardless of what is stored in the remote
-            # git credential helper.
-            if (!is.null(.github_pat))
-              sprintf("Sys.setenv(GITHUB_PAT = %s)", deparse1(.github_pat))
-            else NULL,
             # Stagger delay (pane 2+): only fires on the FIRST R session for this
             # pane.  A flag file (R_PROFILE_USER path + ".started") is created
             # after sleeping so that subsequent while-loop iterations skip it.
