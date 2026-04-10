@@ -275,7 +275,9 @@ tmux_set_mouse <- function(on = TRUE) {
     pat_tmp_local <- tempfile()
     on.exit(unlink(pat_tmp_local), add = TRUE)
     writeLines(local_pat, pat_tmp_local)
+    Sys.chmod(pat_tmp_local, mode = "0600")
     system(paste0("scp -q ", shQuote(pat_tmp_local), " ", host, ":", pat_file))
+    system2("ssh", c(host, paste0("chmod 0600 ", shQuote(pat_file))))
     # Add/refresh the reader line in ~/.Rprofile.
     pat_read_line <- paste0(
       "local({f<-", deparse1(pat_file), ";",
@@ -1046,6 +1048,7 @@ experimentTmux <- function(df,
       if (!is.null(.pat) && nzchar(.pat)) {
         f <- tempfile()
         writeLines(.pat, f)
+        Sys.chmod(f, mode = "0600")
         .local_pat_file <<- f
       }
     })
