@@ -50,6 +50,7 @@ tmux_set_mouse <- function(on = TRUE) {
   install_repos <- unique(c("https://predictiveecology.r-universe.dev", getOption("repos")))
   local_lib     <- .libPaths()[1L]
 
+  browser()
   # Internal helper: write R code to a local temp file, scp it to remote,
   # run it with Rscript (no shell quoting of R expressions needed), then delete.
   # Every script sets repos and cwd before running expr.
@@ -250,33 +251,29 @@ tmux_set_mouse <- function(on = TRUE) {
   .ssh_r("Require::Install('usethis')")
 
   # 5. Propagate GitHub credentials from localhost to remote.
-  # Use gitcreds::gitcreds_approve() on the remote — the same function that
-  # gitcreds_set() calls internally.  This is critical: raw `git credential
-  # approve` writes to whichever helper the git binary uses, which may differ
-  # from what gitcreds_get() reads (e.g. libgit2/gert vs git binary on the
-  # same machine).  gitcreds_approve() always writes to the backend that
-  # gitcreds_get() will subsequently read, so they are guaranteed consistent.
+  # Use gitcreds::gitcreds_set() on the remote — it calls gitcreds_approve()
+  # internally and therefore uses the exact same credential backend as
+  # gitcreds_get(), guaranteeing consistency.
+  # gitcreds_set() is interactive but reads from stdin in non-interactive R,
+  # so we pipe the responses via system2(input=).  When an existing credential
+  # is present it first asks "1: Keep / 2: Replace" before requesting the PAT;
+  # we detect this upfront and prepend "2" to the piped input when needed.
   local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
   if (!is.null(local_creds)) {
     message("  Propagating GitHub credentials to ", host)
-    # Some machines have multiple credential helpers (e.g. GNOME keyring +
-    # git-credential-store). 'git credential fill' returns the stale entry
-    # from the highest-priority helper, which we cannot update over a
-    # non-interactive SSH session.  Fix: pin github.com to git-credential-store
-    # on the remote so fill and approve use the same backend, then write the
-    # credential directly to ~/.git-credentials.
-    system2("ssh", c(host,
-      "git config --global credential.https://github.com.helper store"))
-    pat_url <- sprintf("https://%s:%s@github.com",
-                       utils::URLencode(local_creds$username, reserved = TRUE),
-                       utils::URLencode(local_creds$password, reserved = TRUE))
-    .ssh_r(paste0(
-      "f <- path.expand('~/.git-credentials');",
-      "lines <- if (file.exists(f)) readLines(f, warn = FALSE) else character(0L);",
-      "lines <- lines[!grepl('@github\\\\.com', lines)];",
-      "writeLines(c(lines, ", deparse1(pat_url), "), f);",
-      "Sys.chmod(f, '0600')"
-    ))
+    has_cred <- isTRUE(tryCatch({
+      out <- system2("ssh", c(host, paste0(
+        "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
+        "Rscript --no-save -e ",
+        shQuote("tryCatch({gitcreds::gitcreds_get();cat('yes')},error=function(e)cat('no'))")
+      )), stdout = TRUE, stderr = FALSE)
+      trimws(paste(out, collapse = "")) == "yes"
+    }, error = function(e) FALSE))
+    input_lines <- c(if (has_cred) "2", local_creds$password)
+    system2("ssh", c(host, paste0(
+      "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
+      "Rscript --no-save -e ", shQuote("gitcreds::gitcreds_set()")
+    )), input = input_lines)
   } else {
     # Fall back to checking whether the remote already has valid credentials.
     creds_out <- trimws(paste(collapse = "",
