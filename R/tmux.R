@@ -1458,17 +1458,21 @@ runNextWorker <- function(queue_path, global_path,
     }, onexit = TRUE)
     assign(".spades_guard_env", .guard_env, envir = globalenv())
 
-    if (nzchar(PANE))
-      try({
-        .prefix <- getOption(".spades_pane_prefix", "")
-        .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
-        cat(sprintf("\033]2;%s\007", .pane_title))
+    try({
+      .prefix <- getOption(".spades_pane_prefix", "")
+      .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
+      # OSC 2 propagates through the SSH PTY to local tmux and updates
+      # #{pane_title} — works for both local and remote panes.
+      cat(sprintf("\033]2;%s\007", .pane_title))
+      # select-pane -T is more reliable but requires a local TMUX_PANE id.
+      if (nzchar(PANE)) {
         if (exists(".tmux_run", mode = "function"))
           .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
         else
           processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
                         echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
-      }, silent = TRUE)
+      }
+    }, silent = TRUE)
     
     # Heartbeat: write directly to GS
     if (FALSE) {
@@ -1568,11 +1572,13 @@ runNextWorker <- function(queue_path, global_path,
     .prefix <- getOption(".spades_pane_prefix", "")
     .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
     cat(sprintf("\033]2;%s\007", .pane_title))
-    if (exists(".tmux_run", mode = "function"))
-      .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
-    else
-      processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
-                    echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
+    if (nzchar(PANE)) {
+      if (exists(".tmux_run", mode = "function"))
+        .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
+      else
+        processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
+                      echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
+    }
   }, silent = TRUE)
 
   activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
