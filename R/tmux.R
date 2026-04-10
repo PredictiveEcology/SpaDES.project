@@ -64,7 +64,7 @@ tmux_set_mouse <- function(on = TRUE) {
     ), tmp)
     remote_tmp <- paste0("/tmp/", basename(tmp))
     system(paste0("scp -q ", shQuote(tmp), " ", host, ":", remote_tmp))
-    system2("ssh", c(host, paste0("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods ",
+    system2("ssh", c(host, paste0("Rscript ",
                                   remote_tmp, "; rm -f ", remote_tmp)),
             stdout = intern, stderr = "")
   }
@@ -147,16 +147,22 @@ tmux_set_mouse <- function(on = TRUE) {
       warning("rsync of R/ folder to '", host, "' failed.", call. = FALSE)
   }
 
-  # 2. Persist repos, .libPaths(), and SSL env vars in ~/.Rprofile on remote.
-  #    ~/.Rprofile runs at R startup before any packages load, so this ensures
-  #    local_lib is first in .libPaths() from the very first namespace lookup —
-  #    preventing system-lib packages (e.g. purrr 1.0.4) from loading ahead of
-  #    the project versions.
+  # 2. Persist repos, .libPaths(), defaultPackages, and SSL env vars in
+  #    ~/.Rprofile on remote.  Profile files are sourced by R before
+  #    .First.sys() attaches the default packages, so options("defaultPackages")
+  #    set here controls exactly which packages get attached.  This overrides
+  #    any Rprofile.site on the remote that sets defaultPackages=character(0)
+  #    (common on HPC clusters to minimise startup time).
   #    SSL vars (CURL_CA_BUNDLE / SSL_CERT_FILE) are set here so that libcurl
   #    inside R can find CA certificates for HTTPS downloads, even when R is
   #    launched via a non-login SSH session where /etc/profile.d/ is not sourced.
-  repos_line   <- paste0("options(repos = ", deparse1(install_repos), ")")
-  libpath_line <- paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))")
+  repos_line    <- paste0("options(repos = ", deparse1(install_repos), ")")
+  libpath_line  <- paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))")
+  defpkgs_line  <- paste0(
+    "options(defaultPackages = c(",
+    "'datasets','utils','grDevices','graphics','stats','methods'",
+    "))"
+  )
   ssl_line     <- paste0(
     "local({",
     "  ca <- c('/etc/ssl/certs/ca-certificates.crt',",   # Debian/Ubuntu
@@ -169,8 +175,13 @@ tmux_set_mouse <- function(on = TRUE) {
   .ssh_r(paste0(
     "rprof <- path.expand('~/.Rprofile'); ",
     "existing <- if (file.exists(rprof)) readLines(rprof, warn = FALSE) else character(0); ",
-    "existing <- existing[!grepl('^options\\\\(repos|^\\\\.libPaths\\\\(|^local\\\\(\\\\{.*ca <-', existing)]; ",
-    "writeLines(c(existing, ", deparse1(libpath_line), ", ", deparse1(repos_line), ", ", deparse1(ssl_line), "), rprof)"
+    "existing <- existing[!grepl('^options\\\\(repos|^options\\\\(defaultPackages|^\\\\.libPaths\\\\(|^local\\\\(\\\\{.*ca <-', existing)]; ",
+    "writeLines(c(existing, ",
+    deparse1(defpkgs_line), ", ",
+    deparse1(libpath_line), ", ",
+    deparse1(repos_line),   ", ",
+    deparse1(ssl_line),
+    "), rprof)"
   ))
 
   # 3. Verify Require matches local installation (version + RemoteSha).
@@ -886,7 +897,7 @@ experimentTmux <- function(df,
         .tmux_run("select-layout", "-t", target_win, "tiled")
         .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
         
-        full_bash_mon_cmd <- sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s", shQuote(mon_cmd))
+        full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
         .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
         
         
@@ -919,7 +930,7 @@ experimentTmux <- function(df,
         # 3. Send keys to the specific ID
         # Adding a leading space ' ' prevents the command from being saved in bash history;
         #  I took this away because I wanted access to the command
-        full_bash_cmd <- sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s", shQuote(sync_cmd))
+        full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
         .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
         
         # 4. Label the pane for clarity
@@ -956,7 +967,7 @@ experimentTmux <- function(df,
     setup_bash_for <- function(host, first) {
       flag <- shQuote(.setup_flag_path(host))
       if (first)
-        sprintf("%s && Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s && touch %s",
+        sprintf("%s && Rscript -e %s && touch %s",
                 ssh_ready_bash(host), shQuote(setup_expr_for(host)), flag)
       else
         sprintf("%s && i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
@@ -1031,6 +1042,12 @@ experimentTmux <- function(df,
         .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
           hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
           c(
+            # Override any Rprofile.site that sets defaultPackages=character(0).
+            # Profile files run before .First.sys() attaches packages, so setting
+            # this option here ensures the standard packages are always attached.
+            # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
+            # set it here too — not just in ~/.Rprofile written by setup.)
+            "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
             # Stagger delay (pane 2+): only fires on the FIRST R session for this
             # pane.  A flag file (R_PROFILE_USER path + ".started") is created
             # after sleeping so that subsequent while-loop iterations skip it.
@@ -1093,7 +1110,7 @@ experimentTmux <- function(df,
         # longer kill R via SIGHUP.  stdout stays on the PTY (no nohup.out redirect).
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
-          inner <- sprintf("trap '' HUP; exec env R_PROFILE_USER=%s R --no-save --no-restore --default-packages=datasets,utils,grDevices,graphics,stats,methods --interactive",
+          inner <- sprintf("trap '' HUP; exec env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
                            rpath)
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
                   cores_full[i], shQuote(inner))
@@ -1125,7 +1142,7 @@ experimentTmux <- function(df,
         scp_cmd <- sprintf("scp -q %s %s:%s",
                            shQuote(remote_script), cores_full[i], remote_path)
         ssh_cmd <- sprintf(
-          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --default-packages=datasets,utils,grDevices,graphics,stats,methods --interactive",
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
           cores_full[i], shQuote(remote_path)
         )
         remote_node2 <- tryCatch(
@@ -1148,7 +1165,7 @@ experimentTmux <- function(df,
           payload
         ), local_script)
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods %s", shQuote(local_script)), "C-m")
+                  sprintf("Rscript %s", shQuote(local_script)), "C-m")
       }
     }  # end merged loop
 
@@ -1517,7 +1534,7 @@ runWorkerLoop <- function(queue_path, global_path,
       # Local tmux pane: respawn-pane replaces this process with a fresh Rscript.
       # (Remote workers are handled by the bash while-loop in the local pane.)
       PANE        <- Sys.getenv("TMUX_PANE")
-      respawn_cmd <- sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s",
+      respawn_cmd <- sprintf("Rscript -e %s",
                              shQuote(.build_worker_r_expr(
                                queue_path        = queue_path,
                                global_path       = global_path,
@@ -1597,19 +1614,8 @@ tmux_kill_panes <- function(panes) {
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths()[1L]) {
-  # Ensure project lib is first so correct package versions are loaded.
-  # Also restore any default packages that Rprofile.site on the remote may have
-  # detached — guarantees all standard R functions are available in global.R
-  # regardless of the remote machine's site configuration.
-  lib_pre <- sprintf(
-    paste0("local({",
-           "  .dp <- c('datasets','utils','grDevices','graphics','stats','methods');",
-           "  .att <- sub('^package:','',search());",
-           "  for (.p in setdiff(.dp,.att)) library(.p,character.only=TRUE,quietly=TRUE,warn.conflicts=FALSE)",
-           "}); ",
-           ".libPaths(c(%s, .libPaths())); "),
-    deparse1(lib_path)
-  )
+  # Ensure project lib is first so correct package versions are loaded
+  lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
