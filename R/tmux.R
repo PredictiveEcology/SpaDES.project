@@ -64,7 +64,8 @@ tmux_set_mouse <- function(on = TRUE) {
     ), tmp)
     remote_tmp <- paste0("/tmp/", basename(tmp))
     system(paste0("scp -q ", shQuote(tmp), " ", host, ":", remote_tmp))
-    system2("ssh", c(host, paste0("Rscript ", remote_tmp, "; rm -f ", remote_tmp)),
+    system2("ssh", c(host, paste0("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods ",
+                                  remote_tmp, "; rm -f ", remote_tmp)),
             stdout = intern, stderr = "")
   }
 
@@ -394,69 +395,114 @@ tmux_set_mouse <- function(on = TRUE) {
   invisible(TRUE)
 }
 
-#' Spawn tmux worker panes and process a job queue
-#'
-#' @description
-#' Creates `n_workers` tmux panes in the current window, tiles them, and starts
-#' a worker loop in each one that claims and runs jobs from a file-backed queue
-#' (`queue_path`).  Control returns immediately to the **master pane**; all work
-#' happens asynchronously inside the worker panes.
-#'
-#' ## Worker loop modes (`pane_mode`)
-#'
-#' ### `"killAndNewPane"` (default)
-#' Each worker runs **one job per R session**, then exits.  A fresh R session
-#' starts automatically for the next job, freeing all memory between runs.
-#'
-#' - **localhost panes**: After each job, `runWorkerLoop()` calls
-#'   `tmux respawn-pane -k`, which replaces the current pane’s process
-#'   in-place with a new `Rscript` invocation.  No retiling needed.
-#' - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
-#'   while-loop: `ssh host Rscript -e "..."`.  Each `Rscript` exits with
-#'   status 0 (job ran — loop continues) or status 1 (queue empty / fatal
-#'   error — loop stops).  `ssh` is used *without* `-t` so that `Rscript`
-#'   remains non-interactive and exit status is forwarded cleanly.
-#'
-#' ### `"reuse"`
-#' Each worker loops inside a single R session (`repeat { runNextWorker() }`).
-#' Memory accumulates across jobs — useful for lightweight simulations.
-#'
-#' ## Remote machines (`cores`)
-#' Supplying a hostname in `cores` triggers `.setup_remote_machine()` before
-#' workers start.  This step:
-#' 1. Creates the remote working directory and copies queue/global files.
-#' 2. Persists `options(repos = ...)` in `~/.Rprofile` on the remote.
-#' 3. Verifies/installs `Require` on the remote.
-#' 4. Checks for GitHub credentials (`gitcreds`).
-#' 5. Installs system spatial libraries (`libgdal-dev`, etc.) via `apt-get`.
-#' 6. Rsyncs `SpaDES.project` from the local installed library to the same
-#'    path on the remote (both machines must share the same platform/R version).
-#' 7. Installs `SpaDES.project` dependencies via `Require::Install()`.
-#'    Packages with compiled system-library dependencies (`terra`, `sf`, etc.)
-#'    are installed from source so they link against the remote’s actual GDAL/GEOS.
-#' 8. Rsyncs the `Require` binary package cache (`Require::cachePkgDir()`) to
-#'    speed up future installations.
-#' 9. Rsyncs the gargle OAuth token cache so the remote can authenticate with
-#'    Google APIs without a browser prompt.
-#'
-#' The remote R session sets `.libPaths(c(local_lib, .libPaths()))` at startup
-#' so the project library takes precedence over system libraries.
-#'
-#' ## Staggered starts
-#' Pane 1 starts immediately.  Pane `i > 1` waits
-#' `delay_before_source + (i - 2) * stagger_by` seconds inside R before
-#' claiming its first job, avoiding simultaneous queue contention at startup.
-#' For remote workers in `killAndNewPane` mode the stagger only applies to the
-#' first SSH invocation; subsequent loop iterations start immediately.
-#'
-#' ## Restarting a broken pane
-#' If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
-#' prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
-#' The full command is always in the pane’s bash history:
-#' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
-#'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#' - **remote**: `ssh host Rscript -e "..." && while ssh host Rscript -e "..."; do :; done`
-#'   (restarts the bash while-loop from scratch).
+#’ Spawn tmux worker panes and process a job queue
+#’
+#’ @description
+#’ Creates `n_workers` tmux panes in the current window, tiles them, and starts
+#’ a worker loop in each one that claims and runs jobs from a file-backed queue
+#’ (`queue_path`).  Control returns immediately to the **master pane**; all work
+#’ happens asynchronously inside the worker panes.
+#’
+#’ ## Worker loop modes (`pane_mode`)
+#’
+#’ ### `"killAndNewPane"` (default)
+#’ Each worker runs **one job per R session**, then exits.  A fresh R session
+#’ starts automatically for the next job, freeing all memory between runs.
+#’
+#’ - **localhost panes**: After each job, `runWorkerLoop()` calls
+#’   `tmux respawn-pane -k`, which replaces the current pane’s process
+#’   in-place with a new `Rscript` invocation.  No retiling needed.
+#’ - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
+#’   while-loop that repeatedly calls
+#’   `ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive’`.
+#’   `ssh -t` allocates a PTY so R runs interactively (readline, OSC 2 title
+#’   updates, Ctrl+C propagation).  A startup script injected via
+#’   `R_PROFILE_USER` runs one job then exits; `q(status = 0L)` (job done or
+#’   queue empty) lets the while-loop start a fresh R session, any non-zero
+#’   exit stops the loop.  `R_PROFILE_USER` is unset inside R immediately
+#’   after startup so workers spawned by `makeClusterPSOCK()` do not inherit
+#’   it and inadvertently re-run the startup script.
+#’
+#’ ### `"reuse"`
+#’ Each worker loops inside a single R session (`repeat { runNextWorker() }`).
+#’ Memory accumulates across jobs — useful for lightweight simulations.
+#’
+#’ ## Remote machine setup (`cores`)
+#’ Supplying a hostname in `cores` triggers `.setup_remote_machine()` once per
+#’ unique host before any workers start.  Steps run in this order:
+#’
+#’ 0. **Guard `BASH_ENV`** — wraps the remote `$BASH_ENV` file’s existing
+#’    content in a subshell (`( ... ) 2>/dev/null || true`) so that any `exit`
+#’    or failing command inside it cannot abort the non-interactive SSH shell
+#’    that carries setup commands.
+#’ 1. **Create remote directory; copy files** — `mkdir -p` the remote working
+#’    directory (same relative path from `~` as on localhost), then `scp`
+#’    `global_path`, `queue_path`, and `dots_path` (if supplied) into it.
+#’ 2. **Rsync project `R/` folder** — syncs the `R/` subdirectory next to
+#’    `global_path` to the remote with `rsync --delete` so user-defined
+#’    helper functions sourced by `global.R` are up to date.
+#’ 3. **Write `~/.Rprofile` on remote** — injects three lines (replacing any
+#’    previous versions): `.libPaths(c(local_lib, ...))` so the project library
+#’    takes precedence over system libraries; `options(repos = ...)` including
+#’    the PredictiveEcology r-universe; and an SSL block that sets
+#’    `CURL_CA_BUNDLE`/`SSL_CERT_FILE` so HTTPS downloads work in non-login
+#’    SSH sessions where `/etc/profile.d/` is not sourced.
+#’ 4. **Verify/install `Require`** — compares the remote `Require` version and
+#’    git commit SHA to the local installation.  If they differ, rsyncs the
+#’    installed directory (GitHub source) or runs `install.packages("Require")`
+#’    (CRAN source).
+#’ 5. **Install `usethis`** on the remote via `Require::Install()`.
+#’ 6. **Propagate GitHub credentials** — reads the local token via
+#’    `gitcreds::gitcreds_get()` and pipes it into `git credential approve` on
+#’    the remote so private GitHub packages can be installed without interactive
+#’    setup.  Falls back to checking whether the remote already has credentials;
+#’    errors if neither is true.
+#’ 7. **Install system libraries** via
+#’    `sudo -n apt-get install -y --no-install-recommends` (non-interactive;
+#’    fails gracefully if passwordless sudo is not configured).  Libraries
+#’    installed: spatial (`libgdal-dev`, `libgeos-dev`, `libproj-dev`,
+#’    `libsqlite3-dev`, `libudunits2-dev`), HTTP/TLS (`libssl-dev`,
+#’    `libcurl4-openssl-dev`), XML (`libxml2-dev`), archive (`libarchive-dev`),
+#’    git (`libgit2-dev`), fonts/graphics (`libfontconfig1-dev`,
+#’    `libharfbuzz-dev`, `libfribidi-dev`, `libpng-dev`, `libjpeg-dev`,
+#’    `libtiff-dev`, `libfreetype6-dev`), protobuf (`libabsl-dev`), and R
+#’    compilation headers (`r-base-dev`).
+#’ 8. **Ensure remote lib path exists** — `mkdir -p` the project library path
+#’    on the remote (must match localhost exactly so installed file paths are
+#’    identical).
+#’ 9. **Rsync `SpaDES.project`** — copies the locally installed `SpaDES.project`
+#’    directory to the same path on the remote.  Both machines must share the
+#’    same platform and R version so compiled lazy-load databases are compatible.
+#’ 10. **Install `SpaDES.project` dependencies** via `Require::Install()`.
+#’     Spatial packages (`terra`, `sf`, `rgdal`, `rgeos`, `lwgeom`) are compiled
+#’     from source so they link against the remote’s actual GDAL/GEOS/PROJ
+#’     versions.  All other hard dependencies (Imports/Depends/LinkingTo) plus
+#’     any Suggests packages installed locally are installed as binaries via
+#’     `Require::setLinuxBinaryRepo()`.  Common packages with strict version
+#’     requirements (`purrr >= 1.2.1`, `rlang >= 1.1.7`, `cli >= 3.6.0`,
+#’     `vctrs >= 0.6.0`) are pre-installed to the project library to avoid
+#’     stale system-library versions being picked up during compilation.
+#’ 11. **Rsync `Require` package cache** (`Require::cachePkgDir()`) to the
+#’     remote to accelerate future package installations.
+#’ 12. **Rsync gargle OAuth cache** (`cache_path` or
+#’     `getOption("gargle_oauth_cache")`) to the remote so the worker can
+#’     authenticate with Google APIs (Sheets, Drive) without a browser prompt.
+#’
+#’ ## Staggered starts
+#’ Pane 1 starts immediately.  Pane `i > 1` waits
+#’ `delay_before_source + (i - 2) * stagger_by` seconds inside R before
+#’ claiming its first job, avoiding simultaneous queue contention at startup.
+#’ For remote workers in `killAndNewPane` mode the stagger only applies to the
+#’ first R session; subsequent while-loop iterations start immediately.
+#’
+#’ ## Restarting a broken pane
+#’ If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
+#’ prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
+#’ The full command is always in the pane’s bash history:
+#’ - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
+#’   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
+#’ - **remote**: the full `ssh -t host bash -c ‘...’ && while ssh -t host bash -c ‘...’; do sleep 2; done`
+#’   command (restarts the bash while-loop from scratch).
 #'
 #' @param df A `data.frame`. Column names become object names in worker panes; values
 #'   from each row are assigned prior to sourcing `global_path`.
@@ -840,7 +886,7 @@ experimentTmux <- function(df,
         .tmux_run("select-layout", "-t", target_win, "tiled")
         .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
         
-        full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
+        full_bash_mon_cmd <- sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s", shQuote(mon_cmd))
         .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
         
         
@@ -873,7 +919,7 @@ experimentTmux <- function(df,
         # 3. Send keys to the specific ID
         # Adding a leading space ' ' prevents the command from being saved in bash history;
         #  I took this away because I wanted access to the command
-        full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
+        full_bash_cmd <- sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s", shQuote(sync_cmd))
         .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
         
         # 4. Label the pane for clarity
@@ -910,7 +956,7 @@ experimentTmux <- function(df,
     setup_bash_for <- function(host, first) {
       flag <- shQuote(.setup_flag_path(host))
       if (first)
-        sprintf("%s && Rscript -e %s && touch %s",
+        sprintf("%s && Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s && touch %s",
                 ssh_ready_bash(host), shQuote(setup_expr_for(host)), flag)
       else
         sprintf("%s && i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
@@ -1047,7 +1093,7 @@ experimentTmux <- function(df,
         # longer kill R via SIGHUP.  stdout stays on the PTY (no nohup.out redirect).
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
-          inner <- sprintf("trap '' HUP; exec env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+          inner <- sprintf("trap '' HUP; exec env R_PROFILE_USER=%s R --no-save --no-restore --default-packages=datasets,utils,grDevices,graphics,stats,methods --interactive",
                            rpath)
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
                   cores_full[i], shQuote(inner))
@@ -1079,7 +1125,7 @@ experimentTmux <- function(df,
         scp_cmd <- sprintf("scp -q %s %s:%s",
                            shQuote(remote_script), cores_full[i], remote_path)
         ssh_cmd <- sprintf(
-          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --default-packages=datasets,utils,grDevices,graphics,stats,methods --interactive",
           cores_full[i], shQuote(remote_path)
         )
         remote_node2 <- tryCatch(
@@ -1102,7 +1148,7 @@ experimentTmux <- function(df,
           payload
         ), local_script)
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("Rscript %s", shQuote(local_script)), "C-m")
+                  sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods %s", shQuote(local_script)), "C-m")
       }
     }  # end merged loop
 
@@ -1471,7 +1517,7 @@ runWorkerLoop <- function(queue_path, global_path,
       # Local tmux pane: respawn-pane replaces this process with a fresh Rscript.
       # (Remote workers are handled by the bash while-loop in the local pane.)
       PANE        <- Sys.getenv("TMUX_PANE")
-      respawn_cmd <- sprintf("Rscript -e %s",
+      respawn_cmd <- sprintf("Rscript --default-packages=datasets,utils,grDevices,graphics,stats,methods -e %s",
                              shQuote(.build_worker_r_expr(
                                queue_path        = queue_path,
                                global_path       = global_path,
