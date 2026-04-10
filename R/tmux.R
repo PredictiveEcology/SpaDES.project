@@ -259,12 +259,23 @@ tmux_set_mouse <- function(on = TRUE) {
   local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
   if (!is.null(local_creds)) {
     message("  Propagating GitHub credentials to ", host)
+    # Some machines have multiple credential helpers (e.g. GNOME keyring +
+    # git-credential-store). 'git credential fill' returns the stale entry
+    # from the highest-priority helper, which we cannot update over a
+    # non-interactive SSH session.  Fix: pin github.com to git-credential-store
+    # on the remote so fill and approve use the same backend, then write the
+    # credential directly to ~/.git-credentials.
+    system2("ssh", c(host,
+      "git config --global credential.https://github.com.helper store"))
+    pat_url <- sprintf("https://%s:%s@github.com",
+                       utils::URLencode(local_creds$username, reserved = TRUE),
+                       utils::URLencode(local_creds$password, reserved = TRUE))
     .ssh_r(paste0(
-      "gitcreds::gitcreds_approve(list(",
-      "  protocol = 'https', host = 'github.com',",
-      "  username = ", deparse1(local_creds$username), ",",
-      "  password = ", deparse1(local_creds$password),
-      "))"
+      "f <- path.expand('~/.git-credentials');",
+      "lines <- if (file.exists(f)) readLines(f, warn = FALSE) else character(0L);",
+      "lines <- lines[!grepl('@github\\\\.com', lines)];",
+      "writeLines(c(lines, ", deparse1(pat_url), "), f);",
+      "Sys.chmod(f, '0600')"
     ))
   } else {
     # Fall back to checking whether the remote already has valid credentials.
