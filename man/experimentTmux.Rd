@@ -99,7 +99,7 @@ produce a human-readable job label used in log files and Google Sheet status upd
 \item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
 
 \item{dots_path}{Path to an \code{.rds} file containing extra named objects to load into
-each worker’s global environment before sourcing \code{global_path}. Useful for passing
+each worker's global environment before sourcing \code{global_path}. Useful for passing
 large objects that cannot easily be serialised into the queue row.}
 }
 \value{
@@ -118,13 +118,18 @@ Each worker runs \strong{one job per R session}, then exits.  A fresh R session
 starts automatically for the next job, freeing all memory between runs.
 \itemize{
 \item \strong{localhost panes}: After each job, \code{runWorkerLoop()} calls
-\verb{tmux respawn-pane -k}, which replaces the current pane’s process
+\verb{tmux respawn-pane -k}, which replaces the current pane's process
 in-place with a new \code{Rscript} invocation.  No retiling needed.
 \item \strong{Remote panes} (\code{cores = "hostname"}): The local pane runs a bash
-while-loop: \verb{ssh host Rscript -e "..."}.  Each \code{Rscript} exits with
-status 0 (job ran — loop continues) or status 1 (queue empty / fatal
-error — loop stops).  \code{ssh} is used \emph{without} \code{-t} so that \code{Rscript}
-remains non-interactive and exit status is forwarded cleanly.
+while-loop that repeatedly calls
+\verb{ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive'}.
+\code{ssh -t} allocates a PTY so R runs interactively (readline, OSC 2 title
+updates, Ctrl+C propagation).  A startup script injected via
+\code{R_PROFILE_USER} runs one job then exits; \code{q(status = 0L)} (job done or
+queue empty) lets the while-loop start a fresh R session, any non-zero
+exit stops the loop.  \code{R_PROFILE_USER} is unset inside R immediately
+after startup so workers spawned by \code{makeClusterPSOCK()} do not inherit
+it and inadvertently re-run the startup script.
 }
 }
 
@@ -136,29 +141,68 @@ Memory accumulates across jobs — useful for lightweight simulations.
 
 }
 
-\subsection{Remote machines (\code{cores})}{
+\subsection{Remote machine setup (\code{cores})}{
 
-Supplying a hostname in \code{cores} triggers \code{.setup_remote_machine()} before
-workers start.  This step:
+Supplying a hostname in \code{cores} triggers \code{.setup_remote_machine()} once per
+unique host before any workers start.  Steps run in this order:
 \enumerate{
-\item Creates the remote working directory and copies queue/global files.
-\item Persists \code{options(repos = ...)} in \verb{~/.Rprofile} on the remote.
-\item Verifies/installs \code{Require} on the remote.
-\item Checks for GitHub credentials (\code{gitcreds}).
-\item Installs system spatial libraries (\code{libgdal-dev}, etc.) via \code{apt-get}.
-\item Rsyncs \code{SpaDES.project} from the local installed library to the same
-path on the remote (both machines must share the same platform/R version).
-\item Installs \code{SpaDES.project} dependencies via \code{Require::Install()}.
-Packages with compiled system-library dependencies (\code{terra}, \code{sf}, etc.)
-are installed from source so they link against the remote’s actual GDAL/GEOS.
-\item Rsyncs the \code{Require} binary package cache (\code{Require::cachePkgDir()}) to
-speed up future installations.
-\item Rsyncs the gargle OAuth token cache so the remote can authenticate with
-Google APIs without a browser prompt.
+\item \strong{Guard \code{BASH_ENV}} — wraps the remote \verb{$BASH_ENV} file's existing
+content in a subshell (\verb{( ... ) 2>/dev/null || true}) so that any \code{exit}
+or failing command inside it cannot abort the non-interactive SSH shell
+that carries setup commands.
+\item \strong{Create remote directory; copy files} — \code{mkdir -p} the remote working
+directory (same relative path from \code{~} as on localhost), then \code{scp}
+\code{global_path}, \code{queue_path}, and \code{dots_path} (if supplied) into it.
+\item \strong{Rsync project \verb{R/} folder} — syncs the \verb{R/} subdirectory next to
+\code{global_path} to the remote with \code{rsync --delete} so user-defined
+helper functions sourced by \code{global.R} are up to date.
+\item \strong{Write \verb{~/.Rprofile} on remote} — injects three lines (replacing any
+previous versions): \code{.libPaths(c(local_lib, ...))} so the project library
+takes precedence over system libraries; \code{options(repos = ...)} including
+the PredictiveEcology r-universe; and an SSL block that sets
+\code{CURL_CA_BUNDLE}/\code{SSL_CERT_FILE} so HTTPS downloads work in non-login
+SSH sessions where \verb{/etc/profile.d/} is not sourced.
+\item \strong{Verify/install \code{Require}} — compares the remote \code{Require} version and
+git commit SHA to the local installation.  If they differ, rsyncs the
+installed directory (GitHub source) or runs \code{install.packages("Require")}
+(CRAN source).
+\item \strong{Install \code{usethis}} on the remote via \code{Require::Install()}.
+\item \strong{Propagate GitHub credentials} — reads the local token via
+\code{gitcreds::gitcreds_get()} and pipes it into \verb{git credential approve} on
+the remote so private GitHub packages can be installed without interactive
+setup.  Falls back to checking whether the remote already has credentials;
+errors if neither is true.
+\item \strong{Install system libraries} via
+\verb{sudo -n apt-get install -y --no-install-recommends} (non-interactive;
+fails gracefully if passwordless sudo is not configured).  Libraries
+installed: spatial (\code{libgdal-dev}, \code{libgeos-dev}, \code{libproj-dev},
+\code{libsqlite3-dev}, \code{libudunits2-dev}), HTTP/TLS (\code{libssl-dev},
+\code{libcurl4-openssl-dev}), XML (\code{libxml2-dev}), archive (\code{libarchive-dev}),
+git (\code{libgit2-dev}), fonts/graphics (\code{libfontconfig1-dev},
+\code{libharfbuzz-dev}, \code{libfribidi-dev}, \code{libpng-dev}, \code{libjpeg-dev},
+\code{libtiff-dev}, \code{libfreetype6-dev}), protobuf (\code{libabsl-dev}), and R
+compilation headers (\code{r-base-dev}).
+\item \strong{Ensure remote lib path exists} — \code{mkdir -p} the project library path
+on the remote (must match localhost exactly so installed file paths are
+identical).
+\item \strong{Rsync \code{SpaDES.project}} — copies the locally installed \code{SpaDES.project}
+directory to the same path on the remote.  Both machines must share the
+same platform and R version so compiled lazy-load databases are compatible.
+\item \strong{Install \code{SpaDES.project} dependencies} via \code{Require::Install()}.
+Spatial packages (\code{terra}, \code{sf}, \code{rgdal}, \code{rgeos}, \code{lwgeom}) are compiled
+from source so they link against the remote's actual GDAL/GEOS/PROJ
+versions.  All other hard dependencies (Imports/Depends/LinkingTo) plus
+any Suggests packages installed locally are installed as binaries via
+\code{Require::setLinuxBinaryRepo()}.  Common packages with strict version
+requirements (\verb{purrr >= 1.2.1}, \verb{rlang >= 1.1.7}, \verb{cli >= 3.6.0},
+\verb{vctrs >= 0.6.0}) are pre-installed to the project library to avoid
+stale system-library versions being picked up during compilation.
+\item \strong{Rsync \code{Require} package cache} (\code{Require::cachePkgDir()}) to the
+remote to accelerate future package installations.
+\item \strong{Rsync gargle OAuth cache} (\code{cache_path} or
+\code{getOption("gargle_oauth_cache")}) to the remote so the worker can
+authenticate with Google APIs (Sheets, Drive) without a browser prompt.
 }
-
-The remote R session sets \code{.libPaths(c(local_lib, .libPaths()))} at startup
-so the project library takes precedence over system libraries.
 }
 
 \subsection{Staggered starts}{
@@ -167,19 +211,19 @@ Pane 1 starts immediately.  Pane \code{i > 1} waits
 \code{delay_before_source + (i - 2) * stagger_by} seconds inside R before
 claiming its first job, avoiding simultaneous queue contention at startup.
 For remote workers in \code{killAndNewPane} mode the stagger only applies to the
-first SSH invocation; subsequent loop iterations start immediately.
+first R session; subsequent while-loop iterations start immediately.
 }
 
 \subsection{Restarting a broken pane}{
 
 If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
 prompt, restart it by pressing \verb{↑} (up-arrow) in that pane and hitting Enter.
-The full command is always in the pane’s bash history:
+The full command is always in the pane's bash history:
 \itemize{
 \item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{runWorkerLoop}; in
 \code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
-\item \strong{remote}: \verb{ssh host Rscript -e "..." && while ssh host Rscript -e "..."; do :; done}
-(restarts the bash while-loop from scratch).
+\item \strong{remote}: the full \verb{ssh -t host bash -c ‘...' && while ssh -t host bash -c ‘...'; do sleep 2; done}
+command (restarts the bash while-loop from scratch).
 }
 }
 }

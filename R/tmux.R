@@ -31,7 +31,7 @@ tmux_set_mouse <- function(on = TRUE) {
 # Internal helper: prepare a remote machine before launching a worker
 # ------------------------------------------------------------------
 .setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL,
-                                   cache_path = NULL) {
+                                   cache_path = NULL, sp_dev_path = NULL) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
@@ -306,19 +306,56 @@ tmux_set_mouse <- function(on = TRUE) {
   message("  Ensuring remote lib path exists: ", local_lib)
   system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_lib))))
 
-  # Rsync SpaDES.project installed directory to remote lib.
-  # Both machines share the same platform, so the compiled lazy-load databases
-  # and binary files are compatible — no R CMD INSTALL needed on the remote.
-  local_sp_path <- find.package("SpaDES.project", lib.loc = local_lib)
-  local_sp_ver  <- as.character(packageVersion("SpaDES.project", lib.loc = local_lib))
-  message("  rsyncing SpaDES.project (", local_sp_ver, ") to ", host, ":", local_lib, "/")
-  rsync_ret <- system(paste0(
-    "rsync -a --delete ",
-    shQuote(paste0(normalizePath(local_sp_path), "/")),
-    " ", host, ":", file.path(local_lib, "SpaDES.project"), "/"
-  ))
-  if (rsync_ret != 0L)
-    stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
+  # Rsync SpaDES.project to remote.
+  # sp_dev_path: set by experimentTmux when SpaDES.project is loaded via
+  # devtools::load_all() (dev version newer than installed). In dev mode we
+  # rsync the source tree to a temp location on the remote, then run
+  # R CMD INSTALL so the remote gets properly compiled lazy-load databases.
+  # If sp_dev_path is NULL, fall back to rsyncing the installed binary (fast
+  # path when local and remote share the same R version / platform).
+  if (!is.null(sp_dev_path) && dir.exists(sp_dev_path)) {
+    local_sp_ver <- tryCatch(
+      as.character(read.dcf(file.path(sp_dev_path, "DESCRIPTION"), "Version")[[1L]]),
+      error = function(e) "unknown"
+    )
+    message("  rsyncing SpaDES.project (", local_sp_ver,
+            " dev source) to ", host, " then running R CMD INSTALL")
+    remote_src <- "/tmp/SpaDES.project_src"
+    system2("ssh", c(host, paste0("rm -rf ", remote_src)))
+    rsync_ret <- system(paste0(
+      "rsync -a --exclude '.git' --exclude '.github' --exclude '*.o' --exclude '*.so' ",
+      shQuote(paste0(normalizePath(sp_dev_path), "/")),
+      " ", host, ":", remote_src, "/"
+    ))
+    if (rsync_ret != 0L)
+      stop("rsync of SpaDES.project source to '", host, "' failed.", call. = FALSE)
+    system2("ssh", c(host, paste0(
+      "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
+      "R CMD INSTALL --library=", shQuote(local_lib), " ", remote_src,
+      "; rm -rf ", remote_src
+    )))
+  } else {
+    # Binary fast path: rsync the installed package directory directly.
+    # Both machines should share the same platform and R version so the
+    # compiled lazy-load databases (.rdb) are compatible.
+    local_sp_path <- tryCatch(
+      find.package("SpaDES.project", lib.loc = local_lib),
+      error = function(e) stop(
+        "SpaDES.project not found in local_lib (", local_lib, "). ",
+        "Run devtools::install() or pass sp_dev_path explicitly.",
+        call. = FALSE
+      )
+    )
+    local_sp_ver  <- as.character(packageVersion("SpaDES.project", lib.loc = local_lib))
+    message("  rsyncing SpaDES.project (", local_sp_ver, ") to ", host, ":", local_lib, "/")
+    rsync_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(normalizePath(local_sp_path), "/")),
+      " ", host, ":", file.path(local_lib, "SpaDES.project"), "/"
+    ))
+    if (rsync_ret != 0L)
+      stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
+  }
 
   # 9. Install SpaDES.project's dependencies on remote via Require::Install.
   # For Imports/Depends/LinkingTo: install all (hard requirements).
@@ -326,8 +363,11 @@ tmux_set_mouse <- function(on = TRUE) {
   # packages (testthat, knitr, …) while still propagating runtime Suggests like
   # googlesheets4/googledrive/cli.
   .parse_desc_pkgs <- function(fields) {
-    dsc <- read.dcf(system.file("DESCRIPTION", package = "SpaDES.project"),
-                    fields = fields)
+    desc_path <- if (!is.null(sp_dev_path) && file.exists(file.path(sp_dev_path, "DESCRIPTION")))
+      file.path(sp_dev_path, "DESCRIPTION")
+    else
+      system.file("DESCRIPTION", package = "SpaDES.project")
+    dsc <- read.dcf(desc_path, fields = fields)
     raw  <- paste(dsc[!is.na(dsc)], collapse = ",")
     pkgs <- trimws(unlist(strsplit(raw, ",")))
     pkgs <- trimws(sub("\\s*\\(.*", "", pkgs))
@@ -344,6 +384,9 @@ tmux_set_mouse <- function(on = TRUE) {
   src_pkgs  <- c("terra", "sf", "rgdal", "rgeos", "lwgeom")
   src_pkgs  <- intersect(src_pkgs, all_pkgs)
   bin_pkgs  <- setdiff(all_pkgs, src_pkgs)
+  # Ensure pak is installed — newer versions of Require use it as a backend.
+  .ssh_r("if (!requireNamespace('pak', quietly = TRUE)) install.packages('pak')")
+
   if (length(src_pkgs) > 0L) {
     message("  Compiling from source on ", host, ": ", paste(src_pkgs, collapse = ", "))
     .ssh_r(paste0("Require::Install(", deparse1(src_pkgs),
@@ -407,114 +450,114 @@ tmux_set_mouse <- function(on = TRUE) {
   invisible(TRUE)
 }
 
-#’ Spawn tmux worker panes and process a job queue
-#’
-#’ @description
-#’ Creates `n_workers` tmux panes in the current window, tiles them, and starts
-#’ a worker loop in each one that claims and runs jobs from a file-backed queue
-#’ (`queue_path`).  Control returns immediately to the **master pane**; all work
-#’ happens asynchronously inside the worker panes.
-#’
-#’ ## Worker loop modes (`pane_mode`)
-#’
-#’ ### `"killAndNewPane"` (default)
-#’ Each worker runs **one job per R session**, then exits.  A fresh R session
-#’ starts automatically for the next job, freeing all memory between runs.
-#’
-#’ - **localhost panes**: After each job, `runWorkerLoop()` calls
-#’   `tmux respawn-pane -k`, which replaces the current pane’s process
-#’   in-place with a new `Rscript` invocation.  No retiling needed.
-#’ - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
-#’   while-loop that repeatedly calls
-#’   `ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive’`.
-#’   `ssh -t` allocates a PTY so R runs interactively (readline, OSC 2 title
-#’   updates, Ctrl+C propagation).  A startup script injected via
-#’   `R_PROFILE_USER` runs one job then exits; `q(status = 0L)` (job done or
-#’   queue empty) lets the while-loop start a fresh R session, any non-zero
-#’   exit stops the loop.  `R_PROFILE_USER` is unset inside R immediately
-#’   after startup so workers spawned by `makeClusterPSOCK()` do not inherit
-#’   it and inadvertently re-run the startup script.
-#’
-#’ ### `"reuse"`
-#’ Each worker loops inside a single R session (`repeat { runNextWorker() }`).
-#’ Memory accumulates across jobs — useful for lightweight simulations.
-#’
-#’ ## Remote machine setup (`cores`)
-#’ Supplying a hostname in `cores` triggers `.setup_remote_machine()` once per
-#’ unique host before any workers start.  Steps run in this order:
-#’
-#’ 0. **Guard `BASH_ENV`** — wraps the remote `$BASH_ENV` file’s existing
-#’    content in a subshell (`( ... ) 2>/dev/null || true`) so that any `exit`
-#’    or failing command inside it cannot abort the non-interactive SSH shell
-#’    that carries setup commands.
-#’ 1. **Create remote directory; copy files** — `mkdir -p` the remote working
-#’    directory (same relative path from `~` as on localhost), then `scp`
-#’    `global_path`, `queue_path`, and `dots_path` (if supplied) into it.
-#’ 2. **Rsync project `R/` folder** — syncs the `R/` subdirectory next to
-#’    `global_path` to the remote with `rsync --delete` so user-defined
-#’    helper functions sourced by `global.R` are up to date.
-#’ 3. **Write `~/.Rprofile` on remote** — injects three lines (replacing any
-#’    previous versions): `.libPaths(c(local_lib, ...))` so the project library
-#’    takes precedence over system libraries; `options(repos = ...)` including
-#’    the PredictiveEcology r-universe; and an SSL block that sets
-#’    `CURL_CA_BUNDLE`/`SSL_CERT_FILE` so HTTPS downloads work in non-login
-#’    SSH sessions where `/etc/profile.d/` is not sourced.
-#’ 4. **Verify/install `Require`** — compares the remote `Require` version and
-#’    git commit SHA to the local installation.  If they differ, rsyncs the
-#’    installed directory (GitHub source) or runs `install.packages("Require")`
-#’    (CRAN source).
-#’ 5. **Install `usethis`** on the remote via `Require::Install()`.
-#’ 6. **Propagate GitHub credentials** — reads the local token via
-#’    `gitcreds::gitcreds_get()` and pipes it into `git credential approve` on
-#’    the remote so private GitHub packages can be installed without interactive
-#’    setup.  Falls back to checking whether the remote already has credentials;
-#’    errors if neither is true.
-#’ 7. **Install system libraries** via
-#’    `sudo -n apt-get install -y --no-install-recommends` (non-interactive;
-#’    fails gracefully if passwordless sudo is not configured).  Libraries
-#’    installed: spatial (`libgdal-dev`, `libgeos-dev`, `libproj-dev`,
-#’    `libsqlite3-dev`, `libudunits2-dev`), HTTP/TLS (`libssl-dev`,
-#’    `libcurl4-openssl-dev`), XML (`libxml2-dev`), archive (`libarchive-dev`),
-#’    git (`libgit2-dev`), fonts/graphics (`libfontconfig1-dev`,
-#’    `libharfbuzz-dev`, `libfribidi-dev`, `libpng-dev`, `libjpeg-dev`,
-#’    `libtiff-dev`, `libfreetype6-dev`), protobuf (`libabsl-dev`), and R
-#’    compilation headers (`r-base-dev`).
-#’ 8. **Ensure remote lib path exists** — `mkdir -p` the project library path
-#’    on the remote (must match localhost exactly so installed file paths are
-#’    identical).
-#’ 9. **Rsync `SpaDES.project`** — copies the locally installed `SpaDES.project`
-#’    directory to the same path on the remote.  Both machines must share the
-#’    same platform and R version so compiled lazy-load databases are compatible.
-#’ 10. **Install `SpaDES.project` dependencies** via `Require::Install()`.
-#’     Spatial packages (`terra`, `sf`, `rgdal`, `rgeos`, `lwgeom`) are compiled
-#’     from source so they link against the remote’s actual GDAL/GEOS/PROJ
-#’     versions.  All other hard dependencies (Imports/Depends/LinkingTo) plus
-#’     any Suggests packages installed locally are installed as binaries via
-#’     `Require::setLinuxBinaryRepo()`.  Common packages with strict version
-#’     requirements (`purrr >= 1.2.1`, `rlang >= 1.1.7`, `cli >= 3.6.0`,
-#’     `vctrs >= 0.6.0`) are pre-installed to the project library to avoid
-#’     stale system-library versions being picked up during compilation.
-#’ 11. **Rsync `Require` package cache** (`Require::cachePkgDir()`) to the
-#’     remote to accelerate future package installations.
-#’ 12. **Rsync gargle OAuth cache** (`cache_path` or
-#’     `getOption("gargle_oauth_cache")`) to the remote so the worker can
-#’     authenticate with Google APIs (Sheets, Drive) without a browser prompt.
-#’
-#’ ## Staggered starts
-#’ Pane 1 starts immediately.  Pane `i > 1` waits
-#’ `delay_before_source + (i - 2) * stagger_by` seconds inside R before
-#’ claiming its first job, avoiding simultaneous queue contention at startup.
-#’ For remote workers in `killAndNewPane` mode the stagger only applies to the
-#’ first R session; subsequent while-loop iterations start immediately.
-#’
-#’ ## Restarting a broken pane
-#’ If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
-#’ prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
-#’ The full command is always in the pane’s bash history:
-#’ - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
-#’   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#’ - **remote**: the full `ssh -t host bash -c ‘...’ && while ssh -t host bash -c ‘...’; do sleep 2; done`
-#’   command (restarts the bash while-loop from scratch).
+#' Spawn tmux worker panes and process a job queue
+#'
+#' @description
+#' Creates `n_workers` tmux panes in the current window, tiles them, and starts
+#' a worker loop in each one that claims and runs jobs from a file-backed queue
+#' (`queue_path`).  Control returns immediately to the **master pane**; all work
+#' happens asynchronously inside the worker panes.
+#'
+#' ## Worker loop modes (`pane_mode`)
+#'
+#' ### `"killAndNewPane"` (default)
+#' Each worker runs **one job per R session**, then exits.  A fresh R session
+#' starts automatically for the next job, freeing all memory between runs.
+#'
+#' - **localhost panes**: After each job, `runWorkerLoop()` calls
+#'   `tmux respawn-pane -k`, which replaces the current pane's process
+#'   in-place with a new `Rscript` invocation.  No retiling needed.
+#' - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
+#'   while-loop that repeatedly calls
+#'   `ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive'`.
+#'   `ssh -t` allocates a PTY so R runs interactively (readline, OSC 2 title
+#'   updates, Ctrl+C propagation).  A startup script injected via
+#'   `R_PROFILE_USER` runs one job then exits; `q(status = 0L)` (job done or
+#'   queue empty) lets the while-loop start a fresh R session, any non-zero
+#'   exit stops the loop.  `R_PROFILE_USER` is unset inside R immediately
+#'   after startup so workers spawned by `makeClusterPSOCK()` do not inherit
+#'   it and inadvertently re-run the startup script.
+#'
+#' ### `"reuse"`
+#' Each worker loops inside a single R session (`repeat { runNextWorker() }`).
+#' Memory accumulates across jobs — useful for lightweight simulations.
+#'
+#' ## Remote machine setup (`cores`)
+#' Supplying a hostname in `cores` triggers `.setup_remote_machine()` once per
+#' unique host before any workers start.  Steps run in this order:
+#'
+#' 0. **Guard `BASH_ENV`** — wraps the remote `$BASH_ENV` file's existing
+#'    content in a subshell (`( ... ) 2>/dev/null || true`) so that any `exit`
+#'    or failing command inside it cannot abort the non-interactive SSH shell
+#'    that carries setup commands.
+#' 1. **Create remote directory; copy files** — `mkdir -p` the remote working
+#'    directory (same relative path from `~` as on localhost), then `scp`
+#'    `global_path`, `queue_path`, and `dots_path` (if supplied) into it.
+#' 2. **Rsync project `R/` folder** — syncs the `R/` subdirectory next to
+#'    `global_path` to the remote with `rsync --delete` so user-defined
+#'    helper functions sourced by `global.R` are up to date.
+#' 3. **Write `~/.Rprofile` on remote** — injects three lines (replacing any
+#'    previous versions): `.libPaths(c(local_lib, ...))` so the project library
+#'    takes precedence over system libraries; `options(repos = ...)` including
+#'    the PredictiveEcology r-universe; and an SSL block that sets
+#'    `CURL_CA_BUNDLE`/`SSL_CERT_FILE` so HTTPS downloads work in non-login
+#'    SSH sessions where `/etc/profile.d/` is not sourced.
+#' 4. **Verify/install `Require`** — compares the remote `Require` version and
+#'    git commit SHA to the local installation.  If they differ, rsyncs the
+#'    installed directory (GitHub source) or runs `install.packages("Require")`
+#'    (CRAN source).
+#' 5. **Install `usethis`** on the remote via `Require::Install()`.
+#' 6. **Propagate GitHub credentials** — reads the local token via
+#'    `gitcreds::gitcreds_get()` and pipes it into `git credential approve` on
+#'    the remote so private GitHub packages can be installed without interactive
+#'    setup.  Falls back to checking whether the remote already has credentials;
+#'    errors if neither is true.
+#' 7. **Install system libraries** via
+#'    `sudo -n apt-get install -y --no-install-recommends` (non-interactive;
+#'    fails gracefully if passwordless sudo is not configured).  Libraries
+#'    installed: spatial (`libgdal-dev`, `libgeos-dev`, `libproj-dev`,
+#'    `libsqlite3-dev`, `libudunits2-dev`), HTTP/TLS (`libssl-dev`,
+#'    `libcurl4-openssl-dev`), XML (`libxml2-dev`), archive (`libarchive-dev`),
+#'    git (`libgit2-dev`), fonts/graphics (`libfontconfig1-dev`,
+#'    `libharfbuzz-dev`, `libfribidi-dev`, `libpng-dev`, `libjpeg-dev`,
+#'    `libtiff-dev`, `libfreetype6-dev`), protobuf (`libabsl-dev`), and R
+#'    compilation headers (`r-base-dev`).
+#' 8. **Ensure remote lib path exists** — `mkdir -p` the project library path
+#'    on the remote (must match localhost exactly so installed file paths are
+#'    identical).
+#' 9. **Rsync `SpaDES.project`** — copies the locally installed `SpaDES.project`
+#'    directory to the same path on the remote.  Both machines must share the
+#'    same platform and R version so compiled lazy-load databases are compatible.
+#' 10. **Install `SpaDES.project` dependencies** via `Require::Install()`.
+#'     Spatial packages (`terra`, `sf`, `rgdal`, `rgeos`, `lwgeom`) are compiled
+#'     from source so they link against the remote's actual GDAL/GEOS/PROJ
+#'     versions.  All other hard dependencies (Imports/Depends/LinkingTo) plus
+#'     any Suggests packages installed locally are installed as binaries via
+#'     `Require::setLinuxBinaryRepo()`.  Common packages with strict version
+#'     requirements (`purrr >= 1.2.1`, `rlang >= 1.1.7`, `cli >= 3.6.0`,
+#'     `vctrs >= 0.6.0`) are pre-installed to the project library to avoid
+#'     stale system-library versions being picked up during compilation.
+#' 11. **Rsync `Require` package cache** (`Require::cachePkgDir()`) to the
+#'     remote to accelerate future package installations.
+#' 12. **Rsync gargle OAuth cache** (`cache_path` or
+#'     `getOption("gargle_oauth_cache")`) to the remote so the worker can
+#'     authenticate with Google APIs (Sheets, Drive) without a browser prompt.
+#'
+#' ## Staggered starts
+#' Pane 1 starts immediately.  Pane `i > 1` waits
+#' `delay_before_source + (i - 2) * stagger_by` seconds inside R before
+#' claiming its first job, avoiding simultaneous queue contention at startup.
+#' For remote workers in `killAndNewPane` mode the stagger only applies to the
+#' first R session; subsequent while-loop iterations start immediately.
+#'
+#' ## Restarting a broken pane
+#' If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
+#' prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
+#' The full command is always in the pane's bash history:
+#' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
+#'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
+#' - **remote**: the full `ssh -t host bash -c ‘...' && while ssh -t host bash -c ‘...'; do sleep 2; done`
+#'   command (restarts the bash while-loop from scratch).
 #'
 #' @param df A `data.frame`. Column names become object names in worker panes; values
 #'   from each row are assigned prior to sourcing `global_path`.
@@ -558,7 +601,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' @param runNameLabel A quoted expression evaluated against the queue `data.frame` to
 #'   produce a human-readable job label used in log files and Google Sheet status updates.
 #' @param dots_path Path to an `.rds` file containing extra named objects to load into
-#'   each worker’s global environment before sourcing `global_path`. Useful for passing
+#'   each worker's global environment before sourcing `global_path`. Useful for passing
 #'   large objects that cannot easily be serialised into the queue row.
 #' @param set_mouse Logical. Enable tmux mouse support (pane selection, scroll). Default `TRUE`.
 #' @param ... Additional arguments passed to `.setup_remote_machine()`.
@@ -946,15 +989,42 @@ experimentTmux <- function(df,
     # then starts working; subsequent panes for the same host wait for a local
     # flag file before starting, so all setups happen in parallel across hosts.
     setup_assigned <- character(0)
+    # Detect if SpaDES.project is loaded from a dev source in THIS session.
+    # pkgload::pkg_path() succeeds only when devtools::load_all() is active.
+    # Pass the source path to .setup_remote_machine so the Rscript subprocess
+    # (which only sees the installed binary) can still rsync the dev version.
+    .sp_dev_path <- tryCatch(
+      normalizePath(pkgload::pkg_path("SpaDES.project"), mustWork = TRUE),
+      error = function(e) NULL
+    )
+    # Also treat as dev if source version > installed version.
+    if (is.null(.sp_dev_path)) {
+      .sp_src <- tryCatch(find.package("SpaDES.project"), error = function(e) NULL)
+      if (!is.null(.sp_src) && file.exists(file.path(.sp_src, "DESCRIPTION"))) {
+        .sp_src_ver <- tryCatch(
+          as.character(read.dcf(file.path(.sp_src, "DESCRIPTION"), "Version")[[1L]]),
+          error = function(e) "0"
+        )
+        .sp_inst_ver <- tryCatch(
+          as.character(packageVersion("SpaDES.project", lib.loc = .libPaths()[1L])),
+          error = function(e) "0"
+        )
+        if (tryCatch(numeric_version(.sp_src_ver) > numeric_version(.sp_inst_ver),
+                     error = function(e) FALSE))
+          .sp_dev_path <- .sp_src
+      }
+    }
+
     setup_expr_for <- function(host) {
       sprintf(
-        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s)",
+        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s)",
         deparse1(host),
         deparse1(normalizePath(global_path, mustWork = FALSE)),
         deparse1(normalizePath(queue_path,  mustWork = FALSE)),
         deparse1(if (!is.null(dots_path) && file.exists(dots_path))
                    normalizePath(dots_path) else NULL),
-        deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL)
+        deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL),
+        deparse1(.sp_dev_path)
       )
     }
     # bash snippet: run setup and write flag, or wait for flag (600s timeout).
