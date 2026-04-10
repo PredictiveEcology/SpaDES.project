@@ -50,7 +50,6 @@ tmux_set_mouse <- function(on = TRUE) {
   install_repos <- unique(c("https://predictiveecology.r-universe.dev", getOption("repos")))
   local_lib     <- .libPaths()[1L]
 
-  browser()
   # Internal helper: write R code to a local temp file, scp it to remote,
   # run it with Rscript (no shell quoting of R expressions needed), then delete.
   # Every script sets repos and cwd before running expr.
@@ -261,18 +260,30 @@ tmux_set_mouse <- function(on = TRUE) {
   local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
   if (!is.null(local_creds)) {
     message("  Propagating GitHub credentials to ", host)
+    # Both calls must go through .ssh_r()-style setup so the FireSenseTesting
+    # lib path is on the search path and gitcreds is found.
     has_cred <- isTRUE(tryCatch({
-      out <- system2("ssh", c(host, paste0(
-        "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
-        "Rscript --no-save -e ",
-        shQuote("tryCatch({gitcreds::gitcreds_get();cat('yes')},error=function(e)cat('no'))")
-      )), stdout = TRUE, stderr = FALSE)
+      out <- .ssh_r(
+        "tryCatch({gitcreds::gitcreds_get();cat('yes')},error=function(e)cat('no'))",
+        intern = TRUE)
       trimws(paste(out, collapse = "")) == "yes"
     }, error = function(e) FALSE))
+    # Write the gitcreds_set() script with libpath preamble, scp, then run
+    # with stdin piped so gitcreds_set() receives the responses non-interactively.
+    gs_script <- tempfile(fileext = ".R")
+    on.exit(unlink(gs_script), add = TRUE)
+    writeLines(c(
+      paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))"),
+      paste0("options(repos = ", deparse1(install_repos), ")"),
+      paste0("setwd(path.expand('", remote_dir, "'))"),
+      "gitcreds::gitcreds_set()"
+    ), gs_script)
+    remote_gs <- paste0("/tmp/", basename(gs_script))
+    system(paste0("scp -q ", shQuote(gs_script), " ", host, ":", remote_gs))
     input_lines <- c(if (has_cred) "2", local_creds$password)
     system2("ssh", c(host, paste0(
       "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
-      "Rscript --no-save -e ", shQuote("gitcreds::gitcreds_set()")
+      "Rscript ", remote_gs, "; rm -f ", remote_gs
     )), input = input_lines)
   } else {
     # Fall back to checking whether the remote already has valid credentials.
