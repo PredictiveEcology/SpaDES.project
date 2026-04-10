@@ -64,8 +64,9 @@ tmux_set_mouse <- function(on = TRUE) {
     ), tmp)
     remote_tmp <- paste0("/tmp/", basename(tmp))
     system(paste0("scp -q ", shQuote(tmp), " ", host, ":", remote_tmp))
-    system2("ssh", c(host, paste0("Rscript ",
-                                  remote_tmp, "; rm -f ", remote_tmp)),
+    system2("ssh", c(host, paste0(
+      "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
+      "Rscript ", remote_tmp, "; rm -f ", remote_tmp)),
             stdout = intern, stderr = "")
   }
 
@@ -897,7 +898,7 @@ experimentTmux <- function(df,
         .tmux_run("select-layout", "-t", target_win, "tiled")
         .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
         
-        full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
+        full_bash_mon_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(mon_cmd))
         .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
         
         
@@ -930,7 +931,7 @@ experimentTmux <- function(df,
         # 3. Send keys to the specific ID
         # Adding a leading space ' ' prevents the command from being saved in bash history;
         #  I took this away because I wanted access to the command
-        full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
+        full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
         .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
         
         # 4. Label the pane for clarity
@@ -967,7 +968,7 @@ experimentTmux <- function(df,
     setup_bash_for <- function(host, first) {
       flag <- shQuote(.setup_flag_path(host))
       if (first)
-        sprintf("%s && Rscript -e %s && touch %s",
+        sprintf("%s && env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s && touch %s",
                 ssh_ready_bash(host), shQuote(setup_expr_for(host)), flag)
       else
         sprintf("%s && i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
@@ -1110,8 +1111,9 @@ experimentTmux <- function(df,
         # longer kill R via SIGHUP.  stdout stays on the PTY (no nohup.out redirect).
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
-          inner <- sprintf("trap '' HUP; exec env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
-                           rpath)
+          inner <- sprintf(
+            "trap '' HUP; exec env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+            rpath)
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
                   cores_full[i], shQuote(inner))
         }
@@ -1142,7 +1144,7 @@ experimentTmux <- function(df,
         scp_cmd <- sprintf("scp -q %s %s:%s",
                            shQuote(remote_script), cores_full[i], remote_path)
         ssh_cmd <- sprintf(
-          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R --no-save --no-restore --interactive",
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
           cores_full[i], shQuote(remote_path)
         )
         remote_node2 <- tryCatch(
@@ -1165,7 +1167,7 @@ experimentTmux <- function(df,
           payload
         ), local_script)
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("Rscript %s", shQuote(local_script)), "C-m")
+                  sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript %s", shQuote(local_script)), "C-m")
       }
     }  # end merged loop
 
@@ -1534,7 +1536,7 @@ runWorkerLoop <- function(queue_path, global_path,
       # Local tmux pane: respawn-pane replaces this process with a fresh Rscript.
       # (Remote workers are handled by the bash while-loop in the local pane.)
       PANE        <- Sys.getenv("TMUX_PANE")
-      respawn_cmd <- sprintf("Rscript -e %s",
+      respawn_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s",
                              shQuote(.build_worker_r_expr(
                                queue_path        = queue_path,
                                global_path       = global_path,
