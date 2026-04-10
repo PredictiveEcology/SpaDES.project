@@ -1023,6 +1023,12 @@ experimentTmux <- function(df,
       }
     }
 
+    # Get the local GitHub PAT so we can inject it into worker startup scripts.
+    # This bypasses whatever git credential helper is configured on the remote
+    # (which may return an expired token) and ensures the correct token is set
+    # as GITHUB_PAT in every worker R session — which is what pak/gitcreds read.
+    .github_pat <- tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
+
     setup_expr_for <- function(host) {
       sprintf(
         "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s)",
@@ -1127,6 +1133,12 @@ experimentTmux <- function(df,
             # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
             # set it here too — not just in ~/.Rprofile written by setup.)
             "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
+            # Inject the local GitHub PAT so pak/gitcreds always use the correct
+            # (non-expired) token, regardless of what is stored in the remote
+            # git credential helper.
+            if (!is.null(.github_pat))
+              sprintf("Sys.setenv(GITHUB_PAT = %s)", deparse1(.github_pat))
+            else NULL,
             # Stagger delay (pane 2+): only fires on the FIRST R session for this
             # pane.  A flag file (R_PROFILE_USER path + ".started") is created
             # after sleeping so that subsequent while-loop iterations skip it.
