@@ -31,7 +31,8 @@ tmux_set_mouse <- function(on = TRUE) {
 # Internal helper: prepare a remote machine before launching a worker
 # ------------------------------------------------------------------
 .setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL,
-                                   cache_path = NULL, sp_dev_path = NULL) {
+                                   cache_path = NULL, sp_dev_path = NULL,
+                                   local_pat_file = NULL) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
@@ -257,8 +258,14 @@ tmux_set_mouse <- function(on = TRUE) {
   # so we pipe the responses via system2(input=).  When an existing credential
   # is present it first asks "1: Keep / 2: Replace" before requesting the PAT;
   # we detect this upfront and prepend "2" to the piped input when needed.
-  local_creds <- tryCatch(gitcreds::gitcreds_get(), error = function(e) NULL)
-  if (!is.null(local_creds)) {
+  # Read PAT from caller-supplied file (written in the interactive session where
+  # the correct credential store is accessible), falling back to gitcreds_get()
+  # in this subprocess (which may see a different/stale credential store).
+  local_pat <- if (!is.null(local_pat_file) && file.exists(local_pat_file))
+    readLines(local_pat_file, warn = FALSE)[1L]
+  else
+    tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
+  if (!is.null(local_pat) && nzchar(local_pat)) {
     message("  Propagating GitHub credentials to ", host)
     # 5a. Write PAT to a file inside local_lib on the remote (avoids touching
     #     ~/.Renviron).  ~/.Rprofile (which we already manage) reads this file
@@ -267,7 +274,7 @@ tmux_set_mouse <- function(on = TRUE) {
     pat_file     <- file.path(local_lib, ".spades_github_pat")
     pat_tmp_local <- tempfile()
     on.exit(unlink(pat_tmp_local), add = TRUE)
-    writeLines(local_creds$password, pat_tmp_local)
+    writeLines(local_pat, pat_tmp_local)
     system(paste0("scp -q ", shQuote(pat_tmp_local), " ", host, ":", pat_file))
     # Add/refresh the reader line in ~/.Rprofile.
     pat_read_line <- paste0(
@@ -298,7 +305,7 @@ tmux_set_mouse <- function(on = TRUE) {
     ), gs_script)
     remote_gs <- paste0("/tmp/", basename(gs_script))
     system(paste0("scp -q ", shQuote(gs_script), " ", host, ":", remote_gs))
-    input_lines <- c(if (has_cred) "2", local_creds$password)
+    input_lines <- c(if (has_cred) "2", local_pat)
     system2("ssh", c(host, paste0(
       "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
       "Rscript ", remote_gs, "; rm -f ", remote_gs
@@ -1029,6 +1036,20 @@ experimentTmux <- function(df,
     # then starts working; subsequent panes for the same host wait for a local
     # flag file before starting, so all setups happen in parallel across hosts.
     setup_assigned <- character(0)
+    # Capture the GitHub PAT from THIS interactive session so that the Rscript
+    # subprocess running .setup_remote_machine() gets the correct token.
+    # The subprocess may hit a different (stale) git credential store entry.
+    # Write to a temp file (not the command line) to keep the token off ps/top.
+    .local_pat_file <- NULL
+    local({
+      .pat <- tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
+      if (!is.null(.pat) && nzchar(.pat)) {
+        f <- tempfile()
+        writeLines(.pat, f)
+        .local_pat_file <<- f
+      }
+    })
+
     # Detect if SpaDES.project is loaded from a dev source in THIS session.
     # pkgload::pkg_path() succeeds only when devtools::load_all() is active.
     # Pass the source path to .setup_remote_machine so the Rscript subprocess
@@ -1057,14 +1078,15 @@ experimentTmux <- function(df,
 
     setup_expr_for <- function(host) {
       sprintf(
-        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s)",
+        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s, local_pat_file=%s)",
         deparse1(host),
         deparse1(normalizePath(global_path, mustWork = FALSE)),
         deparse1(normalizePath(queue_path,  mustWork = FALSE)),
         deparse1(if (!is.null(dots_path) && file.exists(dots_path))
                    normalizePath(dots_path) else NULL),
         deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL),
-        deparse1(.sp_dev_path)
+        deparse1(.sp_dev_path),
+        deparse1(.local_pat_file)
       )
     }
     # bash snippet: run setup and write flag, or wait for flag (600s timeout).
