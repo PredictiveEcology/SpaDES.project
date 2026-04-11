@@ -72,38 +72,71 @@
   invisible(NULL)
 }
 
-# Reclaim RUNNING rows whose R process is no longer alive on this machine.
-# Uses /proc/<pid> (Linux) to test liveness.  Called before each claim attempt
-# so rows stuck in RUNNING by a crashed worker become INTERRUPTED and are
-# re-queued.  Reads the sheet once and writes only the dead rows.
+# Reclaim RUNNING rows whose R process is no longer alive on any machine.
+# Uses /proc/<pid> (Linux) to test liveness: directly for the local machine,
+# via a single SSH connection per remote machine (all PIDs batched in one call).
+# If a remote machine is unreachable, its rows are left alone (no false reclaim).
+# Called before each claim attempt so rows stuck in RUNNING by a crashed worker
+# become INTERRUPTED and are re-queued.  Reads the sheet once, writes only dead rows.
 .gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
-  nodename <- Sys.info()[["nodename"]]
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
 
   running_idx <- which(
     q$status == "RUNNING" &
-    !is.na(q$machine_name) & q$machine_name == nodename &
+    !is.na(q$machine_name) &
     !is.na(q$process_id)
   )
   if (length(running_idx) == 0L) return(invisible(NULL))
 
-  col_pos <- setNames(seq_along(names(q)), names(q))
-  now     <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  col_pos       <- setNames(seq_along(names(q)), names(q))
+  now           <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  local_node    <- Sys.info()[["nodename"]]
+  machines      <- unique(q$machine_name[running_idx])
 
-  for (idx in running_idx) {
-    pid   <- suppressWarnings(as.integer(q$process_id[idx]))
-    if (is.na(pid)) next
-    alive <- file.exists(paste0("/proc/", pid))
-    if (!alive) {
-      sheet_row <- idx + 1L   # +1 for header row
-      try(.gs_write_cells(ss_id, sheet_row,
-                          updates       = list(status = "INTERRUPTED",
-                                               finished_at = now),
-                          col_positions = col_pos,
-                          sheet         = sheet), silent = TRUE)
-      message("Reclaimed stale RUNNING job row ", idx,
-              " (PID ", pid, " not found on ", nodename, ")")
+  for (machine in machines) {
+    m_idx <- running_idx[q$machine_name[running_idx] == machine]
+    pids  <- suppressWarnings(as.integer(q$process_id[m_idx]))
+    ok    <- !is.na(pids)
+    m_idx <- m_idx[ok]
+    pids  <- pids[ok]
+    if (length(pids) == 0L) next
+
+    # ----- liveness check -----
+    if (machine == local_node) {
+      alive <- file.exists(paste0("/proc/", pids))
+    } else {
+      # One SSH connection for all PIDs on this machine.
+      pid_str   <- paste(pids, collapse = " ")
+      check_cmd <- paste0(
+        "for pid in ", pid_str,
+        "; do [ -d /proc/$pid ] && echo alive || echo dead; done"
+      )
+      result <- tryCatch(
+        system2("ssh",
+                c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+                  machine, check_cmd),
+                stdout = TRUE, stderr = FALSE),
+        error = function(e) NULL
+      )
+      # If unreachable or wrong number of lines, skip — never falsely reclaim.
+      if (is.null(result) || length(result) != length(pids)) next
+      alive <- result == "alive"
+    }
+
+    # ----- mark dead rows -----
+    for (j in seq_along(m_idx)) {
+      if (!alive[j]) {
+        idx       <- m_idx[j]
+        sheet_row <- idx + 1L   # +1 for header row
+        try(.gs_write_cells(ss_id, sheet_row,
+                            updates       = list(status      = "INTERRUPTED",
+                                                 finished_at = now),
+                            col_positions = col_pos,
+                            sheet         = sheet), silent = TRUE)
+        message("Reclaimed stale RUNNING job row ", idx,
+                " (PID ", pids[j], " not found on ", machine, ")")
+      }
     }
   }
   invisible(NULL)

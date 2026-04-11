@@ -1855,28 +1855,28 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         needToAssessPoss <- c(needToAssessPoss, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
         ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
         needToAssess <- unique(c(needToAssessPoss, nonHEADs))
-        if (requireNamespace("reproducible", quietly = TRUE) &&
-             requireNamespace("qs2", quietly = TRUE)) {
-          # run annonymous function to see if it is new list; Cache needs a function
-          llCached <- tryCatch(
-            reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire"),
-            error = function(e) NULL
-          )
-          if (!is.null(llCached)) {
-            ll <- llCached
-            if (!isTRUE(attr(ll, ".Cache")$newCache)) {
-              message("Package requirements are identical to previous")
-              haveHEAD <- grepl("HEAD", needToAssessPoss)
-              if (any(haveHEAD)) {
-                message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
-                        "checking/installing if needed ...")
-              } else {
-                message("...skipping Require...")
-              }
-              needToAssess <- needToAssessPoss # revert to using the smaller list
-            }
-          }
-        }
+        # if (requireNamespace("reproducible", quietly = TRUE) &&
+        #      requireNamespace("qs2", quietly = TRUE)) {
+        #   # run annonymous function to see if it is new list; Cache needs a function
+        #   llCached <- tryCatch(
+        #     reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire"),
+        #     error = function(e) NULL
+        #   )
+        #   if (!is.null(llCached)) {
+        #     ll <- llCached
+        #     if (!isTRUE(attr(ll, ".Cache")$newCache)) {
+        #       message("Package requirements are identical to previous")
+        #       haveHEAD <- grepl("HEAD", needToAssessPoss)
+        #       if (any(haveHEAD)) {
+        #         message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
+        #                 "checking/installing if needed ...")
+        #       } else {
+        #         message("...skipping Require...")
+        #       }
+        #       needToAssess <- needToAssessPoss # revert to using the smaller list
+        #     }
+        #   }
+        # }
         # needToAssess <- packagesToTry
 
         if (sum(nzchar(needToAssess))) {

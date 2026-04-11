@@ -1536,7 +1536,11 @@ runNextWorker <- function(queue_path, global_path,
   q <- readRDS(queue_path)
   q <- revertDotNames(q)
   
-  runNameLabel <- eval(runNameLabel, envir = environment())
+  # Convert runNameLabel to a character column-name vector.
+  # If it is a bare symbol like quote(.samplingRange), deparse it to get the name.
+  # If it is a call like quote(colnames(q)[1:2]), evaluate it now that q is in scope.
+  runNameLabel <- if (is.symbol(runNameLabel)) as.character(runNameLabel)
+                  else eval(runNameLabel, envir = environment())
 
   pending_idx <- which(q$status %in% c(txtInterrupted, txtPending))[1]
   if (is.na(pending_idx)) {
@@ -2085,8 +2089,6 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
   # }
 
   if (!is.null(statusCalculate)) {
-    
-    browser()
     if (is.call(statusCalculate))
       statusCalculate <- eval(statusCalculate, envir = environment())
     # statusCalculate <- file.path("outputs", runName, "figures", "objFun")
@@ -2175,14 +2177,12 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     if (is.null(lck)) stop("Could not lock queue for refresh.")
 
     q <- try(readRDS(queue_path))
-    q <- revertDotNames(q)
-    # remove initial dot -- googlesheets can't handle starting dot; so remove all
-    # data.table::setnames(q, new = gsub("^\\.", dotTxt, names(q)), old = names(q))
-    
     if (is(q, "try-error")) {
       unlink(queue_path)
       return(invisible(NULL))
     }
+    q <- revertDotNames(q)
+    data.table::setDT(q)
 
     # Only refresh rows that aren't already marked DONE
     to_check <- if (!isTRUE(try(recheckDone))) {
@@ -2277,7 +2277,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         # }
         hb <- NA
         if (!is.null(folderWithIterInFilename)) {
-          browser()
           hb <- get_latest_heartbeat(runName, folderWithIterInFilename = folderWithIterInFilename)
           elapsedTime <- hb$elapsed
         } 
