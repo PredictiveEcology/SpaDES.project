@@ -618,8 +618,8 @@ tmux_set_mouse <- function(on = TRUE) {
 #' The full command is always in the pane's bash history:
 #' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
 #'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#’ - **remote**: the full `ssh -t host bash -c ‘...’ && while ! ssh -t host bash -c ‘...’; do sleep 2; done`
-#'   command (restarts the bash while-loop from scratch).
+#’ - **remote**: the full `ssh -t host bash -c ‘...’ && { first_run || until ssh -t host bash -c ‘...’; do sleep 2; done; }`
+#’   command (restarts the bash loop from scratch).
 #'
 #' @param df A `data.frame`. Column names become object names in worker panes; values
 #'   from each row are assigned prior to sourcing `global_path`.
@@ -834,6 +834,36 @@ experimentTmux <- function(df,
     gs_q <- try(.gs_read_queue(ss_id), silent = TRUE) 
 
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
+      # Validate GS column names against df before using GS data.
+      # GS strips leading dots, so we write `.col` as `dotcol` and revert on read.
+      # If the reversal fails (GS stored `col` instead of `dotcol`), the reverted
+      # name will still be `col` — mismatching `.col` in df — and runNameLabel eval
+      # will give "object '.col' not found".  Catch this early with a clear message.
+      if (!missing(df) && !is.null(df)) {
+        gs_names_reverted <- names(revertDotNames(data.table::copy(data.table::setDT(gs_q))))
+        gs_data_cols  <- setdiff(gs_names_reverted, meta_cols)
+        df_data_cols  <- setdiff(names(df),         meta_cols)
+        extra_in_gs   <- setdiff(gs_data_cols, df_data_cols)
+        missing_in_gs <- setdiff(df_data_cols, gs_data_cols)
+        if (length(extra_in_gs) > 0L || length(missing_in_gs) > 0L) {
+          msg_parts <- character(0)
+          if (length(missing_in_gs))
+            msg_parts <- c(msg_parts,
+              paste0("  In df but missing from GS : ", paste(missing_in_gs, collapse = ", ")))
+          if (length(extra_in_gs))
+            msg_parts <- c(msg_parts,
+              paste0("  In GS but missing from df : ", paste(extra_in_gs, collapse = ", ")))
+          stop(
+            "Google Sheet column names do not match 'df'.\n",
+            "This usually means GS lost the leading dot from a column name\n",
+            "(e.g. '.samplingRange' was stored as 'samplingRange' instead of 'dotsamplingRange').\n",
+            "Fix the sheet header row so dot-prefixed columns are stored with the 'dot' prefix,\n",
+            "or pass forceLocalQueueToGS = TRUE to overwrite the sheet with the local df.\n",
+            paste(msg_parts, collapse = "\n"),
+            call. = FALSE
+          )
+        }
+      }
       q <- data.table::setDT(gs_q)
       # GS has existing state — merge rather than overwrite
       # data_cols <- gsub("^.", "", data_cols)
@@ -1304,7 +1334,7 @@ experimentTmux <- function(df,
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
                   cores_full[i], shQuote(inner))
         }
-        bash_cmd <- sprintf("trap '' INT; %s%s && { %s || while ! %s; do sleep 2; done; }",
+        bash_cmd <- sprintf("trap '' INT; %s%s && { %s || until %s; do sleep 2; done; }",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(

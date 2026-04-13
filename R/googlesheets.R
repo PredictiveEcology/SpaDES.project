@@ -284,7 +284,7 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
 
       # ---- local → GS: push current status for display ----
       q_sync        <- as.data.frame(lapply(q, as.character))
-      names(q_sync) <- gsub("^\\.", "", names(q_sync))
+      names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
       try(
         googlesheets4::with_gs4_quiet(
           googlesheets4::range_write(
