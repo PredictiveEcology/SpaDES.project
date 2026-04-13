@@ -2184,9 +2184,11 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     q <- revertDotNames(q)
     data.table::setDT(q)
 
-    # Only refresh rows that aren't already marked DONE
+    # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
+    # Any other status (DONE, CANCELLED, or user-defined) is left untouched.
+    # recheckDone=TRUE re-adds DONE rows so their status can be re-evaluated.
     to_check <- if (!isTRUE(try(recheckDone))) {
-      which(!q$status %in% txtDone)
+      which(q$status %in% c(txtPending, txtRunning, txtInterrupted))
     } else {
       seq_along(q$status)
     }
