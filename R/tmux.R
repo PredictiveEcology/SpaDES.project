@@ -1281,7 +1281,7 @@ experimentTmux <- function(df,
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
                   cores_full[i], shQuote(inner))
         }
-        bash_cmd <- sprintf("trap '' INT; %s%s && %s && while ! %s; do sleep 2; done",
+        bash_cmd <- sprintf("trap '' INT; %s%s && { %s || while ! %s; do sleep 2; done; }",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
