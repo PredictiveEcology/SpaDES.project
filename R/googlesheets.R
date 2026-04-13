@@ -130,8 +130,9 @@
         idx       <- m_idx[j]
         sheet_row <- idx + 1L   # +1 for header row
         try(.gs_write_cells(ss_id, sheet_row,
-                            updates       = list(status      = "INTERRUPTED",
-                                                 finished_at = now),
+                            updates       = list(status         = "INTERRUPTED",
+                                                 claimed_by     = NA_character_,
+                                                 interrupted_at = now),
                             col_positions = col_pos,
                             sheet         = sheet), silent = TRUE)
         message("Reclaimed stale RUNNING job row ", idx,

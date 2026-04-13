@@ -1450,8 +1450,9 @@ runNextWorker <- function(queue_path, global_path,
         ), silent = TRUE)
         try(SpaDES.project:::.gs_write_cells(
           ge2$ss_id, ge2$sheet_row,
-          updates       = list(status = SpaDES.project:::txtInterrupted,
-                               finished_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
+          updates       = list(status         = SpaDES.project:::txtInterrupted,
+                               claimed_by     = NA_character_,
+                               interrupted_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
           col_positions = ge2$col_pos
         ), silent = TRUE)
       }
@@ -1499,7 +1500,9 @@ runNextWorker <- function(queue_path, global_path,
       }, error = function(e) {
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         try(.gs_write_cells(ss_id, sheet_row,
-                            updates       = list(status = txtInterrupted, finished_at = now),
+                            updates       = list(status         = txtInterrupted,
+                                                 claimed_by     = NA_character_,
+                                                 interrupted_at = now),
                             col_positions = col_pos), silent = TRUE)
         # Return NULL; error continues propagating — call stack preserved.
       }),
@@ -1514,7 +1517,7 @@ runNextWorker <- function(queue_path, global_path,
     } else if (on_interrupt == "requeue") {
       list(status = txtPending, claimed_by = NA_character_)
     } else {
-      list(status = txtInterrupted, finished_at = now)
+      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now)
     }
     .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
     .guard_env$done <- TRUE   # disarm the reg.finalizer quit() guard
@@ -1624,8 +1627,9 @@ runNextWorker <- function(queue_path, global_path,
       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
         try({
           q2 <- readRDS(queue_path)
-          q2$status[i]      <- txtInterrupted
-          q2$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          q2$status[i]         <- txtInterrupted
+          q2$claimed_by[i]     <- NA_character_
+          q2$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
           saveRDS(q2, queue_path)
         }, silent = TRUE)
         try(filelock::unlock(lck2), silent = TRUE)
@@ -1646,8 +1650,9 @@ runNextWorker <- function(queue_path, global_path,
       q$status[i]     <- txtPending
       q$claimed_by[i] <- NA_character_
     } else {
-      q$status[i]      <- txtInterrupted
-      q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      q$status[i]         <- txtInterrupted
+      q$claimed_by[i]     <- NA_character_
+      q$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
     }
   }
   saveRDS(q, queue_path)
@@ -1917,7 +1922,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     process_id     = as.integer(NA),
     heartbeat_at   = as.character(NA),
     heartbeat_iter = as.integer(NA),
-    iterationsTotal= as.integer(NA)
+    iterationsTotal= as.integer(NA),
+    interrupted_at = as.character(NA)
   )
   saveRDS(q, queue_path)
   invisible(queue_path)
@@ -2183,6 +2189,8 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     }
     q <- revertDotNames(q)
     data.table::setDT(q)
+    if (!"interrupted_at" %in% names(q))
+      q[, interrupted_at := NA_character_]
 
     # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
     # Any other status (DONE, CANCELLED, or user-defined) is left untouched.
@@ -2373,10 +2381,10 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
 
       if (!q$status[i] %in% new_status) {
         q$status[i] <- new_status
-        # If newly finished, record current time
-        # if (new_status  "FINISHED") {
-        #   q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        # }
+        if (new_status == txtInterrupted) {
+          q$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          q$claimed_by[i]     <- NA_character_
+        }
       }
       
     }
@@ -2469,7 +2477,8 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
 
 meta_cols <- c("status","claimed_by","started_at","finished_at",
                "DEoptimElapsedTime","machine_name","process_id",
-               "heartbeat_at","heartbeat_iter","iterationsTotal")
+               "heartbeat_at","heartbeat_iter","iterationsTotal",
+               "interrupted_at")
 
 is_pid_alive_tools <- function(pid) {
   stopifnot(length(pid) == 1L, is.numeric(pid), pid > 0)
