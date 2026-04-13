@@ -1498,14 +1498,26 @@ runNextWorker <- function(queue_path, global_path,
         source(global_path, local = .GlobalEnv)
         "ok"
       }, error = function(e) {
+        # Capture call stack while frames are still intact, then mark INTERRUPTED.
+        assign(".spades_tb", sys.calls(), envir = .GlobalEnv)
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         try(.gs_write_cells(ss_id, sheet_row,
                             updates       = list(status         = txtInterrupted,
                                                  claimed_by     = NA_character_,
                                                  interrupted_at = now),
                             col_positions = col_pos), silent = TRUE)
-        # Return NULL; error continues propagating — call stack preserved.
+        # Return NULL so the error re-signals to the outer tryCatch below.
       }),
+      error = function(e) {
+        .cl <- conditionCall(e)
+        if (!is.null(.cl))
+          message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
+        else
+          message("Error: ", conditionMessage(e))
+        message("\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")
+        message("\nq(status=1L) to retry  |  q() to stop the loop")
+        "error"
+      },
       interrupt = function(e) "interrupt"
     )
 
@@ -1623,6 +1635,8 @@ runNextWorker <- function(queue_path, global_path,
       source(global_path, local = .GlobalEnv)
       "ok"
     }, error = function(e) {
+      # Capture call stack while frames are still intact, then mark INTERRUPTED.
+      assign(".spades_tb", sys.calls(), envir = .GlobalEnv)
       lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
         try({
@@ -1634,8 +1648,18 @@ runNextWorker <- function(queue_path, global_path,
         }, silent = TRUE)
         try(filelock::unlock(lck2), silent = TRUE)
       }
-      # Return NULL; error propagates with call stack intact.
+      # Return NULL so the error re-signals to the outer tryCatch below.
     }),
+    error = function(e) {
+      .cl <- conditionCall(e)
+      if (!is.null(.cl))
+        message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
+      else
+        message("Error: ", conditionMessage(e))
+      message("\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")
+      message("\nq(status=1L) to retry  |  q() to stop the loop")
+      "error"
+    },
     interrupt = function(e) "interrupt"
   )
 
@@ -1715,6 +1739,7 @@ runWorkerLoop <- function(queue_path, global_path,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
 
     should_continue <- !identical(res, "empty") &&
+                       !identical(res, "error") &&
                        !(identical(res, "interrupt") && on_interrupt == "fail")
 
     if (should_continue && nzchar(Sys.getenv("TMUX"))) {
@@ -1762,6 +1787,7 @@ runWorkerLoop <- function(queue_path, global_path,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
     if (identical(res, "empty")) break
+    if (identical(res, "error")) break
     if (identical(res, "interrupt") && on_interrupt == "fail") break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
   }
