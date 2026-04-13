@@ -736,7 +736,30 @@ experimentTmux <- function(df,
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
-  
+
+  # -- warn if any cores are remote and local tmux is not in a systemd scope.
+  # Without a scope, a local logout / session end can SIGHUP the tmux server and
+  # kill the bash while-loops that drive remote workers.
+  # Start tmux with:  tmuxs='systemd-run --user --scope tmux'  to avoid this.
+  has_remote <- !is.null(cores) && any(!cores %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+  if (has_remote && .Platform$OS.type == "unix") {
+    tmux_pid <- tryCatch(
+      as.integer(trimws(system2("tmux", c("display-message", "-p", "#{pid}"),
+                                stdout = TRUE, stderr = FALSE))),
+      error = function(e) NA_integer_
+    )
+    if (!is.na(tmux_pid)) {
+      cgroup_lines <- tryCatch(readLines(paste0("/proc/", tmux_pid, "/cgroup"), warn = FALSE),
+                               error = function(e) character(0))
+      in_scope <- any(grepl("\\.scope", cgroup_lines))
+      if (!in_scope)
+        message("NOTE: tmux is NOT running under a systemd user scope.\n",
+                "  Remote workers may die if your local session is interrupted.\n",
+                "  Start tmux with:  systemd-run --user --scope tmux\n",
+                "  (alias: tmuxs='systemd-run --user --scope tmux')")
+    }
+  }
+
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
   # on_error     <- match.arg(on_error)
@@ -1278,7 +1301,7 @@ experimentTmux <- function(df,
           inner <- sprintf(
             "trap '' HUP; exec env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
             rpath)
-          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s bash -c %s",
+          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
                   cores_full[i], shQuote(inner))
         }
         bash_cmd <- sprintf("trap '' INT; %s%s && { %s || while ! %s; do sleep 2; done; }",
