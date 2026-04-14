@@ -115,7 +115,7 @@
       result <- tryCatch(
         system2("ssh",
                 c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-                  machine, check_cmd),
+                  machine, shQuote(check_cmd)),
                 stdout = TRUE, stderr = FALSE),
         error = function(e) NULL
       )

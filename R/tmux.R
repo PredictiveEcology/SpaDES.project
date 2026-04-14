@@ -1210,43 +1210,22 @@ experimentTmux <- function(df,
       )
 
       # 3. Send startup command immediately to the freshly created pane
-      if (is_remote && pane_mode == "killAndNewPane") {
-        # Setup preamble: first pane per unique host runs .setup_remote_machine()
-        # and writes a flag; subsequent panes for the same host wait for it.
-        first_for_host <- !cores_full[i] %in% setup_assigned
-        if (first_for_host) setup_assigned <- c(setup_assigned, cores_full[i])
-        setup_pre <- paste0(setup_bash_for(cores_full[i], first_for_host), " && ")
-
-        # Write the payload to a local temp file and scp to the remote.
-        # Avoids all shell-quoting of the R expression.
-        # No Sys.sleep in the R script: stagger delay is in bash (sleep N &&)
-        # so R never starts until the delay is done — no PTY-buffering confusion
-        # where the user types during Sys.sleep and input lands in the next job.
-        # Build a multi-line R script sourced via R_PROFILE_USER that:
-        #  1. Loads the worker call into readline history (up-arrow to re-run)
-        #  2. Echoes it so it is visible in the pane
-        #  3. Wraps execution in tryCatch + withCallingHandlers:
-        #     - withCallingHandlers captures sys.calls() while stack is intact
-        #     - tryCatch error handler shows the error and keeps R at '>'
-        #     - On success runWorkerLoop() calls quit(0) → bash while-loop
-        #       restarts for the next job
-        # R_PROFILE_USER silently swallows errors that reach its startup
-        # tryCatch, so we MUST catch and display here.
-        # Remote worker: ssh -t allocates a PTY so R is fully interactive
-        # (readline, OSC 2 pane-title escapes, Ctrl+C, traceback).
-        # Problem: makeClusterPSOCK spawns Rscript workers that inherit the PTY
-        # slave fd; when they close it on exec the PTY reference count can reach
-        # zero, generating SIGHUP → R dies silently.
-        # Fix: prefix R with `nohup`.  nohup sets SIGHUP→SIG_IGN before exec'ing
-        # R; all children R forks/execs inherit that ignore disposition, so PTY
-        # hangup never kills the session.  Because stdout is a PTY (isatty=true)
-        # nohup does NOT redirect it to nohup.out — display is unaffected.
-        # PAT reader injected into every worker script.
-        # ~/.Rprofile is bypassed when R_PROFILE_USER is set, so the reader we
-        # wrote to ~/.Rprofile during setup never fires.  Embed it here instead.
-        # Path mirrors local_lib (same on localhost and remote by design).
-        .remote_pat_file <- file.path(.libPaths()[1L], ".spades_github_pat")
-        .pat_reader_line  <- paste0(
+      # Build a multi-line R script sourced via R_PROFILE_USER that:
+      #  1. Loads the worker call into readline history (up-arrow to re-run)
+      #  2. Echoes it so it is visible in the pane
+      #  3. Wraps execution in tryCatch + withCallingHandlers:
+      #     - withCallingHandlers captures sys.calls() while stack is intact
+      #     - tryCatch error handler shows the error and keeps R at '>'
+      #     - On success runWorkerLoop() calls quit(0) → bash while-loop
+      #       restarts for the next job
+      # R_PROFILE_USER silently swallows errors that reach its startup
+      # tryCatch, so we MUST catch and display here.
+      # PAT reader injected into every worker script.
+      # ~/.Rprofile is bypassed when R_PROFILE_USER is set, so the reader we
+      # wrote to ~/.Rprofile during setup never fires.  Embed it here instead.
+      # Path mirrors local_lib (same on localhost and remote by design).
+      .remote_pat_file <- file.path(.libPaths()[1L], ".spades_github_pat")
+      .pat_reader_line  <- paste0(
           "local({f<-", deparse1(.remote_pat_file), ";",
           "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
           "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
@@ -1314,6 +1293,13 @@ experimentTmux <- function(df,
             ")"
           )
         }
+      if (is_remote && pane_mode == "killAndNewPane") {
+        # Setup preamble: first pane per unique host runs .setup_remote_machine()
+        # and writes a flag; subsequent panes for the same host wait for it.
+        first_for_host <- !cores_full[i] %in% setup_assigned
+        if (first_for_host) setup_assigned <- c(setup_assigned, cores_full[i])
+        setup_pre <- paste0(setup_bash_for(cores_full[i], first_for_host), " && ")
+
         first_script <- tempfile(fileext = ".R")
         writeLines(.make_script(payload, pre_sleep = pre_sleep, host_label = cores_full[i]), first_script)
         remote_first <- paste0("/tmp/", basename(first_script))
@@ -1379,11 +1365,11 @@ experimentTmux <- function(df,
         # Local worker: use R --interactive with R_PROFILE_USER so that on error
         # runWorkerLoop returns to the '>' prompt instead of exiting (Rscript exits
         # unconditionally when the script ends; R --interactive does not).
-        local_script <- tempfile(fileext = ".R")
-        writeLines(c(
-          if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
-          payload
-        ), local_script)
+        # Write to activeRunningPath (not tempfile) so the script survives q() and
+        # can be re-run from the pane without stalling on a deleted tempfile.
+        local_script <- file.path(activeRunningPath,
+                                  sprintf("worker_startup_local_%02d.R", i))
+        writeLines(.make_script(payload, pre_sleep = pre_sleep), local_script)
         .tmux_run("send-keys", "-t", worker_ids[i],
                   sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
                           shQuote(local_script)), "C-m")
@@ -1803,7 +1789,9 @@ runWorkerLoop <- function(queue_path, global_path,
       # at '>' instead of exiting when the startup script finishes.
       # (Remote workers are handled by the bash while-loop in the local pane.)
       PANE            <- Sys.getenv("TMUX_PANE")
-      .respawn_script <- tempfile(fileext = ".R")
+      # Use activeRunningPath (not tempfile) so the script survives q() and can be
+      # re-run from the pane without stalling on a deleted tempfile.
+      .respawn_script <- file.path(activeRunningPath, "worker_respawn.R")
       writeLines(.build_worker_r_expr(
                    queue_path        = queue_path,
                    global_path       = global_path,
