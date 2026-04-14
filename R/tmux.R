@@ -618,8 +618,8 @@ tmux_set_mouse <- function(on = TRUE) {
 #' The full command is always in the pane's bash history:
 #' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
 #'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#’ - **remote**: the full `ssh -t host bash -c ‘...’ && { first_run || until ssh -t host bash -c ‘...’; do sleep 2; done; }`
-#’   command (restarts the bash loop from scratch).
+#’ - **remote**: `if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi`
+#’   command (restarts the sh loop from scratch; plain POSIX — works in bash, dash, and sh).
 #'
 #' @param df A `data.frame`. Column names become object names in worker panes; values
 #'   from each row are assigned prior to sourcing `global_path`.
@@ -1334,7 +1334,7 @@ experimentTmux <- function(df,
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
                   cores_full[i], shQuote(inner))
         }
-        bash_cmd <- sprintf("trap '' INT; %s%s && { %s || until %s; do sleep 2; done; }",
+        bash_cmd <- sprintf("trap '' INT; if %s%s; then %s; _st=$?; while [ $_st -ne 0 ]; do sleep 2; %s; _st=$?; done; fi",
                             setup_pre, scp_pre,
                             r_run(remote_first), r_run(remote_loop))
         remote_node <- tryCatch(
