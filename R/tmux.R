@@ -726,6 +726,7 @@ experimentTmux <- function(df,
                            pane_mode = c("killAndNewPane", "reuse"),
                            ss_id = NULL,
                            forceLocalQueueToGS = FALSE,
+                           enableGSSync = FALSE,
                            email = getOption("gargle_oauth_email"),
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
@@ -1059,41 +1060,40 @@ experimentTmux <- function(df,
         full_bash_mon_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(mon_cmd))
         .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
         
-        
-        # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
-        # This ensures the focus stays on the Master Pane
-        sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-        .tmux_run("select-layout", "-t", target_win, "tiled")
-        
-        # 2. Prepare the command as a SINGLE line to prevent shell splitting
-        # Load ... args from RDS so complex objects (lists, etc.) reach statusCalculate
-        dots_preamble_sync <- if (file.exists(dots_path)) {
-          sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
-                  deparse1(dots_path), deparse1(dots_path))
-        } else ""
 
-        sync_cmd <- sprintf(
-          "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
-          dots_preamble_sync,
-          deparse1(email),
-          deparse1(normalizePath(cache_path)),
-          deparse1(normalizePath(queue_path)),
-          deparse1(as.character(ss_id)),
-          deparse1(email),
-          deparse1(runNameLabel),
-          deparse1(statusCalculate, collapse = "\n"),
-          deparse1(normalizePath(cache_path))
-        )
-        
-        
-        # 3. Send keys to the specific ID
-        # Adding a leading space ' ' prevents the command from being saved in bash history;
-        #  I took this away because I wanted access to the command
-        full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
-        .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
-        
-        # 4. Label the pane for clarity
-        .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
+        if (isTRUE(enableGSSync)) {
+          # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
+          # This ensures the focus stays on the Master Pane
+          sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+          .tmux_run("select-layout", "-t", target_win, "tiled")
+
+          # 2. Prepare the command as a SINGLE line to prevent shell splitting
+          # Load ... args from RDS so complex objects (lists, etc.) reach statusCalculate
+          dots_preamble_sync <- if (file.exists(dots_path)) {
+            sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
+                    deparse1(dots_path), deparse1(dots_path))
+          } else ""
+
+          sync_cmd <- sprintf(
+            "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
+            dots_preamble_sync,
+            deparse1(email),
+            deparse1(normalizePath(cache_path)),
+            deparse1(normalizePath(queue_path)),
+            deparse1(as.character(ss_id)),
+            deparse1(email),
+            deparse1(runNameLabel),
+            deparse1(statusCalculate, collapse = "\n"),
+            deparse1(normalizePath(cache_path))
+          )
+
+          # 3. Send keys to the specific ID
+          full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
+          .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
+
+          # 4. Label the pane for clarity
+          .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
+        }
       }
     }
     
