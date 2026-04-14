@@ -1376,15 +1376,17 @@ experimentTmux <- function(df,
         .tmux_run("send-keys", "-t", worker_ids[i],
                   paste(scp_cmd, "&&", ssh_cmd), "C-m")
       } else {
-        # Local worker: start Rscript non-interactively so R runs the payload
-        # and exits (respawn-pane handles killAndNewPane; runWorkerLoop loops for reuse).
+        # Local worker: use R --interactive with R_PROFILE_USER so that on error
+        # runWorkerLoop returns to the '>' prompt instead of exiting (Rscript exits
+        # unconditionally when the script ends; R --interactive does not).
         local_script <- tempfile(fileext = ".R")
         writeLines(c(
           if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
           payload
         ), local_script)
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript %s", shQuote(local_script)), "C-m")
+                  sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+                          shQuote(local_script)), "C-m")
       }
     }  # end merged loop
 
@@ -1796,23 +1798,29 @@ runWorkerLoop <- function(queue_path, global_path,
                        !(identical(res, "interrupt") && on_interrupt == "fail")
 
     if (should_continue && nzchar(Sys.getenv("TMUX"))) {
-      # Local tmux pane: respawn-pane replaces this process with a fresh Rscript.
+      # Local tmux pane: respawn-pane replaces this process with a fresh R session.
+      # Use R --interactive (not Rscript) so that if a future job errors, R stays
+      # at '>' instead of exiting when the startup script finishes.
       # (Remote workers are handled by the bash while-loop in the local pane.)
-      PANE        <- Sys.getenv("TMUX_PANE")
-      respawn_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s",
-                             shQuote(.build_worker_r_expr(
-                               queue_path        = queue_path,
-                               global_path       = global_path,
-                               on_interrupt      = on_interrupt,
-                               runNameLabel      = runNameLabel,
-                               activeRunningPath = activeRunningPath,
-                               ss_id             = ss_id,
-                               pane_mode         = "killAndNewPane",
-                               email             = email,
-                               cache_path        = cache_path,
-                               dots_path         = dots_path,
-                               lib_path          = .libPaths()[1L]
-                             )))
+      PANE            <- Sys.getenv("TMUX_PANE")
+      .respawn_script <- tempfile(fileext = ".R")
+      writeLines(.build_worker_r_expr(
+                   queue_path        = queue_path,
+                   global_path       = global_path,
+                   on_interrupt      = on_interrupt,
+                   runNameLabel      = runNameLabel,
+                   activeRunningPath = activeRunningPath,
+                   ss_id             = ss_id,
+                   pane_mode         = "killAndNewPane",
+                   email             = email,
+                   cache_path        = cache_path,
+                   dots_path         = dots_path,
+                   lib_path          = .libPaths()[1L]
+                 ), .respawn_script)
+      respawn_cmd <- sprintf(
+        "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+        shQuote(.respawn_script)
+      )
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
     if (should_continue) {
