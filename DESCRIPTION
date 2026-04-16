@@ -34,6 +34,7 @@ Imports:
     utils,
     withr
 Suggests:
+    callr,
     cli,
     covr,
     crayon,
@@ -54,6 +55,7 @@ Suggests:
     knitr,
     leaflet,
     leafem,
+    parallelly,
     pkgload,
     processx,
     purrr (>= 1.2.1),
@@ -90,6 +92,7 @@ Collate:
     'environment.R'
     'experiment.R'
     'fileEdit.R'
+    'future.R'
     'imports.R'
     'getModule.R'
     'googlesheets.R'

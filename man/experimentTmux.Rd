@@ -24,6 +24,7 @@ experimentTmux(
   pane_mode = c("killAndNewPane", "reuse"),
   ss_id = NULL,
   forceLocalQueueToGS = FALSE,
+  enableGSSync = FALSE,
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
   workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
@@ -125,9 +126,9 @@ while-loop that repeatedly calls
 \verb{ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive'}.
 \code{ssh -t} allocates a PTY so R runs interactively (readline, OSC 2 title
 updates, Ctrl+C propagation).  A startup script injected via
-\code{R_PROFILE_USER} runs one job then exits; \code{q(status = 0L)} (job done or
-queue empty) lets the while-loop start a fresh R session, any non-zero
-exit stops the loop.  \code{R_PROFILE_USER} is unset inside R immediately
+\code{R_PROFILE_USER} runs one job then exits; \code{q(status = 1L)} (job done or
+queue empty) lets the while-loop start a fresh R session, \code{q()} (status 0)
+stops the loop.  \code{R_PROFILE_USER} is unset inside R immediately
 after startup so workers spawned by \code{makeClusterPSOCK()} do not inherit
 it and inadvertently re-run the startup script.
 }
@@ -222,8 +223,6 @@ The full command is always in the pane's bash history:
 \itemize{
 \item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{runWorkerLoop}; in
 \code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
-\item \strong{remote}: the full \verb{ssh -t host bash -c ‘...' && while ssh -t host bash -c ‘...'; do sleep 2; done}
-command (restarts the bash while-loop from scratch).
 }
 }
 }
