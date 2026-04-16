@@ -289,6 +289,19 @@ experimentFuture <- function(
   if (length(unique_hosts) > 0L) {
     message("Setting up ", length(unique_hosts), " remote host(s): ",
             paste(unique_hosts, collapse = ", "))
+    .module_path <- if (isTRUE(copyModules)) {
+      mp <- getOption("spades.modulePath")
+      if (is.null(mp) || !nzchar(mp)) {
+        warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
+                call. = FALSE)
+        NULL
+      } else {
+        normalizePath(mp, mustWork = FALSE)
+      }
+    } else {
+      NULL
+    }
+
     for (host in unique_hosts) {
       .setup_remote_machine(
         host           = host,
@@ -296,30 +309,11 @@ experimentFuture <- function(
         queue_path     = queue_path,
         cache_path     = cache_path,
         sp_dev_path    = sp_dev_path,
-        local_pat_file = local_pat_file
+        local_pat_file = local_pat_file,
+        module_path    = .module_path
       )
     }
     message("Remote setup complete.")
-
-    if (isTRUE(copyModules)) {
-      module_path <- getOption("spades.modulePath")
-      if (is.null(module_path) || !nzchar(module_path)) {
-        warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
-                call. = FALSE)
-      } else {
-        module_path <- normalizePath(module_path, mustWork = FALSE)
-        for (host in unique_hosts) {
-          message("  rsyncing modules to ", host, ":", module_path, "/")
-          rsync_ret <- system(paste0(
-            "rsync -a --delete ",
-            shQuote(paste0(module_path, "/")),
-            " ", host, ":", module_path, "/"
-          ))
-          if (rsync_ret != 0L)
-            warning("rsync of modules to '", host, "' failed.", call. = FALSE)
-        }
-      }
-    }
   }
 
   # ── 6. Determine effective worker hosts ───────────────────────────────────

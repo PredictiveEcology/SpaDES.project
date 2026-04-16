@@ -32,7 +32,7 @@ tmux_set_mouse <- function(on = TRUE) {
 # ------------------------------------------------------------------
 .setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL,
                                    cache_path = NULL, sp_dev_path = NULL,
-                                   local_pat_file = NULL) {
+                                   local_pat_file = NULL, module_path = NULL) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
@@ -147,6 +147,18 @@ tmux_set_mouse <- function(on = TRUE) {
     ))
     if (rsync_r_ret != 0L)
       warning("rsync of R/ folder to '", host, "' failed.", call. = FALSE)
+  }
+
+  # 1c. Rsync SpaDES modules (copyModules = TRUE).
+  if (!is.null(module_path)) {
+    message("  rsyncing modules to ", host, ":", module_path, "/")
+    rsync_mod_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(module_path, "/")),
+      " ", host, ":", module_path, "/"
+    ))
+    if (rsync_mod_ret != 0L)
+      warning("rsync of modules to '", host, "' failed.", call. = FALSE)
   }
 
   # 2. Persist repos, .libPaths(), defaultPackages, and SSL env vars in
@@ -1004,26 +1016,6 @@ experimentTmux <- function(df,
     if (file.exists(flag)) unlink(flag)
   }
 
-  if (isTRUE(copyModules) && length(.unique_remote_hosts) > 0L) {
-    module_path <- getOption("spades.modulePath")
-    if (is.null(module_path) || !nzchar(module_path)) {
-      warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
-              call. = FALSE)
-    } else {
-      module_path <- normalizePath(module_path, mustWork = FALSE)
-      for (.host in .unique_remote_hosts) {
-        message("  rsyncing modules to ", .host, ":", module_path, "/")
-        rsync_ret <- system(paste0(
-          "rsync -a --delete ",
-          shQuote(paste0(module_path, "/")),
-          " ", .host, ":", module_path, "/"
-        ))
-        if (rsync_ret != 0L)
-          warning("rsync of modules to '", .host, "' failed.", call. = FALSE)
-      }
-    }
-  }
-
   if (inTmux) {
     #stop("Not inside tmux. Start/attach to a tmux session first.", call. = FALSE)
     #}
@@ -1183,9 +1175,22 @@ experimentTmux <- function(df,
       }
     }
 
+    .module_path <- if (isTRUE(copyModules)) {
+      mp <- getOption("spades.modulePath")
+      if (is.null(mp) || !nzchar(mp)) {
+        warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
+                call. = FALSE)
+        NULL
+      } else {
+        normalizePath(mp, mustWork = FALSE)
+      }
+    } else {
+      NULL
+    }
+
     setup_expr_for <- function(host) {
       sprintf(
-        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s, local_pat_file=%s)",
+        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s, local_pat_file=%s, module_path=%s)",
         deparse1(host),
         deparse1(normalizePath(global_path, mustWork = FALSE)),
         deparse1(normalizePath(queue_path,  mustWork = FALSE)),
@@ -1193,7 +1198,8 @@ experimentTmux <- function(df,
                    normalizePath(dots_path) else NULL),
         deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL),
         deparse1(.sp_dev_path),
-        deparse1(.local_pat_file)
+        deparse1(.local_pat_file),
+        deparse1(.module_path)
       )
     }
     # bash snippet: run setup and write flag, or wait for flag (600s timeout).
