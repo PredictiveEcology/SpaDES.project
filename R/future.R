@@ -97,12 +97,39 @@
 #' )
 #'
 #' print(ef)                    # live status (alive/done per worker)
-#' awaitExperimentFuture(ef)    # block until all jobs are done
 #'
-#' q <- readRDS(ef$queue_path)
-#' table(q$status)              # should be all DONE
+#' ## ── Killing workers ────────────────────────────────────────────────────
 #'
-#' cat(readLines(ef$log_files[[1]]), sep = "\n")   # inspect worker 1 log
+#' # Graceful stop: workers finish their CURRENT job, then exit.
+#' # Any remaining PENDING jobs stay in the queue and can be resumed later
+#' # by calling experimentFuture() again with the same queue_path.
+#' killExperimentFuture(ef)
+#'
+#' # Immediate stop (force): workers are killed immediately.
+#' # Jobs that were mid-execution may remain as RUNNING in the queue; reset them with:
+#' #   tmux_refresh_queue_status(ef$queue_path)   # file-based backend
+#' # The GS backend reclaims stale RUNNING entries automatically before each new claim.
+#' killExperimentFuture(ef, force = TRUE)
+#' tmux_refresh_queue_status(ef$queue_path)   # clean up stale RUNNING entries
+#'
+#' ## ── Resuming after a kill ──────────────────────────────────────────────
+#'
+#' # Jobs left as PENDING (or INTERRUPTED with on_interrupt = "requeue") are
+#' # automatically picked up when you call experimentFuture() again with the
+#' # same queue_path — no need to re-specify df.
+#' ef2 <- experimentFuture(
+#'   df          = expt,         # ignored if queue_path already exists
+#'   global_path = file.path(getwd(), "global.R"),
+#'   n_workers   = 2L,
+#'   queue_path  = file.path(getwd(), "future_queue.rds"),
+#'   log_dir     = file.path(getwd(), "logs")
+#' )
+#' awaitExperimentFuture(ef2)   # wait for remaining jobs to finish
+#'
+#' q <- readRDS(ef2$queue_path)
+#' table(q$status)              # all DONE
+#'
+#' cat(readLines(ef2$log_files[[1]]), sep = "\n")   # inspect worker 1 log
 #'
 #' ## ── Remote workers (pre-setup required) ───────────────────────────────
 #' ef <- experimentFuture(
@@ -115,6 +142,7 @@
 #'   cache_path     = "~/.cache/gargle",
 #'   local_pat_file = "~/.github_pat"
 #' )
+#' killExperimentFuture(ef)     # graceful stop on remote workers too
 #' }
 #'
 #' @seealso \code{\link{experimentTmux}}, \code{\link{awaitExperimentFuture}},
@@ -272,8 +300,11 @@ experimentFuture <- function(
   is_local <- is.null(cores) ||
               all(cores %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
 
-  # ── 7. Build log file paths ────────────────────────────────────────────────
-  log_files <- file.path(log_dir, sprintf("worker_%02d.log", seq_len(n_workers)))
+  # ── 7. Build log and stop-file paths ──────────────────────────────────────
+  log_files  <- file.path(log_dir, sprintf("worker_%02d.log",      seq_len(n_workers)))
+  stop_files <- file.path(log_dir, sprintf("worker_%02d.stop",     seq_len(n_workers)))
+  # Remove any leftover stop files from a previous run
+  for (sf in stop_files) if (file.exists(sf)) unlink(sf)
 
   # ── 8. Launch workers ─────────────────────────────────────────────────────
   procs <- vector("list", n_workers)
@@ -298,7 +329,7 @@ experimentFuture <- function(
       procs[[i]] <- callr::r_bg(
         func = function(queue_path, global_path, on_interrupt, ss_id,
                         email, cache_path, runNameLabel, activeRunningPath,
-                        dots_path, lib_paths) {
+                        dots_path, stop_file, lib_paths) {
           .libPaths(lib_paths)
           SpaDES.project::runWorkerLoop(
             queue_path        = queue_path,
@@ -310,10 +341,11 @@ experimentFuture <- function(
             runNameLabel      = runNameLabel,
             activeRunningPath = activeRunningPath,
             dots_path         = dots_path,
+            stop_file         = stop_file,
             pane_mode         = "reuse"
           )
         },
-        args    = c(worker_args, list(lib_paths = .libPaths())),
+        args    = c(worker_args, list(stop_file = stop_files[[i]], lib_paths = .libPaths())),
         stdout  = log_files[[i]],
         stderr  = log_files[[i]],
         # Unset TMUX/TMUX_PANE so workers don't emit OSC 2 escape bytes into log files.
@@ -335,6 +367,7 @@ experimentFuture <- function(
     .fn <- runWorkerLoopFuture   # captured so future serializes it
     for (i in seq_len(n_workers)) {
       lf <- log_files[[i]]
+      sf <- stop_files[[i]]
       wa <- worker_args
       procs[[i]] <- future::future(seed = TRUE, {
         .fn(
@@ -347,6 +380,7 @@ experimentFuture <- function(
           runNameLabel      = wa$runNameLabel,
           activeRunningPath = wa$activeRunningPath,
           dots_path         = wa$dots_path,
+          stop_file         = sf,
           log_file          = lf
         )
       })
@@ -391,6 +425,7 @@ experimentFuture <- function(
     list(
       procs      = procs,
       log_files  = log_files,
+      stop_files = stop_files,
       log_dir    = log_dir,
       queue_path = queue_path,
       cores      = cores,
@@ -422,6 +457,9 @@ experimentFuture <- function(
 #' @param activeRunningPath Directory for \code{Running_*.rds} marker files.
 #' @param dots_path Path to an RDS file whose contents are loaded into
 #'   \code{.GlobalEnv} before sourcing \code{global_path}.
+#' @param stop_file Path to a sentinel file.  When this file is created (e.g.
+#'   by \code{\link{killExperimentFuture}}), the worker exits cleanly after its
+#'   current job finishes.
 #' @param log_file Path to the log file for this worker.  If \code{NULL},
 #'   output goes to the current connection.
 #'
@@ -437,6 +475,7 @@ runWorkerLoopFuture <- function(
   runNameLabel      = quote(colnames(q)[1:2]),
   activeRunningPath = NULL,
   dots_path         = NULL,
+  stop_file         = NULL,
   log_file          = NULL
 ) {
   on_interrupt <- match.arg(on_interrupt)
@@ -467,6 +506,7 @@ runWorkerLoopFuture <- function(
     runNameLabel      = runNameLabel,
     activeRunningPath = activeRunningPath,
     dots_path         = dots_path,
+    stop_file         = stop_file,
     pane_mode         = "reuse"
   )
 
@@ -529,5 +569,82 @@ awaitExperimentFuture <- function(ef, verbose = TRUE) {
       print(table(q$status))
     }
   }
+  invisible(ef)
+}
+
+
+# ── killExperimentFuture ─────────────────────────────────────────────────────
+
+#' Stop workers launched by experimentFuture
+#'
+#' @description
+#' Two modes are available:
+#'
+#' \strong{Graceful} (\code{force = FALSE}, default): creates a per-worker
+#' sentinel file.  Each worker checks for this file between jobs and exits
+#' cleanly once its current job finishes.  Remaining \code{PENDING} jobs stay
+#' in the queue and are picked up automatically when
+#' \code{\link{experimentFuture}} is called again with the same
+#' \code{queue_path}.
+#'
+#' \strong{Immediate} (\code{force = TRUE}): sends \code{SIGTERM} to each live
+#' worker, causing the process to exit as soon as possible.  Because callr
+#' workers run non-interactively, the process typically exits before R's
+#' interrupt handler has a chance to update the queue.  Any jobs that were
+#' \code{RUNNING} at the time of the kill will remain as \code{RUNNING} in the
+#' queue until the next reclaim pass.  Call
+#' \code{tmux_refresh_queue_status(ef$queue_path)} afterwards to reset stale
+#' \code{RUNNING} entries to \code{INTERRUPTED}, or use the GS backend which
+#' reclaims dead workers automatically before each new claim.
+#'
+#' @param ef An \code{"experimentFuture"} object returned by
+#'   \code{\link{experimentFuture}}.
+#' @param force If \code{FALSE} (default), signal workers via stop files so
+#'   they exit after their current job completes.  If \code{TRUE}, send
+#'   \code{SIGINT} to each live worker for an immediate but clean stop.
+#'
+#' @return \code{ef}, invisibly.
+#' @seealso \code{\link{experimentFuture}}, \code{\link{awaitExperimentFuture}}
+#' @export
+killExperimentFuture <- function(ef, force = FALSE) {
+  stopifnot(inherits(ef, "experimentFuture"))
+
+  if (!force) {
+    # ── Graceful: create stop files ─────────────────────────────────────────
+    # runWorkerLoop checks for the file between jobs and breaks the repeat loop.
+    created <- 0L
+    for (sf in ef$stop_files) {
+      if (!file.exists(sf)) {
+        file.create(sf)
+        created <- created + 1L
+      }
+    }
+    message("Stop files created for ", created, " worker(s).",
+            "\nWorkers will exit after their current job finishes.",
+            "\nCall awaitExperimentFuture(ef) to wait for them.")
+  } else {
+    # ── Force: send SIGINT ────────────────────────────────────────────────────
+    # SIGINT triggers R's interrupt condition, which runNextWorker catches and
+    # uses to mark the in-progress job as PENDING (requeue) or INTERRUPTED (fail).
+    killed <- 0L
+    if (ef$is_local) {
+      for (p in ef$procs) {
+        if (isTRUE(try(p$is_alive(), silent = TRUE))) {
+          try(p$kill(), silent = TRUE)
+          killed <- killed + 1L
+        }
+      }
+    } else {
+      # Remote cluster: no direct signal; fall back to stop files
+      message("Force kill is not supported for remote cluster workers; ",
+              "using stop files instead.")
+      for (sf in ef$stop_files) if (!file.exists(sf)) file.create(sf)
+      killed <- length(ef$procs)
+    }
+    message("Sent kill signal to ", killed, " worker(s).",
+            "\nStale RUNNING queue entries can be reset with:",
+            "\n  tmux_refresh_queue_status(\"", ef$queue_path, "\")")
+  }
+
   invisible(ef)
 }

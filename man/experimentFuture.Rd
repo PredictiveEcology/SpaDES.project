@@ -120,12 +120,39 @@ ef <- experimentFuture(
 )
 
 print(ef)                    # live status (alive/done per worker)
-awaitExperimentFuture(ef)    # block until all jobs are done
 
-q <- readRDS(ef$queue_path)
-table(q$status)              # should be all DONE
+## ── Killing workers ────────────────────────────────────────────────────
 
-cat(readLines(ef$log_files[[1]]), sep = "\n")   # inspect worker 1 log
+# Graceful stop: workers finish their CURRENT job, then exit.
+# Any remaining PENDING jobs stay in the queue and can be resumed later
+# by calling experimentFuture() again with the same queue_path.
+killExperimentFuture(ef)
+
+# Immediate stop (force): workers are killed immediately.
+# Jobs that were mid-execution may remain as RUNNING in the queue; reset them with:
+#   tmux_refresh_queue_status(ef$queue_path)   # file-based backend
+# The GS backend reclaims stale RUNNING entries automatically before each new claim.
+killExperimentFuture(ef, force = TRUE)
+tmux_refresh_queue_status(ef$queue_path)   # clean up stale RUNNING entries
+
+## ── Resuming after a kill ──────────────────────────────────────────────
+
+# Jobs left as PENDING (or INTERRUPTED with on_interrupt = "requeue") are
+# automatically picked up when you call experimentFuture() again with the
+# same queue_path — no need to re-specify df.
+ef2 <- experimentFuture(
+  df          = expt,         # ignored if queue_path already exists
+  global_path = file.path(getwd(), "global.R"),
+  n_workers   = 2L,
+  queue_path  = file.path(getwd(), "future_queue.rds"),
+  log_dir     = file.path(getwd(), "logs")
+)
+awaitExperimentFuture(ef2)   # wait for remaining jobs to finish
+
+q <- readRDS(ef2$queue_path)
+table(q$status)              # all DONE
+
+cat(readLines(ef2$log_files[[1]]), sep = "\n")   # inspect worker 1 log
 
 ## ── Remote workers (pre-setup required) ───────────────────────────────
 ef <- experimentFuture(
@@ -138,6 +165,7 @@ ef <- experimentFuture(
   cache_path     = "~/.cache/gargle",
   local_pat_file = "~/.github_pat"
 )
+killExperimentFuture(ef)     # graceful stop on remote workers too
 }
 
 }

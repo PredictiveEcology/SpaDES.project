@@ -14,6 +14,7 @@ runWorkerLoopFuture(
   runNameLabel = quote(colnames(q)[1:2]),
   activeRunningPath = NULL,
   dots_path = NULL,
+  stop_file = NULL,
   log_file = NULL
 )
 }
@@ -37,6 +38,10 @@ file-based queue).}
 
 \item{dots_path}{Path to an RDS file whose contents are loaded into
 \code{.GlobalEnv} before sourcing \code{global_path}.}
+
+\item{stop_file}{Path to a sentinel file.  When this file is created (e.g.
+by \code{\link{killExperimentFuture}}), the worker exits cleanly after its
+current job finishes.}
 
 \item{log_file}{Path to the log file for this worker.  If \code{NULL},
 output goes to the current connection.}
