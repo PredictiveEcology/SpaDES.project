@@ -620,8 +620,19 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
 #’ - **remote**: `if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi`
 #’   command (restarts the sh loop from scratch; plain POSIX — works in bash, dash, and sh).
-#'
-#' @param df A `data.frame`. Column names become object names in worker panes; values
+#’
+#’ ## ANSI colour support
+#’ At startup, `experimentTmux` sets the tmux session option
+#’ `default-terminal = "tmux-256color"`.  This ensures that all subsequently
+#’ created panes advertise a full-colour ANSI terminal, which is required for
+#’ R packages such as `cli` and `crayon` to render coloured/dynamic output
+#’ correctly.  Without this, connections that arrive via Windows PowerShell
+#’ → SSH → tmux often inherit `TERM=screen` or no `TERM` at all, causing
+#’ R to fall back to plain-text output.  The setting is applied globally to the
+#’ session (`-g`) and persists for the session’s lifetime; it does not modify
+#’ `~/.tmux.conf`.
+#’
+#’ @param df A `data.frame`. Column names become object names in worker panes; values
 #'   from each row are assigned prior to sourcing `global_path`.
 #' @param global_path Character scalar. Absolute path to the script sourced for each job.
 #' @param n_workers Integer. Number of worker panes to spawn. Defaults to `length(cores)`
@@ -994,6 +1005,7 @@ experimentTmux <- function(df,
     # -- resolve current tmux window
     target_win <- .tmux_current_window()
     system("tmux set -g pane-border-status top") # sets so titles have names
+    .tmux_run("set-option", "-g", "default-terminal", "tmux-256color") # ensures ANSI/colour detection works for R cli/crayon (e.g. Windows SSH → tmux)
     
     # -- list existing panes
     pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")

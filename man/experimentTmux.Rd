@@ -225,6 +225,19 @@ The full command is always in the pane's bash history:
 \code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
 }
 }
+
+\subsection{ANSI colour support}{
+
+At startup, \code{experimentTmux} sets the tmux session option
+\code{default-terminal = "tmux-256color"}.  This ensures that all subsequently
+created panes advertise a full-colour ANSI terminal, which is required for
+R packages such as \code{cli} and \code{crayon} to render coloured/dynamic output
+correctly.  Without this, connections that arrive via Windows PowerShell
+\verb{→} SSH \verb{→} tmux often inherit \code{TERM=screen} or no \code{TERM} at all, causing
+R to fall back to plain-text output.  The setting is applied globally to the
+session (\code{-g}) and persists for the session's lifetime; it does not modify
+\verb{~/.tmux.conf}.
+}
 }
 \examples{
 \dontrun{
