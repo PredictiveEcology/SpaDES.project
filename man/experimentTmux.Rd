@@ -29,6 +29,7 @@ experimentTmux(
   cache_path = getOption("gargle_oauth_cache"),
   workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
   runNameLabel = quote(colnames(q)[1:2]),
+  copyModules = FALSE,
   ...
 )
 }
@@ -96,6 +97,11 @@ above.}
 
 \item{runNameLabel}{A quoted expression evaluated against the queue \code{data.frame} to
 produce a human-readable job label used in log files and Google Sheet status updates.}
+
+\item{copyModules}{Logical. If \code{TRUE} and remote hosts are present, rsyncs the
+directory given by \code{getOption("spades.modulePath")} to the same absolute path on
+each remote host before workers start.  Issues a warning and skips if the option is
+unset.  Default \code{FALSE}.}
 
 \item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
 

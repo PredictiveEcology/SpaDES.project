@@ -62,6 +62,11 @@
 #'   remote workers (optional; uses installed binary if \code{NULL}).
 #' @param local_pat_file Path to a file containing a GitHub PAT to copy to
 #'   remote workers.
+#' @param copyModules Logical. If \code{TRUE} and remote hosts are present,
+#'   rsyncs the directory given by \code{getOption("spades.modulePath")} to the
+#'   same absolute path on each remote host after \code{.setup_remote_machine()}
+#'   completes.  Issues a warning and skips if the option is unset.
+#'   Default \code{FALSE}.
 #' @param ... Additional named arguments stored in \code{.future_dots.rds} and
 #'   loaded into each worker's \code{.GlobalEnv} before sourcing
 #'   \code{global_path}.
@@ -164,6 +169,7 @@ experimentFuture <- function(
   activeRunningPath = getOption("spades.activeRunningPath"),
   sp_dev_path       = NULL,
   local_pat_file    = NULL,
+  copyModules       = FALSE,
   ...
 ) {
 
@@ -294,6 +300,26 @@ experimentFuture <- function(
       )
     }
     message("Remote setup complete.")
+
+    if (isTRUE(copyModules)) {
+      module_path <- getOption("spades.modulePath")
+      if (is.null(module_path) || !nzchar(module_path)) {
+        warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
+                call. = FALSE)
+      } else {
+        module_path <- normalizePath(module_path, mustWork = FALSE)
+        for (host in unique_hosts) {
+          message("  rsyncing modules to ", host, ":", module_path, "/")
+          rsync_ret <- system(paste0(
+            "rsync -a --delete ",
+            shQuote(paste0(module_path, "/")),
+            " ", host, ":", module_path, "/"
+          ))
+          if (rsync_ret != 0L)
+            warning("rsync of modules to '", host, "' failed.", call. = FALSE)
+        }
+      }
+    }
   }
 
   # ── 6. Determine effective worker hosts ───────────────────────────────────

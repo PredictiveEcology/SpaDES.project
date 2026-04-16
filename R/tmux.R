@@ -677,6 +677,10 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   each worker's global environment before sourcing `global_path`. Useful for passing
 #'   large objects that cannot easily be serialised into the queue row.
 #' @param set_mouse Logical. Enable tmux mouse support (pane selection, scroll). Default `TRUE`.
+#' @param copyModules Logical. If `TRUE` and remote hosts are present, rsyncs the
+#'   directory given by `getOption("spades.modulePath")` to the same absolute path on
+#'   each remote host before workers start.  Issues a warning and skips if the option is
+#'   unset.  Default `FALSE`.
 #' @param ... Additional arguments passed to `.setup_remote_machine()`.
 #'
 #' @return Invisibly returns a character vector of tmux pane IDs for the spawned workers.
@@ -742,6 +746,7 @@ experimentTmux <- function(df,
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
                            runNameLabel = quote(colnames(q)[1:2]),
+                           copyModules = FALSE,
                            ...) {
   
   # -- dependency check
@@ -993,9 +998,30 @@ experimentTmux <- function(df,
   if (is.null(cores)) cores <- rep("localhost", n_workers)
 
   # Clean up any stale ready-flags from a previous run
-  for (.host in setdiff(unique(cores), "localhost")) {
+  .unique_remote_hosts <- setdiff(unique(cores), c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+  for (.host in .unique_remote_hosts) {
     flag <- .setup_flag_path(.host)
     if (file.exists(flag)) unlink(flag)
+  }
+
+  if (isTRUE(copyModules) && length(.unique_remote_hosts) > 0L) {
+    module_path <- getOption("spades.modulePath")
+    if (is.null(module_path) || !nzchar(module_path)) {
+      warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
+              call. = FALSE)
+    } else {
+      module_path <- normalizePath(module_path, mustWork = FALSE)
+      for (.host in .unique_remote_hosts) {
+        message("  rsyncing modules to ", .host, ":", module_path, "/")
+        rsync_ret <- system(paste0(
+          "rsync -a --delete ",
+          shQuote(paste0(module_path, "/")),
+          " ", .host, ":", module_path, "/"
+        ))
+        if (rsync_ret != 0L)
+          warning("rsync of modules to '", .host, "' failed.", call. = FALSE)
+      }
+    }
   }
 
   if (inTmux) {
