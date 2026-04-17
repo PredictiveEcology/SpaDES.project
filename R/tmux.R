@@ -2560,6 +2560,102 @@ get_latest_heartbeat <- function(runName,
 }
 
 
+#' Heartbeat for year-checkpoint SpaDES simulations
+#'
+#' Scans an output directory for files matching the pattern
+#' `<file_prefix>_year<XXXX>.<ext>` (e.g. `cohortData_year2920.rds`) and
+#' returns the furthest simulation year reached, the wall-clock elapsed time
+#' since the first checkpoint, and a percentage-complete estimate.
+#'
+#' @param output_path Character. Directory to scan for checkpoint files.
+#' @param start_year Integer or `NULL`.  Expected start year of the simulation.
+#'   If `NULL` (default), inferred as the minimum year found in `output_path`.
+#' @param end_year Integer or `NULL`.  Expected end year.
+#'   If `NULL` (default), inferred as the maximum year found in `output_path`
+#'   (i.e. 100 % is reported only once the final checkpoint exists).
+#'   Supply a value (e.g. `3020L`) to get a meaningful percentage before the
+#'   run completes.
+#' @param file_prefix Character.  Only files whose basename begins with this
+#'   prefix are used as checkpoint indicators.  Defaults to `"cohortData"`
+#'   because that file is written **after** all others at each SpaDES save
+#'   event, making it the most reliable completion signal.
+#'
+#' @return A named list with elements:
+#' \describe{
+#'   \item{`ts`}{Character. Modification timestamp of the latest checkpoint file.}
+#'   \item{`iter`}{Integer. Simulation year of the latest checkpoint.}
+#'   \item{`started`}{Character. Modification timestamp of the first checkpoint file.}
+#'   \item{`elapsed`}{`difftime`. Wall-clock time between first and latest checkpoint.}
+#'   \item{`pct_complete`}{Numeric 0–100. Percentage of the simulation completed,
+#'     or `NA` if `start_year == end_year`.}
+#' }
+#' All elements are `NA` / `NA_character_` when no matching files are found.
+#'
+#' @examples
+#' \dontrun{
+#' hb <- get_sim_year_heartbeat(
+#'   output_path = "outputs/6.5/1991-2020/NRV_ssp370/rep1",
+#'   end_year    = 3020L
+#' )
+#' message("Year: ", hb$iter, " (", hb$pct_complete, "%) — last checkpoint: ", hb$ts)
+#' }
+#' @export
+get_sim_year_heartbeat <- function(output_path,
+                                   start_year  = NULL,
+                                   end_year    = NULL,
+                                   file_prefix = "cohortData") {
+  ret_names <- c("ts", "iter", "started", "elapsed", "pct_complete")
+  ret_early <- setNames(
+    list(NA_character_, NA_integer_, NA_character_,
+         as.difftime(NA_real_, units = "days"), NA_real_),
+    ret_names
+  )
+
+  if (!dir.exists(output_path)) return(ret_early)
+
+  # Prefer file_prefix files; fall back to any *_yearXXXX.* file.
+  pat <- paste0("^", file_prefix, "_year\\d+\\.")
+  files <- list.files(output_path, pattern = pat, full.names = TRUE)
+  if (!length(files))
+    files <- list.files(output_path, pattern = "_year\\d+\\.", full.names = TRUE)
+  if (!length(files)) return(ret_early)
+
+  years <- suppressWarnings(
+    as.integer(regmatches(basename(files),
+                          regexpr("(?<=_year)\\d+", basename(files), perl = TRUE)))
+  )
+  ok    <- !is.na(years)
+  files <- files[ok]
+  years <- years[ok]
+  if (!length(years)) return(ret_early)
+
+  ord   <- order(years)
+  files <- files[ord]
+  years <- years[ord]
+
+  if (is.null(start_year)) start_year <- years[1L]
+  if (is.null(end_year))   end_year   <- years[length(years)]
+
+  fi_all    <- file.info(files)
+  fi_latest <- fi_all[length(files), , drop = FALSE]
+  # Use earliest mtime across all files as "started" — the min-year file may be
+  # re-written on restart, so mtime(year_min) is not reliably the run start.
+  start_idx <- which.min(fi_all$mtime)
+  fi_first  <- fi_all[start_idx, , drop = FALSE]
+
+  ts_latest <- format(fi_latest$mtime, "%Y-%m-%d %H:%M:%S")
+  ts_first  <- format(fi_first$mtime,  "%Y-%m-%d %H:%M:%S")
+  elapsed   <- difftime(fi_latest$mtime, fi_first$mtime, units = "days")
+
+  pct <- if (end_year > start_year) {
+    round(100 * (years[length(years)] - start_year) / (end_year - start_year), 1)
+  } else NA_real_
+
+  list(ts = ts_latest, iter = years[length(years)],
+       started = ts_first, elapsed = elapsed, pct_complete = pct)
+}
+
+
 activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRunningPath"), pattern = txtRunning, queue_path, runName) {
   if (is.null(activeRunningPath))
     activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
