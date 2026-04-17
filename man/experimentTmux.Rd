@@ -34,9 +34,6 @@ experimentTmux(
 )
 }
 \arguments{
-\item{df}{A \code{data.frame}. Column names become object names in worker panes; values
-from each row are assigned prior to sourcing \code{global_path}.}
-
 \item{global_path}{Character scalar. Absolute path to the script sourced for each job.}
 
 \item{cores}{Character vector of machine hostnames, recycled to \code{n_workers}. Use
@@ -229,20 +226,8 @@ The full command is always in the pane's bash history:
 \itemize{
 \item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{runWorkerLoop}; in
 \code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
+from each row are assigned prior to sourcing \code{global_path}.
 }
-}
-
-\subsection{ANSI colour support}{
-
-At startup, \code{experimentTmux} sets the tmux session option
-\code{default-terminal = "tmux-256color"}.  This ensures that all subsequently
-created panes advertise a full-colour ANSI terminal, which is required for
-R packages such as \code{cli} and \code{crayon} to render coloured/dynamic output
-correctly.  Without this, connections that arrive via Windows PowerShell
-\verb{→} SSH \verb{→} tmux often inherit \code{TERM=screen} or no \code{TERM} at all, causing
-R to fall back to plain-text output.  The setting is applied globally to the
-session (\code{-g}) and persists for the session's lifetime; it does not modify
-\verb{~/.tmux.conf}.
 }
 }
 \examples{

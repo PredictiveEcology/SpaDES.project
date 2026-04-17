@@ -72,10 +72,11 @@ remote workers (optional; uses installed binary if \code{NULL}).}
 \item{local_pat_file}{Path to a file containing a GitHub PAT to copy to
 remote workers.}
 
-\item{copyModules}{Logical. If \code{TRUE} and remote hosts are present, rsyncs the
-directory given by \code{getOption("spades.modulePath")} to the same absolute path on
-each remote host after \code{.setup_remote_machine()} completes.  Issues a warning and
-skips if the option is unset.  Default \code{FALSE}.}
+\item{copyModules}{Logical. If \code{TRUE} and remote hosts are present,
+rsyncs the directory given by \code{getOption("spades.modulePath")} to the
+same absolute path on each remote host after \code{.setup_remote_machine()}
+completes.  Issues a warning and skips if the option is unset.
+Default \code{FALSE}.}
 
 \item{...}{Additional named arguments stored in \code{.future_dots.rds} and
 loaded into each worker's \code{.GlobalEnv} before sourcing
