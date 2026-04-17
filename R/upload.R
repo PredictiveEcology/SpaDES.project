@@ -7,8 +7,8 @@
 #' output files separately.
 #'
 #' @param sim A `simList` object.
-#' @param runName Character scalar. Used to construct the default filename via
-#'   [SpaDES.core::simFile()].
+#' @param runName Character scalar. Used as the base name for the saved sim
+#'   file and tarball.
 #' @param simFilename Character scalar. Full path for the `.rds` file.
 #'   Defaults to `SpaDES.core::simFile(name = runName, path = outputPath(sim),
 #'   time = end(sim), ext = "rds")`.
@@ -46,13 +46,10 @@ outSave <- function(sim, runName, simFilename = NULL) {
 #' `outputFiles`.  Files that do not exist are silently skipped so a partially
 #' completed simulation can still be archived.
 #'
-#' @param simFilename Character scalar. Path to the saved sim RDS file
-#'   (typically the return value of [outSave()]).
+#' @inheritParams outSave
 #' @param outputFiles Character vector of additional files to include (e.g.
 #'   `SpaDES.core::outputs(sim)$file`).  Non-existent paths are dropped.
 #'   Default `character(0)`.
-#' @param runName Character scalar. Base name for the tarball
-#'   (`<runName>.tar.gz`).
 #' @param tarDir Character scalar. Directory in which to create the tarball.
 #'   Defaults to `dirname(simFilename)`.
 #' @param verbose Logical. Pass `-v` to `tar` for file-by-file progress.
@@ -118,20 +115,9 @@ outUpload <- function(tarball, gFolder, overwrite = TRUE, cleanup = FALSE) {
 #' files into a `.tar.gz` archive, and the archive is uploaded to a Google
 #' Drive folder.
 #'
-#' @param runName Character scalar. Label used as the base name for the saved
-#'   sim file and tarball.
-#' @param sim A `simList` object.
-#' @param gFolder A Google Drive folder identifier; passed to [outUpload()].
-#'   Required.
-#' @param simFilename Character scalar. Passed to [outSave()]; see that
-#'   function for the default.
-#' @param tarDir Character scalar. Directory for the tarball; defaults to
-#'   `dirname(simFilename)`.  Passed to [outTar()].
-#' @param overwrite Logical. Passed to [outUpload()].  Default `TRUE`.
-#' @param cleanup Logical. Delete the local tarball after upload.  Passed to
-#'   [outUpload()].  Default `FALSE`.
-#' @param verbose Logical. Verbose tar output.  Passed to [outTar()].
-#'   Default `TRUE`.
+#' @inheritParams outSave
+#' @inheritParams outTar
+#' @inheritParams outUpload
 #'
 #' @return Invisibly returns the `dribble` from [googledrive::drive_upload()].
 #' @seealso [outSave()], [outTar()], [outUpload()]

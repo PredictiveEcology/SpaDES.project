@@ -9,8 +9,8 @@ outSave(sim, runName, simFilename = NULL)
 \arguments{
 \item{sim}{A \code{simList} object.}
 
-\item{runName}{Character scalar. Used to construct the default filename via
-\code{\link[SpaDES.core:simFile]{SpaDES.core::simFile()}}.}
+\item{runName}{Character scalar. Used as the base name for the saved sim
+file and tarball.}
 
 \item{simFilename}{Character scalar. Full path for the \code{.rds} file.
 Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}

@@ -16,26 +16,28 @@ outSaveTarUpload(
 )
 }
 \arguments{
-\item{runName}{Character scalar. Label used as the base name for the saved
-sim file and tarball.}
+\item{runName}{Character scalar. Used as the base name for the saved sim
+file and tarball.}
 
 \item{sim}{A \code{simList} object.}
 
-\item{gFolder}{A Google Drive folder identifier; passed to \code{\link[=outUpload]{outUpload()}}.
-Required.}
+\item{gFolder}{A Google Drive folder identifier accepted by
+\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}} — a \code{dribble}, a Drive URL, or a bare
+folder ID from \code{\link[googledrive:drive_id]{googledrive::as_id()}}.}
 
-\item{simFilename}{Character scalar. Passed to \code{\link[=outSave]{outSave()}}; see that
-function for the default.}
+\item{simFilename}{Character scalar. Full path for the \code{.rds} file.
+Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}
 
-\item{tarDir}{Character scalar. Directory for the tarball; defaults to
-\code{dirname(simFilename)}.  Passed to \code{\link[=outTar]{outTar()}}.}
+\item{tarDir}{Character scalar. Directory in which to create the tarball.
+Defaults to \code{dirname(simFilename)}.}
 
-\item{overwrite}{Logical. Passed to \code{\link[=outUpload]{outUpload()}}.  Default \code{TRUE}.}
+\item{overwrite}{Logical. Overwrite an existing file of the same name in
+the Drive folder.  Default \code{TRUE}.}
 
-\item{cleanup}{Logical. Delete the local tarball after upload.  Passed to
-\code{\link[=outUpload]{outUpload()}}.  Default \code{FALSE}.}
+\item{cleanup}{Logical. Delete the local tarball after a successful upload.
+Default \code{FALSE}.}
 
-\item{verbose}{Logical. Verbose tar output.  Passed to \code{\link[=outTar]{outTar()}}.
+\item{verbose}{Logical. Pass \code{-v} to \code{tar} for file-by-file progress.
 Default \code{TRUE}.}
 }
 \value{

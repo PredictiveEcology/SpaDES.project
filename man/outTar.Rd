@@ -13,15 +13,15 @@ outTar(
 )
 }
 \arguments{
-\item{simFilename}{Character scalar. Path to the saved sim RDS file
-(typically the return value of \code{\link[=outSave]{outSave()}}).}
+\item{simFilename}{Character scalar. Full path for the \code{.rds} file.
+Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}
 
 \item{outputFiles}{Character vector of additional files to include (e.g.
 \code{SpaDES.core::outputs(sim)$file}).  Non-existent paths are dropped.
 Default \code{character(0)}.}
 
-\item{runName}{Character scalar. Base name for the tarball
-(\verb{<runName>.tar.gz}).}
+\item{runName}{Character scalar. Used as the base name for the saved sim
+file and tarball.}
 
 \item{tarDir}{Character scalar. Directory in which to create the tarball.
 Defaults to \code{dirname(simFilename)}.}
