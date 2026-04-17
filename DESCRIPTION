@@ -104,6 +104,7 @@ Collate:
     'pkgload2.R'
     'setupProject.R'
     'spades-project-package.R'
+    'status-calculators.R'
     'studyAreaPlotting.R'
     'tmux-queue.R'
     'tmux.R'
