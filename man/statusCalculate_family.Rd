@@ -3,12 +3,19 @@
 \docType{data}
 \name{statusCalculate_family}
 \alias{statusCalculate_family}
+\alias{statusCalculate_FireSenseFit}
 \alias{statusCalculate_LandR}
 \title{Pre-built statusCalculate expressions for experimentTmux / experimentFuture}
 \format{
 A \code{\link[base:substitute]{base::quote()}}d block expression (\code{is.call(statusCalculate_LandR)} is \code{TRUE}).
+
+A \code{\link[base:substitute]{base::quote()}}d block expression (\code{is.call(statusCalculate_FireSenseFit)} is \code{TRUE}).
+
+A \code{\link[base:substitute]{base::quote()}}d block expression (\code{is.call(statusCalculate_LandR)} is \code{TRUE}).
 }
 \usage{
+statusCalculate_FireSenseFit
+
 statusCalculate_LandR
 }
 \description{
@@ -29,6 +36,26 @@ of the recognised meta-column names (\code{started_at}, \code{finished_at},
 }
 \section{Functions}{
 \itemize{
+\item \code{statusCalculate_FireSenseFit}: Heartbeat calculator for \strong{LandR} vegetation simulations.
+
+Scans the job's output directory for \verb{cohortData_year<XXXX>.rds}
+checkpoint files (written at each SpaDES save event) and maps them to the
+standard queue meta-columns:
+
+\describe{
+\item{\code{heartbeat_iter}}{Current simulation year reached (character).}
+\item{\code{heartbeat_at}}{Timestamp of the latest checkpoint file.}
+\item{\code{started_at}}{Timestamp of the earliest checkpoint file (may be
+refined later by the running-flag-file logic in
+\code{\link[=tmux_refresh_queue_status]{tmux_refresh_queue_status()}}).}
+\item{\code{done}}{Set to \code{TRUE} when \code{heartbeat_iter >= outs$times$end},
+triggering a status transition to \code{DONE}.}
+\item{\code{finished_at}}{Timestamp of the final checkpoint (set only when
+\code{done}).}
+\item{\code{iterationsTotal}}{The end year as a character string (set only
+when \code{done}).}
+}
+
 \item \code{statusCalculate_LandR}: Heartbeat calculator for \strong{LandR} vegetation simulations.
 
 Scans the job's output directory for \verb{cohortData_year<XXXX>.rds}
@@ -64,6 +91,14 @@ used to construct the output-directory path.  For
 \item{\code{outs}}{A list (typically stored in \code{dots_path} and loaded into
 the worker's environment before \code{global.R} is sourced) whose element
 \code{outs$times$end} gives the simulation end year.}
+}
+}
+
+\section{Variables required in scope (\code{statusCalculate_FireSenseFit} only)}{
+
+\describe{
+\item{\code{times}}{A list with elements \verb{$start} and \verb{$end} giving the
+simulation start and end years (integers).  Typically a queue column.}
 }
 }
 
