@@ -315,28 +315,13 @@ tmux_set_mouse <- function(on = TRUE) {
       "lines<-lines[!grepl('spades_github_pat',lines,fixed=TRUE)];",
       "writeLines(c(lines,", deparse1(pat_read_line), "),rprof)"
     ))
-    # 5b. Also propagate via gitcreds_set() for git operations.
-    has_cred <- isTRUE(tryCatch({
-      out <- .ssh_r(
-        "tryCatch({gitcreds::gitcreds_get();cat('yes')},error=function(e)cat('no'))",
-        intern = TRUE)
-      trimws(paste(out, collapse = "")) == "yes"
-    }, error = function(e) FALSE))
-    gs_script <- tempfile(fileext = ".R")
-    on.exit(unlink(gs_script), add = TRUE)
-    writeLines(c(
-      paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))"),
-      paste0("options(repos = ", deparse1(install_repos), ")"),
-      paste0("setwd(path.expand('", remote_dir, "'))"),
-      "gitcreds::gitcreds_set()"
-    ), gs_script)
-    remote_gs <- paste0("/tmp/", basename(gs_script))
-    system(paste0("scp -q ", shQuote(gs_script), " ", host, ":", remote_gs))
-    input_lines <- c(if (has_cred) "2", local_pat)
-    system2("ssh", c(host, paste0(
-      "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
-      "Rscript ", remote_gs, "; rm -f ", remote_gs
-    )), input = input_lines)
+    # 5b. Also propagate via git credential approve for git operations.
+    #     gitcreds_set() was used here previously but newer versions refuse to
+    #     run in non-interactive sessions.  git credential approve reads the
+    #     same credential store and works in any session type.
+    system2("ssh", c(host, "git credential approve"),
+            input = c("protocol=https", "host=github.com",
+                      "username=x-oauth-basic", paste0("password=", local_pat), ""))
   } else {
     # Fall back to checking whether the remote already has valid credentials.
     creds_out <- trimws(paste(collapse = "",
