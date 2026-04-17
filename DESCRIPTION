@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2026-03-26
-Version: 1.0.1.9176
+Version: 1.0.1.9177
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -108,4 +108,5 @@ Collate:
     'tmux-queue.R'
     'tmux.R'
     'txt.R'
+    'upload.R'
     'zzz.R'
