@@ -1535,7 +1535,7 @@ runNextWorker <- function(queue_path, global_path,
       # OSC 2 propagates through the SSH PTY to local tmux and updates
       # #{pane_title} — works for both local and remote panes.
       # Guard against polluting non-tmux log files with raw escape bytes.
-      if (nzchar(Sys.getenv("TMUX"))) cat(sprintf("\033]2;%s\007", .pane_title))
+      if (nzchar(Sys.getenv("TMUX")) || isatty(stdout())) cat(sprintf("\033]2;%s\007", .pane_title))
       # select-pane -T is more reliable but requires a local TMUX_PANE id.
       if (nzchar(PANE)) {
         if (exists(".tmux_run", mode = "function"))
@@ -1661,7 +1661,7 @@ runNextWorker <- function(queue_path, global_path,
   try({
     .prefix <- getOption(".spades_pane_prefix", "")
     .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
-    if (nzchar(Sys.getenv("TMUX"))) cat(sprintf("\033]2;%s\007", .pane_title))
+    if (nzchar(Sys.getenv("TMUX")) || isatty(stdout())) cat(sprintf("\033]2;%s\007", .pane_title))
     if (nzchar(PANE)) {
       if (exists(".tmux_run", mode = "function"))
         .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
