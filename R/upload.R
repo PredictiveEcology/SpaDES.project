@@ -141,9 +141,14 @@ outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
     result <- outUpload(tarball, gFolder, overwrite = overwrite, cleanup = cleanup)
   )
   total <- t1[["elapsed"]] + t2[["elapsed"]] + t3[["elapsed"]]
-  message("outSaveTarUpload times — save: ", round(t1[["elapsed"]], 1),
-          " s  tar: ",    round(t2[["elapsed"]], 1),
-          " s  upload: ", round(t3[["elapsed"]], 1),
-          " s  total: ",  round(total, 1), " s")
+  .fmt_elapsed <- function(s) {
+    if (s < 90)        paste0(round(s, 1), " s")
+    else if (s < 5400) paste0(round(s / 60, 1), " min")
+    else               paste0(round(s / 3600, 2), " hr")
+  }
+  message("outSaveTarUpload times — save: ", .fmt_elapsed(t1[["elapsed"]]),
+          "  tar: ",    .fmt_elapsed(t2[["elapsed"]]),
+          "  upload: ", .fmt_elapsed(t3[["elapsed"]]),
+          "  total: ",  .fmt_elapsed(total))
   invisible(result)
 }
