@@ -125,17 +125,25 @@ outUpload <- function(tarball, gFolder, overwrite = TRUE, cleanup = FALSE) {
 outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
                               tarDir = NULL, overwrite = TRUE, cleanup = FALSE,
                               verbose = TRUE) {
-  elapsed <- system.time({
+  t1 <- system.time(
     simFilename <- outSave(sim, runName, simFilename)
-    if (is.null(tarDir))
-      tarDir <- dirname(simFilename)
+  )
+  if (is.null(tarDir))
+    tarDir <- dirname(simFilename)
+  t2 <- system.time(
     tarball <- outTar(simFilename,
                       outputFiles = SpaDES.core::outputs(sim)$file,
                       runName     = runName,
                       tarDir      = tarDir,
                       verbose     = verbose)
+  )
+  t3 <- system.time(
     result <- outUpload(tarball, gFolder, overwrite = overwrite, cleanup = cleanup)
-  })
-  message("outSaveTarUpload total: ", round(elapsed[["elapsed"]], 1), " s")
+  )
+  total <- t1[["elapsed"]] + t2[["elapsed"]] + t3[["elapsed"]]
+  message("outSaveTarUpload times — save: ", round(t1[["elapsed"]], 1),
+          " s  tar: ",    round(t2[["elapsed"]], 1),
+          " s  upload: ", round(t3[["elapsed"]], 1),
+          " s  total: ",  round(total, 1), " s")
   invisible(result)
 }
