@@ -10,7 +10,7 @@ outUpload(tarball, gFolder, overwrite = TRUE, cleanup = FALSE)
 \item{tarball}{Character scalar. Path to the local file to upload.}
 
 \item{gFolder}{A Google Drive folder identifier accepted by
-\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}} — a \code{dribble}, a Drive URL, or a bare
+\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}  -- a \code{dribble}, a Drive URL, or a bare
 folder ID from \code{\link[googledrive:drive_id]{googledrive::as_id()}}.}
 
 \item{overwrite}{Logical. Overwrite an existing file of the same name in

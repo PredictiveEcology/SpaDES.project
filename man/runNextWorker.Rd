@@ -36,6 +36,9 @@ Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
 info in filenames. Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
 
 \item{activeRunningPath}{Directory for "running" flag files. See \code{activeRunningPathForTmux}.}
+
+\item{ss_id}{Optional Google Sheets/Drive ID for the shared queue. When
+supplied workers use the GS backend instead of the local RDS file.}
 }
 \value{
 "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()

@@ -40,7 +40,7 @@ tmux_set_mouse <- function(on = TRUE) {
   # Non-PTY SSH shells check $BASH_ENV; if BASH_ENV calls 'sleep $UNSET'
   # with set -e, it fails silently (non-PTY shell continues).
   # PTY SSH (ssh -t, used for interactive R) has a controlling terminal so
-  # BASH_ENV terminal-checks ([ -t 1 ]) succeed → sleep fires → shell exits.
+  # BASH_ENV terminal-checks ([ -t 1 ]) succeed -> sleep fires -> shell exits.
   # Fix: add 'set +e' guard to the BASH_ENV file so failures are non-fatal.
   local_home    <- path.expand("~")
   local_abs_dir <- dirname(normalizePath(global_path))
@@ -79,10 +79,10 @@ tmux_set_mouse <- function(on = TRUE) {
   #    $BASH_ENV before executing OUR_COMMAND.  If BASH_ENV contains a failing
   #    'sleep $UNSET_VAR' (or an explicit 'exit') the outer bash may exit
   #    *before* OUR_COMMAND runs:
-  #      - With set -e (bash default on some systems): exit non-zero → while
+  #      - With set -e (bash default on some systems): exit non-zero -> while
   #        loop stops (ok), but R never started.
-  #      - With set +e / explicit 'exit 0': exit zero → while loop continues
-  #        → infinite "Connection to ... closed." spam.
+  #      - With set +e / explicit 'exit 0': exit zero -> while loop continues
+  #        -> infinite "Connection to ... closed." spam.
   #
   #    Fix: wrap the *entire* original BASH_ENV content in a subshell:
   #      set +e
@@ -100,10 +100,10 @@ tmux_set_mouse <- function(on = TRUE) {
     "  be <- path.expand(be);",
     "  if (!file.exists(be)) return(invisible(NULL));",
     "  lines <- readLines(be, warn = FALSE);",
-    # Already has the subshell wrapper — nothing to do.
+    # Already has the subshell wrapper  -- nothing to do.
     "  if (any(grepl('spades_guard_v2', lines, fixed = TRUE))) return(invisible(NULL));",
     # Strip the old v1 'set +e' prepend if present (same spades_guard tag,
-    # different approach — replace it with the subshell wrapper below).
+    # different approach  -- replace it with the subshell wrapper below).
     "  lines <- lines[!grepl('spades_guard', lines, fixed = TRUE)];",
     "  wrapped <- c(",
     "    '# spades_guard_v2: original content wrapped in subshell so exit/failures cannot abort outer bash',",
@@ -199,7 +199,7 @@ tmux_set_mouse <- function(on = TRUE) {
   ))
 
   # 3. Verify Require matches local installation (version + RemoteSha).
-  #    RemoteSha is the git commit SHA recorded at install time — it changes
+  #    RemoteSha is the git commit SHA recorded at install time  -- it changes
   #    on every development push even when version and ref stay the same.
   local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
   local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
@@ -245,7 +245,7 @@ tmux_set_mouse <- function(on = TRUE) {
             " sha=", substr(remote_req_sha, 1L, 7L),
             " / ", remote_req_src, ")")
     if (grepl("/", local_req_src)) {
-      # GitHub source: rsync the installed directory directly — faster than
+      # GitHub source: rsync the installed directory directly  -- faster than
       # re-cloning via pak, and guarantees byte-for-byte identity with local.
       local_req_path <- find.package("Require", lib.loc = local_lib)
       message("  rsyncing Require (", local_req_ver, ") to ", host, ":", local_lib, "/")
@@ -263,7 +263,7 @@ tmux_set_mouse <- function(on = TRUE) {
   .ssh_r("Require::Install('usethis')")
 
   # 5. Propagate GitHub credentials from localhost to remote.
-  # Use gitcreds::gitcreds_set() on the remote — it calls gitcreds_approve()
+  # Use gitcreds::gitcreds_set() on the remote  -- it calls gitcreds_approve()
   # internally and therefore uses the exact same credential backend as
   # gitcreds_get(), guaranteeing consistency.
   # gitcreds_set() is interactive but reads from stdin in non-interactive R,
@@ -418,8 +418,8 @@ tmux_set_mouse <- function(on = TRUE) {
 
   # 9. Install SpaDES.project's dependencies on remote via Require::Install.
   # For Imports/Depends/LinkingTo: install all (hard requirements).
-  # For Suggests: only those installed on localhost — avoids pulling in dev/test
-  # packages (testthat, knitr, …) while still propagating runtime Suggests like
+  # For Suggests: only those installed on localhost  -- avoids pulling in dev/test
+  # packages (testthat, knitr, ...) while still propagating runtime Suggests like
   # googlesheets4/googledrive/cli.
   .parse_desc_pkgs <- function(fields) {
     desc_path <- if (!is.null(sp_dev_path) && file.exists(file.path(sp_dev_path, "DESCRIPTION")))
@@ -438,12 +438,12 @@ tmux_set_mouse <- function(on = TRUE) {
   suggests_local <- intersect(suggests_all, local_inst)
   all_pkgs       <- unique(c(hard_pkgs, suggests_local))
   # Packages whose pre-compiled binaries link against specific system library
-  # versions (e.g. libgdal.so.37) that may differ on the remote — compile from
+  # versions (e.g. libgdal.so.37) that may differ on the remote  -- compile from
   # source so they link against whatever version the remote actually has.
   src_pkgs  <- c("terra", "sf", "rgdal", "rgeos", "lwgeom")
   src_pkgs  <- intersect(src_pkgs, all_pkgs)
   bin_pkgs  <- setdiff(all_pkgs, src_pkgs)
-  # Ensure pak is installed — newer versions of Require use it as a backend.
+  # Ensure pak is installed  -- newer versions of Require use it as a backend.
   .ssh_r("if (!requireNamespace('pak', quietly = TRUE)) install.packages('pak')")
 
   if (length(src_pkgs) > 0L) {
@@ -455,7 +455,7 @@ tmux_set_mouse <- function(on = TRUE) {
   # Pre-install packages whose system-lib versions are commonly too old to satisfy
   # transitive version requirements during compilation.  Require::Install searches
   # all .libPaths() when deciding what is "already installed", so without explicit
-  # version constraints it would see purrr 1.0.4 in the system lib and skip it —
+  # version constraints it would see purrr 1.0.4 in the system lib and skip it  --
   # then furrr's R CMD INSTALL subprocess would find the wrong purrr.
   # By stating the minimum required version, Require is forced to install a
   # qualifying version to local_lib before the main batch install runs.
@@ -528,7 +528,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   in-place with a new `Rscript` invocation.  No retiling needed.
 #' - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
 #'   while-loop that repeatedly calls
-#'   `ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive'`.
+#'   `ssh -t host bash -c 'exec env R_PROFILE_USER=<script> R --interactive'`.
 #'   `ssh -t` allocates a PTY so R runs interactively (readline, OSC 2 title
 #'   updates, Ctrl+C propagation).  A startup script injected via
 #'   `R_PROFILE_USER` runs one job then exits; `q(status = 1L)` (job done or
@@ -539,34 +539,34 @@ tmux_set_mouse <- function(on = TRUE) {
 #'
 #' ### `"reuse"`
 #' Each worker loops inside a single R session (`repeat { runNextWorker() }`).
-#' Memory accumulates across jobs — useful for lightweight simulations.
+#' Memory accumulates across jobs  -- useful for lightweight simulations.
 #'
 #' ## Remote machine setup (`cores`)
 #' Supplying a hostname in `cores` triggers `.setup_remote_machine()` once per
 #' unique host before any workers start.  Steps run in this order:
 #'
-#' 0. **Guard `BASH_ENV`** — wraps the remote `$BASH_ENV` file's existing
+#' 0. **Guard `BASH_ENV`**  -- wraps the remote `$BASH_ENV` file's existing
 #'    content in a subshell (`( ... ) 2>/dev/null || true`) so that any `exit`
 #'    or failing command inside it cannot abort the non-interactive SSH shell
 #'    that carries setup commands.
-#' 1. **Create remote directory; copy files** — `mkdir -p` the remote working
+#' 1. **Create remote directory; copy files**  -- `mkdir -p` the remote working
 #'    directory (same relative path from `~` as on localhost), then `scp`
 #'    `global_path`, `queue_path`, and `dots_path` (if supplied) into it.
-#' 2. **Rsync project `R/` folder** — syncs the `R/` subdirectory next to
+#' 2. **Rsync project `R/` folder**  -- syncs the `R/` subdirectory next to
 #'    `global_path` to the remote with `rsync --delete` so user-defined
 #'    helper functions sourced by `global.R` are up to date.
-#' 3. **Write `~/.Rprofile` on remote** — injects three lines (replacing any
+#' 3. **Write `~/.Rprofile` on remote**  -- injects three lines (replacing any
 #'    previous versions): `.libPaths(c(local_lib, ...))` so the project library
 #'    takes precedence over system libraries; `options(repos = ...)` including
 #'    the PredictiveEcology r-universe; and an SSL block that sets
 #'    `CURL_CA_BUNDLE`/`SSL_CERT_FILE` so HTTPS downloads work in non-login
 #'    SSH sessions where `/etc/profile.d/` is not sourced.
-#' 4. **Verify/install `Require`** — compares the remote `Require` version and
+#' 4. **Verify/install `Require`**  -- compares the remote `Require` version and
 #'    git commit SHA to the local installation.  If they differ, rsyncs the
 #'    installed directory (GitHub source) or runs `install.packages("Require")`
 #'    (CRAN source).
 #' 5. **Install `usethis`** on the remote via `Require::Install()`.
-#' 6. **Propagate GitHub credentials** — reads the local token via
+#' 6. **Propagate GitHub credentials**  -- reads the local token via
 #'    `gitcreds::gitcreds_get()` and pipes it into `git credential approve` on
 #'    the remote so private GitHub packages can be installed without interactive
 #'    setup.  Falls back to checking whether the remote already has credentials;
@@ -581,10 +581,10 @@ tmux_set_mouse <- function(on = TRUE) {
 #'    `libharfbuzz-dev`, `libfribidi-dev`, `libpng-dev`, `libjpeg-dev`,
 #'    `libtiff-dev`, `libfreetype6-dev`), protobuf (`libabsl-dev`), and R
 #'    compilation headers (`r-base-dev`).
-#' 8. **Ensure remote lib path exists** — `mkdir -p` the project library path
+#' 8. **Ensure remote lib path exists**  -- `mkdir -p` the project library path
 #'    on the remote (must match localhost exactly so installed file paths are
 #'    identical).
-#' 9. **Rsync `SpaDES.project`** — copies the locally installed `SpaDES.project`
+#' 9. **Rsync `SpaDES.project`**  -- copies the locally installed `SpaDES.project`
 #'    directory to the same path on the remote.  Both machines must share the
 #'    same platform and R version so compiled lazy-load databases are compatible.
 #' 10. **Install `SpaDES.project` dependencies** via `Require::Install()`.
@@ -611,26 +611,33 @@ tmux_set_mouse <- function(on = TRUE) {
 #'
 #' ## Restarting a broken pane
 #' If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
-#' prompt, restart it by pressing `↑` (up-arrow) in that pane and hitting Enter.
+#' prompt, restart it by pressing `(up-arrow)` (up-arrow) in that pane and hitting Enter.
 #' The full command is always in the pane's bash history:
 #' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
 #'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
-#’ - **remote**: `if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi`
-#’   command (restarts the sh loop from scratch; plain POSIX — works in bash, dash, and sh).
-#’
-#’ ## ANSI colour support
-#’ At startup, `experimentTmux` sets the tmux session option
-#’ `default-terminal = "tmux-256color"`.  This ensures that all subsequently
-#’ created panes advertise a full-colour ANSI terminal, which is required for
-#’ R packages such as `cli` and `crayon` to render coloured/dynamic output
-#’ correctly.  Without this, connections that arrive via Windows PowerShell
-#’ → SSH → tmux often inherit `TERM=screen` or no `TERM` at all, causing
-#’ R to fall back to plain-text output.  The setting is applied globally to the
-#’ session (`-g`) and persists for the session’s lifetime; it does not modify
-#’ `~/.tmux.conf`.
-#’
-#’ @param df A `data.frame`. Column names become object names in worker panes; values
-#'   from each row are assigned prior to sourcing `global_path`.
+#' - **remote**: `if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi`
+#'   command (restarts the sh loop from scratch; plain POSIX  -- works in bash, dash, and sh).
+#'
+#' ## ANSI colour support
+#' At startup, `experimentTmux` sets the tmux session option
+#' `default-terminal = "tmux-256color"`.  This ensures that all subsequently
+#' created panes advertise a full-colour ANSI terminal, which is required for
+#' R packages such as `cli` and `crayon` to render coloured/dynamic output
+#' correctly.  Without this, connections that arrive via Windows PowerShell
+#' -> SSH -> tmux often inherit `TERM=screen` or no `TERM` at all, causing
+#' R to fall back to plain-text output.  The setting is applied globally to the
+#' session (`-g`) and persists for the session's lifetime; it does not modify
+#' `~/.tmux.conf`.
+#'
+#' @param df A `data.frame` of parameter combinations. Each row is one job.
+#'   Column names become object names in worker panes; values from each row
+#'   are assigned prior to sourcing `global_path`.
+#' @param forceLocalQueueToGS Logical. If `TRUE`, overwrite the Google Sheet
+#'   queue with the local `df` even if the sheet already contains rows.
+#'   Default `FALSE`.
+#' @param enableGSSync Logical. If `TRUE`, start an additional tmux pane
+#'   that periodically syncs the local queue file to a Google Sheet (requires
+#'   `ss_id`).  Default `FALSE`.
 #' @param global_path Character scalar. Absolute path to the script sourced for each job.
 #' @param n_workers Integer. Number of worker panes to spawn. Defaults to `length(cores)`
 #'   if `cores` is supplied, otherwise `4`.
@@ -670,9 +677,6 @@ tmux_set_mouse <- function(on = TRUE) {
 #' @param workersToMonitor Character vector of pane titles to monitor (currently unused).
 #' @param runNameLabel A quoted expression evaluated against the queue `data.frame` to
 #'   produce a human-readable job label used in log files and Google Sheet status updates.
-#' @param dots_path Path to an `.rds` file containing extra named objects to load into
-#'   each worker's global environment before sourcing `global_path`. Useful for passing
-#'   large objects that cannot easily be serialised into the queue row.
 #' @param set_mouse Logical. Enable tmux mouse support (pane selection, scroll). Default `TRUE`.
 #' @param copyModules Logical. If `TRUE` and remote hosts are present, rsyncs the
 #'   directory given by `getOption("spades.modulePath")` to the same absolute path on
@@ -851,7 +855,7 @@ experimentTmux <- function(df,
       # Validate GS column names against df before using GS data.
       # GS strips leading dots, so we write `.col` as `dotcol` and revert on read.
       # If the reversal fails (GS stored `col` instead of `dotcol`), the reverted
-      # name will still be `col` — mismatching `.col` in df — and runNameLabel eval
+      # name will still be `col`  -- mismatching `.col` in df  -- and runNameLabel eval
       # will give "object '.col' not found".  Catch this early with a clear message.
       if (!missing(df) && !is.null(df)) {
         gs_names_reverted <- names(revertDotNames(data.table::copy(data.table::setDT(gs_q))))
@@ -879,7 +883,7 @@ experimentTmux <- function(df,
         }
       }
       q <- data.table::setDT(gs_q)
-      # GS has existing state — merge rather than overwrite
+      # GS has existing state  -- merge rather than overwrite
       # data_cols <- gsub("^.", "", data_cols)
       # data.table::setnames(q, new = gsub("^\\.", "", names(q)), old = names(q))
       # runNameLabel <- gsub("^\\.", "", runNameLabel)
@@ -912,7 +916,7 @@ experimentTmux <- function(df,
       #     for (mc in intersect(meta_cols, names(gs_q)))
       #       q[[mc]][j] <- gs_row[[mc]]
       #   }
-      #   # No match → row is new in this run, stays PENDING
+      #   # No match -> row is new in this run, stays PENDING
       # }
       # 
       # # Append GS rows not present in local df (history from prior runs)
@@ -1008,7 +1012,7 @@ experimentTmux <- function(df,
     # -- resolve current tmux window
     target_win <- .tmux_current_window()
     system("tmux set -g pane-border-status top") # sets so titles have names
-    .tmux_run("set-option", "-g", "default-terminal", "tmux-256color") # ensures ANSI/colour detection works for R cli/crayon (e.g. Windows SSH → tmux)
+    .tmux_run("set-option", "-g", "default-terminal", "tmux-256color") # ensures ANSI/colour detection works for R cli/crayon (e.g. Windows SSH -> tmux)
     
     # -- list existing panes
     pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
@@ -1207,7 +1211,7 @@ experimentTmux <- function(df,
 
     # -- Merged loop: create each pane, retile, and immediately send its
     # startup command.  Pane 1's remote setup starts running while pane 2 is
-    # still being created — no waiting for all N panes before work begins.
+    # still being created  -- no waiting for all N panes before work begins.
     worker_ids <- character()
     for (i in seq_len(n_workers)) {
       # 1. Create pane detached so focus stays on Master
@@ -1245,7 +1249,7 @@ experimentTmux <- function(df,
       #  3. Wraps execution in tryCatch + withCallingHandlers:
       #     - withCallingHandlers captures sys.calls() while stack is intact
       #     - tryCatch error handler shows the error and keeps R at '>'
-      #     - On success runWorkerLoop() calls quit(0) → bash while-loop
+      #     - On success runWorkerLoop() calls quit(0) -> bash while-loop
       #       restarts for the next job
       # R_PROFILE_USER silently swallows errors that reach its startup
       # tryCatch, so we MUST catch and display here.
@@ -1267,7 +1271,7 @@ experimentTmux <- function(df,
             # Profile files run before .First.sys() attaches packages, so setting
             # this option here ensures the standard packages are always attached.
             # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
-            # set it here too — not just in ~/.Rprofile written by setup.)
+            # set it here too  -- not just in ~/.Rprofile written by setup.)
             "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
             # Load GITHUB_PAT from the file written during setup so pak/gh can
             # authenticate even though ~/.Rprofile is skipped here.
@@ -1337,7 +1341,7 @@ experimentTmux <- function(df,
                                 shQuote(first_script), cores_full[i], remote_first)
 
         # ssh -t: PTY for interactive R (readline, OSC 2, Ctrl+C).
-        # SIGHUP fix: `trap '' HUP` in bash sets SIGHUP→SIG_IGN; `exec` replaces
+        # SIGHUP fix: `trap '' HUP` in bash sets SIGHUP->SIG_IGN; `exec` replaces
         # bash with R and POSIX guarantees SIG_IGN is preserved across exec.
         # makeClusterPSOCK workers that inherit and close the PTY slave fd can no
         # longer kill R via SIGHUP.  stdout stays on the PTY (no nohup.out redirect).
@@ -1449,6 +1453,8 @@ experimentTmux <- function(df,
 #' @param folderWithIterInFilename A quoted expression for a folder containing iteration
 #'   info in filenames. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
 #' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
+#' @param ss_id Optional Google Sheets/Drive ID for the shared queue. When
+#'   supplied workers use the GS backend instead of the local RDS file.
 #' @export
 runNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
@@ -1472,7 +1478,7 @@ runNextWorker <- function(queue_path, global_path,
   if (use_gs) {
     worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
     claimed   <- .gs_claim_next_job(ss_id, worker_id)
-    if (is.null(claimed)) return("empty")   # queue empty or race lost — caller retries
+    if (is.null(claimed)) return("empty")   # queue empty or race lost  -- caller retries
 
     row_i     <- claimed$row_index
     sheet_row <- claimed$sheet_row
@@ -1497,8 +1503,8 @@ runNextWorker <- function(queue_path, global_path,
 
     message("\n[", format(Sys.time(), "%H:%M:%S"), "] Claimed job: ", runName)
 
-    # on.exit guard: if quit() is called from inside source(global_path) —
-    # e.g. pak::pak() restarting after a package update — it bypasses all
+    # on.exit guard: if quit() is called from inside source(global_path)  --
+    # e.g. pak::pak() restarting after a package update  -- it bypasses all
     # Guard against quit() being called from inside source(global_path).
     # quit() bypasses tryCatch and function-frame on.exit() entirely, but
     # reg.finalizer(..., onexit=TRUE) IS called by R before it exits.
@@ -1533,7 +1539,7 @@ runNextWorker <- function(queue_path, global_path,
       .prefix <- getOption(".spades_pane_prefix", "")
       .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
       # OSC 2 propagates through the SSH PTY to local tmux and updates
-      # #{pane_title} — works for both local and remote panes.
+      # #{pane_title}  -- works for both local and remote panes.
       # Guard against polluting non-tmux log files with raw escape bytes.
       if (nzchar(Sys.getenv("TMUX")) || isatty(stdout())) cat(sprintf("\033]2;%s\007", .pane_title))
       # select-pane -T is more reliable but requires a local TMUX_PANE id.
@@ -1762,7 +1768,7 @@ runNextWorker <- function(queue_path, global_path,
 #' @param stop_file optional path; if present, stop after current iteration
 #' @param pane_mode Character. `"reuse"` (default) loops inside the same R session.
 #'   `"killAndNewPane"` runs one job, spawns a fresh replacement pane, retiles the
-#'   tmux window, then kills the current pane — freeing all R memory between jobs.
+#'   tmux window, then kills the current pane  -- freeing all R memory between jobs.
 #' @param email gargle OAuth email; forwarded to replacement panes in `killAndNewPane` mode.
 #' @param cache_path gargle OAuth cache path; forwarded to replacement panes.
 #' @param dots_path Path to `.tmux_dots.rds` holding extra `...` args; forwarded to
@@ -1800,7 +1806,7 @@ runWorkerLoop <- function(queue_path, global_path,
   # ------------------------------------------------------------------
   # killAndNewPane: run one job, respawn this pane in-place, die.
   # respawn-pane -k replaces the current pane's process with a fresh
-  # Rscript — same tmux position, no split/retile needed.
+  # Rscript  -- same tmux position, no split/retile needed.
   # ------------------------------------------------------------------
   if (pane_mode == "killAndNewPane") {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) return(invisible(TRUE))
@@ -1842,10 +1848,10 @@ runWorkerLoop <- function(queue_path, global_path,
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
     if (should_continue) {
-      # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) →
-      # exit 1 so the remote bash `while !` condition fails → loop continues.
+      # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) ->
+      # exit 1 so the remote bash `while !` condition fails -> loop continues.
       message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
-              " — restarting R session for next job")
+              "  -- restarting R session for next job")
       flush(stderr()); flush(stdout())
       Sys.sleep(0.5)   # let PTY flush before SSH connection drops
       quit(save = "no", status = 1L)
@@ -1902,7 +1908,7 @@ tmux_kill_panes <- function(panes) {
 # Build the R expression string that launches a worker pane.
 # Returns a character(1) suitable for send-keys (interactive R) or
 # wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
-# No options() preamble — runWorkerLoop() sets gargle options from its params.
+# No options() preamble  -- runWorkerLoop() sets gargle options from its params.
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths()[1L]) {
@@ -2586,7 +2592,7 @@ get_latest_heartbeat <- function(runName,
 #'   \item{`iter`}{Integer. Simulation year of the latest checkpoint.}
 #'   \item{`started`}{Character. Modification timestamp of the first checkpoint file.}
 #'   \item{`elapsed`}{`difftime`. Wall-clock time between first and latest checkpoint.}
-#'   \item{`pct_complete`}{Numeric 0–100. Percentage of the simulation completed,
+#'   \item{`pct_complete`}{Numeric 0-100. Percentage of the simulation completed,
 #'     or `NA` if `start_year == end_year`.}
 #' }
 #' All elements are `NA` / `NA_character_` when no matching files are found.
@@ -2597,7 +2603,7 @@ get_latest_heartbeat <- function(runName,
 #'   output_path = "outputs/6.5/1991-2020/NRV_ssp370/rep1",
 #'   end_year    = 3020L
 #' )
-#' message("Year: ", hb$iter, " (", hb$pct_complete, "%) — last checkpoint: ", hb$ts)
+#' message("Year: ", hb$iter, " (", hb$pct_complete, "%)  -- last checkpoint: ", hb$ts)
 #' }
 #' @export
 get_sim_year_heartbeat <- function(output_path,
@@ -2638,7 +2644,7 @@ get_sim_year_heartbeat <- function(output_path,
 
   fi_all    <- file.info(files)
   fi_latest <- fi_all[length(files), , drop = FALSE]
-  # Use earliest mtime across all files as "started" — the min-year file may be
+  # Use earliest mtime across all files as "started"  -- the min-year file may be
   # re-written on restart, so mtime(year_min) is not reliably the run start.
   start_idx <- which.min(fi_all$mtime)
   fi_first  <- fi_all[start_idx, , drop = FALSE]

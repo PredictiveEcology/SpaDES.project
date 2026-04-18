@@ -34,6 +34,10 @@ experimentTmux(
 )
 }
 \arguments{
+\item{df}{A \code{data.frame} of parameter combinations. Each row is one job.
+Column names become object names in worker panes; values from each row
+are assigned prior to sourcing \code{global_path}.}
+
 \item{global_path}{Character scalar. Absolute path to the script sourced for each job.}
 
 \item{cores}{Character vector of machine hostnames, recycled to \code{n_workers}. Use
@@ -86,6 +90,14 @@ above.}
 \item{ss_id}{Optional Google Drive spreadsheet/folder ID for live status syncing via
 \code{googlesheets4}. \code{NULL} disables syncing.}
 
+\item{forceLocalQueueToGS}{Logical. If \code{TRUE}, overwrite the Google Sheet
+queue with the local \code{df} even if the sheet already contains rows.
+Default \code{FALSE}.}
+
+\item{enableGSSync}{Logical. If \code{TRUE}, start an additional tmux pane
+that periodically syncs the local queue file to a Google Sheet (requires
+\code{ss_id}).  Default \code{FALSE}.}
+
 \item{email}{Optional email address for gargle/Google OAuth authentication.}
 
 \item{cache_path}{Optional path to the gargle OAuth token cache directory.}
@@ -101,10 +113,6 @@ each remote host before workers start.  Issues a warning and skips if the option
 unset.  Default \code{FALSE}.}
 
 \item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
-
-\item{dots_path}{Path to an \code{.rds} file containing extra named objects to load into
-each worker's global environment before sourcing \code{global_path}. Useful for passing
-large objects that cannot easily be serialised into the queue row.}
 }
 \value{
 Invisibly returns a character vector of tmux pane IDs for the spawned workers.
@@ -126,7 +134,7 @@ starts automatically for the next job, freeing all memory between runs.
 in-place with a new \code{Rscript} invocation.  No retiling needed.
 \item \strong{Remote panes} (\code{cores = "hostname"}): The local pane runs a bash
 while-loop that repeatedly calls
-\verb{ssh -t host bash -c ‘exec env R_PROFILE_USER=<script> R --interactive'}.
+\verb{ssh -t host bash -c 'exec env R_PROFILE_USER=<script> R --interactive'}.
 \code{ssh -t} allocates a PTY so R runs interactively (readline, OSC 2 title
 updates, Ctrl+C propagation).  A startup script injected via
 \code{R_PROFILE_USER} runs one job then exits; \code{q(status = 1L)} (job done or
@@ -140,7 +148,7 @@ it and inadvertently re-run the startup script.
 \subsection{\code{"reuse"}}{
 
 Each worker loops inside a single R session (\code{repeat { runNextWorker() }}).
-Memory accumulates across jobs — useful for lightweight simulations.
+Memory accumulates across jobs  -- useful for lightweight simulations.
 }
 
 }
@@ -150,28 +158,28 @@ Memory accumulates across jobs — useful for lightweight simulations.
 Supplying a hostname in \code{cores} triggers \code{.setup_remote_machine()} once per
 unique host before any workers start.  Steps run in this order:
 \enumerate{
-\item \strong{Guard \code{BASH_ENV}} — wraps the remote \verb{$BASH_ENV} file's existing
+\item \strong{Guard \code{BASH_ENV}}  -- wraps the remote \verb{$BASH_ENV} file's existing
 content in a subshell (\verb{( ... ) 2>/dev/null || true}) so that any \code{exit}
 or failing command inside it cannot abort the non-interactive SSH shell
 that carries setup commands.
-\item \strong{Create remote directory; copy files} — \code{mkdir -p} the remote working
+\item \strong{Create remote directory; copy files}  -- \code{mkdir -p} the remote working
 directory (same relative path from \code{~} as on localhost), then \code{scp}
 \code{global_path}, \code{queue_path}, and \code{dots_path} (if supplied) into it.
-\item \strong{Rsync project \verb{R/} folder} — syncs the \verb{R/} subdirectory next to
+\item \strong{Rsync project \verb{R/} folder}  -- syncs the \verb{R/} subdirectory next to
 \code{global_path} to the remote with \code{rsync --delete} so user-defined
 helper functions sourced by \code{global.R} are up to date.
-\item \strong{Write \verb{~/.Rprofile} on remote} — injects three lines (replacing any
+\item \strong{Write \verb{~/.Rprofile} on remote}  -- injects three lines (replacing any
 previous versions): \code{.libPaths(c(local_lib, ...))} so the project library
 takes precedence over system libraries; \code{options(repos = ...)} including
 the PredictiveEcology r-universe; and an SSL block that sets
 \code{CURL_CA_BUNDLE}/\code{SSL_CERT_FILE} so HTTPS downloads work in non-login
 SSH sessions where \verb{/etc/profile.d/} is not sourced.
-\item \strong{Verify/install \code{Require}} — compares the remote \code{Require} version and
+\item \strong{Verify/install \code{Require}}  -- compares the remote \code{Require} version and
 git commit SHA to the local installation.  If they differ, rsyncs the
 installed directory (GitHub source) or runs \code{install.packages("Require")}
 (CRAN source).
 \item \strong{Install \code{usethis}} on the remote via \code{Require::Install()}.
-\item \strong{Propagate GitHub credentials} — reads the local token via
+\item \strong{Propagate GitHub credentials}  -- reads the local token via
 \code{gitcreds::gitcreds_get()} and pipes it into \verb{git credential approve} on
 the remote so private GitHub packages can be installed without interactive
 setup.  Falls back to checking whether the remote already has credentials;
@@ -186,10 +194,10 @@ git (\code{libgit2-dev}), fonts/graphics (\code{libfontconfig1-dev},
 \code{libharfbuzz-dev}, \code{libfribidi-dev}, \code{libpng-dev}, \code{libjpeg-dev},
 \code{libtiff-dev}, \code{libfreetype6-dev}), protobuf (\code{libabsl-dev}), and R
 compilation headers (\code{r-base-dev}).
-\item \strong{Ensure remote lib path exists} — \code{mkdir -p} the project library path
+\item \strong{Ensure remote lib path exists}  -- \code{mkdir -p} the project library path
 on the remote (must match localhost exactly so installed file paths are
 identical).
-\item \strong{Rsync \code{SpaDES.project}} — copies the locally installed \code{SpaDES.project}
+\item \strong{Rsync \code{SpaDES.project}}  -- copies the locally installed \code{SpaDES.project}
 directory to the same path on the remote.  Both machines must share the
 same platform and R version so compiled lazy-load databases are compatible.
 \item \strong{Install \code{SpaDES.project} dependencies} via \code{Require::Install()}.
@@ -221,13 +229,27 @@ first R session; subsequent while-loop iterations start immediately.
 \subsection{Restarting a broken pane}{
 
 If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
-prompt, restart it by pressing \verb{↑} (up-arrow) in that pane and hitting Enter.
+prompt, restart it by pressing \code{(up-arrow)} (up-arrow) in that pane and hitting Enter.
 The full command is always in the pane's bash history:
 \itemize{
 \item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{runWorkerLoop}; in
 \code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
-from each row are assigned prior to sourcing \code{global_path}.
+\item \strong{remote}: \verb{if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi}
+command (restarts the sh loop from scratch; plain POSIX  -- works in bash, dash, and sh).
 }
+}
+
+\subsection{ANSI colour support}{
+
+At startup, \code{experimentTmux} sets the tmux session option
+\code{default-terminal = "tmux-256color"}.  This ensures that all subsequently
+created panes advertise a full-colour ANSI terminal, which is required for
+R packages such as \code{cli} and \code{crayon} to render coloured/dynamic output
+correctly.  Without this, connections that arrive via Windows PowerShell
+-> SSH -> tmux often inherit \code{TERM=screen} or no \code{TERM} at all, causing
+R to fall back to plain-text output.  The setting is applied globally to the
+session (\code{-g}) and persists for the session's lifetime; it does not modify
+\verb{~/.tmux.conf}.
 }
 }
 \examples{

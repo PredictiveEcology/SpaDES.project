@@ -108,7 +108,7 @@ Because workers write to files via \code{callr::r_bg()}'s \code{stdout} /
 }
 \examples{
 \dontrun{
-## ── Minimal local example ──────────────────────────────────────────────
+## -- Minimal local example ----------------------------------------------
 
 # Each row is one job; column names become variables in .GlobalEnv before
 # global.R is sourced.
@@ -128,7 +128,7 @@ ef <- experimentFuture(
 
 print(ef)                    # live status (alive/done per worker)
 
-## ── Killing workers ────────────────────────────────────────────────────
+## -- Killing workers ----------------------------------------------------
 
 # Graceful stop: workers finish their CURRENT job, then exit.
 # Any remaining PENDING jobs stay in the queue and can be resumed later
@@ -142,11 +142,11 @@ killExperimentFuture(ef)
 killExperimentFuture(ef, force = TRUE)
 tmux_refresh_queue_status(ef$queue_path)   # clean up stale RUNNING entries
 
-## ── Resuming after a kill ──────────────────────────────────────────────
+## -- Resuming after a kill ----------------------------------------------
 
 # Jobs left as PENDING (or INTERRUPTED with on_interrupt = "requeue") are
 # automatically picked up when you call experimentFuture() again with the
-# same queue_path — no need to re-specify df.
+# same queue_path  -- no need to re-specify df.
 ef2 <- experimentFuture(
   df          = expt,         # ignored if queue_path already exists
   global_path = file.path(getwd(), "global.R"),
@@ -161,7 +161,7 @@ table(q$status)              # all DONE
 
 cat(readLines(ef2$log_files[[1]]), sep = "\n")   # inspect worker 1 log
 
-## ── Remote workers (pre-setup required) ───────────────────────────────
+## -- Remote workers (pre-setup required) -------------------------------
 ef <- experimentFuture(
   df             = expt,
   global_path    = file.path(getwd(), "global.R"),

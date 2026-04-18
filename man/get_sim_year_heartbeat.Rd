@@ -35,7 +35,7 @@ A named list with elements:
 \item{\code{iter}}{Integer. Simulation year of the latest checkpoint.}
 \item{\code{started}}{Character. Modification timestamp of the first checkpoint file.}
 \item{\code{elapsed}}{\code{difftime}. Wall-clock time between first and latest checkpoint.}
-\item{\code{pct_complete}}{Numeric 0–100. Percentage of the simulation completed,
+\item{\code{pct_complete}}{Numeric 0-100. Percentage of the simulation completed,
 or \code{NA} if \code{start_year == end_year}.}
 }
 All elements are \code{NA} / \code{NA_character_} when no matching files are found.
@@ -52,6 +52,6 @@ hb <- get_sim_year_heartbeat(
   output_path = "outputs/6.5/1991-2020/NRV_ssp370/rep1",
   end_year    = 3020L
 )
-message("Year: ", hb$iter, " (", hb$pct_complete, "\%) — last checkpoint: ", hb$ts)
+message("Year: ", hb$iter, " (", hb$pct_complete, "\%)  -- last checkpoint: ", hb$ts)
 }
 }

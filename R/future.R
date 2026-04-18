@@ -1,11 +1,11 @@
-# experimentFuture — tmux-free parallel job runner
+# experimentFuture  -- tmux-free parallel job runner
 #
 # Mirrors experimentTmux in capabilities (same GoogleSheets queue, same remote
 # machine setup, same global.R sourcing model) but replaces tmux panes with
 # background R processes.  All worker output is captured to per-worker log
 # files on localhost via callr::r_bg(), enabling true streaming logs.
 
-# ── Internal constants ─────────────────────────────────────────────────────
+# -- Internal constants -----------------------------------------------------
 
 .future_meta_cols <- c(
   "status", "claimed_by", "started_at", "finished_at",
@@ -13,7 +13,7 @@
   "heartbeat_at", "heartbeat_iter", "iterationsTotal", "interrupted_at"
 )
 
-# ── experimentFuture ───────────────────────────────────────────────────────
+# -- experimentFuture -------------------------------------------------------
 
 #' Run parallel R jobs using background processes (tmux-free)
 #'
@@ -83,7 +83,7 @@
 #'
 #' @examples
 #' \dontrun{
-#' ## ── Minimal local example ──────────────────────────────────────────────
+#' ## -- Minimal local example ----------------------------------------------
 #'
 #' # Each row is one job; column names become variables in .GlobalEnv before
 #' # global.R is sourced.
@@ -103,7 +103,7 @@
 #'
 #' print(ef)                    # live status (alive/done per worker)
 #'
-#' ## ── Killing workers ────────────────────────────────────────────────────
+#' ## -- Killing workers ----------------------------------------------------
 #'
 #' # Graceful stop: workers finish their CURRENT job, then exit.
 #' # Any remaining PENDING jobs stay in the queue and can be resumed later
@@ -117,11 +117,11 @@
 #' killExperimentFuture(ef, force = TRUE)
 #' tmux_refresh_queue_status(ef$queue_path)   # clean up stale RUNNING entries
 #'
-#' ## ── Resuming after a kill ──────────────────────────────────────────────
+#' ## -- Resuming after a kill ----------------------------------------------
 #'
 #' # Jobs left as PENDING (or INTERRUPTED with on_interrupt = "requeue") are
 #' # automatically picked up when you call experimentFuture() again with the
-#' # same queue_path — no need to re-specify df.
+#' # same queue_path  -- no need to re-specify df.
 #' ef2 <- experimentFuture(
 #'   df          = expt,         # ignored if queue_path already exists
 #'   global_path = file.path(getwd(), "global.R"),
@@ -136,7 +136,7 @@
 #'
 #' cat(readLines(ef2$log_files[[1]]), sep = "\n")   # inspect worker 1 log
 #'
-#' ## ── Remote workers (pre-setup required) ───────────────────────────────
+#' ## -- Remote workers (pre-setup required) -------------------------------
 #' ef <- experimentFuture(
 #'   df             = expt,
 #'   global_path    = file.path(getwd(), "global.R"),
@@ -179,7 +179,7 @@ experimentFuture <- function(
 
   on_interrupt <- match.arg(on_interrupt)
 
-  # ── 1. Normalize paths ──────────────────────────────────────────────────
+  # -- 1. Normalize paths --------------------------------------------------
   global_path <- normalizePath(global_path, mustWork = FALSE)
   if (is.null(queue_path))
     queue_path <- file.path(dirname(global_path), "future_queue.rds")
@@ -192,7 +192,7 @@ experimentFuture <- function(
     activeRunningPath = activeRunningPath, queue_path
   )
 
-  # ── 2. Save ... args so workers can load complex objects ─────────────────
+  # -- 2. Save ... args so workers can load complex objects -----------------
   dots_path <- file.path(dirname(queue_path), ".future_dots.rds")
   dots      <- list(...)
   if (length(dots) > 0L) {
@@ -204,7 +204,7 @@ experimentFuture <- function(
     dots_path <- NULL
   }
 
-  # ── 3. Initialize local queue ────────────────────────────────────────────
+  # -- 3. Initialize local queue --------------------------------------------
   if (!file.exists(queue_path)) {
     if (missing(df) || is.null(df))
       stop("'df' must be provided when 'queue_path' does not yet exist.",
@@ -212,7 +212,7 @@ experimentFuture <- function(
     tmux_prepare_queue_from_df(df, queue_path)
   }
 
-  # ── 4. Google Sheets initialization (mirrors experimentTmux) ─────────────
+  # -- 4. Google Sheets initialization (mirrors experimentTmux) -------------
   if (!is.null(ss_id)) {
     if (!is.null(email))      options(gargle_oauth_email = email)
     if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
@@ -220,7 +220,7 @@ experimentFuture <- function(
   }
 
   if (!is.null(queue_path) && !is.null(ss_id)) {
-    # Resolve Drive folder → sheet ID
+    # Resolve Drive folder -> sheet ID
     isDir <- isGoogleDriveDirectory(ss_id)
     if (isTRUE(isDir)) {
       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
@@ -239,7 +239,7 @@ experimentFuture <- function(
       }
     }
 
-    # Sync local queue ↔ GS
+    # Sync local queue <-> GS
     gs_q <- try(.gs_read_queue(ss_id), silent = TRUE)
 
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
@@ -279,7 +279,7 @@ experimentFuture <- function(
     }
   }
 
-  # ── 5. Remote machine setup ───────────────────────────────────────────────
+  # -- 5. Remote machine setup -----------------------------------------------
   unique_hosts <- if (!is.null(cores)) {
     setdiff(unique(cores), c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
   } else {
@@ -316,17 +316,17 @@ experimentFuture <- function(
     message("Remote setup complete.")
   }
 
-  # ── 6. Determine effective worker hosts ───────────────────────────────────
+  # -- 6. Determine effective worker hosts -----------------------------------
   is_local <- is.null(cores) ||
               all(cores %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
 
-  # ── 7. Build log and stop-file paths ──────────────────────────────────────
+  # -- 7. Build log and stop-file paths --------------------------------------
   log_files  <- file.path(log_dir, sprintf("worker_%02d.log",      seq_len(n_workers)))
   stop_files <- file.path(log_dir, sprintf("worker_%02d.stop",     seq_len(n_workers)))
   # Remove any leftover stop files from a previous run
   for (sf in stop_files) if (file.exists(sf)) unlink(sf)
 
-  # ── 8. Launch workers ─────────────────────────────────────────────────────
+  # -- 8. Launch workers -----------------------------------------------------
   procs <- vector("list", n_workers)
 
   # Fixed args for every worker (avoiding reference issues in loops)
@@ -370,14 +370,14 @@ experimentFuture <- function(
         stderr  = log_files[[i]],
         # Unset TMUX/TMUX_PANE so workers don't emit OSC 2 escape bytes into log files.
         # callr workers inherit the parent's environment (including tmux vars), but
-        # they have no tmux pane — their output goes to a file, not a terminal.
+        # they have no tmux pane  -- their output goes to a file, not a terminal.
         env     = c(TMUX = "", TMUX_PANE = ""),
         package = TRUE
       )
     }
   } else {
     # Remote workers via future::cluster (SSH-based PSOCK cluster).
-    # Logs are written on the remote machine — documented limitation.
+    # Logs are written on the remote machine  -- documented limitation.
     if (!requireNamespace("future",     quietly = TRUE) ||
         !requireNamespace("parallelly", quietly = TRUE))
       stop("Packages 'future' and 'parallelly' are required for remote workers.",
@@ -407,7 +407,7 @@ experimentFuture <- function(
     }
   }
 
-  # ── 9. Emit log-watching instructions ────────────────────────────────────
+  # -- 9. Emit log-watching instructions ------------------------------------
   log_cmds <- paste0("  tail -f ", log_files, "   # worker ", seq_len(n_workers),
                      collapse = "\n")
   message(
@@ -417,7 +417,7 @@ experimentFuture <- function(
     "  tail -f ", log_dir, "/worker_*.log\n"
   )
 
-  # ── 10. tmux log-tail panes (if already inside tmux) ─────────────────────
+  # -- 10. tmux log-tail panes (if already inside tmux) ---------------------
   if (nzchar(Sys.getenv("TMUX"))) {
     tryCatch({
       target_win <- .tmux_current_window()
@@ -440,7 +440,7 @@ experimentFuture <- function(
     })
   }
 
-  # ── Return handle ─────────────────────────────────────────────────────────
+  # -- Return handle ---------------------------------------------------------
   structure(
     list(
       procs      = procs,
@@ -456,7 +456,7 @@ experimentFuture <- function(
 }
 
 
-# ── runWorkerLoopFuture ─────────────────────────────────────────────────────
+# -- runWorkerLoopFuture -----------------------------------------------------
 
 #' Worker loop for future/cluster-based remote execution
 #'
@@ -536,13 +536,13 @@ runWorkerLoopFuture <- function(
 }
 
 
-# ── S3 methods ──────────────────────────────────────────────────────────────
+# -- S3 methods --------------------------------------------------------------
 
 #' @export
 print.experimentFuture <- function(x, ...) {
   n     <- length(x$procs)
   width <- nchar(as.character(n))
-  cat(sprintf("experimentFuture — %d worker(s)\n", n))
+  cat(sprintf("experimentFuture  -- %d worker(s)\n", n))
   cat(sprintf("  Queue  : %s\n", x$queue_path))
   cat(sprintf("  Log dir: %s\n", x$log_dir))
   for (i in seq_len(n)) {
@@ -557,7 +557,7 @@ print.experimentFuture <- function(x, ...) {
 }
 
 
-# ── awaitExperimentFuture ───────────────────────────────────────────────────
+# -- awaitExperimentFuture ---------------------------------------------------
 
 #' Wait for all workers in an experimentFuture to finish
 #'
@@ -593,7 +593,7 @@ awaitExperimentFuture <- function(ef, verbose = TRUE) {
 }
 
 
-# ── killExperimentFuture ─────────────────────────────────────────────────────
+# -- killExperimentFuture -----------------------------------------------------
 
 #' Stop workers launched by experimentFuture
 #'
@@ -630,7 +630,7 @@ killExperimentFuture <- function(ef, force = FALSE) {
   stopifnot(inherits(ef, "experimentFuture"))
 
   if (!force) {
-    # ── Graceful: create stop files ─────────────────────────────────────────
+    # -- Graceful: create stop files -----------------------------------------
     # runWorkerLoop checks for the file between jobs and breaks the repeat loop.
     created <- 0L
     for (sf in ef$stop_files) {
@@ -643,7 +643,7 @@ killExperimentFuture <- function(ef, force = FALSE) {
             "\nWorkers will exit after their current job finishes.",
             "\nCall awaitExperimentFuture(ef) to wait for them.")
   } else {
-    # ── Force: send SIGINT ────────────────────────────────────────────────────
+    # -- Force: send SIGINT ----------------------------------------------------
     # SIGINT triggers R's interrupt condition, which runNextWorker catches and
     # uses to mark the in-progress job as PENDING (requeue) or INTERRUPTED (fail).
     killed <- 0L

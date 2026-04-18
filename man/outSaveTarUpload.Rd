@@ -22,7 +22,7 @@ file and tarball.}
 \item{sim}{A \code{simList} object.}
 
 \item{gFolder}{A Google Drive folder identifier accepted by
-\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}} — a \code{dribble}, a Drive URL, or a bare
+\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}  -- a \code{dribble}, a Drive URL, or a bare
 folder ID from \code{\link[googledrive:drive_id]{googledrive::as_id()}}.}
 
 \item{simFilename}{Character scalar. Full path for the \code{.rds} file.

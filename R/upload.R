@@ -78,7 +78,7 @@ outTar <- function(simFilename, outputFiles = character(0), runName,
 #'
 #' @param tarball Character scalar. Path to the local file to upload.
 #' @param gFolder A Google Drive folder identifier accepted by
-#'   [googledrive::drive_upload()] — a `dribble`, a Drive URL, or a bare
+#'   [googledrive::drive_upload()]  -- a `dribble`, a Drive URL, or a bare
 #'   folder ID from [googledrive::as_id()].
 #' @param overwrite Logical. Overwrite an existing file of the same name in
 #'   the Drive folder.  Default `TRUE`.
@@ -146,7 +146,7 @@ outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
     else if (s < 5400) paste0(round(s / 60, 1), " min")
     else               paste0(round(s / 3600, 2), " hr")
   }
-  message("outSaveTarUpload times — save: ", .fmt_elapsed(t1[["elapsed"]]),
+  message("outSaveTarUpload times  -- save: ", .fmt_elapsed(t1[["elapsed"]]),
           "  tar: ",    .fmt_elapsed(t2[["elapsed"]]),
           "  upload: ", .fmt_elapsed(t3[["elapsed"]]),
           "  total: ",  .fmt_elapsed(total))

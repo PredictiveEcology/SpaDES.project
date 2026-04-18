@@ -36,9 +36,12 @@ runWorkerLoop(
 Default is the first 2 column names of \code{q}. These will be concatenated and used as
 labels for various things including the \code{activeRunningPath} file(s).}
 
+\item{ss_id}{Optional Google Sheets/Drive ID for the shared queue. When
+supplied workers use the GS backend instead of the local RDS file.}
+
 \item{pane_mode}{Character. \code{"reuse"} (default) loops inside the same R session.
 \code{"killAndNewPane"} runs one job, spawns a fresh replacement pane, retiles the
-tmux window, then kills the current pane — freeing all R memory between jobs.}
+tmux window, then kills the current pane  -- freeing all R memory between jobs.}
 
 \item{email}{gargle OAuth email; forwarded to replacement panes in \code{killAndNewPane} mode.}
 
