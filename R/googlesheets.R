@@ -264,6 +264,11 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
   repeat {
     if (file.exists(queue_path)) {
 
+      # Clean up dead remote workers in GS BEFORE reading or pushing anything.
+      # This ensures that any RUNNING row whose PID is gone is marked INTERRUPTED
+      # (or timed out) before we decide what to push to GS.
+      try(.gs_reclaim_dead_jobs(ss_id), silent = TRUE)
+
       activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, basename(queue_path))
       tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel,
                                 statusCalculate = statusCalculate,
@@ -271,21 +276,36 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
       q <- try(readRDS(queue_path), silent = TRUE)
       if (inherits(q, "try-error")) { Sys.sleep(2); next }
 
-      # ---- GS → local: merge user edits and new rows ----
+      # ---- GS → local: merge GS state into local RDS ----
       gs_q <- try(.gs_read_queue(ss_id), silent = TRUE)
       if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L) {
 
         n_local <- nrow(q)
         n_gs    <- nrow(gs_q)
 
-        # For existing rows: trust GS status only for intentional user edits
-        # (e.g. resetting an INTERRUPTED job to PENDING via the sheet).
-        # Never let a stale GS value override an authoritative local status:
-        #   - RUNNING is set by the worker's running-flag file — never demote it
-        #   - DONE is terminal — a stale GS PENDING must not undo a completed job
         for (j in seq_len(min(n_local, n_gs))) {
           gs_status    <- gs_q$status[j]
           local_status <- q$status[j]
+
+          # A remote worker claimed this job in GS (RUNNING) but the local RDS
+          # hasn't caught up yet (still PENDING).  Pull the full claim from GS
+          # so the local→GS push doesn't stomp the worker's live RUNNING entry.
+          # .gs_reclaim_dead_jobs() above already cleared any stale RUNNING, so
+          # a GS RUNNING here means a confirmed-live (or recently-live) worker.
+          if (!is.na(gs_status) &&
+              gs_status    == txtRunning &&
+              local_status == txtPending) {
+            q$status[j]       <- gs_status
+            for (mc in c("claimed_by", "started_at", "machine_name", "process_id")) {
+              if (mc %in% names(gs_q) && mc %in% names(q))
+                q[[mc]][j] <- gs_q[[mc]][j]
+            }
+            next
+          }
+
+          # For all other rows: trust GS only for intentional user edits
+          # (e.g. resetting INTERRUPTED -> PENDING).  Never let a stale GS
+          # value demote an authoritative local RUNNING or completed DONE.
           if (!is.na(gs_status) &&
               gs_status    != txtRunning &&
               local_status != txtRunning &&
