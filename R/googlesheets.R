@@ -75,13 +75,11 @@
 # Reclaim RUNNING rows whose R process is no longer alive on any machine.
 # Uses /proc/<pid> (Linux) to test liveness: directly for the local machine,
 # via a single SSH connection per remote machine (all PIDs batched in one call).
-# If a remote machine is unreachable, falls back to timeout: jobs whose last
-# activity (heartbeat_at or started_at) is older than timeout_min are reclaimed
-# as INTERRUPTED regardless.  Default 60 min gives crashed-machine jobs a
-# generous window before they block new workers.
+# If a remote machine is unreachable the rows are left completely untouched --
+# an unreachable machine is not evidence the job is dead.
 # Called before each claim attempt so rows stuck in RUNNING by a crashed worker
 # become INTERRUPTED and are re-queued.  Reads the sheet once, writes only dead rows.
-.gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status", timeout_min = 60) {
+.gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
 
@@ -123,29 +121,8 @@
         error = function(e) NULL
       )
       if (is.null(result) || length(result) != length(pids)) {
-        # SSH unreachable — fall back to timeout.  Jobs whose last activity is
-        # older than timeout_min are treated as dead; others are left alone.
-        last_activity <- function(idx) {
-          ts <- q$heartbeat_at[idx]
-          if (is.na(ts) || !nzchar(ts)) ts <- q$started_at[idx]
-          if (is.na(ts) || !nzchar(ts)) return(NA_real_)
-          as.numeric(difftime(Sys.time(), as.POSIXct(ts), units = "mins"))
-        }
-        for (j in seq_along(m_idx)) {
-          age <- last_activity(m_idx[j])
-          if (!is.na(age) && age > timeout_min) {
-            idx       <- m_idx[j]
-            sheet_row <- idx + 1L
-            try(.gs_write_cells(ss_id, sheet_row,
-                                updates       = list(status         = "INTERRUPTED",
-                                                     claimed_by     = NA_character_,
-                                                     interrupted_at = now),
-                                col_positions = col_pos,
-                                sheet         = sheet), silent = TRUE)
-            message("Reclaimed timed-out RUNNING job row ", idx,
-                    " (", machine, " unreachable; last activity ", round(age), " min ago)")
-          }
-        }
+        # SSH unreachable — leave all rows on this machine alone.
+        # An unreachable machine is not proof the job is dead.
         next
       }
       alive <- result == "alive"
@@ -263,11 +240,6 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
     "\nevery ", interval, " seconds")
   repeat {
     if (file.exists(queue_path)) {
-
-      # Clean up dead remote workers in GS BEFORE reading or pushing anything.
-      # This ensures that any RUNNING row whose PID is gone is marked INTERRUPTED
-      # (or timed out) before we decide what to push to GS.
-      try(.gs_reclaim_dead_jobs(ss_id), silent = TRUE)
 
       activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, basename(queue_path))
       tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel,
