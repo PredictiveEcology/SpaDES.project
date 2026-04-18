@@ -75,10 +75,13 @@
 # Reclaim RUNNING rows whose R process is no longer alive on any machine.
 # Uses /proc/<pid> (Linux) to test liveness: directly for the local machine,
 # via a single SSH connection per remote machine (all PIDs batched in one call).
-# If a remote machine is unreachable, its rows are left alone (no false reclaim).
+# If a remote machine is unreachable, falls back to timeout: jobs whose last
+# activity (heartbeat_at or started_at) is older than timeout_min are reclaimed
+# as INTERRUPTED regardless.  Default 60 min gives crashed-machine jobs a
+# generous window before they block new workers.
 # Called before each claim attempt so rows stuck in RUNNING by a crashed worker
 # become INTERRUPTED and are re-queued.  Reads the sheet once, writes only dead rows.
-.gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
+.gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status", timeout_min = 60) {
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
 
@@ -119,8 +122,32 @@
                 stdout = TRUE, stderr = FALSE),
         error = function(e) NULL
       )
-      # If unreachable or wrong number of lines, skip — never falsely reclaim.
-      if (is.null(result) || length(result) != length(pids)) next
+      if (is.null(result) || length(result) != length(pids)) {
+        # SSH unreachable — fall back to timeout.  Jobs whose last activity is
+        # older than timeout_min are treated as dead; others are left alone.
+        last_activity <- function(idx) {
+          ts <- q$heartbeat_at[idx]
+          if (is.na(ts) || !nzchar(ts)) ts <- q$started_at[idx]
+          if (is.na(ts) || !nzchar(ts)) return(NA_real_)
+          as.numeric(difftime(Sys.time(), as.POSIXct(ts), units = "mins"))
+        }
+        for (j in seq_along(m_idx)) {
+          age <- last_activity(m_idx[j])
+          if (!is.na(age) && age > timeout_min) {
+            idx       <- m_idx[j]
+            sheet_row <- idx + 1L
+            try(.gs_write_cells(ss_id, sheet_row,
+                                updates       = list(status         = "INTERRUPTED",
+                                                     claimed_by     = NA_character_,
+                                                     interrupted_at = now),
+                                col_positions = col_pos,
+                                sheet         = sheet), silent = TRUE)
+            message("Reclaimed timed-out RUNNING job row ", idx,
+                    " (", machine, " unreachable; last activity ", round(age), " min ago)")
+          }
+        }
+        next
+      }
       alive <- result == "alive"
     }
 
