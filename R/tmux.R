@@ -2490,6 +2490,20 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         new_status <- txtDone
       }
 
+      # Remote-machine guard: if a job is RUNNING on another host we cannot
+      # see its running-flag file here.  The absence of a local flag must not
+      # demote its status to PENDING -- that would corrupt the shared queue and
+      # cause the remote worker to lose its claim on the next GS push.
+      # Only skip this guard when something authoritative determined the job is
+      # finished or interrupted (done=TRUE from statusCalculate, or explicit
+      # txtInterrupted from the heartbeat block).
+      if (q$status[i]  == txtRunning  &&
+          new_status    == txtPending  &&
+          !is.na(q$machine_name[i])   &&
+          q$machine_name[i] != Sys.info()[["nodename"]]) {
+        new_status <- txtRunning  # preserve remote ownership
+      }
+
       if (!q$status[i] %in% new_status) {
         q$status[i] <- new_status
         if (new_status == txtInterrupted) {
