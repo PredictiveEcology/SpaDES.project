@@ -251,14 +251,21 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
         n_local <- nrow(q)
         n_gs    <- nrow(gs_q)
 
-        # For existing rows: trust GS status when user has changed it
-        # (never override a worker-written RUNNING — that's live state)
+        # For existing rows: trust GS status only for intentional user edits
+        # (e.g. resetting an INTERRUPTED job to PENDING via the sheet).
+        # Never let a stale GS value override an authoritative local status:
+        #   - RUNNING is set by the worker's running-flag file — never demote it
+        #   - DONE is terminal — a stale GS PENDING must not undo a completed job
         for (j in seq_len(min(n_local, n_gs))) {
-          gs_status <- gs_q$status[j]
-          if (!is.na(gs_status) && gs_status != "RUNNING" &&
-              !identical(gs_status, q$status[j])) {
+          gs_status    <- gs_q$status[j]
+          local_status <- q$status[j]
+          if (!is.na(gs_status) &&
+              gs_status    != txtRunning &&
+              local_status != txtRunning &&
+              local_status != txtDone    &&
+              !identical(gs_status, local_status)) {
             q$status[j] <- gs_status
-            if (gs_status == "PENDING") {
+            if (gs_status == txtPending) {
               q$claimed_by[j]  <- NA_character_
               q$started_at[j]  <- NA_character_
               q$finished_at[j] <- NA_character_
