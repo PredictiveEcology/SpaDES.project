@@ -60,7 +60,7 @@ outSave <- function(sim, runName, simFilename = NULL) {
 #' @export
 outTar <- function(simFilename, outputFiles = character(0), runName,
                    tarDir = dirname(simFilename), verbose = TRUE) {
-  outputFiles <- outputFiles[nzchar(outputFiles) & file.exists(outputFiles)]
+  outputFiles <- outputFiles[!is.na(outputFiles) & nzchar(outputFiles) & file.exists(outputFiles)]
   allFiles    <- unique(c(simFilename, outputFiles))
   tarball     <- file.path(tarDir, paste0(runName, ".tar.gz"))
   tar(tarball, files = allFiles,
