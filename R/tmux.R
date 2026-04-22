@@ -1265,7 +1265,10 @@ experimentTmux <- function(df,
         )
 
         .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
-          hl <- if (!is.null(host_label) && host_label != "localhost") host_label else ""
+          hl <- if (!is.null(host_label) && !host_label %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+            host_label
+          else
+            trimws(system("hostname -s", intern = TRUE, ignore.stderr = TRUE)[1L])
           c(
             # Override any Rprofile.site that sets defaultPackages=character(0).
             # Profile files run before .First.sys() attaches packages, so setting
