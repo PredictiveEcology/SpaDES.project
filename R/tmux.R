@@ -2125,12 +2125,19 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #' poison the rest.  Works outside a tmux pane and across multiple tmux
 #' servers (e.g. sessions started under different `-L` names).
 #'
+#' @param stats Logical.  When `TRUE`, parses the `<host?>-<node>-<pid>-`
+#'   prefix from each pane title and queries `ps` (locally or via one SSH
+#'   connection per remote node) to append `cpu` (percent CPU) and `rss_mb`
+#'   (resident memory, MB).  Titles that lack a parseable `<node>-<pid>` get
+#'   `NA`; unreachable nodes get `NA` for all their rows.  Default `FALSE`
+#'   (no `ps` calls, so the internal reclaim path pays no extra cost).
 #' @return A data.frame with columns `socket`, `session`, `window`, `pane`,
 #'   `pane_id`, `pane_ref` (the `"session:window.pane"` string) and `title`.
+#'   With `stats = TRUE`, two additional columns `cpu` and `rss_mb` appear.
 #'   Returns an empty data.frame (0 rows, same columns) if tmux is
 #'   unavailable, no sockets exist, or the uid cannot be determined.
 #' @export
-tmuxListPanes <- function() {
+tmuxListPanes <- function(stats = FALSE) {
   empty <- data.frame(
     socket   = character(0), session = character(0),
     window   = integer(0),   pane    = integer(0),
@@ -2177,7 +2184,94 @@ tmuxListPanes <- function() {
   if (!length(rows)) return(empty)
   out <- do.call(rbind, rows)
   out$pane_ref <- sprintf("%s:%d.%d", out$session, out$window, out$pane)
-  out[, c("socket", "session", "window", "pane", "pane_id", "pane_ref", "title")]
+  out <- out[, c("socket", "session", "window", "pane", "pane_id", "pane_ref", "title")]
+  if (isTRUE(stats)) out <- .tmux_attach_ps_stats(out)
+  out
+}
+
+# Parse "<host?>-<node>-<pid>-" from each title, query `ps` (local sh or one
+# SSH connection per remote host), attach cpu / rss_mb columns.
+# Title format: "<host?>-<node>-<pid>-<runName>" where <host> is the cluster
+# alias (e.g. "sbw", "mega") that /etc/hosts / ~/.ssh/config resolves, and
+# <node> is the raw hostname (e.g. "A159603").  SSH needs the alias; `ps`
+# on the local machine uses /proc directly.  Dispatch:
+#   - parsed <node> equals our own Sys.info()[["nodename"]]  -> local sh
+#   - host prefix present                                    -> ssh <host>
+#   - otherwise (e.g. old-style title on a remote node)      -> NA row
+#' @keywords internal
+#' @noRd
+.tmux_attach_ps_stats <- function(panes) {
+  panes$cpu    <- NA_real_
+  panes$rss_mb <- NA_real_
+  if (!nrow(panes)) return(panes)
+
+  re <- "^(?:([^-]+)-)?([^-]+)-([0-9]{6,})-"
+  m  <- regmatches(panes$title, regexec(re, panes$title, perl = TRUE))
+  parsed_host <- vapply(m, function(x)
+    if (length(x) >= 4L) x[[2L]] else NA_character_, character(1L))
+  parsed_node <- vapply(m, function(x)
+    if (length(x) >= 4L) x[[3L]] else NA_character_, character(1L))
+  parsed_pid  <- vapply(m, function(x)
+    if (length(x) >= 4L) suppressWarnings(as.integer(x[[4L]])) else NA_integer_,
+    integer(1L))
+  valid <- !is.na(parsed_node) & !is.na(parsed_pid)
+  if (!any(valid)) return(panes)
+
+  local_node <- Sys.info()[["nodename"]]
+  is_local   <- valid & parsed_node == local_node
+  has_host   <- valid & !is.na(parsed_host) & nzchar(parsed_host) & !is_local
+  # SSH target = host alias; local target uses a sentinel so we can key on it.
+  target <- rep(NA_character_, nrow(panes))
+  target[is_local] <- "__LOCAL__"
+  target[has_host] <- parsed_host[has_host]
+
+  for (tgt in unique(target[!is.na(target)])) {
+    idx  <- which(target == tgt)
+    pids <- unique(parsed_pid[idx])
+    stats_df <- .tmux_ps_stats(tgt, pids)
+    if (!nrow(stats_df)) next
+    ix <- match(parsed_pid[idx], stats_df$pid)
+    panes$cpu[idx]    <- stats_df$cpu[ix]
+    panes$rss_mb[idx] <- stats_df$rss_mb[ix]
+  }
+  panes
+}
+
+# Run `ps -o pid=,%cpu=,rss= -p <pids>` for the given target.
+# target == "__LOCAL__"  -> run locally via sh -c
+# otherwise              -> ssh to `target` (cluster alias)
+# Returns data.frame(pid, cpu, rss_mb); rss (kB) is converted to MB.
+#' @keywords internal
+#' @noRd
+.tmux_ps_stats <- function(target, pids) {
+  empty <- data.frame(pid = integer(0), cpu = numeric(0),
+                      rss_mb = numeric(0), stringsAsFactors = FALSE)
+  if (!length(pids)) return(empty)
+  pid_str <- paste(pids, collapse = ",")
+  cmd     <- paste("ps -o pid=,%cpu=,rss= -p", pid_str)
+  lines <- if (identical(target, "__LOCAL__")) {
+    tryCatch(system2("sh", c("-c", cmd), stdout = TRUE, stderr = FALSE),
+             error = function(e) character(0))
+  } else {
+    tryCatch(
+      system2("ssh",
+              c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+                target, shQuote(cmd)),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) character(0)
+    )
+  }
+  if (!length(lines)) return(empty)
+  toks <- lapply(lines, function(ln) strsplit(trimws(ln), "\\s+")[[1L]])
+  toks <- toks[vapply(toks, length, integer(1L)) == 3L]
+  if (!length(toks)) return(empty)
+  m <- do.call(rbind, toks)
+  data.frame(
+    pid    = suppressWarnings(as.integer(m[, 1L])),
+    cpu    = suppressWarnings(as.numeric(m[, 2L])),
+    rss_mb = suppressWarnings(as.numeric(m[, 3L])) / 1024,
+    stringsAsFactors = FALSE
+  )
 }
 
 #' Find duplicate worker panes running the same job
