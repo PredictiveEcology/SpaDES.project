@@ -1906,6 +1906,78 @@ tmux_kill_panes <- function(panes) {
   invisible(killed)
 }
 
+#' Short friendly name for the local machine
+#'
+#' Resolves the cluster-facing short name for this host, trying in order:
+#' 1. `/etc/hosts` lookup by a local IP (shortest alias wins);
+#' 2. `~/.ssh/config` `Host` entry whose `Hostname` is a local IP (CRLF-safe);
+#' 3. `hostname -s`.
+#'
+#' Useful for deriving the pane-title host prefix when the cluster knows this
+#' machine by a name different from `hostname -s` (e.g. mega, whose raw
+#' hostname is the node id but whose cluster alias is `mega` via `/etc/hosts`).
+#'
+#' @return Character(1) short name, or `NULL` if none could be determined.
+#' @export
+local_host_label <- function() {
+  ips <- tryCatch({
+    raw <- suppressWarnings(system2("hostname", "-I",
+                                    stdout = TRUE, stderr = FALSE))
+    toks <- strsplit(trimws(paste(raw, collapse = " ")), "\\s+")[[1L]]
+    toks[nzchar(toks)]
+  }, error = function(e) character(0))
+
+  # 1) /etc/hosts -- canonical on this cluster per CLAUDE.md
+  if (length(ips)) {
+    hosts <- tryCatch(readLines("/etc/hosts", warn = FALSE),
+                      error = function(e) character(0))
+    hosts <- hosts[!grepl("^\\s*#", hosts) & nzchar(trimws(hosts))]
+    for (ip in ips) {
+      ip_rx <- paste0("^\\s*", gsub(".", "\\.", ip, fixed = TRUE), "\\s+")
+      hit   <- grep(ip_rx, hosts, value = TRUE)
+      if (length(hit)) {
+        toks <- strsplit(trimws(hit[[1L]]), "\\s+")[[1L]]
+        names_after_ip <- toks[-1L]
+        if (length(names_after_ip))
+          return(names_after_ip[which.min(nchar(names_after_ip))])
+      }
+    }
+  }
+
+  # 2) ~/.ssh/config -- strip CRLF per CLAUDE.md
+  ssh_cfg <- path.expand("~/.ssh/config")
+  if (length(ips) && file.exists(ssh_cfg)) {
+    lines <- tryCatch(readLines(ssh_cfg, warn = FALSE),
+                      error = function(e) character(0))
+    lines <- gsub("\r", "", lines, fixed = TRUE)
+    current_host <- NULL
+    host_map     <- list()
+    for (ln in lines) {
+      t <- trimws(ln)
+      if (!nzchar(t) || startsWith(t, "#")) next
+      toks <- strsplit(t, "\\s+")[[1L]]
+      key  <- tolower(toks[[1L]])
+      val  <- if (length(toks) >= 2L) toks[[2L]] else ""
+      if (key == "host") {
+        current_host <- val
+      } else if (key == "hostname" && !is.null(current_host)) {
+        host_map[[current_host]] <- val
+      }
+    }
+    for (h in names(host_map)) {
+      if (host_map[[h]] %in% ips) return(h)
+    }
+  }
+
+  # 3) hostname -s fallback
+  short <- tryCatch(
+    trimws(system2("hostname", "-s", stdout = TRUE, stderr = FALSE)[[1L]]),
+    error = function(e) NULL
+  )
+  if (length(short) && nzchar(short)) return(short)
+  NULL
+}
+
 #' Set a tmux pane's title by matching its current title
 #'
 #' Scans every tmux server on this machine (sockets under
