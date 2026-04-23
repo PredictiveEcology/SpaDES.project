@@ -2304,11 +2304,24 @@ tmuxListPanes <- function(stats = FALSE) {
   for (tgt in targets) {
     idx <- which(target == tgt)
     stats_df <- results[[tgt]]
-    if (is.null(stats_df) || !nrow(stats_df)) next
-    ix <- match(parsed_pid[idx], stats_df$pid)
-    panes$state[idx]          <- stats_df$state[ix]
-    panes$cpuAvg[idx]         <- stats_df$cpu[ix]
-    panes[["RAM (GB)"]][idx]  <- round(stats_df$rss_mb[ix] / 1024, 1L)
+    # NULL means the machine was unreachable -- leave state as NA.
+    if (is.null(stats_df)) next
+    # ps ran.  Match each pane's pid against the returned rows; any that
+    # don't match are definitely gone (R session has quit, PID recycled, etc.)
+    # so flag them as "Closed" rather than leaving as NA.
+    ix      <- match(parsed_pid[idx], stats_df$pid)
+    missing <- is.na(ix)
+    if (any(missing)) {
+      panes$state[idx[missing]] <- "Closed"
+    }
+    live <- !missing
+    if (any(live)) {
+      live_idx <- idx[live]
+      live_ix  <- ix[live]
+      panes$state[live_idx]          <- stats_df$state[live_ix]
+      panes$cpuAvg[live_idx]         <- stats_df$cpu[live_ix]
+      panes[["RAM (GB)"]][live_idx]  <- round(stats_df$rss_mb[live_ix] / 1024, 1L)
+    }
   }
   panes
 }
@@ -2331,7 +2344,7 @@ tmuxListPanes <- function(stats = FALSE) {
     tryCatch(
       system2("ps", c("-o", "pid=,%cpu=,rss=,state=", "-p", pid_str),
               stdout = TRUE, stderr = FALSE),
-      error = function(e) character(0)
+      error = function(e) structure(character(0), status = 127L)
     )
   } else {
     # Remote: ps is invoked by the remote shell, so pass the full command
@@ -2342,9 +2355,14 @@ tmuxListPanes <- function(stats = FALSE) {
               c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
                 target, shQuote(cmd)),
               stdout = TRUE, stderr = FALSE),
-      error = function(e) character(0)
+      error = function(e) structure(character(0), status = 255L)
     )
   }
+  # Connection / unreachable failure: return NULL so the caller can
+  # distinguish this from "ps ran but the PID is gone".  ssh uses exit 255
+  # for connection failure; a local exec error (tryCatch) gets status 127.
+  status <- attr(lines, "status")
+  if (!is.null(status) && status %in% c(127L, 255L)) return(NULL)
   if (!length(lines)) return(empty)
   toks <- lapply(lines, function(ln) strsplit(trimws(ln), "\\s+")[[1L]])
   toks <- toks[vapply(toks, length, integer(1L)) == 4L]
