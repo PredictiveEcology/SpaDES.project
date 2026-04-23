@@ -17,7 +17,10 @@ so the internal reclaim path pays no extra cost).}
 }
 \value{
 A data.frame with columns \code{socket}, \code{session}, \code{window}, \code{pane},
-\code{pane_id}, \code{pane_ref} (the \code{"session:window.pane"} string) and \code{title}.
+\code{pane_id}, \code{pane_ref} (the \code{"session:window.pane"} string), \code{title},
+and \code{node} (the first dash-separated token in \code{title} that matches a
+cluster alias in \verb{/etc/hosts}; falls back to \code{\link[=localHostLabel]{localHostLabel()}} when
+the title contains only the raw local hostname; \code{NA} if no match).
 With \code{stats = TRUE}, two additional columns \code{cpu} and \code{RAM (GB)}
 appear.  \code{Cluster_Monitor} panes are always filtered out -- they are
 operator-display panes with no associated job.

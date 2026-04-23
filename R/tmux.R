@@ -2133,7 +2133,10 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #'   nodes get `NA` for all their rows.  Default `FALSE` (no `ps` calls,
 #'   so the internal reclaim path pays no extra cost).
 #' @return A data.frame with columns `socket`, `session`, `window`, `pane`,
-#'   `pane_id`, `pane_ref` (the `"session:window.pane"` string) and `title`.
+#'   `pane_id`, `pane_ref` (the `"session:window.pane"` string), `title`,
+#'   and `node` (the first dash-separated token in `title` that matches a
+#'   cluster alias in `/etc/hosts`; falls back to [localHostLabel()] when
+#'   the title contains only the raw local hostname; `NA` if no match).
 #'   With `stats = TRUE`, two additional columns `cpu` and `RAM (GB)`
 #'   appear.  `Cluster_Monitor` panes are always filtered out -- they are
 #'   operator-display panes with no associated job.
@@ -2145,7 +2148,8 @@ tmuxListPanes <- function(stats = FALSE) {
     socket   = character(0), session = character(0),
     window   = integer(0),   pane    = integer(0),
     pane_id  = character(0), pane_ref = character(0),
-    title    = character(0), stringsAsFactors = FALSE
+    title    = character(0), node    = character(0),
+    stringsAsFactors = FALSE
   )
   uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
                   error = function(e) character(0))
@@ -2192,8 +2196,53 @@ tmuxListPanes <- function(stats = FALSE) {
   # and carry no job info; stats lookups for them would always be NA.
   out <- out[out$title != "Cluster_Monitor", , drop = FALSE]
   row.names(out) <- NULL
+  out$node <- .tmux_match_node(out$title)
   if (isTRUE(stats)) out <- .tmux_attach_ps_stats(out)
   out
+}
+
+# Return the cluster-alias set known to this machine via /etc/hosts.
+# Loopback / IPv6 lines are excluded, so the local machine's own raw hostname
+# (usually the `127.0.1.1` line on Linux) does not count as a cluster alias.
+#' @keywords internal
+#' @noRd
+.tmux_cluster_aliases <- function() {
+  hosts <- tryCatch(readLines("/etc/hosts", warn = FALSE),
+                    error = function(e) character(0))
+  hosts <- hosts[nzchar(trimws(hosts))]
+  hosts <- hosts[!grepl("^\\s*#", hosts)]
+  # Skip loopback / link-local / multicast lines; cluster nodes are on
+  # routable IPv4 addresses.
+  hosts <- hosts[!grepl("^\\s*(127\\.|::|fe[0-9a-fA-F]{1,}|ff[0-9a-fA-F]{1,})", hosts)]
+  aliases <- unlist(lapply(hosts, function(ln) {
+    toks <- strsplit(trimws(ln), "\\s+")[[1L]]
+    if (length(toks) < 2L) return(character(0))
+    names <- toks[-1L]                       # skip the IP
+    names[!grepl("\\.", names)]              # drop FQDNs, keep short names
+  }))
+  unique(aliases)
+}
+
+# Map each title to its cluster alias by taking the first dash-separated
+# token that appears in the known alias set.  As a fallback, if any token
+# equals the local machine's raw hostname, return `localHostLabel()` so
+# old-style local titles (`A159568-<pid>-...`) still resolve to `mega`.
+# Returns NA when no match is found.
+#' @keywords internal
+#' @noRd
+.tmux_match_node <- function(titles, aliases = .tmux_cluster_aliases()) {
+  if (!length(titles)) return(character(0))
+  local_node  <- Sys.info()[["nodename"]]
+  local_alias <- tryCatch(localHostLabel(), error = function(e) NULL)
+  vapply(titles, function(t) {
+    if (!nzchar(t)) return(NA_character_)
+    toks <- strsplit(t, "-", fixed = TRUE)[[1L]]
+    hit  <- toks[toks %in% aliases]
+    if (length(hit)) return(hit[[1L]])
+    if (!is.null(local_alias) && nzchar(local_alias) &&
+        !is.na(local_node) && local_node %in% toks) return(local_alias)
+    NA_character_
+  }, character(1L))
 }
 
 # Parse "<host?>-<node>-<pid>-" from each title, query `ps` (local sh or one
