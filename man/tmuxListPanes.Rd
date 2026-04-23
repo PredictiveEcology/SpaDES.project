@@ -21,10 +21,14 @@ A data.frame with columns \code{session}, \code{window}, \code{pane}, \code{pane
 (the first dash-separated token in \code{title} that matches a cluster alias
 in \verb{/etc/hosts}; falls back to \code{\link[=localHostLabel]{localHostLabel()}} when the title
 contains only the raw local hostname; \code{NA} if no match).
-With \code{stats = TRUE}, three additional columns appear: \code{state} (see
+With \code{stats = TRUE}, five additional columns appear: \code{state} (see
 table below), \code{cpuAvg} (percent CPU averaged over the process's
 lifetime -- note this is NOT the instantaneous rate \code{htop} shows),
-\code{RAM (GB)} (resident memory, GB, 1 dp).
+\code{RAM (GB)} (resident memory, GB, 1 dp), \code{availableCores} (total
+CPUs on the node, from \code{nproc}), \verb{total RAM (GB)} (total RAM on
+the node, from \verb{/proc/meminfo}).  The last two are constant across
+all rows on the same node and let you see each pane's resource
+use relative to its node capacity.
 \code{Cluster_Monitor} panes are always filtered out -- they are
 operator-display panes with no associated job.
 Returns an empty data.frame (0 rows, same columns) if tmux is

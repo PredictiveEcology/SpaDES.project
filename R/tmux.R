@@ -2137,10 +2137,14 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #'   (the first dash-separated token in `title` that matches a cluster alias
 #'   in `/etc/hosts`; falls back to [localHostLabel()] when the title
 #'   contains only the raw local hostname; `NA` if no match).
-#'   With `stats = TRUE`, three additional columns appear: `state` (see
+#'   With `stats = TRUE`, five additional columns appear: `state` (see
 #'   table below), `cpuAvg` (percent CPU averaged over the process's
 #'   lifetime -- note this is NOT the instantaneous rate `htop` shows),
-#'   `RAM (GB)` (resident memory, GB, 1 dp).
+#'   `RAM (GB)` (resident memory, GB, 1 dp), `availableCores` (total
+#'   CPUs on the node, from `nproc`), `total RAM (GB)` (total RAM on
+#'   the node, from `/proc/meminfo`).  The last two are constant across
+#'   all rows on the same node and let you see each pane's resource
+#'   use relative to its node capacity.
 #'   `Cluster_Monitor` panes are always filtered out -- they are
 #'   operator-display panes with no associated job.
 #'   Returns an empty data.frame (0 rows, same columns) if tmux is
@@ -2295,9 +2299,11 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @keywords internal
 #' @noRd
 .tmux_attach_ps_stats <- function(panes) {
-  panes$state         <- NA_character_
-  panes$cpuAvg        <- NA_real_
-  panes[["RAM (GB)"]] <- NA_real_
+  panes$state                <- NA_character_
+  panes$cpuAvg               <- NA_real_
+  panes[["RAM (GB)"]]        <- NA_real_
+  panes$availableCores       <- NA_integer_
+  panes[["total RAM (GB)"]]  <- NA_real_
   if (!nrow(panes)) return(panes)
 
   # Anchor the PID with (?:-|$) so titles lacking a trailing runName still
@@ -2355,12 +2361,18 @@ tmuxListPanes <- function(stats = FALSE) {
 
   for (tgt in targets) {
     idx <- which(target == tgt)
-    stats_df <- results[[tgt]]
+    res <- results[[tgt]]
     # NULL means the machine was unreachable -- leave state as NA.
-    if (is.null(stats_df)) next
+    if (is.null(res)) next
+    # Machine-level fields are identical for every row on this target.
+    if (!is.na(res$ncpu))
+      panes$availableCores[idx] <- res$ncpu
+    if (!is.na(res$mem_kb))
+      panes[["total RAM (GB)"]][idx] <- round(res$mem_kb / 1024^2, 1L)
     # ps ran.  Match each pane's pid against the returned rows; any that
     # don't match are definitely gone (R session has quit, PID recycled, etc.)
     # so flag them as "Closed" rather than leaving as NA.
+    stats_df <- res$procs
     ix      <- match(parsed_pid[idx], stats_df$pid)
     missing <- is.na(ix)
     if (any(missing)) {
@@ -2385,48 +2397,75 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @keywords internal
 #' @noRd
 .tmux_ps_stats <- function(target, pids) {
-  empty <- data.frame(pid = integer(0), cpu = numeric(0),
-                      rss_mb = numeric(0), state = character(0),
-                      stringsAsFactors = FALSE)
-  if (!length(pids)) return(empty)
+  empty_procs <- data.frame(pid = integer(0), cpu = numeric(0),
+                            rss_mb = numeric(0), state = character(0),
+                            stringsAsFactors = FALSE)
+  if (!length(pids)) return(NULL)
   pid_str <- paste(pids, collapse = ",")
-  lines <- if (identical(target, "__LOCAL__")) {
-    # Call ps directly -- system2 routes through sh only for redirection, and
-    # `sh -c "ps ..."` has argv-parsing traps.  Direct exec avoids them.
-    tryCatch(
+
+  if (identical(target, "__LOCAL__")) {
+    # Local: three separate execs (all near-instant, no shell indirection)
+    ncpu <- tryCatch(
+      suppressWarnings(as.integer(trimws(
+        system2("nproc", stdout = TRUE, stderr = FALSE)[[1L]]))),
+      error = function(e) NA_integer_
+    )
+    mem_kb <- tryCatch({
+      # Shell-quote the awk pattern: system2 routes through sh when
+      # stderr = FALSE, and $2 would otherwise be expanded by the shell.
+      out <- system2("awk",
+        c(shQuote("/^MemTotal/{print $2}"), "/proc/meminfo"),
+        stdout = TRUE, stderr = FALSE)
+      if (length(out)) suppressWarnings(as.integer(trimws(out[[1L]])))
+      else NA_integer_
+    }, error = function(e) NA_integer_)
+    ps_lines <- tryCatch(
       system2("ps", c("-o", "pid=,%cpu=,rss=,state=", "-p", pid_str),
               stdout = TRUE, stderr = FALSE),
       error = function(e) structure(character(0), status = 127L)
     )
+    status <- attr(ps_lines, "status")
+    if (!is.null(status) && identical(status, 127L)) return(NULL)
   } else {
-    # Remote: ps is invoked by the remote shell, so pass the full command
-    # shell-quoted.
-    cmd <- paste("ps -o pid=,%cpu=,rss=,state= -p", pid_str)
-    tryCatch(
+    # Remote: one SSH connection carrying nproc + meminfo + ps, in that order.
+    cmd <- sprintf(
+      "nproc; awk '/^MemTotal/{print $2}' /proc/meminfo; ps -o pid=,%%cpu=,rss=,state= -p %s",
+      pid_str
+    )
+    lines <- tryCatch(
       system2("ssh",
               c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
                 target, shQuote(cmd)),
               stdout = TRUE, stderr = FALSE),
       error = function(e) structure(character(0), status = 255L)
     )
+    status <- attr(lines, "status")
+    # ssh 255 = connection failure -> unreachable.  Distinguish from a
+    # reachable host where the PID simply doesn't exist (ps exits 1).
+    if (!is.null(status) && identical(status, 255L)) return(NULL)
+    if (length(lines) < 2L) return(NULL)  # truncated / broken output
+    ncpu     <- suppressWarnings(as.integer(trimws(lines[[1L]])))
+    mem_kb   <- suppressWarnings(as.integer(trimws(lines[[2L]])))
+    ps_lines <- if (length(lines) > 2L) lines[-(1:2)] else character(0)
   }
-  # Connection / unreachable failure: return NULL so the caller can
-  # distinguish this from "ps ran but the PID is gone".  ssh uses exit 255
-  # for connection failure; a local exec error (tryCatch) gets status 127.
-  status <- attr(lines, "status")
-  if (!is.null(status) && status %in% c(127L, 255L)) return(NULL)
-  if (!length(lines)) return(empty)
-  toks <- lapply(lines, function(ln) strsplit(trimws(ln), "\\s+")[[1L]])
-  toks <- toks[vapply(toks, length, integer(1L)) == 4L]
-  if (!length(toks)) return(empty)
-  m <- do.call(rbind, toks)
-  data.frame(
-    pid    = suppressWarnings(as.integer(m[, 1L])),
-    cpu    = suppressWarnings(as.numeric(m[, 2L])),
-    rss_mb = suppressWarnings(as.numeric(m[, 3L])) / 1024,
-    state  = m[, 4L],
-    stringsAsFactors = FALSE
-  )
+
+  # Parse ps output -- any matches, else empty data.frame.
+  procs <- if (length(ps_lines)) {
+    toks <- lapply(ps_lines, function(ln) strsplit(trimws(ln), "\\s+")[[1L]])
+    toks <- toks[vapply(toks, length, integer(1L)) == 4L]
+    if (length(toks)) {
+      m <- do.call(rbind, toks)
+      data.frame(
+        pid    = suppressWarnings(as.integer(m[, 1L])),
+        cpu    = suppressWarnings(as.numeric(m[, 2L])),
+        rss_mb = suppressWarnings(as.numeric(m[, 3L])) / 1024,
+        state  = m[, 4L],
+        stringsAsFactors = FALSE
+      )
+    } else empty_procs
+  } else empty_procs
+
+  list(procs = procs, ncpu = ncpu, mem_kb = mem_kb)
 }
 
 #' Find duplicate worker panes running the same job
