@@ -252,6 +252,25 @@ session (\code{-g}) and persists for the session's lifetime; it does not modify
 \verb{~/.tmux.conf}.
 }
 }
+\section{Related tmux helpers}{
+
+\tabular{ll}{
+\strong{Function} \tab \strong{Purpose} \cr
+\code{\link[=tmuxPrepareQueueFromDF]{tmuxPrepareQueueFromDF()}} \tab Build a file-backed queue RDS from a data.frame of runs \cr
+\code{\link[=tmuxRunNextWorker]{tmuxRunNextWorker()}} \tab Claim and run one queued job in the current R session \cr
+\code{\link[=tmuxRunWorkerLoop]{tmuxRunWorkerLoop()}} \tab Loop of \code{tmuxRunNextWorker()} inside a worker pane \cr
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} \tab Re-evaluate job status from output files and heartbeats \cr
+\code{\link[=tmuxMirrorQueueToSheets]{tmuxMirrorQueueToSheets()}} \tab Mirror a local queue RDS to a Google Sheet \cr
+\code{\link[=tmuxListPanes]{tmuxListPanes()}} \tab List every pane across every tmux server on this machine \cr
+\code{\link[=tmuxFindDuplicates]{tmuxFindDuplicates()}} \tab Surface panes running the same job (duplicate claims) \cr
+\code{\link[=tmuxSetPaneTitle]{tmuxSetPaneTitle()}} \tab Rewrite a pane's title by matching its current title \cr
+\code{\link[=tmuxKillPanes]{tmuxKillPanes()}} \tab Kill a set of panes by ID (tear-down) \cr
+\code{\link[=tmuxSetMouse]{tmuxSetMouse()}} \tab Enable or disable tmux mouse mode \cr
+\code{\link[=tmuxActiveRunningPath]{tmuxActiveRunningPath()}} \tab Default path for per-run "active" flag files \cr
+\code{\link[=localHostLabel]{localHostLabel()}} \tab Short cluster alias for this machine (\verb{/etc/hosts} lookup) \cr
+}
+}
+
 \examples{
 \dontrun{
 # --- Basic local usage ---

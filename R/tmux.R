@@ -684,6 +684,23 @@ tmuxSetMouse <- function(on = TRUE) {
 #'   unset.  Default `FALSE`.
 #' @param ... Additional arguments passed to `.setup_remote_machine()`.
 #'
+#' @section Related tmux helpers:
+#' \tabular{ll}{
+#'   **Function** \tab **Purpose** \cr
+#'   [tmuxPrepareQueueFromDF()] \tab Build a file-backed queue RDS from a data.frame of runs \cr
+#'   [tmuxRunNextWorker()] \tab Claim and run one queued job in the current R session \cr
+#'   [tmuxRunWorkerLoop()] \tab Loop of `tmuxRunNextWorker()` inside a worker pane \cr
+#'   [tmuxRefreshQueueStatus()] \tab Re-evaluate job status from output files and heartbeats \cr
+#'   [tmuxMirrorQueueToSheets()] \tab Mirror a local queue RDS to a Google Sheet \cr
+#'   [tmuxListPanes()] \tab List every pane across every tmux server on this machine \cr
+#'   [tmuxFindDuplicates()] \tab Surface panes running the same job (duplicate claims) \cr
+#'   [tmuxSetPaneTitle()] \tab Rewrite a pane's title by matching its current title \cr
+#'   [tmuxKillPanes()] \tab Kill a set of panes by ID (tear-down) \cr
+#'   [tmuxSetMouse()] \tab Enable or disable tmux mouse mode \cr
+#'   [tmuxActiveRunningPath()] \tab Default path for per-run "active" flag files \cr
+#'   [localHostLabel()] \tab Short cluster alias for this machine (`/etc/hosts` lookup) \cr
+#' }
+#'
 #' @return Invisibly returns a character vector of tmux pane IDs for the spawned workers.
 #'   Pass these to `tmuxKillPanes()` to tear down all workers at once.
 #' @export
@@ -2100,35 +2117,125 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   out[nzchar(out)]
 }
 
-# List pane titles across every tmux server on this machine.
-# Enumerates sockets under $TMUX_TMPDIR/tmux-<uid>/ (default /tmp), queries each
-# with `tmux -S <socket> list-panes -a -F '#{pane_title}'`.  Per-socket failures
-# are swallowed so one broken socket cannot poison the rest.  Works outside tmux
-# and across multiple tmux servers; returns character(0) if tmux is unavailable,
-# no sockets exist, or the uid cannot be determined.
-#' @keywords internal
-#' @noRd
-.tmux_all_pane_titles <- function() {
+#' List all tmux panes on this machine across every tmux server
+#'
+#' Enumerates tmux sockets under `$TMUX_TMPDIR/tmux-<uid>/` (default `/tmp`)
+#' and queries each with `tmux -S <socket> list-panes -a` using a tab-delimited
+#' format.  Per-socket failures are swallowed so one broken socket cannot
+#' poison the rest.  Works outside a tmux pane and across multiple tmux
+#' servers (e.g. sessions started under different `-L` names).
+#'
+#' @return A data.frame with columns `socket`, `session`, `window`, `pane`,
+#'   `pane_id`, `pane_ref` (the `"session:window.pane"` string) and `title`.
+#'   Returns an empty data.frame (0 rows, same columns) if tmux is
+#'   unavailable, no sockets exist, or the uid cannot be determined.
+#' @export
+tmuxListPanes <- function() {
+  empty <- data.frame(
+    socket   = character(0), session = character(0),
+    window   = integer(0),   pane    = integer(0),
+    pane_id  = character(0), pane_ref = character(0),
+    title    = character(0), stringsAsFactors = FALSE
+  )
   uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
                   error = function(e) character(0))
-  if (!length(uid) || !nzchar(uid[1L])) return(character(0))
+  if (!length(uid) || !nzchar(uid[1L])) return(empty)
   tmpdir   <- Sys.getenv("TMUX_TMPDIR", unset = "/tmp")
   sock_dir <- file.path(tmpdir, paste0("tmux-", uid[1L]))
-  if (!dir.exists(sock_dir)) return(character(0))
+  if (!dir.exists(sock_dir)) return(empty)
   sockets <- list.files(sock_dir, full.names = TRUE)
-  if (!length(sockets)) return(character(0))
-  # The format string must be shell-quoted: system2 routes through a shell when
+  if (!length(sockets)) return(empty)
+
+  # Shell-quote the format string: system2 routes through a shell when
   # stderr = FALSE, and '#' would otherwise start a shell comment.
-  fmt <- shQuote("#{pane_title}")
-  titles <- unlist(lapply(sockets, function(s) {
-    tryCatch(
+  fmt <- shQuote("#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_title}")
+
+  rows <- lapply(sockets, function(s) {
+    lines <- tryCatch(
       system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
               stdout = TRUE, stderr = FALSE),
       error = function(e) character(0)
     )
-  }), use.names = FALSE)
-  if (is.null(titles)) return(character(0))
-  titles[nzchar(titles)]
+    if (!length(lines)) return(NULL)
+    parts <- strsplit(lines, "\t", fixed = TRUE)
+    # Accept 4 (empty title) or 5 fields; pad empty title to preserve rows.
+    parts <- lapply(parts, function(p) if (length(p) == 4L) c(p, "") else p)
+    parts <- parts[vapply(parts, length, integer(1L)) == 5L]
+    if (!length(parts)) return(NULL)
+    m <- do.call(rbind, parts)
+    data.frame(
+      socket  = basename(s),
+      session = m[, 1L],
+      window  = suppressWarnings(as.integer(m[, 2L])),
+      pane    = suppressWarnings(as.integer(m[, 3L])),
+      pane_id = m[, 4L],
+      title   = m[, 5L],
+      stringsAsFactors = FALSE
+    )
+  })
+  rows <- rows[!vapply(rows, is.null, logical(1L))]
+  if (!length(rows)) return(empty)
+  out <- do.call(rbind, rows)
+  out$pane_ref <- sprintf("%s:%d.%d", out$session, out$window, out$pane)
+  out[, c("socket", "session", "window", "pane", "pane_id", "pane_ref", "title")]
+}
+
+#' Find duplicate worker panes running the same job
+#'
+#' Strips the leading `"<host?>-<node>-<pid>-"` prefix from each pane title
+#' and groups panes whose remainders are identical.  Intended to surface
+#' cases where the same queue row has been claimed by two workers (e.g. a
+#' stale RUNNING reclaim that was actually live).
+#'
+#' The prefix strip matches 1 or 2 non-dash chunks followed by a 6+-digit
+#' PID followed by a dash -- covering both `<host>-<node>-<pid>-<runName>`
+#' and `<node>-<pid>-<runName>` title formats.  Old-style titles lacking
+#' this prefix are kept verbatim; a title is considered a duplicate only if
+#' its stripped form appears on 2+ panes, so two differently-formatted titles
+#' with the same tail still collapse correctly.
+#'
+#' @param panes Optional data.frame as returned by [tmuxListPanes()]. If
+#'   `NULL` (the default) one is fetched internally.
+#' @param runPattern Optional regex; only panes whose stripped title matches
+#'   it are considered.  Default `"outputs-"` matches this codebase's usual
+#'   runName prefix; pass `NULL` to disable the filter.
+#' @return data.frame with the same columns as [tmuxListPanes()] plus
+#'   `run_id` (the stripped runName used for grouping) and `group` (integer
+#'   identifying each duplicate set).  Rows are ordered by `group` then
+#'   `pane_ref`.  Empty data.frame (with these columns) when no duplicates.
+#' @export
+tmuxFindDuplicates <- function(panes = NULL, runPattern = "outputs-") {
+  if (is.null(panes)) panes <- tmuxListPanes()
+  # Build the empty-result skeleton from whatever columns `panes` has.
+  empty <- cbind(panes[0L, , drop = FALSE],
+                 run_id = character(0), group = integer(0),
+                 stringsAsFactors = FALSE)
+  if (!nrow(panes)) return(empty)
+
+  run_id <- sub("^([^-]+-){1,2}([0-9]{6,})-", "", panes$title)
+  keep   <- if (is.null(runPattern)) rep(TRUE, length(run_id))
+            else grepl(runPattern, run_id, perl = TRUE)
+  if (!any(keep)) return(empty)
+
+  tab <- table(run_id[keep])
+  dup_ids <- names(tab[tab > 1L])
+  if (!length(dup_ids)) return(empty)
+
+  idx <- which(keep & run_id %in% dup_ids)
+  out <- panes[idx, , drop = FALSE]
+  out$run_id <- run_id[idx]
+  out$group  <- match(out$run_id, dup_ids)
+  out <- out[order(out$group, out$pane_ref), , drop = FALSE]
+  row.names(out) <- NULL
+  out
+}
+
+# Backwards-compatible thin wrapper for existing internal callers
+# (.gs_reclaim_dead_jobs).  Returns just the title column.
+#' @keywords internal
+#' @noRd
+.tmux_all_pane_titles <- function() {
+  tmuxListPanes()$title
 }
 
 #' @keywords internal
