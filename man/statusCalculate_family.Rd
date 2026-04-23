@@ -27,7 +27,7 @@ these objects directly instead of writing a custom \code{quote({...})} block:
 }\if{html}{\out{</div>}}
 
 Each expression is evaluated once per queue row inside
-\code{\link[=tmux_refresh_queue_status]{tmux_refresh_queue_status()}}.  Before evaluation the row's non-meta
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}}.  Before evaluation the row's non-meta
 columns are unpacked into the local environment by name, as are any
 objects forwarded through \code{...}.  The expression may assign to any subset
 of the recognised meta-column names (\code{started_at}, \code{finished_at},
@@ -47,7 +47,7 @@ standard queue meta-columns:
 \item{\code{heartbeat_at}}{Timestamp of the latest checkpoint file.}
 \item{\code{started_at}}{Timestamp of the earliest checkpoint file (may be
 refined later by the running-flag-file logic in
-\code{\link[=tmux_refresh_queue_status]{tmux_refresh_queue_status()}}).}
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}}).}
 \item{\code{done}}{Set to \code{TRUE} when \code{heartbeat_iter >= outs$times$end},
 triggering a status transition to \code{DONE}.}
 \item{\code{finished_at}}{Timestamp of the final checkpoint (set only when
@@ -67,7 +67,7 @@ standard queue meta-columns:
 \item{\code{heartbeat_at}}{Timestamp of the latest checkpoint file.}
 \item{\code{started_at}}{Timestamp of the earliest checkpoint file (may be
 refined later by the running-flag-file logic in
-\code{\link[=tmux_refresh_queue_status]{tmux_refresh_queue_status()}}).}
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}}).}
 \item{\code{done}}{Set to \code{TRUE} when \code{heartbeat_iter >= outs$times$end},
 triggering a status transition to \code{DONE}.}
 \item{\code{finished_at}}{Timestamp of the final checkpoint (set only when
@@ -81,7 +81,7 @@ when \code{done}).}
 
 The expressions below expect the following to be available, either as
 queue-data-frame columns or as named objects in the \code{...} passed to
-\code{\link[=tmux_refresh_queue_status]{tmux_refresh_queue_status()}}:
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}}:
 
 \describe{
 \item{\code{pathBuild}}{A function whose arguments match the queue columns
@@ -104,6 +104,6 @@ simulation start and end years (integers).  Typically a queue column.}
 
 \seealso{
 \code{\link[=experimentTmux]{experimentTmux()}}, \code{\link[=experimentFuture]{experimentFuture()}},
-\code{\link[=tmux_refresh_queue_status]{tmux_refresh_queue_status()}}, \code{\link[=get_sim_year_heartbeat]{get_sim_year_heartbeat()}}
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}}, \code{\link[=get_sim_year_heartbeat]{get_sim_year_heartbeat()}}
 }
 \keyword{datasets}

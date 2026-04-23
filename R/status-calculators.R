@@ -10,7 +10,7 @@
 #' ```
 #'
 #' Each expression is evaluated once per queue row inside
-#' [tmux_refresh_queue_status()].  Before evaluation the row's non-meta
+#' [tmuxRefreshQueueStatus()].  Before evaluation the row's non-meta
 #' columns are unpacked into the local environment by name, as are any
 #' objects forwarded through `...`.  The expression may assign to any subset
 #' of the recognised meta-column names (`started_at`, `finished_at`,
@@ -20,7 +20,7 @@
 #' @section Variables required in scope:
 #' The expressions below expect the following to be available, either as
 #' queue-data-frame columns or as named objects in the `...` passed to
-#' [tmux_refresh_queue_status()]:
+#' [tmuxRefreshQueueStatus()]:
 #'
 #' \describe{
 #'   \item{`pathBuild`}{A function whose arguments match the queue columns
@@ -39,7 +39,7 @@
 #' }
 #'
 #' @seealso [experimentTmux()], [experimentFuture()],
-#'   [tmux_refresh_queue_status()], [get_sim_year_heartbeat()]
+#'   [tmuxRefreshQueueStatus()], [get_sim_year_heartbeat()]
 #' @name statusCalculate_family
 NULL
 
@@ -56,7 +56,7 @@ NULL
 #'   \item{`heartbeat_at`}{Timestamp of the latest checkpoint file.}
 #'   \item{`started_at`}{Timestamp of the earliest checkpoint file (may be
 #'     refined later by the running-flag-file logic in
-#'     [tmux_refresh_queue_status()]).}
+#'     [tmuxRefreshQueueStatus()]).}
 #'   \item{`done`}{Set to `TRUE` when `heartbeat_iter >= outs$times$end`,
 #'     triggering a status transition to `DONE`.}
 #'   \item{`finished_at`}{Timestamp of the final checkpoint (set only when
@@ -103,7 +103,7 @@ statusCalculate_FireSenseFit <- quote({
       # Still running — find the most recent "Annual Fire Maps" file written
       # after the worker's running-flag file (to avoid pre-run artefacts).
       runningFile <- dir(
-        activeRunningPathForTmux(queue_path = queue_path),
+        tmuxActiveRunningPath(queue_path = queue_path),
         pattern = .ELFind, full.names = TRUE
       )
       fireMaps <- grep("Annual Fire Maps", dd, value = TRUE)
@@ -146,7 +146,7 @@ statusCalculate_FireSenseFit <- quote({
 #'   \item{`heartbeat_at`}{Timestamp of the latest checkpoint file.}
 #'   \item{`started_at`}{Timestamp of the earliest checkpoint file (may be
 #'     refined later by the running-flag-file logic in
-#'     [tmux_refresh_queue_status()]).}
+#'     [tmuxRefreshQueueStatus()]).}
 #'   \item{`done`}{Set to `TRUE` when `heartbeat_iter >= outs$times$end`,
 #'     triggering a status transition to `DONE`.}
 #'   \item{`finished_at`}{Timestamp of the final checkpoint (set only when

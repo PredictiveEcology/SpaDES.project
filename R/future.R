@@ -112,10 +112,10 @@
 #'
 #' # Immediate stop (force): workers are killed immediately.
 #' # Jobs that were mid-execution may remain as RUNNING in the queue; reset them with:
-#' #   tmux_refresh_queue_status(ef$queue_path)   # file-based backend
+#' #   tmuxRefreshQueueStatus(ef$queue_path)   # file-based backend
 #' # The GS backend reclaims stale RUNNING entries automatically before each new claim.
 #' killExperimentFuture(ef, force = TRUE)
-#' tmux_refresh_queue_status(ef$queue_path)   # clean up stale RUNNING entries
+#' tmuxRefreshQueueStatus(ef$queue_path)   # clean up stale RUNNING entries
 #'
 #' ## -- Resuming after a kill ----------------------------------------------
 #'
@@ -151,7 +151,7 @@
 #' }
 #'
 #' @seealso \code{\link{experimentTmux}}, \code{\link{awaitExperimentFuture}},
-#'   \code{\link{runWorkerLoop}}
+#'   \code{\link{tmuxRunWorkerLoop}}
 #' @export
 experimentFuture <- function(
   df,
@@ -188,7 +188,7 @@ experimentFuture <- function(
 
   if (!dir.exists(log_dir)) dir.create(log_dir, recursive = TRUE, showWarnings = FALSE)
 
-  activeRunningPath <- activeRunningPathForTmux(
+  activeRunningPath <- tmuxActiveRunningPath(
     activeRunningPath = activeRunningPath, queue_path
   )
 
@@ -209,7 +209,7 @@ experimentFuture <- function(
     if (missing(df) || is.null(df))
       stop("'df' must be provided when 'queue_path' does not yet exist.",
            call. = FALSE)
-    tmux_prepare_queue_from_df(df, queue_path)
+    tmuxPrepareQueueFromDF(df, queue_path)
   }
 
   # -- 4. Google Sheets initialization (mirrors experimentTmux) -------------
@@ -351,7 +351,7 @@ experimentFuture <- function(
                         email, cache_path, runNameLabel, activeRunningPath,
                         dots_path, stop_file, lib_paths) {
           .libPaths(lib_paths)
-          SpaDES.project::runWorkerLoop(
+          SpaDES.project::tmuxRunWorkerLoop(
             queue_path        = queue_path,
             global_path       = global_path,
             on_interrupt      = on_interrupt,
@@ -461,7 +461,7 @@ experimentFuture <- function(
 #' Worker loop for future/cluster-based remote execution
 #'
 #' @description
-#' A thin wrapper around \code{\link{runWorkerLoop}} that optionally redirects
+#' A thin wrapper around \code{\link{tmuxRunWorkerLoop}} that optionally redirects
 #' console output to a log file before entering the job loop.  Used internally
 #' by \code{\link{experimentFuture}} for remote (cluster) workers.  Local
 #' workers use \code{callr::r_bg()} and do not need this wrapper.
@@ -516,7 +516,7 @@ runWorkerLoopFuture <- function(
   message("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ",
           "Worker ", worker_id, " starting.")
 
-  SpaDES.project::runWorkerLoop(
+  SpaDES.project::tmuxRunWorkerLoop(
     queue_path        = queue_path,
     global_path       = global_path,
     on_interrupt      = on_interrupt,
@@ -613,7 +613,7 @@ awaitExperimentFuture <- function(ef, verbose = TRUE) {
 #' interrupt handler has a chance to update the queue.  Any jobs that were
 #' \code{RUNNING} at the time of the kill will remain as \code{RUNNING} in the
 #' queue until the next reclaim pass.  Call
-#' \code{tmux_refresh_queue_status(ef$queue_path)} afterwards to reset stale
+#' \code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to reset stale
 #' \code{RUNNING} entries to \code{INTERRUPTED}, or use the GS backend which
 #' reclaims dead workers automatically before each new claim.
 #'
@@ -631,7 +631,7 @@ killExperimentFuture <- function(ef, force = FALSE) {
 
   if (!force) {
     # -- Graceful: create stop files -----------------------------------------
-    # runWorkerLoop checks for the file between jobs and breaks the repeat loop.
+    # tmuxRunWorkerLoop checks for the file between jobs and breaks the repeat loop.
     created <- 0L
     for (sf in ef$stop_files) {
       if (!file.exists(sf)) {
@@ -644,7 +644,7 @@ killExperimentFuture <- function(ef, force = FALSE) {
             "\nCall awaitExperimentFuture(ef) to wait for them.")
   } else {
     # -- Force: send SIGINT ----------------------------------------------------
-    # SIGINT triggers R's interrupt condition, which runNextWorker catches and
+    # SIGINT triggers R's interrupt condition, which tmuxRunNextWorker catches and
     # uses to mark the in-progress job as PENDING (requeue) or INTERRUPTED (fail).
     killed <- 0L
     if (ef$is_local) {
@@ -663,7 +663,7 @@ killExperimentFuture <- function(ef, force = FALSE) {
     }
     message("Sent kill signal to ", killed, " worker(s).",
             "\nStale RUNNING queue entries can be reset with:",
-            "\n  tmux_refresh_queue_status(\"", ef$queue_path, "\")")
+            "\n  tmuxRefreshQueueStatus(\"", ef$queue_path, "\")")
   }
 
   invisible(ef)

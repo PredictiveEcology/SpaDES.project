@@ -26,7 +26,7 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
     continue            = FALSE,
     activeRunningPath   = file.path(td, "logs")
   )
-  on.exit(try(tmux_kill_panes(workers), silent = TRUE), add = TRUE)
+  on.exit(try(tmuxKillPanes(workers), silent = TRUE), add = TRUE)
 
   ok <- wait_for(function() length(list.files(outdir, "^res_.*\\.rds$", full.names = TRUE)) == 2,
                  timeout_s = 120)

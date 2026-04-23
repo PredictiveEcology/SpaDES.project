@@ -1,4 +1,4 @@
-# Regression tests for OSC2 pane title updates in runNextWorker / runWorkerLoop.
+# Regression tests for OSC2 pane title updates in tmuxRunNextWorker / tmuxRunWorkerLoop.
 #
 # Bug: commit 31e0555 changed the OSC2 guard from unconditional to
 # nzchar(Sys.getenv("TMUX")).  TMUX is not set inside SSH sessions, so remote
@@ -25,7 +25,7 @@ test_that("OSC2 guard includes isatty(stdout()) for SSH-session compatibility", 
   )
 })
 
-test_that("runNextWorker emits OSC2 pane title escape when TMUX is set", {
+test_that("tmuxRunNextWorker emits OSC2 pane title escape when TMUX is set", {
   skip_if_not_installed("filelock")
 
   td <- tempfile("pane_title")
@@ -50,7 +50,7 @@ test_that("runNextWorker emits OSC2 pane title escape when TMUX is set", {
 
   withr::with_envvar(c(TMUX = "mock,0,0", TMUX_PANE = ""), {
     out <- capture.output(suppressWarnings(
-      runNextWorker(
+      tmuxRunNextWorker(
         queue_path        = queue_path,
         global_path       = global_path,
         activeRunningPath = td
@@ -64,7 +64,7 @@ test_that("runNextWorker emits OSC2 pane title escape when TMUX is set", {
   )
 })
 
-test_that("runNextWorker does NOT emit OSC2 when TMUX is unset and stdout is not a tty", {
+test_that("tmuxRunNextWorker does NOT emit OSC2 when TMUX is unset and stdout is not a tty", {
   # This protects experimentFuture log files from escape-byte pollution.
   skip_if_not_installed("filelock")
 
@@ -92,7 +92,7 @@ test_that("runNextWorker does NOT emit OSC2 when TMUX is unset and stdout is not
   # With TMUX unset the guard should be FALSE and no OSC2 emitted.
   withr::with_envvar(c(TMUX = "", TMUX_PANE = ""), {
     out <- capture.output(suppressWarnings(
-      runNextWorker(
+      tmuxRunNextWorker(
         queue_path        = queue_path,
         global_path       = global_path,
         activeRunningPath = td

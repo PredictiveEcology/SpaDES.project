@@ -50,7 +50,7 @@ output goes to the current connection.}
 Invisibly returns the worker identifier string.
 }
 \description{
-A thin wrapper around \code{\link{runWorkerLoop}} that optionally redirects
+A thin wrapper around \code{\link{tmuxRunWorkerLoop}} that optionally redirects
 console output to a log file before entering the job loop.  Used internally
 by \code{\link{experimentFuture}} for remote (cluster) workers.  Local
 workers use \code{callr::r_bg()} and do not need this wrapper.

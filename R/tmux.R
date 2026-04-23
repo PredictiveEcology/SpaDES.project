@@ -19,7 +19,7 @@
 #' @param on Logical; `TRUE` to enable, `FALSE` to disable. Default `TRUE`.
 #' @return Invisibly returns `on`.
 #' @export
-tmux_set_mouse <- function(on = TRUE) {
+tmuxSetMouse <- function(on = TRUE) {
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
@@ -523,7 +523,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' Each worker runs **one job per R session**, then exits.  A fresh R session
 #' starts automatically for the next job, freeing all memory between runs.
 #'
-#' - **localhost panes**: After each job, `runWorkerLoop()` calls
+#' - **localhost panes**: After each job, `tmuxRunWorkerLoop()` calls
 #'   `tmux respawn-pane -k`, which replaces the current pane's process
 #'   in-place with a new `Rscript` invocation.  No retiling needed.
 #' - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
@@ -538,7 +538,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #'   it and inadvertently re-run the startup script.
 #'
 #' ### `"reuse"`
-#' Each worker loops inside a single R session (`repeat { runNextWorker() }`).
+#' Each worker loops inside a single R session (`repeat { tmuxRunNextWorker() }`).
 #' Memory accumulates across jobs  -- useful for lightweight simulations.
 #'
 #' ## Remote machine setup (`cores`)
@@ -613,7 +613,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
 #' prompt, restart it by pressing `(up-arrow)` (up-arrow) in that pane and hitting Enter.
 #' The full command is always in the pane's bash history:
-#' - **localhost**: `Rscript -e "..."` (re-enters `runWorkerLoop`; in
+#' - **localhost**: `Rscript -e "..."` (re-enters `tmuxRunWorkerLoop`; in
 #'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
 #' - **remote**: `if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi`
 #'   command (restarts the sh loop from scratch; plain POSIX  -- works in bash, dash, and sh).
@@ -685,7 +685,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' @param ... Additional arguments passed to `.setup_remote_machine()`.
 #'
 #' @return Invisibly returns a character vector of tmux pane IDs for the spawned workers.
-#'   Pass these to `tmux_kill_panes()` to tear down all workers at once.
+#'   Pass these to `tmuxKillPanes()` to tear down all workers at once.
 #' @export
 #'
 #' @examples
@@ -715,7 +715,7 @@ tmux_set_mouse <- function(on = TRUE) {
 #' )
 #'
 #' # --- Tear down all workers ---
-#' tmux_kill_panes(workers)
+#' tmuxKillPanes(workers)
 #'
 #' # --- Restart a single broken pane ---
 #' # In the broken pane, press Up then Enter to re-run the last command.
@@ -791,7 +791,7 @@ experimentTmux <- function(df,
     queue_path <- file.path(dirname(global_path), "tmux_queue.rds")
   }
   queue_path <- normalizePath(queue_path, mustWork = FALSE)
-  #tmux_prepare_queue_from_df(df, queue_path)
+  #tmuxPrepareQueueFromDF(df, queue_path)
   #q <- readRDS(queue_path)
 
   # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
@@ -812,7 +812,7 @@ experimentTmux <- function(df,
   }
   # GS sync: check for existing sheet state before overwriting
   if (!is.null(queue_path)) {
-    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+    # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
     
     if (!is.null(ss_id)) {
       isDir <- isGoogleDriveDirectory(ss_id)
@@ -940,7 +940,7 @@ experimentTmux <- function(df,
                                   sheet = "Status", range = "A1", reformat = FALSE)
     ), silent = TRUE)
   }
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
+  tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath, ...)
   if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
   if (!file.exists(global_path)) {
@@ -950,7 +950,7 @@ experimentTmux <- function(df,
   if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
   
   # if (!is.null(queue_path)) {
-  #   # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+  #   # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
   #   
   #   if (!is.null(ss_id)) {
   #     isDir <- isGoogleDriveDirectory(ss_id)
@@ -984,7 +984,7 @@ experimentTmux <- function(df,
   #   }
   # }
   
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
   
   inTmux <- Sys.getenv("TMUX") != ""
 
@@ -1018,11 +1018,11 @@ experimentTmux <- function(df,
     pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
     
     # -- mouse on, if requested
-    if (set_mouse) tmux_set_mouse(TRUE)
+    if (set_mouse) tmuxSetMouse(TRUE)
     
     # 1. Create a new pane for the sync process
     if (!is.null(queue_path)) {
-      #   # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+      #   # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
       #   
       if (!is.null(ss_id)) {
         #     isDir <- isGoogleDriveDirectory(ss_id)
@@ -1249,7 +1249,7 @@ experimentTmux <- function(df,
       #  3. Wraps execution in tryCatch + withCallingHandlers:
       #     - withCallingHandlers captures sys.calls() while stack is intact
       #     - tryCatch error handler shows the error and keeps R at '>'
-      #     - On success runWorkerLoop() calls quit(0) -> bash while-loop
+      #     - On success tmuxRunWorkerLoop() calls quit(0) -> bash while-loop
       #       restarts for the next job
       # R_PROFILE_USER silently swallows errors that reach its startup
       # tryCatch, so we MUST catch and display here.
@@ -1297,7 +1297,7 @@ experimentTmux <- function(df,
             # Load worker call into readline history so up-arrow re-runs it.
             "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
             # Session header + OSC 2 pane-title (requires PTY; works via ssh -t).
-            # Store the prefix in an option so runNextWorker can append runName.
+            # Store the prefix in an option so tmuxRunNextWorker can append runName.
             "local({",
             paste0("  .host  <- ", deparse1(hl)),
             "  .node  <- Sys.info()[[\"nodename\"]]",
@@ -1399,7 +1399,7 @@ experimentTmux <- function(df,
                   paste(scp_cmd, "&&", ssh_cmd), "C-m")
       } else {
         # Local worker: use R --interactive with R_PROFILE_USER so that on error
-        # runWorkerLoop returns to the '>' prompt instead of exiting (Rscript exits
+        # tmuxRunWorkerLoop returns to the '>' prompt instead of exiting (Rscript exits
         # unconditionally when the script ends; R --interactive does not).
         # Write to activeRunningPath (not tempfile) so the script survives q() and
         # can be re-run from the pane without stalling on a deleted tempfile.
@@ -1446,7 +1446,7 @@ experimentTmux <- function(df,
 #' @param global_path character; script to source for the job
 #' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as FAILED.
 #' @param heartbeat_interval_s numeric; seconds between heartbeats while the job runs
-#' @return "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()
+#' @return "ok" | "interrupt" | "empty" (if no pending work found); used by tmuxRunWorkerLoop()
 #' @export
 #' @param runNameLabel A quoted expression (possibly of `q`, which is the result of `q <- readRDS(queue_path)`).
 #'   Default is the first 2 column names of `q`. These will be concatenated and used as
@@ -1455,11 +1455,11 @@ experimentTmux <- function(df,
 #'   Defaults to `getOption("spades.statusCalculate", NULL)`.
 #' @param folderWithIterInFilename A quoted expression for a folder containing iteration
 #'   info in filenames. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
-#' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
+#' @param activeRunningPath Directory for "running" flag files. See `tmuxActiveRunningPath`.
 #' @param ss_id Optional Google Sheets/Drive ID for the shared queue. When
 #'   supplied workers use the GS backend instead of the local RDS file.
 #' @export
-runNextWorker <- function(queue_path, global_path,
+tmuxRunNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
                           runNameLabel = quote(colnames(q)[1:2]),
@@ -1623,8 +1623,8 @@ runNextWorker <- function(queue_path, global_path,
 
   LOCKF <- paste0(queue_path, ".lock")
 
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
+  tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath)
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
@@ -1680,7 +1680,7 @@ runNextWorker <- function(queue_path, global_path,
     }
   }, silent = TRUE)
 
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
   startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
   reproducible::checkPath(dirname(startedFile), create = TRUE)
   saveRDS(runName, file = startedFile)
@@ -1767,7 +1767,7 @@ runNextWorker <- function(queue_path, global_path,
 
 #' Run queued jobs repeatedly (pane-local loop).
 #'
-#' @inheritParams runNextWorker
+#' @inheritParams tmuxRunNextWorker
 #' @param stop_file optional path; if present, stop after current iteration
 #' @param pane_mode Character. `"reuse"` (default) loops inside the same R session.
 #'   `"killAndNewPane"` runs one job, spawns a fresh replacement pane, retiles the
@@ -1778,7 +1778,7 @@ runNextWorker <- function(queue_path, global_path,
 #'   replacement panes so they can reload complex objects before sourcing.
 #' @return invisibly TRUE
 #' @export
-runWorkerLoop <- function(queue_path, global_path,
+tmuxRunWorkerLoop <- function(queue_path, global_path,
                           on_interrupt = c("requeue", "fail"),
                           heartbeat_interval_s = 60,
                           stop_file = NULL,
@@ -1814,7 +1814,7 @@ runWorkerLoop <- function(queue_path, global_path,
   if (pane_mode == "killAndNewPane") {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) return(invisible(TRUE))
 
-    res <- runNextWorker(queue_path, global_path, on_interrupt,
+    res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
 
@@ -1871,7 +1871,7 @@ runWorkerLoop <- function(queue_path, global_path,
   # ------------------------------------------------------------------
   repeat {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
-    res <- runNextWorker(queue_path, global_path, on_interrupt,
+    res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
     if (identical(res, "empty")) break
@@ -1893,7 +1893,7 @@ runWorkerLoop <- function(queue_path, global_path,
 #'   `experimentTmux()`.
 #' @return Invisibly returns the subset of `panes` successfully targeted.
 #' @export
-tmux_kill_panes <- function(panes) {
+tmuxKillPanes <- function(panes) {
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
@@ -1919,7 +1919,7 @@ tmux_kill_panes <- function(panes) {
 #'
 #' @return Character(1) short name, or `NULL` if none could be determined.
 #' @export
-local_host_label <- function() {
+localHostLabel <- function() {
   ips <- tryCatch({
     raw <- suppressWarnings(system2("hostname", "-I",
                                     stdout = TRUE, stderr = FALSE))
@@ -1992,7 +1992,7 @@ local_host_label <- function() {
 #'   (e.g. `c("%12", "%33")`).  Prints a message per update and a warning
 #'   when no match is found.
 #' @export
-tmux_set_pane_title <- function(oldTitle, newTitle) {
+tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   stopifnot(is.character(oldTitle), length(oldTitle) == 1L, nzchar(oldTitle),
             is.character(newTitle), length(newTitle) == 1L, nzchar(newTitle))
   if (identical(oldTitle, newTitle)) {
@@ -2052,7 +2052,7 @@ tmux_set_pane_title <- function(oldTitle, newTitle) {
 # Build the R expression string that launches a worker pane.
 # Returns a character(1) suitable for send-keys (interactive R) or
 # wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
-# No options() preamble  -- runWorkerLoop() sets gargle options from its params.
+# No options() preamble  -- tmuxRunWorkerLoop() sets gargle options from its params.
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths()[1L]) {
@@ -2066,7 +2066,7 @@ tmux_set_pane_title <- function(oldTitle, newTitle) {
             deparse1(dots_path), deparse1(dots_path))
   else ""
   sprintf(
-    paste0("%s%s%sSpaDES.project::runWorkerLoop(",
+    paste0("%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
            " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
@@ -2195,7 +2195,7 @@ tmux_set_pane_title <- function(oldTitle, newTitle) {
 #' @param queue_path character; path to the queue `.rds` (absolute recommended)
 #' @return Invisibly returns `queue_path`.
 #' @export
-tmux_prepare_queue_from_df <- function(df, queue_path) {
+tmuxPrepareQueueFromDF <- function(df, queue_path) {
   stopifnot(is.data.frame(df), is.character(queue_path), length(queue_path) == 1)
   q <- cbind(
     df,
@@ -2441,7 +2441,7 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' @param folderWithIterInFilename A quoted expression for a folder with iteration info in filenames.
 #'   Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
 #' @param recheckDone Logical. If `TRUE`, re-evaluate DONE status. Default `FALSE`.
-#' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
+#' @param activeRunningPath Directory for "running" flag files. See `tmuxActiveRunningPath`.
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return A data.frame (the updated queue), invisibly.
@@ -2454,9 +2454,9 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' @examples
 #' \dontrun{
 #' # Assessment of all simulations in the current project
-#' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
+#' tmuxRefreshQueueStatus("experiment_queue.rds", timeout_min = 30)
 #' }
-tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
+tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
                                       statusCalculate = getOption("spades.statusCalculate"),
                                       folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                                       recheckDone = FALSE, #!is.null(statusCalculate),
@@ -2488,7 +2488,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
     }
       # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
-    activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+    activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
     for (i in to_check) {
       new_status <- txtPending
 
@@ -2856,7 +2856,7 @@ get_sim_year_heartbeat <- function(output_path,
 
 activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRunningPath"), pattern = txtRunning, queue_path, runName) {
   if (is.null(activeRunningPath))
-    activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+    activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
   
   startedFiles <- dir(activeRunningPath, pattern = pattern, ignore.case = TRUE)
   if (length(startedFiles)) {
@@ -2906,7 +2906,7 @@ txtRunning <- "RUNNING"
 #' @param suffix Character. Suffix used in the path. Defaults to `queue_path`.
 #' @return The default path.
 #' @export
-activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
+tmuxActiveRunningPath <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
   if (is.null(activeRunningPath)) {
     if (missing(queue_path))
       suffix <- "tmuxStatus"
@@ -2932,7 +2932,7 @@ statusCalculator <- function(type = "fireSense") {
       ee <- grep(value = TRUE, pattern = "burnMap.*tif$", dd)
       done <- grepl(paste0("year", endTime), ee)
       if (done %in% FALSE) {
-        runningFile <- dir(activeRunningPathForTmux(queue_path = queue_path), pattern = runName, full.names = TRUE)
+        runningFile <- dir(tmuxActiveRunningPath(queue_path = queue_path), pattern = runName, full.names = TRUE)
         fi <- file.info(runningFile)
         started_at <- format(fi[, "mtime"])
         ff <- grep(value = TRUE, pattern = "Annual Fire Maps", dd)

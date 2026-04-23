@@ -137,10 +137,10 @@ killExperimentFuture(ef)
 
 # Immediate stop (force): workers are killed immediately.
 # Jobs that were mid-execution may remain as RUNNING in the queue; reset them with:
-#   tmux_refresh_queue_status(ef$queue_path)   # file-based backend
+#   tmuxRefreshQueueStatus(ef$queue_path)   # file-based backend
 # The GS backend reclaims stale RUNNING entries automatically before each new claim.
 killExperimentFuture(ef, force = TRUE)
-tmux_refresh_queue_status(ef$queue_path)   # clean up stale RUNNING entries
+tmuxRefreshQueueStatus(ef$queue_path)   # clean up stale RUNNING entries
 
 ## -- Resuming after a kill ----------------------------------------------
 
@@ -178,5 +178,5 @@ killExperimentFuture(ef)     # graceful stop on remote workers too
 }
 \seealso{
 \code{\link{experimentTmux}}, \code{\link{awaitExperimentFuture}},
-\code{\link{runWorkerLoop}}
+\code{\link{tmuxRunWorkerLoop}}
 }

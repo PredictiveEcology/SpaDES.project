@@ -19,11 +19,11 @@ version 1.0.0
 ## New functions
 
 * `experimentTmux()` — orchestrate multi-run parallel experiments using tmux, with queue management, heartbeat monitoring, Google Sheets mirroring, and Rstudio-compatible fallback mode.
-* `runWorkerLoop()` / `runNextWorker()` — lower-level tmux worker helpers for stepping through a queue of simulation runs.
-* `tmux_prepare_queue_from_df()` — build a tmux run-queue from a data frame of parameter combinations.
-* `tmux_refresh_queue_status()` — refresh and report the status of a tmux queue (done / running / waiting).
-* `tmux_mirror_queue_to_sheets()` — mirror a tmux queue status to a Google Sheet for remote monitoring.
-* `tmux_kill_panes()` / `tmux_set_mouse()` — tmux session utilities.
+* `tmuxRunWorkerLoop()` / `tmuxRunNextWorker()` — lower-level tmux worker helpers for stepping through a queue of simulation runs.
+* `tmuxPrepareQueueFromDF()` — build a tmux run-queue from a data frame of parameter combinations.
+* `tmuxRefreshQueueStatus()` — refresh and report the status of a tmux queue (done / running / waiting).
+* `tmuxMirrorQueueToSheets()` — mirror a tmux queue status to a Google Sheet for remote monitoring.
+* `tmuxKillPanes()` / `tmuxSetMouse()` — tmux session utilities.
 * `assessDoneInFigure()` — visually assess simulation completion status from output figures.
 * `preRunSetupProject()` — source and partially evaluate a `global.R` script (up to a chosen call) before running experiments, so shared setup code runs once.
 * `plotSAs()` / `plotSAsLeaflet()` — plot `studyArea*` and `rasterToMatch*` objects from a list, using ggplot2 or leaflet respectively.

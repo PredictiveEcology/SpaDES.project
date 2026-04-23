@@ -216,7 +216,7 @@
 #' @param queue_path Path to the local tmux_queue.rds
 #' @param ss_id The Google Sheet ID (from the URL)
 #' @param sheet_name The name of the tab to write to
-tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status") {
+tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
   if (!requireNamespace("googlesheets4", quietly = TRUE)) {
     stop("Package 'googlesheets4' is required for mirroring.")
   }
@@ -264,8 +264,8 @@ tmux_mirror_queue_to_sheets <- function(queue_path, ss_id, sheet_name = "Status"
   repeat {
     if (file.exists(queue_path)) {
 
-      activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, basename(queue_path))
-      tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel,
+      activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, basename(queue_path))
+      tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel,
                                 statusCalculate = statusCalculate,
                                 activeRunningPath = activeRunningPath, ...)
       q <- try(readRDS(queue_path), silent = TRUE)

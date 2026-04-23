@@ -116,7 +116,7 @@ unset.  Default \code{FALSE}.}
 }
 \value{
 Invisibly returns a character vector of tmux pane IDs for the spawned workers.
-Pass these to \code{tmux_kill_panes()} to tear down all workers at once.
+Pass these to \code{tmuxKillPanes()} to tear down all workers at once.
 }
 \description{
 Creates \code{n_workers} tmux panes in the current window, tiles them, and starts
@@ -129,7 +129,7 @@ happens asynchronously inside the worker panes.
 Each worker runs \strong{one job per R session}, then exits.  A fresh R session
 starts automatically for the next job, freeing all memory between runs.
 \itemize{
-\item \strong{localhost panes}: After each job, \code{runWorkerLoop()} calls
+\item \strong{localhost panes}: After each job, \code{tmuxRunWorkerLoop()} calls
 \verb{tmux respawn-pane -k}, which replaces the current pane's process
 in-place with a new \code{Rscript} invocation.  No retiling needed.
 \item \strong{Remote panes} (\code{cores = "hostname"}): The local pane runs a bash
@@ -147,7 +147,7 @@ it and inadvertently re-run the startup script.
 
 \subsection{\code{"reuse"}}{
 
-Each worker loops inside a single R session (\code{repeat { runNextWorker() }}).
+Each worker loops inside a single R session (\code{repeat { tmuxRunNextWorker() }}).
 Memory accumulates across jobs  -- useful for lightweight simulations.
 }
 
@@ -232,7 +232,7 @@ If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
 prompt, restart it by pressing \code{(up-arrow)} (up-arrow) in that pane and hitting Enter.
 The full command is always in the pane's bash history:
 \itemize{
-\item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{runWorkerLoop}; in
+\item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{tmuxRunWorkerLoop}; in
 \code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
 \item \strong{remote}: \verb{if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi}
 command (restarts the sh loop from scratch; plain POSIX  -- works in bash, dash, and sh).
@@ -279,7 +279,7 @@ workers <- experimentTmux(
 )
 
 # --- Tear down all workers ---
-tmux_kill_panes(workers)
+tmuxKillPanes(workers)
 
 # --- Restart a single broken pane ---
 # In the broken pane, press Up then Enter to re-run the last command.
