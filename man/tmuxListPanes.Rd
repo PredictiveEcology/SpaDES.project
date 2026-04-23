@@ -16,13 +16,20 @@ nodes get \code{NA} for all their rows.  Default \code{FALSE} (no \code{ps} call
 so the internal reclaim path pays no extra cost).}
 }
 \value{
-A data.frame with columns \code{socket}, \code{session}, \code{window}, \code{pane},
-\code{pane_id}, \code{pane_ref} (the \code{"session:window.pane"} string), \code{title},
-and \code{node} (the first dash-separated token in \code{title} that matches a
-cluster alias in \verb{/etc/hosts}; falls back to \code{\link[=localHostLabel]{localHostLabel()}} when
-the title contains only the raw local hostname; \code{NA} if no match).
-With \code{stats = TRUE}, two additional columns \code{cpu} and \code{RAM (GB)}
-appear.  \code{Cluster_Monitor} panes are always filtered out -- they are
+A data.frame with columns \code{session}, \code{window}, \code{pane}, \code{pane_id},
+\code{pane_ref} (the \code{"session:window.pane"} string), \code{title}, and \code{node}
+(the first dash-separated token in \code{title} that matches a cluster alias
+in \verb{/etc/hosts}; falls back to \code{\link[=localHostLabel]{localHostLabel()}} when the title
+contains only the raw local hostname; \code{NA} if no match).
+With \code{stats = TRUE}, three additional columns appear:
+\code{state} (one-char process state from \verb{/proc/<pid>/stat}: \code{R} running,
+\code{S} sleeping, \code{D} uninterruptible sleep, \code{T} stopped, \code{Z} zombie --
+the best single signal for hang-detection since it is a snapshot, not
+a time average),
+\code{cpuAvg} (percent CPU averaged over the process's lifetime -- note
+this is NOT the instantaneous rate \code{htop} shows),
+\code{RAM (GB)} (resident memory, GB, 1 dp).
+\code{Cluster_Monitor} panes are always filtered out -- they are
 operator-display panes with no associated job.
 Returns an empty data.frame (0 rows, same columns) if tmux is
 unavailable, no sockets exist, or the uid cannot be determined.

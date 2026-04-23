@@ -2132,23 +2132,29 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #'   Titles that lack a parseable `<node>-<pid>` get `NA`; unreachable
 #'   nodes get `NA` for all their rows.  Default `FALSE` (no `ps` calls,
 #'   so the internal reclaim path pays no extra cost).
-#' @return A data.frame with columns `socket`, `session`, `window`, `pane`,
-#'   `pane_id`, `pane_ref` (the `"session:window.pane"` string), `title`,
-#'   and `node` (the first dash-separated token in `title` that matches a
-#'   cluster alias in `/etc/hosts`; falls back to [localHostLabel()] when
-#'   the title contains only the raw local hostname; `NA` if no match).
-#'   With `stats = TRUE`, two additional columns `cpu` and `RAM (GB)`
-#'   appear.  `Cluster_Monitor` panes are always filtered out -- they are
+#' @return A data.frame with columns `session`, `window`, `pane`, `pane_id`,
+#'   `pane_ref` (the `"session:window.pane"` string), `title`, and `node`
+#'   (the first dash-separated token in `title` that matches a cluster alias
+#'   in `/etc/hosts`; falls back to [localHostLabel()] when the title
+#'   contains only the raw local hostname; `NA` if no match).
+#'   With `stats = TRUE`, three additional columns appear:
+#'   `state` (one-char process state from `/proc/<pid>/stat`: `R` running,
+#'   `S` sleeping, `D` uninterruptible sleep, `T` stopped, `Z` zombie --
+#'   the best single signal for hang-detection since it is a snapshot, not
+#'   a time average),
+#'   `cpuAvg` (percent CPU averaged over the process's lifetime -- note
+#'   this is NOT the instantaneous rate `htop` shows),
+#'   `RAM (GB)` (resident memory, GB, 1 dp).
+#'   `Cluster_Monitor` panes are always filtered out -- they are
 #'   operator-display panes with no associated job.
 #'   Returns an empty data.frame (0 rows, same columns) if tmux is
 #'   unavailable, no sockets exist, or the uid cannot be determined.
 #' @export
 tmuxListPanes <- function(stats = FALSE) {
   empty <- data.frame(
-    socket   = character(0), session = character(0),
-    window   = integer(0),   pane    = integer(0),
-    pane_id  = character(0), pane_ref = character(0),
-    title    = character(0), node    = character(0),
+    session = character(0), window  = integer(0),   pane    = integer(0),
+    pane_id = character(0), pane_ref = character(0),
+    title   = character(0), node    = character(0),
     stringsAsFactors = FALSE
   )
   uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
@@ -2178,7 +2184,6 @@ tmuxListPanes <- function(stats = FALSE) {
     if (!length(parts)) return(NULL)
     m <- do.call(rbind, parts)
     data.frame(
-      socket  = basename(s),
       session = m[, 1L],
       window  = suppressWarnings(as.integer(m[, 2L])),
       pane    = suppressWarnings(as.integer(m[, 3L])),
@@ -2191,7 +2196,7 @@ tmuxListPanes <- function(stats = FALSE) {
   if (!length(rows)) return(empty)
   out <- do.call(rbind, rows)
   out$pane_ref <- sprintf("%s:%d.%d", out$session, out$window, out$pane)
-  out <- out[, c("socket", "session", "window", "pane", "pane_id", "pane_ref", "title")]
+  out <- out[, c("session", "window", "pane", "pane_id", "pane_ref", "title")]
   # Drop the Cluster_Monitor panes -- they exist purely for operator display
   # and carry no job info; stats lookups for them would always be NA.
   out <- out[out$title != "Cluster_Monitor", , drop = FALSE]
@@ -2257,7 +2262,8 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @keywords internal
 #' @noRd
 .tmux_attach_ps_stats <- function(panes) {
-  panes$cpu         <- NA_real_
+  panes$state         <- NA_character_
+  panes$cpuAvg        <- NA_real_
   panes[["RAM (GB)"]] <- NA_real_
   if (!nrow(panes)) return(panes)
 
@@ -2281,14 +2287,26 @@ tmuxListPanes <- function(stats = FALSE) {
   target[is_local] <- "__LOCAL__"
   target[has_host] <- parsed_host[has_host]
 
-  for (tgt in unique(target[!is.na(target)])) {
-    idx  <- which(target == tgt)
-    pids <- unique(parsed_pid[idx])
-    stats_df <- .tmux_ps_stats(tgt, pids)
-    if (!nrow(stats_df)) next
+  # Group unique pids per target and query each target in parallel.  SSH setup
+  # dominates wall time; parallelising collapses N*latency down to ~1*latency.
+  # `split` (unlike `parsed_pid[target == tgt]`) drops rows where target is NA.
+  keep <- !is.na(target)
+  target_pids <- lapply(split(parsed_pid[keep], target[keep]), unique)
+  targets <- names(target_pids)
+  mc <- max(1L, min(length(targets), 16L))
+  results <- parallel::mclapply(targets, function(tgt)
+    .tmux_ps_stats(tgt, target_pids[[tgt]]),
+    mc.cores = mc, mc.preschedule = FALSE)
+  names(results) <- targets
+
+  for (tgt in targets) {
+    idx <- which(target == tgt)
+    stats_df <- results[[tgt]]
+    if (is.null(stats_df) || !nrow(stats_df)) next
     ix <- match(parsed_pid[idx], stats_df$pid)
-    panes$cpu[idx]           <- stats_df$cpu[ix]
-    panes[["RAM (GB)"]][idx] <- round(stats_df$rss_mb[ix] / 1024, 1L)
+    panes$state[idx]          <- stats_df$state[ix]
+    panes$cpuAvg[idx]         <- stats_df$cpu[ix]
+    panes[["RAM (GB)"]][idx]  <- round(stats_df$rss_mb[ix] / 1024, 1L)
   }
   panes
 }
@@ -2301,21 +2319,22 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @noRd
 .tmux_ps_stats <- function(target, pids) {
   empty <- data.frame(pid = integer(0), cpu = numeric(0),
-                      rss_mb = numeric(0), stringsAsFactors = FALSE)
+                      rss_mb = numeric(0), state = character(0),
+                      stringsAsFactors = FALSE)
   if (!length(pids)) return(empty)
   pid_str <- paste(pids, collapse = ",")
   lines <- if (identical(target, "__LOCAL__")) {
     # Call ps directly -- system2 routes through sh only for redirection, and
     # `sh -c "ps ..."` has argv-parsing traps.  Direct exec avoids them.
     tryCatch(
-      system2("ps", c("-o", "pid=,%cpu=,rss=", "-p", pid_str),
+      system2("ps", c("-o", "pid=,%cpu=,rss=,state=", "-p", pid_str),
               stdout = TRUE, stderr = FALSE),
       error = function(e) character(0)
     )
   } else {
     # Remote: ps is invoked by the remote shell, so pass the full command
     # shell-quoted.
-    cmd <- paste("ps -o pid=,%cpu=,rss= -p", pid_str)
+    cmd <- paste("ps -o pid=,%cpu=,rss=,state= -p", pid_str)
     tryCatch(
       system2("ssh",
               c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
@@ -2326,13 +2345,14 @@ tmuxListPanes <- function(stats = FALSE) {
   }
   if (!length(lines)) return(empty)
   toks <- lapply(lines, function(ln) strsplit(trimws(ln), "\\s+")[[1L]])
-  toks <- toks[vapply(toks, length, integer(1L)) == 3L]
+  toks <- toks[vapply(toks, length, integer(1L)) == 4L]
   if (!length(toks)) return(empty)
   m <- do.call(rbind, toks)
   data.frame(
     pid    = suppressWarnings(as.integer(m[, 1L])),
     cpu    = suppressWarnings(as.numeric(m[, 2L])),
     rss_mb = suppressWarnings(as.numeric(m[, 3L])) / 1024,
+    state  = m[, 4L],
     stringsAsFactors = FALSE
   )
 }
