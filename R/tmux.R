@@ -2341,6 +2341,12 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         filename <- runningFilesFull[is_running]
         if (length(filename)) {
           toRm <- Map(fiHere = filename, function(fiHere) {
+            # Only delete Running_ files whose PID is dead on the LOCAL machine.
+            # Remote PIDs are invisible to tools::pskill here; treating them as
+            # dead would delete a live job's sentinel file from NFS.
+            this_machine <- q$machine_name[i]
+            if (!is.na(this_machine) && this_machine != Sys.info()[["nodename"]])
+              return(NULL)
             pid <- strsplit(basename(fiHere), split = "_")[[1]][3] |> as.integer()
             alive <- is_pid_alive_tools(pid)
             if (isFALSE(alive)) {
@@ -2348,7 +2354,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
             } else {
               return(NULL)
             }
-            
           })
           toRm <- unlist(toRm)
           if (length(toRm)) {
@@ -2493,15 +2498,13 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         new_status <- txtDone
       }
 
-      # Remote-machine guard: if a job is RUNNING on another host we cannot
-      # see its running-flag file here.  The absence of a local flag must not
-      # demote its status to PENDING -- that would corrupt the shared queue and
-      # cause the remote worker to lose its claim on the next GS push.
-      # Only skip this guard when something authoritative determined the job is
-      # finished or interrupted (done=TRUE from statusCalculate, or explicit
-      # txtInterrupted from the heartbeat block).
+      # Remote-machine guard: the local node cannot observe a remote process via
+      # /proc or tools::pskill, so absence of a Running_ file on NFS or a failed
+      # is_pid_alive_tools() check is not proof the remote job died.  Only a
+      # definitive authoritative signal (done=TRUE from statusCalculate) should
+      # demote a remote RUNNING job.
       if (q$status[i]  == txtRunning  &&
-          new_status    == txtPending  &&
+          new_status    %in% c(txtPending, txtInterrupted) &&
           !is.na(q$machine_name[i])   &&
           q$machine_name[i] != Sys.info()[["nodename"]]) {
         new_status <- txtRunning  # preserve remote ownership
