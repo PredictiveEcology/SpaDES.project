@@ -2137,18 +2137,29 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #'   (the first dash-separated token in `title` that matches a cluster alias
 #'   in `/etc/hosts`; falls back to [localHostLabel()] when the title
 #'   contains only the raw local hostname; `NA` if no match).
-#'   With `stats = TRUE`, three additional columns appear:
-#'   `state` (one-char process state from `/proc/<pid>/stat`: `R` running,
-#'   `S` sleeping, `D` uninterruptible sleep, `T` stopped, `Z` zombie --
-#'   the best single signal for hang-detection since it is a snapshot, not
-#'   a time average),
-#'   `cpuAvg` (percent CPU averaged over the process's lifetime -- note
-#'   this is NOT the instantaneous rate `htop` shows),
+#'   With `stats = TRUE`, three additional columns appear: `state` (see
+#'   table below), `cpuAvg` (percent CPU averaged over the process's
+#'   lifetime -- note this is NOT the instantaneous rate `htop` shows),
 #'   `RAM (GB)` (resident memory, GB, 1 dp).
 #'   `Cluster_Monitor` panes are always filtered out -- they are
 #'   operator-display panes with no associated job.
 #'   Returns an empty data.frame (0 rows, same columns) if tmux is
 #'   unavailable, no sockets exist, or the uid cannot be determined.
+#'
+#' @section State codes:
+#' The `state` column is the best single signal for hang-detection because
+#' it is a snapshot (no time window needed).  Values:
+#'
+#' \tabular{ll}{
+#'   **State** \tab **Meaning** \cr
+#'   `R` \tab running on CPU right now \cr
+#'   `S` \tab sleeping (waiting on I/O, timer, or lock) \cr
+#'   `D` \tab uninterruptible sleep (usually disk I/O; persistent `D` can indicate a hang) \cr
+#'   `T` \tab stopped (SIGSTOP or similar) \cr
+#'   `Z` \tab zombie (dead but not yet reaped) \cr
+#'   `Closed` \tab pane's R session has exited -- PID no longer exists but the tmux pane is still open \cr
+#'   `NA` \tab could not determine (machine unreachable or title has no parseable `<node>-<pid>`) \cr
+#' }
 #' @export
 tmuxListPanes <- function(stats = FALSE) {
   empty <- data.frame(
@@ -2206,9 +2217,11 @@ tmuxListPanes <- function(stats = FALSE) {
   out
 }
 
-# Return the cluster-alias set known to this machine via /etc/hosts.
-# Loopback / IPv6 lines are excluded, so the local machine's own raw hostname
-# (usually the `127.0.1.1` line on Linux) does not count as a cluster alias.
+# Return the cluster-alias set known to this machine.  Sources:
+#   1. /etc/hosts -- short names per routable IPv4 line (loopback/IPv6 skipped)
+#   2. ~/.ssh/config -- Host entries (CRLF-safe per CLAUDE.md), excluding
+#      wildcards and FQDNs.  Some clusters only declare nodes here (e.g. a
+#      node named `carbon` that resolves via DNS plus an SSH Host entry).
 #' @keywords internal
 #' @noRd
 .tmux_cluster_aliases <- function() {
@@ -2216,16 +2229,36 @@ tmuxListPanes <- function(stats = FALSE) {
                     error = function(e) character(0))
   hosts <- hosts[nzchar(trimws(hosts))]
   hosts <- hosts[!grepl("^\\s*#", hosts)]
-  # Skip loopback / link-local / multicast lines; cluster nodes are on
-  # routable IPv4 addresses.
   hosts <- hosts[!grepl("^\\s*(127\\.|::|fe[0-9a-fA-F]{1,}|ff[0-9a-fA-F]{1,})", hosts)]
-  aliases <- unlist(lapply(hosts, function(ln) {
+  from_hosts <- unlist(lapply(hosts, function(ln) {
     toks <- strsplit(trimws(ln), "\\s+")[[1L]]
     if (length(toks) < 2L) return(character(0))
     names <- toks[-1L]                       # skip the IP
     names[!grepl("\\.", names)]              # drop FQDNs, keep short names
   }))
-  unique(aliases)
+
+  from_ssh <- character(0)
+  ssh_cfg  <- path.expand("~/.ssh/config")
+  if (file.exists(ssh_cfg)) {
+    lines <- tryCatch(readLines(ssh_cfg, warn = FALSE),
+                      error = function(e) character(0))
+    lines <- gsub("\r", "", lines, fixed = TRUE)        # strip CRLF
+    # Strip inline comments -- ssh_config treats '#' at the start of a line
+    # OR after whitespace as a comment.  We only need a conservative parse:
+    # drop everything from the first '#' onwards.
+    lines <- sub("#.*$", "", lines)
+    for (ln in lines) {
+      t <- trimws(ln)
+      if (!nzchar(t)) next
+      toks <- strsplit(t, "\\s+")[[1L]]
+      if (length(toks) < 2L || tolower(toks[[1L]]) != "host") next
+      for (h in toks[-1L]) {
+        # skip wildcard patterns and FQDNs
+        if (!grepl("[*?]", h) && !grepl("\\.", h)) from_ssh <- c(from_ssh, h)
+      }
+    }
+  }
+  unique(c(from_hosts, from_ssh))
 }
 
 # Map each title to its cluster alias by taking the first dash-separated
@@ -2281,9 +2314,28 @@ tmuxListPanes <- function(stats = FALSE) {
   valid <- !is.na(parsed_node) & !is.na(parsed_pid)
   if (!any(valid)) return(panes)
 
-  local_node <- Sys.info()[["nodename"]]
-  is_local   <- valid & parsed_node == local_node
-  has_host   <- valid & !is.na(parsed_host) & nzchar(parsed_host) & !is_local
+  # 2-part title (no host prefix, no raw node): e.g. "mega-2424563".  When
+  # the parsed "node" is actually a known cluster alias, promote it into
+  # the host slot so the dispatch below sees it as a host target.
+  aliases <- .tmux_cluster_aliases()
+  alias_as_node <- valid &
+    (is.na(parsed_host) | !nzchar(parsed_host)) &
+    parsed_node %in% aliases
+  if (any(alias_as_node)) {
+    parsed_host[alias_as_node] <- parsed_node[alias_as_node]
+    parsed_node[alias_as_node] <- NA_character_
+  }
+
+  local_node  <- Sys.info()[["nodename"]]
+  local_alias <- tryCatch(localHostLabel(), error = function(e) NULL)
+  has_local_alias <- !is.null(local_alias) && nzchar(local_alias)
+  match_node  <- valid & !is.na(parsed_node) & parsed_node == local_node
+  match_alias <- if (has_local_alias)
+    valid & !is.na(parsed_host) & parsed_host == local_alias
+  else
+    rep(FALSE, nrow(panes))
+  is_local <- match_node | match_alias
+  has_host <- valid & !is.na(parsed_host) & nzchar(parsed_host) & !is_local
   # SSH target = host alias; local target uses a sentinel so we can key on it.
   target <- rep(NA_character_, nrow(panes))
   target[is_local] <- "__LOCAL__"

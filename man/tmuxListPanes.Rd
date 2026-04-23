@@ -21,13 +21,9 @@ A data.frame with columns \code{session}, \code{window}, \code{pane}, \code{pane
 (the first dash-separated token in \code{title} that matches a cluster alias
 in \verb{/etc/hosts}; falls back to \code{\link[=localHostLabel]{localHostLabel()}} when the title
 contains only the raw local hostname; \code{NA} if no match).
-With \code{stats = TRUE}, three additional columns appear:
-\code{state} (one-char process state from \verb{/proc/<pid>/stat}: \code{R} running,
-\code{S} sleeping, \code{D} uninterruptible sleep, \code{T} stopped, \code{Z} zombie --
-the best single signal for hang-detection since it is a snapshot, not
-a time average),
-\code{cpuAvg} (percent CPU averaged over the process's lifetime -- note
-this is NOT the instantaneous rate \code{htop} shows),
+With \code{stats = TRUE}, three additional columns appear: \code{state} (see
+table below), \code{cpuAvg} (percent CPU averaged over the process's
+lifetime -- note this is NOT the instantaneous rate \code{htop} shows),
 \code{RAM (GB)} (resident memory, GB, 1 dp).
 \code{Cluster_Monitor} panes are always filtered out -- they are
 operator-display panes with no associated job.
@@ -41,3 +37,20 @@ format.  Per-socket failures are swallowed so one broken socket cannot
 poison the rest.  Works outside a tmux pane and across multiple tmux
 servers (e.g. sessions started under different \code{-L} names).
 }
+\section{State codes}{
+
+The \code{state} column is the best single signal for hang-detection because
+it is a snapshot (no time window needed).  Values:
+
+\tabular{ll}{
+\strong{State} \tab \strong{Meaning} \cr
+\code{R} \tab running on CPU right now \cr
+\code{S} \tab sleeping (waiting on I/O, timer, or lock) \cr
+\code{D} \tab uninterruptible sleep (usually disk I/O; persistent \code{D} can indicate a hang) \cr
+\code{T} \tab stopped (SIGSTOP or similar) \cr
+\code{Z} \tab zombie (dead but not yet reaped) \cr
+\code{Closed} \tab pane's R session has exited -- PID no longer exists but the tmux pane is still open \cr
+\code{NA} \tab could not determine (machine unreachable or title has no parseable \verb{<node>-<pid>}) \cr
+}
+}
+
