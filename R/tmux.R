@@ -2248,11 +2248,18 @@ tmuxListPanes <- function(stats = FALSE) {
                       rss_mb = numeric(0), stringsAsFactors = FALSE)
   if (!length(pids)) return(empty)
   pid_str <- paste(pids, collapse = ",")
-  cmd     <- paste("ps -o pid=,%cpu=,rss= -p", pid_str)
   lines <- if (identical(target, "__LOCAL__")) {
-    tryCatch(system2("sh", c("-c", cmd), stdout = TRUE, stderr = FALSE),
-             error = function(e) character(0))
+    # Call ps directly -- system2 routes through sh only for redirection, and
+    # `sh -c "ps ..."` has argv-parsing traps.  Direct exec avoids them.
+    tryCatch(
+      system2("ps", c("-o", "pid=,%cpu=,rss=", "-p", pid_str),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) character(0)
+    )
   } else {
+    # Remote: ps is invoked by the remote shell, so pass the full command
+    # shell-quoted.
+    cmd <- paste("ps -o pid=,%cpu=,rss= -p", pid_str)
     tryCatch(
       system2("ssh",
               c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
