@@ -1906,6 +1906,75 @@ tmux_kill_panes <- function(panes) {
   invisible(killed)
 }
 
+#' Set a tmux pane's title by matching its current title
+#'
+#' Scans every tmux server on this machine (sockets under
+#' `$TMUX_TMPDIR/tmux-<uid>/`) for panes whose current title exactly matches
+#' `oldTitle`, then rewrites each to `newTitle`.  Useful for upgrading
+#' old-style worker-pane titles (without `<node>-<pid>` prefix) to the new
+#' convention so that `.gs_reclaim_dead_jobs()` can recognise them.
+#'
+#' @param oldTitle Character(1). Exact current title to match.
+#' @param newTitle Character(1). Replacement title.
+#' @return Invisibly, a character vector of the pane IDs that were updated
+#'   (e.g. `c("%12", "%33")`).  Prints a message per update and a warning
+#'   when no match is found.
+#' @export
+tmux_set_pane_title <- function(oldTitle, newTitle) {
+  stopifnot(is.character(oldTitle), length(oldTitle) == 1L, nzchar(oldTitle),
+            is.character(newTitle), length(newTitle) == 1L, nzchar(newTitle))
+  if (identical(oldTitle, newTitle)) {
+    message("oldTitle and newTitle are identical; nothing to do.")
+    return(invisible(character()))
+  }
+  uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
+                  error = function(e) character(0))
+  if (!length(uid) || !nzchar(uid[1L]))
+    stop("Could not determine uid for tmux socket discovery.", call. = FALSE)
+  tmpdir   <- Sys.getenv("TMUX_TMPDIR", unset = "/tmp")
+  sock_dir <- file.path(tmpdir, paste0("tmux-", uid[1L]))
+  if (!dir.exists(sock_dir))
+    stop("No tmux socket directory at ", sock_dir, call. = FALSE)
+  sockets <- list.files(sock_dir, full.names = TRUE)
+  if (!length(sockets))
+    stop("No tmux sockets found in ", sock_dir, call. = FALSE)
+
+  fmt <- shQuote("#{pane_id}\t#{pane_title}")
+  updated <- character()
+  for (s in sockets) {
+    rows <- tryCatch(
+      system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) character(0)
+    )
+    if (!length(rows)) next
+    for (row in rows) {
+      parts <- strsplit(row, "\t", fixed = TRUE)[[1L]]
+      if (length(parts) != 2L) next
+      pane_id <- parts[[1L]]
+      title   <- parts[[2L]]
+      if (!identical(title, oldTitle)) next
+      ok <- tryCatch(
+        system2("tmux", c("-S", s, "select-pane", "-t", pane_id,
+                          "-T", shQuote(newTitle)),
+                stdout = FALSE, stderr = FALSE),
+        error = function(e) 1L
+      )
+      if (identical(as.integer(ok), 0L)) {
+        updated <- c(updated, pane_id)
+        message("Retitled ", pane_id, " on ", basename(s), ": ",
+                oldTitle, " -> ", newTitle)
+      } else {
+        warning("Failed to retitle ", pane_id, " on ", basename(s),
+                call. = FALSE)
+      }
+    }
+  }
+  if (!length(updated))
+    message("No pane found with title: ", oldTitle)
+  invisible(updated)
+}
+
 # ---- internal helpers --------------------------------------------------
 
 # Build the R expression string that launches a worker pane.
