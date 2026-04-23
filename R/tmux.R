@@ -1959,6 +1959,37 @@ tmux_kill_panes <- function(panes) {
   out[nzchar(out)]
 }
 
+# List pane titles across every tmux server on this machine.
+# Enumerates sockets under $TMUX_TMPDIR/tmux-<uid>/ (default /tmp), queries each
+# with `tmux -S <socket> list-panes -a -F '#{pane_title}'`.  Per-socket failures
+# are swallowed so one broken socket cannot poison the rest.  Works outside tmux
+# and across multiple tmux servers; returns character(0) if tmux is unavailable,
+# no sockets exist, or the uid cannot be determined.
+#' @keywords internal
+#' @noRd
+.tmux_all_pane_titles <- function() {
+  uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
+                  error = function(e) character(0))
+  if (!length(uid) || !nzchar(uid[1L])) return(character(0))
+  tmpdir   <- Sys.getenv("TMUX_TMPDIR", unset = "/tmp")
+  sock_dir <- file.path(tmpdir, paste0("tmux-", uid[1L]))
+  if (!dir.exists(sock_dir)) return(character(0))
+  sockets <- list.files(sock_dir, full.names = TRUE)
+  if (!length(sockets)) return(character(0))
+  # The format string must be shell-quoted: system2 routes through a shell when
+  # stderr = FALSE, and '#' would otherwise start a shell comment.
+  fmt <- shQuote("#{pane_title}")
+  titles <- unlist(lapply(sockets, function(s) {
+    tryCatch(
+      system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) character(0)
+    )
+  }), use.names = FALSE)
+  if (is.null(titles)) return(character(0))
+  titles[nzchar(titles)]
+}
+
 #' @keywords internal
 #' @noRd
 .tmux_current_window <- function() {

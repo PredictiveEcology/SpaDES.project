@@ -73,12 +73,19 @@
 }
 
 # Reclaim RUNNING rows whose R process is no longer alive on any machine.
-# Uses /proc/<pid> (Linux) to test liveness: directly for the local machine,
-# via a single SSH connection per remote machine (all PIDs batched in one call).
-# If a remote machine is unreachable the rows are left completely untouched --
-# an unreachable machine is not proof the job is dead.
-# Called before each claim attempt so rows stuck in RUNNING by a crashed worker
-# become INTERRUPTED and are re-queued.  Reads the sheet once, writes only dead rows.
+#
+# Liveness decision per row:
+#   1. If "<machine>-<pid>" appears in ANY tmux pane title across ALL tmux
+#      servers on this machine -> the worker pane is alive, skip.
+#   2. Otherwise fall through to the /proc check:
+#        - local  machine  : file.exists("/proc/<pid>")
+#        - remote machine  : one SSH connection, batched /proc check for all pids
+#      SSH unreachable -> leave alone (unreachable is not proof of death).
+#      SSH reachable + PID dead -> reclaim.
+#
+# Pane titles are a POSITIVE signal only; their absence falls through to SSH.
+# This prevents cross-server false reclaims and handles old-style panes
+# (no node-pid in title) safely via the SSH backstop.
 .gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
@@ -90,10 +97,23 @@
   )
   if (length(running_idx) == 0L) return(invisible(NULL))
 
-  col_pos    <- setNames(seq_along(names(q)), names(q))
-  now        <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  local_node <- Sys.info()[["nodename"]]
-  machines   <- unique(q$machine_name[running_idx])
+  col_pos     <- setNames(seq_along(names(q)), names(q))
+  now         <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  local_node  <- Sys.info()[["nodename"]]
+  pane_titles <- .tmux_all_pane_titles()      # character(0) if unavailable
+  machines    <- unique(q$machine_name[running_idx])
+
+  .reclaim <- function(idx, pid, machine, reason) {
+    sheet_row <- idx + 1L
+    try(.gs_write_cells(ss_id, sheet_row,
+                        updates       = list(status         = "INTERRUPTED",
+                                             claimed_by     = NA_character_,
+                                             interrupted_at = now),
+                        col_positions = col_pos,
+                        sheet         = sheet), silent = TRUE)
+    message("Reclaimed stale RUNNING job row ", idx,
+            " (", reason, ": PID ", pid, " on ", machine, ")")
+  }
 
   for (machine in machines) {
     m_idx <- running_idx[q$machine_name[running_idx] == machine]
@@ -103,12 +123,27 @@
     pids  <- pids[ok]
     if (length(pids) == 0L) next
 
-    # ----- liveness check -----
-    if (machine == local_node) {
-      alive <- file.exists(paste0("/proc/", pids))
+    # --- pane-title positive check ---
+    pane_alive <- if (length(pane_titles)) {
+      vapply(pids, function(pid)
+        any(grepl(paste0(machine, "-", pid), pane_titles, fixed = TRUE)),
+        logical(1L))
     } else {
-      # One SSH connection for all PIDs on this machine.
-      pid_str   <- paste(pids, collapse = " ")
+      rep(FALSE, length(pids))
+    }
+
+    # Rows with a confirmed pane: nothing to do.
+    need_ssh_i <- which(!pane_alive)
+    if (!length(need_ssh_i)) next
+
+    ssh_m_idx <- m_idx[need_ssh_i]
+    ssh_pids  <- pids[need_ssh_i]
+
+    # --- /proc liveness check (local or SSH) ---
+    if (machine == local_node) {
+      alive <- file.exists(paste0("/proc/", ssh_pids))
+    } else {
+      pid_str   <- paste(ssh_pids, collapse = " ")
       check_cmd <- paste0(
         "for pid in ", pid_str,
         "; do [ -d /proc/$pid ] && echo alive || echo dead; done"
@@ -120,28 +155,16 @@
                 stdout = TRUE, stderr = FALSE),
         error = function(e) NULL
       )
-      if (is.null(result) || length(result) != length(pids)) {
-        # SSH unreachable — leave all rows on this machine alone.
-        # An unreachable machine is not proof the job is dead.
+      if (is.null(result) || length(result) != length(ssh_pids)) {
+        # SSH unreachable -- unreachable is not proof of death.  Leave alone.
         next
       }
       alive <- result == "alive"
     }
 
-    # ----- mark dead rows -----
-    for (j in seq_along(m_idx)) {
-      if (!alive[j]) {
-        idx       <- m_idx[j]
-        sheet_row <- idx + 1L
-        try(.gs_write_cells(ss_id, sheet_row,
-                            updates       = list(status         = "INTERRUPTED",
-                                                 claimed_by     = NA_character_,
-                                                 interrupted_at = now),
-                            col_positions = col_pos,
-                            sheet         = sheet), silent = TRUE)
-        message("Reclaimed stale RUNNING job row ", idx,
-                " (PID ", pids[j], " not found on ", machine, ")")
-      }
+    for (j in seq_along(ssh_m_idx)) {
+      if (!alive[j])
+        .reclaim(ssh_m_idx[j], ssh_pids[j], machine, "PID dead")
     }
   }
   invisible(NULL)
