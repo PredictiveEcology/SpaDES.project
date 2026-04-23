@@ -106,11 +106,19 @@
   # -a lists panes across ALL sessions on this tmux server.
   # Each pane title has "<node>-<pid>" as a substring (possibly prefixed by a
   # host label, always followed by "-<runName>" once a job is running).
-  pane_titles <- tryCatch(
-    system2("tmux", c("list-panes", "-a", "-F", "#{pane_title}"),
-            stdout = TRUE, stderr = FALSE),
-    error = function(e) NULL
-  )
+  # Only attempt this when $TMUX is set -- if we're not inside a tmux pane the
+  # list would be empty (character(0), not NULL) and every job would look dead.
+  pane_titles <- if (nzchar(Sys.getenv("TMUX"))) {
+    tryCatch(
+      system2("tmux", c("list-panes", "-a", "-F", "#{pane_title}"),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) NULL
+    )
+  } else {
+    NULL
+  }
+  # character(0) means tmux ran but returned nothing -- treat as unavailable.
+  if (!length(pane_titles)) pane_titles <- NULL
 
   .reclaim_row <- function(idx, pid, machine, reason) {
     sheet_row <- idx + 1L
