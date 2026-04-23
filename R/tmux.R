@@ -2267,7 +2267,9 @@ tmuxListPanes <- function(stats = FALSE) {
   panes[["RAM (GB)"]] <- NA_real_
   if (!nrow(panes)) return(panes)
 
-  re <- "^(?:([^-]+)-)?([^-]+)-([0-9]{6,})-"
+  # Anchor the PID with (?:-|$) so titles lacking a trailing runName still
+  # parse, e.g. "A159568-2418239" or "mega-A159568-2418239".
+  re <- "^(?:([^-]+)-)?([^-]+)-([0-9]{6,})(?:-|$)"
   m  <- regmatches(panes$title, regexec(re, panes$title, perl = TRUE))
   parsed_host <- vapply(m, function(x)
     if (length(x) >= 4L) x[[2L]] else NA_character_, character(1L))
