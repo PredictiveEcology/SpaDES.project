@@ -9,15 +9,18 @@ tmuxListPanes(stats = FALSE)
 \arguments{
 \item{stats}{Logical.  When \code{TRUE}, parses the \verb{<host?>-<node>-<pid>-}
 prefix from each pane title and queries \code{ps} (locally or via one SSH
-connection per remote node) to append \code{cpu} (percent CPU) and \code{rss_mb}
-(resident memory, MB).  Titles that lack a parseable \verb{<node>-<pid>} get
-\code{NA}; unreachable nodes get \code{NA} for all their rows.  Default \code{FALSE}
-(no \code{ps} calls, so the internal reclaim path pays no extra cost).}
+connection per remote node) to append \code{cpu} (percent CPU) and
+\code{RAM (GB)} (resident memory in GB, rounded to 1 decimal place).
+Titles that lack a parseable \verb{<node>-<pid>} get \code{NA}; unreachable
+nodes get \code{NA} for all their rows.  Default \code{FALSE} (no \code{ps} calls,
+so the internal reclaim path pays no extra cost).}
 }
 \value{
 A data.frame with columns \code{socket}, \code{session}, \code{window}, \code{pane},
 \code{pane_id}, \code{pane_ref} (the \code{"session:window.pane"} string) and \code{title}.
-With \code{stats = TRUE}, two additional columns \code{cpu} and \code{rss_mb} appear.
+With \code{stats = TRUE}, two additional columns \code{cpu} and \code{RAM (GB)}
+appear.  \code{Cluster_Monitor} panes are always filtered out -- they are
+operator-display panes with no associated job.
 Returns an empty data.frame (0 rows, same columns) if tmux is
 unavailable, no sockets exist, or the uid cannot be determined.
 }

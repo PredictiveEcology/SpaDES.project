@@ -2127,13 +2127,16 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #'
 #' @param stats Logical.  When `TRUE`, parses the `<host?>-<node>-<pid>-`
 #'   prefix from each pane title and queries `ps` (locally or via one SSH
-#'   connection per remote node) to append `cpu` (percent CPU) and `rss_mb`
-#'   (resident memory, MB).  Titles that lack a parseable `<node>-<pid>` get
-#'   `NA`; unreachable nodes get `NA` for all their rows.  Default `FALSE`
-#'   (no `ps` calls, so the internal reclaim path pays no extra cost).
+#'   connection per remote node) to append `cpu` (percent CPU) and
+#'   `RAM (GB)` (resident memory in GB, rounded to 1 decimal place).
+#'   Titles that lack a parseable `<node>-<pid>` get `NA`; unreachable
+#'   nodes get `NA` for all their rows.  Default `FALSE` (no `ps` calls,
+#'   so the internal reclaim path pays no extra cost).
 #' @return A data.frame with columns `socket`, `session`, `window`, `pane`,
 #'   `pane_id`, `pane_ref` (the `"session:window.pane"` string) and `title`.
-#'   With `stats = TRUE`, two additional columns `cpu` and `rss_mb` appear.
+#'   With `stats = TRUE`, two additional columns `cpu` and `RAM (GB)`
+#'   appear.  `Cluster_Monitor` panes are always filtered out -- they are
+#'   operator-display panes with no associated job.
 #'   Returns an empty data.frame (0 rows, same columns) if tmux is
 #'   unavailable, no sockets exist, or the uid cannot be determined.
 #' @export
@@ -2185,6 +2188,10 @@ tmuxListPanes <- function(stats = FALSE) {
   out <- do.call(rbind, rows)
   out$pane_ref <- sprintf("%s:%d.%d", out$session, out$window, out$pane)
   out <- out[, c("socket", "session", "window", "pane", "pane_id", "pane_ref", "title")]
+  # Drop the Cluster_Monitor panes -- they exist purely for operator display
+  # and carry no job info; stats lookups for them would always be NA.
+  out <- out[out$title != "Cluster_Monitor", , drop = FALSE]
+  row.names(out) <- NULL
   if (isTRUE(stats)) out <- .tmux_attach_ps_stats(out)
   out
 }
@@ -2201,8 +2208,8 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @keywords internal
 #' @noRd
 .tmux_attach_ps_stats <- function(panes) {
-  panes$cpu    <- NA_real_
-  panes$rss_mb <- NA_real_
+  panes$cpu         <- NA_real_
+  panes[["RAM (GB)"]] <- NA_real_
   if (!nrow(panes)) return(panes)
 
   re <- "^(?:([^-]+)-)?([^-]+)-([0-9]{6,})-"
@@ -2231,8 +2238,8 @@ tmuxListPanes <- function(stats = FALSE) {
     stats_df <- .tmux_ps_stats(tgt, pids)
     if (!nrow(stats_df)) next
     ix <- match(parsed_pid[idx], stats_df$pid)
-    panes$cpu[idx]    <- stats_df$cpu[ix]
-    panes$rss_mb[idx] <- stats_df$rss_mb[ix]
+    panes$cpu[idx]           <- stats_df$cpu[ix]
+    panes[["RAM (GB)"]][idx] <- round(stats_df$rss_mb[ix] / 1024, 1L)
   }
   panes
 }
