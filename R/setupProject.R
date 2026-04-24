@@ -1039,7 +1039,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
     if (isTRUE(needTryInstall))
-      setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
+      setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps,
+                              prevLibPaths = prevLibPaths)
 
   }
   if (any(lengths(paths) == 0)) {
@@ -3215,14 +3216,28 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
 setupSpaDES.ProjectDeps <- function(paths,
                                     deps = c("SpaDES.project", "data.table", "Require", "rprojroot", "rstudioapi", "fs"),
+                                    prevLibPaths = NULL,
                                     verbose = getOption("Require.verbose")) {
 
   libs <- c(.libPaths()[1], paths[["packagePath"]])
+  # Use find.package() so we locate installed-but-not-loaded packages too
+  # (e.g., pak, withr — deps of Require/SpaDES.project that aren't attached).
+  # getNamespaceInfo() only works for loaded namespaces and returns "" otherwise,
+  # which caused copyPackages() to silently skip those packages.
+  # prevLibPaths is the caller's .libPaths() from before setLibPaths() moved
+  # the library to the isolated project lib; we need it to find packages that
+  # live in the user's default library.
+  searchLibs <- unique(c(.libPaths(), prevLibPaths))
   nsPaths <- vapply(deps, FUN.VALUE = character(1),
-                    function(pkg)
-                      dirname(
-                        tryCatch(
-                          getNamespaceInfo(pkg, "path"), error = function(err) "")))
+                    function(pkg) {
+                      path <- tryCatch(
+                        getNamespaceInfo(pkg, "path"),
+                        error = function(err) "")
+                      if (!length(path) || !nzchar(path))
+                        path <- tryCatch(find.package(pkg, lib.loc = searchLibs, quiet = TRUE),
+                                         error = function(err) "")
+                      if (length(path) && nzchar(path)) dirname(path) else ""
+                    })
   isLoadedLocally <- !names(nsPaths) %in% libs
   nsPaths <- nsPaths[!names(nsPaths) %in% .basePkgs]
 

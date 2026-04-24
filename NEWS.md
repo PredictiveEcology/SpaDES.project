@@ -5,6 +5,14 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject()` now copies all required dependency packages (e.g., `pak`,
+  `withr`) to the isolated project library, not just those whose namespaces
+  happen to be loaded at call time. Previously, `setupSpaDES.ProjectDeps()`
+  used `getNamespaceInfo(pkg, "path")` to locate packages, which returned `""`
+  for unloaded namespaces; the subsequent `file.exists(.../INDEX)` check failed
+  silently and the "Copying X packages" message was misleading. Now falls back
+  to `find.package()` with `lib.loc` pointing to the caller's pre-switch
+  `.libPaths()` (plumbed in via a new `prevLibPaths` arg).
 * Fixed code coverage reporting: `NOT_CRAN=true` is now set in the test-coverage workflow so that `skip_on_cran()` tests run under `covr`.
 * Fixed Windows path comparison in `scratchPath` test.
 * `setupProject()` with `useGit = TRUE` now initializes the project git repository on branch `main` instead of `master`.
