@@ -3,8 +3,33 @@ Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 version 1.0.1
 =============
 
+## New features
+
+* New `scenario` S3 class for representing a single simulation run as a
+  canonical record. The same run is identifiable in three ways and all
+  three coerce to one another: the five field values (`.ELFind`,
+  `.samplingRange`, `.GCM`, `.SSP`, `.rep`), an output directory path
+  (e.g. `outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5`), and an
+  upload-tarball filename (e.g.
+  `6.3.1_2071-2100_CNRM-ESM2-1_ssp370_rep5.tar.gz`). New API:
+  `scenario()`, `as_scenario()` (with methods for character paths,
+  lists, data.frames, and re-coercion), `as_path()`, `as_tarname()`,
+  `format.scenario`, `print.scenario`, and
+  `register_scenario_aliases()` for project-specific column-name
+  mappings. Companion helpers `queueRead()`, `queuePending()`,
+  `outList()`, `outScenarios()` work with the project queue
+  (Google Sheet) and output directory.
+* `outSaveTarUpload()` now accepts a pre-built `tarball` argument and
+  skips the tar-build step when one is supplied. Useful when an
+  earlier stage already produced the tarball and only the upload
+  remains.
+
 ## Bug fixes
 
+* `outUpload()` now calls `tempdir(check = TRUE)` before invoking
+  `googledrive::drive_upload()` so the session tempdir is recreated if
+  it has been deleted out from under R (intermittent NFS/cleanup
+  issue).
 * `setupProject()` now copies all required dependency packages (e.g., `pak`,
   `withr`) to the isolated project library, not just those whose namespaces
   happen to be loaded at call time. Previously, `setupSpaDES.ProjectDeps()`

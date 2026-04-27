@@ -92,6 +92,10 @@ outTar <- function(simFilename, outputFiles = character(0), runName,
 outUpload <- function(tarball, gFolder, overwrite = TRUE, cleanup = FALSE) {
   if (is.null(gFolder))
     stop("gFolder must be supplied for Google Drive upload.", call. = FALSE)
+  
+  # Sometimes the tempdir() is deleted for one reason or another
+  tempdir(check = TRUE)
+  
   result <- googledrive::drive_upload(
     tarball,
     path      = gFolder,
@@ -123,20 +127,21 @@ outUpload <- function(tarball, gFolder, overwrite = TRUE, cleanup = FALSE) {
 #' @seealso [outSave()], [outTar()], [outUpload()]
 #' @export
 outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
-                              tarDir = NULL, overwrite = TRUE, cleanup = FALSE,
+                              tarDir = NULL, tarball = NULL, overwrite = TRUE, cleanup = FALSE,
                               verbose = TRUE) {
   t1 <- system.time(
     simFilename <- outSave(sim, runName, simFilename)
   )
   if (is.null(tarDir))
     tarDir <- dirname(simFilename)
-  t2 <- system.time(
-    tarball <- outTar(simFilename,
-                      outputFiles = SpaDES.core::outputs(sim)$file,
-                      runName     = runName,
-                      tarDir      = tarDir,
-                      verbose     = verbose)
-  )
+  if (is.null(tarball))
+    t2 <- system.time(
+      tarball <- outTar(simFilename,
+                        outputFiles = SpaDES.core::outputs(sim)$file,
+                        runName     = runName,
+                        tarDir      = tarDir,
+                        verbose     = verbose)
+    )
   t3 <- system.time(
     result <- outUpload(tarball, gFolder, overwrite = overwrite, cleanup = cleanup)
   )
