@@ -122,6 +122,28 @@ test_that("pathBuild accepts list, named-args, and positional calls", {
   expect_equal(pathBuild("foo", 1L),                 "outputs/foo/1")
 })
 
+test_that("positional pathBuild infers fields from bare-symbol args", {
+  .reset(); on.exit(.reset(), add = TRUE)
+  .ELFind        <- "6.3.1"
+  .samplingRange <- 2071:2100
+  .GCM           <- "CNRM-ESM2-1"
+  .SSP           <- "370"
+  .rep           <- 5L
+
+  # No cached fields, no named args -- inferred from the symbol names.
+  expect_equal(pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep),
+               "outputs/6.3.1/2071-2100/CNRM-ESM2-1/370/5")
+  # And the inferred set gets cached.
+  expect_equal(scenarioFields(),
+               c(".ELFind", ".samplingRange", ".GCM", ".SSP", ".rep"))
+})
+
+test_that("positional pathBuild with literals still requires cached fields", {
+  .reset(); on.exit(.reset(), add = TRUE)
+  expect_error(pathBuild("foo", 1L),
+               "positional call needs cached fields")
+})
+
 test_that("as_scenario.character vectorises", {
   .reset(); on.exit(.reset(), add = TRUE)
   scenarioFieldsSet(c(".A", ".B"))

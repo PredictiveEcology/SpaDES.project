@@ -26,6 +26,14 @@ version 1.0.1
 
 ## Bug fixes
 
+* Positional `pathBuild()` now infers field names from bare-symbol
+  arguments (e.g. `pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep)`
+  caches `c(".ELFind", ..., ".rep")` as `scenarioFields()` automatically).
+  This restores the canonical call style used in `global.R` /
+  `setupProject(paths = ...)` without requiring an upfront
+  `queueRead()` or `scenarioFieldsSet()`. Positional calls with
+  literals (`pathBuild("foo", 1L)`) continue to require a primed
+  `scenarioFields()`.
 * `experimentTmux()`, `tmuxRefreshQueueStatus()`, and the worker
   loops (`runWorkerLoopFuture()`, `.sync_loop_internal()`) now call
   `scenarioFieldsSet()` on the queue's data columns before evaluating

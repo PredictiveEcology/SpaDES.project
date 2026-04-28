@@ -505,11 +505,26 @@ pathBuild <- function(..., pre = "outputs",
     s <- args
   } else {
     flds <- scenarioFields()
-    if (is.null(flds) || length(flds) != length(args))
-      stop("pathBuild(): positional call needs cached fields ",
-           "(via queueRead) of matching length. Got ", length(args),
-           " value(s); cached fields = ",
-           if (is.null(flds)) "<none>" else paste(flds, collapse = ", "))
+    if (is.null(flds) || length(flds) != length(args)) {
+      # Positional call with no usable cache -- try to recover field
+      # names from the caller's syntax: pathBuild(.ELFind, .samplingRange,
+      # ..., .rep) -> use those symbols as field names. Only kicks in
+      # when *every* dot-arg is a bare symbol; literals keep the original
+      # cached-fields requirement.
+      dotExprs <- match.call(expand.dots = FALSE)$`...`
+      if (!is.null(dotExprs) &&
+          length(dotExprs) == length(args) &&
+          all(vapply(dotExprs, is.symbol, logical(1L)))) {
+        flds <- vapply(dotExprs, as.character, character(1L))
+        scenarioFieldsSet(flds)         # cache for subsequent calls
+      } else {
+        stop("pathBuild(): positional call needs cached fields ",
+             "(via queueRead) of matching length, or bare-symbol ",
+             "arguments to infer them. Got ", length(args),
+             " value(s); cached fields = ",
+             if (is.null(flds)) "<none>" else paste(flds, collapse = ", "))
+      }
+    }
     s <- setNames(args, flds)
   }
   labelMap <- .normalizeLabelMap(withFieldLabel)
