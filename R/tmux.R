@@ -1664,8 +1664,13 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   LOCKF <- paste0(queue_path, ".lock")
 
   activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
-  tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-                            activeRunningPath = activeRunningPath)
+  # NOTE: tmuxRefreshQueueStatus is intentionally NOT called per-iteration
+  # here. It races with the claim path's atomic queue+Running-file write
+  # and can demote a just-claimed row back to PENDING under fast jobs,
+  # producing duplicate claims. Recovery of stuck RUNNING rows from a
+  # previous run should be performed once by the master (experimentTmux /
+  # experimentFuture / experimentSBATCH already do this) before any worker
+  # starts, not on every claim.
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
@@ -1703,11 +1708,24 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   q$started_at[i]   <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   q$machine_name[i] <- Sys.info()[["nodename"]]
   q$process_id[i]   <- Sys.getpid()
+
+  # Critical-section invariant: marking the row RUNNING in the queue and
+  # writing its Running_*.rds sentinel must be visible together. If we
+  # released the lock between these two writes, a concurrent worker's
+  # tmuxRefreshQueueStatus() could observe status=RUNNING with no matching
+  # Running file and demote the row back to PENDING (default at the top
+  # of its loop), causing this row to be re-claimed by another worker.
+  current_run <- getRunName(q, i, runNameLabel)
+  runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
+  startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
+  reproducible::checkPath(dirname(startedFile), create = TRUE)
+  saveRDS(runName, file = startedFile)
   saveRDS(q, queue_path)
   filelock::unlock(lck)
 
-  current_run <- getRunName(q, i, runNameLabel)
-  runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
+  on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
+
   try({
     .prefix <- getOption(".spades_pane_prefix", "")
     .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
@@ -1720,12 +1738,6 @@ tmuxRunNextWorker <- function(queue_path, global_path,
                       echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
     }
   }, silent = TRUE)
-
-  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
-  startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
-  reproducible::checkPath(dirname(startedFile), create = TRUE)
-  saveRDS(runName, file = startedFile)
-  on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
 
   
   if (FALSE) {
@@ -2915,7 +2927,23 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
       # put the values from the q columns into this environment so runNameLabel can use them
       list2env(as.list(q[i, -..meta_cols]), envir = environment())
 
-      runName <- eval(runNameLabel, envir = environment())
+      # Compute runName the same way the claim path does (tmuxRunNextWorker
+      # at line ~1713). Two flavours of runNameLabel:
+      #   * a quoted expression that evaluates to column NAMES of q (e.g. the
+      #     default quote(colnames(q)[1:2])) -- treat as column names and
+      #     extract values from row i;
+      #   * any other expression -- treat its evaluation as the runName itself
+      #     (collapsed to a single string).
+      # Sanitize identically to the claim path so the resulting runName
+      # matches the segment in Running_<runName>_<pid>_.rds filenames.
+      raw <- eval(runNameLabel, envir = environment())
+      runName <- if (is.character(raw) && length(raw) > 0L && all(raw %in% names(q))) {
+        paste(vapply(raw, function(cn) as.character(q[[cn]][i]), character(1L)),
+              collapse = "-")
+      } else {
+        paste(as.character(raw), collapse = "-")
+      }
+      runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
       
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
