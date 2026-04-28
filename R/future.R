@@ -410,37 +410,23 @@ experimentFuture <- function(
   }
 
   # -- 9. Emit log-watching instructions ------------------------------------
-  log_cmds <- paste0("  tail -f ", log_files, "   # worker ", seq_len(n_workers),
-                     collapse = "\n")
+  # experimentFuture deliberately does NOT spawn tmux panes -- workers run
+  # as background callr processes regardless of whether the master is in a
+  # tmux session. Print the per-worker tail-f commands and a single tmux
+  # one-liner the user can paste in any shell to spin up a viewing session
+  # on demand.
+  log_cmds   <- paste0("  tail -f ", log_files, "   # worker ", seq_len(n_workers),
+                       collapse = "\n")
+  tmux_oneliner <- .future_tmux_tail_cmd(log_files, session = "logs")
   message(
     "\nWorkers are running. To watch live logs, run in a separate shell:\n",
     log_cmds, "\n",
     "  -- or --\n",
-    "  tail -f ", log_dir, "/worker_*.log\n"
+    "  tail -f ", log_dir, "/worker_*.log\n",
+    "\n",
+    "Or, to view all logs in a single tmux session (paste in a shell):\n  ",
+    tmux_oneliner, "\n"
   )
-
-  # -- 10. tmux log-tail panes (if already inside tmux) ---------------------
-  if (nzchar(Sys.getenv("TMUX"))) {
-    tryCatch({
-      target_win <- .tmux_current_window()
-      system("tmux set -g pane-border-status top", ignore.stdout = TRUE, ignore.stderr = TRUE)
-      for (i in seq_len(n_workers)) {
-        host_label <- if (!is.null(cores) && length(cores) >= i) cores[[i]] else "localhost"
-        pane_title <- sprintf("Log-Worker-%02d [%s]", i, host_label)
-        new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win,
-                            "-P", "-F", "#{pane_id}")
-        if (length(new_id) > 0L) {
-          .tmux_run("select-layout", "-t", target_win, "tiled")
-          .tmux_run("select-pane",   "-t", new_id[1L], "-T", pane_title)
-          .tmux_run("send-keys",     "-t", new_id[1L],
-                    paste0("tail -f ", shQuote(log_files[[i]])), "C-m")
-        }
-      }
-      message("Opened ", n_workers, " log-tail pane(s) in the current tmux window.")
-    }, error = function(e) {
-      message("Could not open tmux log panes: ", conditionMessage(e))
-    })
-  }
 
   # -- Return handle ---------------------------------------------------------
   structure(
@@ -455,6 +441,29 @@ experimentFuture <- function(
     ),
     class = "experimentFuture"
   )
+}
+
+
+# -- Internal: build a single shell command that creates a tmux session,
+#    one pane per log, each running tail -F. The user pastes this into any
+#    bash/zsh shell (whether they are already in tmux or not -- tmux's
+#    new-session can nest if needed; otherwise it attaches).
+.future_tmux_tail_cmd <- function(log_files, session = "logs") {
+  qsh   <- function(x) shQuote(x, type = "sh")
+  tail1 <- function(p) sprintf("bash -lc %s", qsh(sprintf("exec tail -F -- %s", qsh(p))))
+
+  parts <- c(
+    sprintf("tmux new-session -d -s %s -n logs %s",
+            qsh(session), tail1(log_files[[1L]]))
+  )
+  for (p in log_files[-1L]) {
+    parts <- c(parts,
+               sprintf("split-window -t %s %s", qsh(session), tail1(p)))
+  }
+  parts <- c(parts,
+             sprintf("select-layout -t %s tiled", qsh(session)),
+             sprintf("attach -t %s", qsh(session)))
+  paste(parts, collapse = " \\; ")
 }
 
 
