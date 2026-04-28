@@ -284,11 +284,10 @@ expt <- expand.grid(.scenario = c("A", "B"), .rep = 1:2,
                     stringsAsFactors = FALSE)
 
 workers <- experimentTmux(
-  df           = expt,
-  global_path  = file.path(tdir, "global.R"),
-  cores        = rep("localhost", 2L),
-  queue_path   = file.path(tdir, "queue.rds"),
-  runNameLabel = quote(paste(.scenario, .rep, sep = "_"))
+  df          = expt,
+  global_path = file.path(tdir, "global.R"),
+  cores       = rep("localhost", 2L),
+  queue_path  = file.path(tdir, "queue.rds")
 )
 
 # --- Basic local usage with explicit pane sizing ---

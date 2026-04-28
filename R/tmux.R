@@ -718,11 +718,10 @@ tmuxSetMouse <- function(on = TRUE) {
 #'                     stringsAsFactors = FALSE)
 #'
 #' workers <- experimentTmux(
-#'   df           = expt,
-#'   global_path  = file.path(tdir, "global.R"),
-#'   cores        = rep("localhost", 2L),
-#'   queue_path   = file.path(tdir, "queue.rds"),
-#'   runNameLabel = quote(paste(.scenario, .rep, sep = "_"))
+#'   df          = expt,
+#'   global_path = file.path(tdir, "global.R"),
+#'   cores       = rep("localhost", 2L),
+#'   queue_path  = file.path(tdir, "queue.rds")
 #' )
 #'
 #' # --- Basic local usage with explicit pane sizing ---
@@ -3285,7 +3284,10 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
     if (missing(runName) || is.null(runName) || all(!nzchar(runName))) {
       wh <- seq(NROW(startedFiles))
     } else {
-      wh <- which(startedFilesELFind == runName)
+      # %in% (not ==) so a multi-element runName -- e.g. the default
+      # quote(colnames(q)[1:2]), which evaluates to a length-2 vector --
+      # doesn't trigger recycling warnings against startedFilesELFind.
+      wh <- which(startedFilesELFind %in% runName)
     }
     startedFilesFull <- dir(activeRunningPath, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
     fi <- file.info(startedFilesFull[wh])

@@ -125,8 +125,10 @@ ef <- experimentFuture(
   queue_path  = file.path(tdir, "future_queue.rds"),
   log_dir     = file.path(tdir, "logs")
 )
+awaitExperimentFuture(ef)    # blocks until both workers exit
 
 print(ef)                    # live status (alive/done per worker)
+cat(readLines(ef$log_files[[1L]]), sep = "\n")  # inspect a single worker log
 
 ## -- Killing workers ----------------------------------------------------
 
