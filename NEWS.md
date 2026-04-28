@@ -26,6 +26,15 @@ version 1.0.1
 
 ## Bug fixes
 
+* `experimentTmux()`, `tmuxRefreshQueueStatus()`, and the worker
+  loops (`runWorkerLoopFuture()`, `.sync_loop_internal()`) now call
+  `scenarioFieldsSet()` on the queue's data columns before evaluating
+  `runNameLabel` / `statusCalculate`. This restores positional
+  `pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep)` calls (used
+  by `statusCalculate_LandR`, `statusCalculate_FireSenseFit`, and
+  many user `runNameLabel` quotes) when the queue comes from a
+  programmatic `df` rather than from `queueRead()` (which sets the
+  field cache on its own).
 * `outUpload()` now calls `tempdir(check = TRUE)` before invoking
   `googledrive::drive_upload()` so the session tempdir is recreated if
   it has been deleted out from under R (intermittent NFS/cleanup

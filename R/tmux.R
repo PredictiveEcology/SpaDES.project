@@ -798,7 +798,12 @@ experimentTmux <- function(df,
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
   # on_error     <- match.arg(on_error)
-  
+
+  # Cache scenario fields from df so positional pathBuild() calls in
+  # runNameLabel / statusCalculate work without an explicit queueRead().
+  if (!missing(df) && !is.null(df))
+    scenarioFieldsSet(setdiff(names(df), meta_cols))
+
   # -- preconditions
   
   # Normalize to absolute paths immediately so worker panes launched via
@@ -1508,6 +1513,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     q <- revertDotNames(q)
     
     data_cols    <- setdiff(names(q), meta_cols)
+    scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
 
     for (nm in data_cols) {
       # try parsing as it could be an expression written/recorded as a character
@@ -1662,6 +1668,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   i <- pending_idx
 
   data_cols <- setdiff(names(q), meta_cols)
+  scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
 
   if (is.null(runNameLabel)) {
     if (length(data_cols) == 0L)
@@ -2872,6 +2879,7 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
     data.table::setDT(q)
     if (!"interrupted_at" %in% names(q))
       q[, interrupted_at := NA_character_]
+    scenarioFieldsSet(setdiff(names(q), meta_cols))   # for positional pathBuild() in runNameLabel / statusCalculate
 
     # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
     # Any other status (DONE, CANCELLED, or user-defined) is left untouched.
