@@ -102,6 +102,7 @@ Collate:
     'packages.R'
     'paths2.R'
     'pkgload2.R'
+    'sbatch.R'
     'scenario.R'
     'setupProject.R'
     'spades-project-package.R'

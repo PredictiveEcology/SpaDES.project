@@ -5,6 +5,17 @@ version 1.0.1
 
 ## New features
 
+* New `experimentSBATCH()` runner: Slurm-native sibling of
+  `experimentTmux()` and `experimentFuture()`. Submits `n_workers`
+  long-lived SBATCH jobs that each call `tmuxRunWorkerLoop()` against
+  the shared queue (RDS or Google Sheets). Same `df` / `global_path` /
+  `runNameLabel` / `statusCalculate` / queue semantics as the other
+  two runners; `cores` is replaced by `sbatch_opts = list(partition,
+  time, mem, cpus_per_task, ...)`. Companion helpers
+  `awaitExperimentSBATCH()` (polls `squeue`) and
+  `killExperimentSBATCH()` (graceful via stop files; `force = TRUE`
+  uses `scancel`). `dry_run = TRUE` generates the job scripts without
+  submitting.
 * New `scenario` S3 class for representing a single simulation run as a
   canonical record. The same run is identifiable in three ways and all
   three coerce to one another: the five field values (`.ELFind`,
@@ -23,6 +34,14 @@ version 1.0.1
   skips the tar-build step when one is supplied. Useful when an
   earlier stage already produced the tarball and only the upload
   remains.
+
+## Removed
+
+* `experiment3()` (and its `tmux_tail_command` helper) have been
+  removed. Use `experimentFuture()` for non-tmux parallel runs, or the
+  10-line `furrr::future_pmap()` kernel inline if you want a
+  queue-less micro-runner. The conceptual differences are documented
+  in the "Experiments" chapter of the SpaDES4Modellers book.
 
 ## Bug fixes
 
