@@ -125,14 +125,34 @@ or immediately via \code{scancel}).
 }
 \examples{
 \dontrun{
-expt <- data.frame(.scenario = c("A", "B", "C", "D"), .rep = 1:4)
+## -- Minimal: build a tiny global.R, then run a 2 x 2 experiment ---------
+# Use a directory on your shared HPC filesystem (NFS / Lustre / BeeGFS).
+tdir <- file.path(tempdir(), "experimentSBATCH-demo")
+dir.create(tdir, showWarnings = FALSE, recursive = TRUE)
+writeLines(
+  'message("scenario=", .scenario, " rep=", .rep); Sys.sleep(2)',
+  file.path(tdir, "global.R")
+)
+expt <- expand.grid(.scenario = c("A", "B"), .rep = 1:2,
+                    stringsAsFactors = FALSE)
 
 es <- experimentSBATCH(
   df          = expt,
-  global_path = file.path(getwd(), "global.R"),
+  global_path = file.path(tdir, "global.R"),
+  n_workers   = 2L,
+  queue_path  = file.path(tdir, "sbatch_queue.rds"),
+  log_dir     = file.path(tdir, "logs"),
+  sbatch_opts = list(partition = "compute", time = "00:30:00", mem = "1G")
+)
+awaitExperimentSBATCH(es)
+
+## -- Larger experiment with full sbatch_opts ------------------------------
+es <- experimentSBATCH(
+  df          = expt,
+  global_path = file.path(tdir, "global.R"),
   n_workers   = 4L,
-  queue_path  = file.path(getwd(), "sbatch_queue.rds"),
-  log_dir     = file.path(getwd(), "logs"),
+  queue_path  = file.path(tdir, "sbatch_queue.rds"),
+  log_dir     = file.path(tdir, "logs"),
   sbatch_opts = list(
     partition     = "compute",
     time          = "24:00:00",

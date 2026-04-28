@@ -83,22 +83,22 @@
 #'
 #' @examples
 #' \dontrun{
-#' ## -- Minimal local example ----------------------------------------------
-#'
-#' # Each row is one job; column names become variables in .GlobalEnv before
-#' # global.R is sourced.
-#' expt <- data.frame(.scenario = c("A", "B", "C", "D"), .rep = 1:4)
-#'
-#' # global.R uses the variables from the queue row, e.g.:
-#' #   message("Running scenario: ", .scenario, " rep: ", .rep)
-#' #   Sys.sleep(2)
+#' ## -- Minimal: build a tiny global.R, then run a 2 x 2 experiment ---------
+#' tdir <- file.path(tempdir(), "experimentFuture-demo")
+#' dir.create(tdir, showWarnings = FALSE, recursive = TRUE)
+#' writeLines(
+#'   'message("scenario=", .scenario, " rep=", .rep); Sys.sleep(2)',
+#'   file.path(tdir, "global.R")
+#' )
+#' expt <- expand.grid(.scenario = c("A", "B"), .rep = 1:2,
+#'                     stringsAsFactors = FALSE)
 #'
 #' ef <- experimentFuture(
 #'   df          = expt,
-#'   global_path = file.path(getwd(), "global.R"),
+#'   global_path = file.path(tdir, "global.R"),
 #'   n_workers   = 2L,
-#'   queue_path  = file.path(getwd(), "future_queue.rds"),
-#'   log_dir     = file.path(getwd(), "logs")
+#'   queue_path  = file.path(tdir, "future_queue.rds"),
+#'   log_dir     = file.path(tdir, "logs")
 #' )
 #'
 #' print(ef)                    # live status (alive/done per worker)
@@ -124,10 +124,10 @@
 #' # same queue_path  -- no need to re-specify df.
 #' ef2 <- experimentFuture(
 #'   df          = expt,         # ignored if queue_path already exists
-#'   global_path = file.path(getwd(), "global.R"),
+#'   global_path = file.path(tdir, "global.R"),
 #'   n_workers   = 2L,
-#'   queue_path  = file.path(getwd(), "future_queue.rds"),
-#'   log_dir     = file.path(getwd(), "logs")
+#'   queue_path  = file.path(tdir, "future_queue.rds"),
+#'   log_dir     = file.path(tdir, "logs")
 #' )
 #' awaitExperimentFuture(ef2)   # wait for remaining jobs to finish
 #'
@@ -139,7 +139,7 @@
 #' ## -- Remote workers (pre-setup required) -------------------------------
 #' ef <- experimentFuture(
 #'   df             = expt,
-#'   global_path    = file.path(getwd(), "global.R"),
+#'   global_path    = file.path(tdir, "global.R"),
 #'   cores          = c("node01", "node02"),
 #'   n_workers      = 2L,
 #'   ss_id          = "YOUR_GOOGLE_SHEET_ID",

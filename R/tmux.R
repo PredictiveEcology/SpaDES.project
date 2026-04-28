@@ -707,7 +707,25 @@ tmuxSetMouse <- function(on = TRUE) {
 #'
 #' @examples
 #' \dontrun{
-#' # --- Basic local usage ---
+#' # --- Minimal: build a tiny global.R, then run a 2 x 2 experiment ---
+#' tdir <- file.path(tempdir(), "experimentTmux-demo")
+#' dir.create(tdir, showWarnings = FALSE, recursive = TRUE)
+#' writeLines(
+#'   'message("scenario=", .scenario, " rep=", .rep); Sys.sleep(2)',
+#'   file.path(tdir, "global.R")
+#' )
+#' expt <- expand.grid(.scenario = c("A", "B"), .rep = 1:2,
+#'                     stringsAsFactors = FALSE)
+#'
+#' workers <- experimentTmux(
+#'   df           = expt,
+#'   global_path  = file.path(tdir, "global.R"),
+#'   cores        = rep("localhost", 2L),
+#'   queue_path   = file.path(tdir, "queue.rds"),
+#'   runNameLabel = quote(paste(.scenario, .rep, sep = "_"))
+#' )
+#'
+#' # --- Basic local usage with explicit pane sizing ---
 #' workers <- experimentTmux(
 #'   global_path         = "/abs/path/to/global.R",
 #'   queue_path          = "/abs/path/to/queue.rds",
