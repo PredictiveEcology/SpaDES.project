@@ -4,12 +4,18 @@
 \alias{as_path}
 \title{Render a scenario (or list of them) as the canonical output path.}
 \usage{
-as_path(x, pre = "outputs")
+as_path(x, pre = "outputs", withFieldLabel = .scenario_env$withFieldLabel)
 }
 \arguments{
 \item{x}{A scenario, or anything coercible via \code{\link[=as_scenario]{as_scenario()}}.}
 
 \item{pre}{Path prefix (default \code{"outputs"}).}
+
+\item{withFieldLabel}{Character vector of field names whose value
+should be prefixed with the field name in the path
+(\code{paste0(label, value)} instead of bare \code{value}). Defaults to the
+value registered via \code{\link[=register_scenario_format]{register_scenario_format()}}; pass
+\code{character(0)} to force the bare-value default.}
 }
 \description{
 Render a scenario (or list of them) as the canonical output path.

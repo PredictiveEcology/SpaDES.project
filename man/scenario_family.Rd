@@ -2,50 +2,131 @@
 % Please edit documentation in R/scenario.R
 \name{scenario_family}
 \alias{scenario_family}
-\title{Scenario records: one canonical form, three representations}
+\title{Scenario records: one canonical form, multiple representations}
 \description{
-A "scenario" identifies a single simulation run. The same run can be
-referred to in three ways:
+A "scenario" identifies a single simulation run. Field \emph{names} and
+\emph{values} are discovered from the driver queue (Google Sheet); they
+are not hardcoded in this package. The same run can be referred to
+in three interchangeable ways:
 }
 \details{
 \enumerate{
-\item Five field values (typically read from the Google Sheet queue):
-\code{.ELFind}, \code{.samplingRange}, \code{.GCM}, \code{.SSP}, \code{.rep}.
-\item An output directory path:
-\verb{outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5}.
-\item An upload tar filename:
-\verb{6.3.1_2071-2100_CNRM-ESM2-1_ssp370_rep5.tar.gz}.
+\item Field values (one column per field in the queue), e.g.
+\verb{(.ELFind = "6.3.1", .samplingRange = 2071:2100, ...)}.
+\item An output directory path under \verb{outputs/}.
+\item An upload tar filename (path with \code{/} -> \verb{_} and \code{.tar.gz} suffix).
 }
 
-This file defines a canonical record (an S3 class \code{"scenario"}) and the
-generic \code{\link[=as_scenario]{as_scenario()}} for coercing any of the three representations
-into it, plus formatters \code{\link[=as_path]{as_path()}} and \code{\link[=as_tarname]{as_tarname()}} for going back.
+This file defines:
+\itemize{
+\item a canonical record (S3 class \code{"scenario"});
+\item the generic \code{\link[=as_scenario]{as_scenario()}} for coercing any representation into it;
+\item formatters \code{\link[=as_path]{as_path()}} / \code{\link[=as_tarname]{as_tarname()}} for going back;
+\item default builders \code{\link[=pathBuild]{pathBuild()}} / \code{\link[=pathParse]{pathParse()}}: each non-empty
+field's \emph{value} (no label) is one path segment, joined by \code{/},
+in the order given by \code{\link[=scenarioFields]{scenarioFields()}}. Integer-and-contiguous
+vectors render as \code{start-end}. Empty / \code{NA} fields are skipped
+entirely (one fewer segment); see \code{\link[=pathParse]{pathParse()}} for the
+trailing-NA round-trip caveat.
+}
 
-Column-name flexibility: queue tables sometimes use different column names
-(e.g. \code{dotELFind} vs \code{ELFind} vs something project-specific). The default
-resolver matches case-insensitively and ignores non-alphanumeric
-characters; for genuinely different names pass \code{mapping = c(.ELFind = "myCol", ...)}. Aliases can also be registered globally with
-\code{\link[=register_scenario_aliases]{register_scenario_aliases()}}.
+Per-project format overrides: define your own \code{pathBuild} (and
+matching \code{pathParse}) in the global environment, or register them
+explicitly with \code{\link[=register_scenario_format]{register_scenario_format()}}. Lookup order, highest
+first: \code{register_scenario_format} slot -> a \code{pathBuild}/\code{pathParse}
+in the global environment -> the package default.
+
+Field discovery: \code{\link[=queueRead]{queueRead()}} caches the queue's non-meta column
+names as the active field set. Subsequent \code{\link[=pathParse]{pathParse()}} calls use
+those labels for positional decoding. If you parse paths without
+first reading a queue, pass \code{fields = c(...)} explicitly (or call
+\code{\link[=scenarioFieldsSet]{scenarioFieldsSet()}}).
 }
 \examples{
 \dontrun{
-s <- scenario(.ELFind = "6.3.1", .samplingRange = 2071:2100,
-              .GCM = "CNRM-ESM2-1", .SSP = "370", .rep = 5)
-as_path(s)        # "outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5"
-as_tarname(s)     # "6.3.1_2071-2100_CNRM-ESM2-1_ssp370_rep5.tar.gz"
+## --- Default (generic) format -----------------------------------------
+queue <- queueRead(folder = ss_id, name = "longRuns")
+#  -> data.table with columns .ELFind, .samplingRange, .GCM, .SSP, .rep
+#     plus meta columns (status, started_at, ...). Non-meta columns are
+#     auto-cached as scenarioFields().
 
-as_scenario("outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5")
-as_scenario("6.3.1_2071-2100_CNRM-ESM2-1_ssp370_rep5.tar.gz")
+scens <- as_scenario(queue)                # list of `scenario` objects
+as_path(scens[[1]])
+#> "outputs/6.3.1/2071-2100/CNRM-ESM2-1/370/5"
+as_tarname(scens[[1]])
+#> "6.3.1_2071-2100_CNRM-ESM2-1_370_5.tar.gz"
 
-# GS queue row (column names like dotELFind, dotrep, ...): auto-resolved
-as_scenario(queueRow)
+# Round-trip
+s2 <- as_scenario("outputs/6.3.1/2071-2100/CNRM-ESM2-1/370/5")
+identical(unclass(scens[[1]]), unclass(s2))   # TRUE
 
-# Dribble from googledrive::drive_ls(): parse the `name` column
-as_scenario(allOnGS, name_col = "name")
+# Cross-reference queue against uploaded tarballs
+uploads <- outScenarios(.uploadGSdir)         # list of scenarios
+missing <- queueUploadMissing(folder = ss_id, name = "longRuns",
+                              uploadFolder = .uploadGSdir)  # queue rows only
 
-# Read a queue sheet living inside a Drive folder
-queue <- readQueueSheet(folder = "https://drive.google.com/drive/folders/...",
-                        name = "longRuns")
-queueScenarios <- as_scenario(queue)
+## --- Per-field labels in the path -------------------------------------
+# `withFieldLabel` accepts two forms.
+
+# 1) Unnamed character vector: prefix with the field name itself.
+as_path(scens[[1]], withFieldLabel = c(".rep", ".SSP"))
+#> "outputs/6.3.1/2071-2100/CNRM-ESM2-1/.SSP370/.rep5"
+
+# 2) Named character vector: prefix with the *mapped* label
+#    (e.g., emit `.rep` as `rep`, `.SSP` as `_ssp`).
+as_path(scens[[1]], withFieldLabel = c(.rep = "rep", .SSP = "_ssp"))
+#> "outputs/6.3.1/2071-2100/CNRM-ESM2-1/_ssp370/rep5"
+
+# Set once for every subsequent as_path() / as_tarname():
+register_scenario_format(withFieldLabel = c(.rep = "rep", .SSP = "_ssp"))
+as_path(scens[[1]])
+#> "outputs/6.3.1/2071-2100/CNRM-ESM2-1/_ssp370/rep5"
+as_tarname(scens[[1]])
+#> "6.3.1_2071-2100_CNRM-ESM2-1__ssp370_rep5.tar.gz"
+# Round-trip parses back to canonical fields:
+as_scenario("outputs/6.3.1/2071-2100/CNRM-ESM2-1/_ssp370/rep5")
+
+## --- Project-specific format (FireSenseTesting layout) ----------------
+# Layout: outputs/<.ELFind>/<range>/<GCM>_ssp<SSP>/rep<.rep>
+# E.g.    outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5
+
+myBuild <- function(.ELFind, .samplingRange, .GCM, .SSP, .rep,
+                    pre = "outputs") {
+  sr <- if (is.numeric(.samplingRange)) .samplingRange
+        else                            eval(parse(text = .samplingRange))
+  file.path(pre, .ELFind,
+            paste(range(sr), collapse = "-"),
+            paste0(.GCM, ifelse(is.na(.SSP), "", paste0("_ssp", .SSP))),
+            paste0("rep", .rep))
+}
+
+myParse <- function(path, fields = scenarioFields(), pre = "outputs") {
+  clean <- sub("\\\\.tar\\\\.gz$", "", path)
+  clean <- sub(paste0("^", pre, "[/_]"), "", clean)
+  parts <- if (grepl("/", clean)) strsplit(clean, "/")[[1L]]
+           else                    strsplit(clean, "_")[[1L]]
+  repIdx   <- which(grepl("^rep[0-9]+$",   parts))
+  rangeIdx <- which(grepl("^[0-9]+-[0-9]+$", parts))
+  gcmSsp   <- paste(parts[(rangeIdx + 1L):(repIdx - 1L)], collapse = "_")
+  gs       <- if (grepl("_ssp", gcmSsp)) strsplit(gcmSsp, "_ssp")[[1L]]
+              else                       c(gcmSsp, NA_character_)
+  rng      <- as.integer(strsplit(parts[rangeIdx], "-")[[1L]])
+  list(.ELFind        = paste(parts[seq_len(rangeIdx - 1L)], collapse = "_"),
+       .samplingRange = rng[1L]:rng[2L],
+       .GCM           = gs[1L],
+       .SSP           = gs[2L],
+       .rep           = as.integer(sub("^rep", "", parts[repIdx])))
+}
+
+register_scenario_format(build = myBuild, parse = myParse)
+as_path(scens[[1]])
+#> "outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5"
+as_tarname(scens[[1]])
+#> "6.3.1_2071-2100_CNRM-ESM2-1_ssp370_rep5.tar.gz"
+
+# Equivalent: define pathBuild / pathParse in your global environment
+# (e.g. in a project global.R) -- they will be auto-detected.
+pathBuild <- myBuild
+pathParse <- myParse
 }
 }

@@ -4,12 +4,25 @@
 \alias{as_tarname}
 \title{Render a scenario as an upload tar filename.}
 \usage{
-as_tarname(x, ext = ".tar.gz")
+as_tarname(
+  x,
+  ext = ".tar.gz",
+  pre = "outputs",
+  withFieldLabel = .scenario_env$withFieldLabel
+)
 }
 \arguments{
 \item{x}{A scenario, or anything coercible via \code{\link[=as_scenario]{as_scenario()}}.}
 
 \item{ext}{File extension (default \code{".tar.gz"}).}
+
+\item{pre}{Path prefix (default \code{"outputs"}).}
+
+\item{withFieldLabel}{Character vector of field names whose value
+should be prefixed with the field name in the path
+(\code{paste0(label, value)} instead of bare \code{value}). Defaults to the
+value registered via \code{\link[=register_scenario_format]{register_scenario_format()}}; pass
+\code{character(0)} to force the bare-value default.}
 }
 \description{
 Render a scenario as an upload tar filename.

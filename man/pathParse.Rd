@@ -2,22 +2,44 @@
 % Please edit documentation in R/scenario.R
 \name{pathParse}
 \alias{pathParse}
-\title{Parse a scenario path or tar filename into its 5 fields.}
+\title{Default scenario path parser.}
 \usage{
-pathParse(path, pre = "outputs")
+pathParse(
+  path,
+  fields = scenarioFields(),
+  pre = "outputs",
+  withFieldLabel = .scenario_env$withFieldLabel
+)
 }
 \arguments{
-\item{path}{A single character string.}
+\item{path}{A single character string (path or tarname).}
 
-\item{pre}{Output prefix that may be present and should be stripped
-(default \code{"outputs"}).}
+\item{fields}{Field labels in scenario order; defaults to
+\code{\link[=scenarioFields]{scenarioFields()}} (set by \code{\link[=queueRead]{queueRead()}}).}
+
+\item{pre}{Path prefix to strip (default \code{"outputs"}).}
+
+\item{withFieldLabel}{Character vector of field names that were
+built with \code{paste0(label, value)} prefixing.}
 }
 \value{
-A named list of the 5 scenario fields.
+Named list of field values (in \code{fields} order).
 }
 \description{
-Accepts \verb{outputs/6.3.1/2071-2100/CNRM-ESM2-1_ssp370/rep5} (slash-delimited
-path, possibly with archive extension stripped) or
-\verb{6.3.1_2071-2100_CNRM-ESM2-1_ssp370_rep5.tar.gz} (underscore-flattened
-tarname). Used internally by \code{\link[=as_scenario]{as_scenario()}}.
+Inverse of the default \code{\link[=pathBuild]{pathBuild()}}: splits the path on \code{/} (or, for
+tarname inputs, on \verb{_}), strips archive extensions and the \code{pre}
+prefix, then matches segments \strong{positionally} to \code{\link[=scenarioFields]{scenarioFields()}}.
+Integer ranges of the form \code{start-end} decode to integer vectors.
+}
+\details{
+Without per-segment labels there is no way to recover which field a
+missing segment corresponds to, so when the path has fewer segments
+than there are fields, the \emph{trailing} fields are treated as \code{NA}.
+Round-trip is therefore only lossless when \code{NA}-bearing fields are
+last in the field order \emph{unless} you label the ambiguous fields
+through \code{withFieldLabel}: any field named there has its label
+prefix stripped from the segment, and segments not starting with a
+labeled field's name are assigned positionally to the next
+unlabeled field. With every potentially-\code{NA} field labeled, mid-list
+\code{NA}s round-trip cleanly.
 }

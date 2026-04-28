@@ -2,27 +2,41 @@
 % Please edit documentation in R/scenario.R
 \name{pathBuild}
 \alias{pathBuild}
-\title{Build the canonical output path from scenario fields.}
+\title{Default scenario path builder.}
 \usage{
-pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep, pre = "outputs")
+pathBuild(..., pre = "outputs", withFieldLabel = .scenario_env$withFieldLabel)
 }
 \arguments{
-\item{.ELFind}{Character. Scenario family / experiment label.}
-
-\item{.samplingRange}{Integer vector, two-element start/end pair, or a
-single string like \code{"1991:2020"} (parsed via \code{eval(parse(text = ))}).}
-
-\item{.GCM}{Character. Global climate model name.}
-
-\item{.SSP}{Character or \code{NA}. Shared Socioeconomic Pathway code.}
-
-\item{.rep}{Integer. Replicate number.}
+\item{...}{Either a single named-list / scenario, or named/positional
+field/value pairs.}
 
 \item{pre}{Path prefix (default \code{"outputs"}).}
+
+\item{withFieldLabel}{Character vector of field names whose segment
+should carry a \code{paste0(label, value)} prefix. Defaults to the
+registered value (see \code{\link[=register_scenario_format]{register_scenario_format()}}).}
 }
 \value{
 Character scalar.
 }
 \description{
-Build the canonical output path from scenario fields.
+Generic format: each non-empty field's value becomes one path segment.
+Field order is taken from the order of the input (or, for positional
+calls, from \code{\link[=scenarioFields]{scenarioFields()}}). Integer-and-contiguous vectors are
+encoded as \code{start-end}. Empty / \code{NA} fields are dropped entirely
+(yielding one fewer segment); for round-tripping see \code{\link[=pathParse]{pathParse()}}.
+}
+\details{
+Fields whose name appears in \code{withFieldLabel} get their segment
+prefixed by the field name itself (e.g. \code{.rep} with value \code{5}
+renders as \code{.rep5} instead of bare \code{5}). Useful when path readers
+must distinguish two integer fields, or when round-tripping with
+mid-list \code{NA}s (the label disambiguates which segments are present).
+
+Accepts three calling styles, all equivalent:
+\itemize{
+\item \code{pathBuild(scenarioObj)} --- a single named-list / scenario;
+\item \code{pathBuild(.fieldA = vA, .fieldB = vB, ...)} --- explicit named args;
+\item \code{pathBuild(vA, vB, ...)} --- positional, in cached-field order.
+}
 }

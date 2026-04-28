@@ -4,23 +4,21 @@
 \alias{scenario}
 \title{Construct a scenario record.}
 \usage{
-scenario(.ELFind, .samplingRange, .GCM, .SSP = NA_character_, .rep)
+scenario(...)
 }
 \arguments{
-\item{.ELFind}{Character. Scenario family / experiment label.}
-
-\item{.samplingRange}{Integer vector, two-element start/end pair, or a
-single string like \code{"1991:2020"} (parsed via \code{eval(parse(text = ))}).}
-
-\item{.GCM}{Character. Global climate model name.}
-
-\item{.SSP}{Character or \code{NA}. Shared Socioeconomic Pathway code.}
-
-\item{.rep}{Integer. Replicate number.}
+\item{...}{Named field/value pairs.}
 }
 \value{
 An S3 object of class \code{"scenario"}.
 }
 \description{
-Construct a scenario record.
+Accepts any named arguments. Each name becomes a field label; each
+value the field's value. No specific field set is required by the
+package (fields are project-defined via the queue).
+}
+\details{
+Light coercion: a single character of the form \code{"a:b"} is \code{eval}ed
+as an R expression (so queue cells like \code{"1991:2020"} become integer
+vectors).
 }

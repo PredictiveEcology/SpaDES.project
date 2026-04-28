@@ -16,7 +16,7 @@ version 1.0.1
   lists, data.frames, and re-coercion), `as_path()`, `as_tarname()`,
   `format.scenario`, `print.scenario`, and
   `register_scenario_aliases()` for project-specific column-name
-  mappings. Companion helpers `queueRead()`, `queuePending()`,
+  mappings. Companion helpers `queueRead()`, `queueUploadMissing()`,
   `outList()`, `outScenarios()` work with the project queue
   (Google Sheet) and output directory.
 * `outSaveTarUpload()` now accepts a pre-built `tarball` argument and
