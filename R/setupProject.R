@@ -4056,6 +4056,12 @@ getGitUserName <- function() {
     !rprojroot::is_git_root$testfun[[1]](pp)
 }
 
+# Build the canonical github HTTPS URL for an account / repo pair.
+# Factored out so tests can mock it with a local file:// path.
+.gh_url <- function(acct, repo) {
+  paste0("https://github.com/", acct, "/", repo)
+}
+
 setupGitHub <- function(useGit, name, paths, verbose) {
   pp <- path.expand(paths[["projectPath"]])
 
@@ -4179,11 +4185,50 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
         # branch that lives on a fork (or any non-default remote) won't be
         # in the ref namespace yet.  Walk every configured remote and try
         # again.
-        remotes <- tryCatch(gert::git_remote_list()$name,
-                            error = function(e) character(0))
-        for (rm in remotes)
-          try(gert::git_fetch(remote = rm), silent = TRUE)
+        remotes <- tryCatch(gert::git_remote_list(),
+                            error = function(e) NULL)
+        if (!is.null(remotes) && nrow(remotes) > 0L) {
+          for (rm in remotes$name)
+            try(gert::git_fetch(remote = rm), silent = TRUE)
+        }
         gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+      }
+      if (is(gbc, "try-error") && !is.null(split$acct) && !is.null(split$repo)) {
+        # Still missing -- the branch may live on a github fork the working
+        # copy doesn't know about yet.  We have $acct/$repo from the modules
+        # spec, so build the canonical https URL, add it as a named remote
+        # (skipping if any existing remote already points at the same URL),
+        # fetch, and retry.  This is the "switch a submodule's origin to a
+        # fork on demand" path.
+        fork_url <- .gh_url(split$acct, split$repo)
+        existing <- tryCatch(gert::git_remote_list(),
+                             error = function(e) NULL)
+        already <- !is.null(existing) &&
+                   any(existing$url == fork_url |
+                       existing$url == paste0(fork_url, ".git"))
+        if (!already) {
+          # Pick a remote name that doesn't collide with an existing one.
+          # `<acct>` is the natural choice (e.g. "eliotmcintire"); fall back
+          # to "fork-<acct>" if that's already taken.
+          rname <- split$acct
+          if (!is.null(existing) && rname %in% existing$name)
+            rname <- paste0("fork-", split$acct)
+          add_ok <- tryCatch({
+            gert::git_remote_add(url = fork_url, name = rname)
+            TRUE
+          }, error = function(e) FALSE)
+          if (add_ok) {
+            messageVerbose("Added remote '", rname, "' -> ", fork_url,
+                           " (looking for branch '", split$br, "')",
+                           verbose = verbose)
+            try(gert::git_fetch(remote = rname), silent = TRUE)
+            gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+          }
+        } else {
+          # The fork URL was already configured under some name -- fetch
+          # from every remote (covered above), then last try for the branch.
+          gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+        }
       }
       if (is(gbc, "try-error")) {
         # Still missing -- emit an actionable message listing what IS
@@ -4202,9 +4247,8 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
           repo_loc, ".",
           "\n  Local branches : ", paste(avail_local,  collapse = ", "),
           "\n  Remote branches: ", paste(avail_remote, collapse = ", "),
-          "\nFix: push the branch from your fork, add the fork as a remote ",
-          "(`git remote add <fork>`), correct the branch name in your `modules` ",
-          "spec, or pick an existing branch.",
+          "\nFix: push the branch from your fork, correct the branch name in ",
+          "your `modules` spec, or pick an existing branch.",
           verbose = verbose
         )
         split$br <- curBr   # carry on with whatever's currently checked out
