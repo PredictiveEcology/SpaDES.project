@@ -3368,7 +3368,15 @@ tmuxActiveRunningPath <- function(activeRunningPath = NULL, queue_path, prefix =
 
 
 getRunName <- function(queue, i, runNameLabel) {
-  queue[i, ..runNameLabel] |> paste(collapse = "-")
+  # Base R subset so this works for both data.frame and data.table queues.
+  # `queue[i, ..runNameLabel]` (data.table NSE) errors on a data.frame with
+  # "object '..runNameLabel' not found"; revertDotNames() returns a
+  # data.frame when no `dot*` columns are present, so we can't rely on
+  # the queue being a data.table here.
+  paste(vapply(runNameLabel,
+               function(cn) as.character(queue[[cn]][i]),
+               character(1L)),
+        collapse = "-")
 }
 
 
