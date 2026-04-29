@@ -10,6 +10,7 @@ outSaveTarUpload(
   gFolder = NULL,
   simFilename = NULL,
   tarDir = NULL,
+  tarball = NULL,
   overwrite = TRUE,
   cleanup = FALSE,
   verbose = TRUE
@@ -30,6 +31,8 @@ Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), t
 
 \item{tarDir}{Character scalar. Directory in which to create the tarball.
 Defaults to \code{dirname(simFilename)}.}
+
+\item{tarball}{Character scalar. Path to the local file to upload.}
 
 \item{overwrite}{Logical. Overwrite an existing file of the same name in
 the Drive folder.  Default \code{TRUE}.}

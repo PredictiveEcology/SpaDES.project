@@ -7,8 +7,6 @@
 \alias{statusCalculate_LandR}
 \title{Pre-built statusCalculate expressions for experimentTmux / experimentFuture}
 \format{
-A \code{\link[base:substitute]{base::quote()}}d block expression (\code{is.call(statusCalculate_LandR)} is \code{TRUE}).
-
 A \code{\link[base:substitute]{base::quote()}}d block expression (\code{is.call(statusCalculate_FireSenseFit)} is \code{TRUE}).
 
 A \code{\link[base:substitute]{base::quote()}}d block expression (\code{is.call(statusCalculate_LandR)} is \code{TRUE}).
@@ -36,24 +34,24 @@ of the recognised meta-column names (\code{started_at}, \code{finished_at},
 }
 \section{Functions}{
 \itemize{
-\item \code{statusCalculate_FireSenseFit}: Heartbeat calculator for \strong{LandR} vegetation simulations.
+\item \code{statusCalculate_FireSenseFit}: Heartbeat calculator for \strong{fireSense} fire-spread simulations.
 
-Scans the job's output directory for \verb{cohortData_year<XXXX>.rds}
-checkpoint files (written at each SpaDES save event) and maps them to the
-standard queue meta-columns:
+Scans the job's output directory for \verb{burnMap_year<XXXX>.tif} files and
+"Annual Fire Maps" output files to populate the queue meta-columns:
 
 \describe{
-\item{\code{heartbeat_iter}}{Current simulation year reached (character).}
-\item{\code{heartbeat_at}}{Timestamp of the latest checkpoint file.}
-\item{\code{started_at}}{Timestamp of the earliest checkpoint file (may be
-refined later by the running-flag-file logic in
-\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}}).}
-\item{\code{done}}{Set to \code{TRUE} when \code{heartbeat_iter >= outs$times$end},
-triggering a status transition to \code{DONE}.}
-\item{\code{finished_at}}{Timestamp of the final checkpoint (set only when
+\item{\code{heartbeat_iter}}{Most recent fire-map year found after the worker
+claimed the job, or \code{times$start} if none yet.}
+\item{\code{heartbeat_at}}{Modification timestamp of that file
+(\code{NA} until the first fire-map appears).}
+\item{\code{started_at}}{Modification timestamp of the running-flag file
+(i.e. when the worker claimed the job).}
+\item{\code{done}}{\code{TRUE} when a \code{burnMap} file containing \verb{year<times$end>}
+is found.}
+\item{\code{finished_at}}{Timestamp of the final-year burnMap (set only when
 \code{done}).}
-\item{\code{iterationsTotal}}{The end year as a character string (set only
-when \code{done}).}
+\item{\code{iterationsTotal}}{The end year extracted from the burnMap filename
+(set only when \code{done}).}
 }
 
 \item \code{statusCalculate_LandR}: Heartbeat calculator for \strong{LandR} vegetation simulations.

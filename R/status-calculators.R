@@ -45,29 +45,6 @@ NULL
 
 
 #' @describeIn statusCalculate_family
-#' Heartbeat calculator for **LandR** vegetation simulations.
-#'
-#' Scans the job's output directory for `cohortData_year<XXXX>.rds`
-#' checkpoint files (written at each SpaDES save event) and maps them to the
-#' standard queue meta-columns:
-#'
-#' \describe{
-#'   \item{`heartbeat_iter`}{Current simulation year reached (character).}
-#'   \item{`heartbeat_at`}{Timestamp of the latest checkpoint file.}
-#'   \item{`started_at`}{Timestamp of the earliest checkpoint file (may be
-#'     refined later by the running-flag-file logic in
-#'     [tmuxRefreshQueueStatus()]).}
-#'   \item{`done`}{Set to `TRUE` when `heartbeat_iter >= outs$times$end`,
-#'     triggering a status transition to `DONE`.}
-#'   \item{`finished_at`}{Timestamp of the final checkpoint (set only when
-#'     `done`).}
-#'   \item{`iterationsTotal`}{The end year as a character string (set only
-#'     when `done`).}
-#' }
-#'
-#' @format A [base::quote()]d block expression (`is.call(statusCalculate_LandR)` is `TRUE`).
-#' @export
-#' @describeIn statusCalculate_family
 #' Heartbeat calculator for **fireSense** fire-spread simulations.
 #'
 #' Scans the job's output directory for `burnMap_year<XXXX>.tif` files and
