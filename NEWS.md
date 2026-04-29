@@ -5,6 +5,14 @@ version 1.0.1
 
 ## New features
 
+* New `experimentFutureList()` finds (and optionally kills) live
+  `experimentFuture()` workers across R sessions. Scans `/proc` for R
+  processes whose redirected stdout points to a `worker_<NN>.log`,
+  joins each PID against the queue's `RUNNING` entries to report which
+  row is currently being run. `kill = TRUE` sends SIGTERM (or SIGINT /
+  SIGKILL via `signal`); follow with `tmuxRefreshQueueStatus()` on
+  each `queue_path` to reset stale RUNNING rows. Linux-only (uses
+  `/proc/<pid>/fd/1`).
 * New `experiment_family` documentation index (run `?experiment_family`)
   giving a high-level overview of the three runners (`experimentTmux()`,
   `experimentFuture()`, `experimentSBATCH()`), their shared

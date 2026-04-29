@@ -679,3 +679,151 @@ killExperimentFuture <- function(ef, force = FALSE) {
 
   invisible(ef)
 }
+
+
+# -- experimentFutureList -----------------------------------------------------
+
+#' Find (and optionally kill) live experimentFuture workers
+#'
+#' @description
+#' Cross-session worker discovery for \code{\link{experimentFuture}}.  Scans
+#' \code{/proc} for R processes whose redirected stdout points to a
+#' \verb{worker_<NN>.log} file (the convention written by
+#' \code{callr::r_bg(stdout = log_files[[i]])} in
+#' \code{experimentFuture}), regardless of which R session originally
+#' spawned them.  This is the right tool when:
+#'
+#' \itemize{
+#'   \item you re-ran the experimentFuture example in a new R session and
+#'     a fresh \code{tail -f} is silent because the previous run's workers
+#'     are still claiming queue rows;
+#'   \item you want to clean up orphans without remembering each
+#'     \code{ef} handle;
+#'   \item you want a one-glance view of \emph{which row} each worker is
+#'     currently running (joined against the queue's
+#'     \code{status == "RUNNING"} \code{process_id}).
+#' }
+#'
+#' Linux-only (uses \code{/proc/<pid>/fd/1} to find the log file each
+#' worker is writing).  For other Unixes use \code{lsof -p <pid>} or
+#' \code{ps -ef | grep tmuxRunWorkerLoop} as a manual substitute.
+#'
+#' @param kill   If \code{TRUE}, send \code{signal} to every worker found.
+#'   Default \code{FALSE} (list-only).  After killing, you may want to
+#'   call \code{\link{tmuxRefreshQueueStatus}} on each affected
+#'   \code{queue_path} to reset stale \verb{RUNNING} rows.
+#' @param signal One of \code{"TERM"} (15, default; graceful), \code{"INT"}
+#'   (2; like Ctrl-C), or \code{"KILL"} (9; immediate).
+#'
+#' @return A \code{data.frame} (one row per live worker) with columns:
+#'   \describe{
+#'     \item{\code{pid}}{Worker process ID.}
+#'     \item{\code{started_at}}{Approximate process start time
+#'       (\code{ctime} of \code{/proc/<pid>}).}
+#'     \item{\code{log_file}}{Path the worker is writing stdout/stderr to.}
+#'     \item{\code{queue_path}}{The first \verb{*_queue.rds} found in the
+#'       log directory's parent (where \code{experimentFuture} puts it by
+#'       default), or \code{NA} if not located.}
+#'     \item{\code{runName}}{Hyphen-joined data column values of the row
+#'       this worker is currently running, derived from the queue's
+#'       \code{status == "RUNNING"} entry whose \code{process_id} matches.
+#'       \code{NA} if the worker is between jobs.}
+#'   }
+#'   When \code{kill = TRUE}, the same data.frame is returned (invisibly)
+#'   describing the workers that were signalled.
+#'
+#' @examples
+#' \dontrun{
+#' # Just list everything that's running
+#' experimentFutureList()
+#'
+#' # Same, but kill them gracefully
+#' df <- experimentFutureList(kill = TRUE)
+#'
+#' # Hard-kill (no chance to update queue meta)
+#' experimentFutureList(kill = TRUE, signal = "KILL")
+#' for (qp in unique(df$queue_path[!is.na(df$queue_path)]))
+#'   tmuxRefreshQueueStatus(qp)        # reset stale RUNNING rows
+#' }
+#'
+#' @seealso \code{\link{experimentFuture}}, \code{\link{killExperimentFuture}},
+#'   \code{\link{tmuxRefreshQueueStatus}}
+#' @export
+experimentFutureList <- function(kill = FALSE, signal = c("TERM", "INT", "KILL")) {
+  signal <- match.arg(signal)
+  if (.Platform$OS.type != "unix" || !dir.exists("/proc"))
+    stop("experimentFutureList() requires a Linux-style /proc filesystem.",
+         call. = FALSE)
+
+  pid_dirs <- list.files("/proc", pattern = "^[0-9]+$")
+  pids     <- suppressWarnings(as.integer(pid_dirs))
+  pids     <- pids[!is.na(pids)]
+
+  rows <- list()
+  for (pid in pids) {
+    fd1 <- tryCatch(Sys.readlink(sprintf("/proc/%d/fd/1", pid)),
+                    error = function(e) "", warning = function(w) "")
+    if (length(fd1) != 1L || !nzchar(fd1)) next
+    if (!grepl("worker_[0-9]+\\.log$", fd1)) next
+
+    # Confirm the process is an R worker (avoid false-positives like a
+    # tail -f that redirected to a worker_NN.log).
+    comm <- tryCatch(readLines(sprintf("/proc/%d/comm", pid), warn = FALSE),
+                     error = function(e) NA_character_)
+    if (length(comm) == 0L || is.na(comm) ||
+        !grepl("^(R|Rscript|exec)$", comm)) next
+
+    started <- tryCatch(format(file.info(sprintf("/proc/%d", pid))$ctime,
+                               "%Y-%m-%d %H:%M:%S"),
+                        error = function(e) NA_character_)
+
+    log_dir   <- dirname(fd1)
+    queue_dir <- dirname(log_dir)
+    queue_files <- list.files(queue_dir, pattern = "_queue\\.rds$",
+                              full.names = TRUE)
+    queue_path  <- if (length(queue_files)) queue_files[[1L]] else NA_character_
+
+    runName <- NA_character_
+    if (!is.na(queue_path)) {
+      q <- tryCatch(readRDS(queue_path), error = function(e) NULL)
+      if (!is.null(q) && all(c("status", "process_id") %in% names(q))) {
+        idx <- which(q$status == "RUNNING" &
+                     suppressWarnings(as.integer(q$process_id)) == pid)
+        if (length(idx)) {
+          data_cols <- setdiff(names(q), .future_meta_cols)
+          vals <- vapply(data_cols,
+                         function(cn) as.character(q[[cn]][idx[1L]]),
+                         character(1L))
+          runName <- paste(vals, collapse = "-")
+        }
+      }
+    }
+
+    rows[[length(rows) + 1L]] <- data.frame(
+      pid        = pid,
+      started_at = started,
+      log_file   = fd1,
+      queue_path = queue_path,
+      runName    = runName,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  out <- if (length(rows)) do.call(rbind, rows) else
+    data.frame(pid = integer(), started_at = character(),
+               log_file = character(), queue_path = character(),
+               runName = character(), stringsAsFactors = FALSE)
+
+  if (isTRUE(kill) && nrow(out) > 0L) {
+    sig_num <- switch(signal, TERM = 15L, INT = 2L, KILL = 9L)
+    for (pid in out$pid) {
+      try(tools::pskill(pid, signal = sig_num), silent = TRUE)
+    }
+    message("Sent SIG", signal, " to ", nrow(out), " worker(s).",
+            if (signal != "KILL")
+              "\nFollow with tmuxRefreshQueueStatus(<queue_path>) to reset stale RUNNING rows."
+            else "")
+    return(invisible(out))
+  }
+  out
+}
