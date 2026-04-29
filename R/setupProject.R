@@ -4045,6 +4045,17 @@ getGitUserName <- function() {
 }
 
 
+# TRUE iff `pp` is neither already an RStudio project nor already a git
+# working copy.  A `.git/` directory or an `.Rproj` file is sufficient
+# proof that the project is already laid out, so prompting "would you
+# like to clone it now to <pp>?" would be wrong (and will fail if the
+# user answers "no", since checkGithubComCreateOrClone() then stops
+# with "Can't proceed: ...").
+.shouldOfferClone <- function(pp) {
+  !rprojroot::is_rstudio_project$testfun[[1]](pp) &&
+    !rprojroot::is_git_root$testfun[[1]](pp)
+}
+
 setupGitHub <- function(useGit, name, paths, verbose) {
   pp <- path.expand(paths[["projectPath"]])
 
@@ -4063,13 +4074,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     if (!nzchar(gitUserName)) needGitUserName <- FALSE
   }
 
-  # Skip the clone prompt if pp is already an RStudio project OR already a
-  # git working copy (it's harmless to also have/not have an .Rproj when a
-  # .git directory is present -- the user clearly already has the project
-  # checked out, so prompting "would you like to clone it now to <pp>?"
-  # is misleading and will fail if they answer "no").
-  if (!rprojroot::is_rstudio_project$testfun[[1]](pp) &&
-      !rprojroot::is_git_root$testfun[[1]](pp)) {
+  if (.shouldOfferClone(pp)) {
     cloned <- checkGithubComCreateOrClone(gitUserName, name, paths, verbose)
   }
 
@@ -4167,12 +4172,44 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
   for (trySetUpstream in 1:2) {
 
     if (!identical(split$br, curBr)) {
-      gert::git_fetch()
-      # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-      # gert::git_submodule_set_to(submod, ref = split$br)
-      gert::git_branch_checkout(split$br)
-      # cmd <- paste0("git checkout ", split$br)
-      # system(cmd)
+      try(gert::git_fetch(), silent = TRUE)
+      gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+      if (is(gbc, "try-error")) {
+        # Default fetch only hits the upstream of the current branch, so a
+        # branch that lives on a fork (or any non-default remote) won't be
+        # in the ref namespace yet.  Walk every configured remote and try
+        # again.
+        remotes <- tryCatch(gert::git_remote_list()$name,
+                            error = function(e) character(0))
+        for (rm in remotes)
+          try(gert::git_fetch(remote = rm), silent = TRUE)
+        gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+      }
+      if (is(gbc, "try-error")) {
+        # Still missing -- emit an actionable message listing what IS
+        # available so the user knows whether to push from a fork, fix a
+        # typo, or pick an existing branch.  Then fall through with the
+        # current branch so the rest of setupProject can continue.
+        avail_local <- tryCatch(gert::git_branch_list(local = TRUE)$name,
+                                error = function(e) character(0))
+        avail_remote <- tryCatch({
+          all_br <- gert::git_branch_list()$name
+          unique(sub("^[^/]+/", "", grep("/", all_br, value = TRUE)))
+        }, error = function(e) character(0))
+        repo_loc <- tryCatch(getwd(), error = function(e) "<unknown>")
+        messageVerbose(
+          "Branch '", split$br, "' not found locally or on any remote of ",
+          repo_loc, ".",
+          "\n  Local branches : ", paste(avail_local,  collapse = ", "),
+          "\n  Remote branches: ", paste(avail_remote, collapse = ", "),
+          "\nFix: push the branch from your fork, add the fork as a remote ",
+          "(`git remote add <fork>`), correct the branch name in your `modules` ",
+          "spec, or pick an existing branch.",
+          verbose = verbose
+        )
+        split$br <- curBr   # carry on with whatever's currently checked out
+        return(split)
+      }
       reportBranch <- FALSE
     }
     gpull <- try(gert::git_pull())
