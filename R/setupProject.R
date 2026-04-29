@@ -4063,7 +4063,13 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     if (!nzchar(gitUserName)) needGitUserName <- FALSE
   }
 
-  if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
+  # Skip the clone prompt if pp is already an RStudio project OR already a
+  # git working copy (it's harmless to also have/not have an .Rproj when a
+  # .git directory is present -- the user clearly already has the project
+  # checked out, so prompting "would you like to clone it now to <pp>?"
+  # is misleading and will fail if they answer "no").
+  if (!rprojroot::is_rstudio_project$testfun[[1]](pp) &&
+      !rprojroot::is_git_root$testfun[[1]](pp)) {
     cloned <- checkGithubComCreateOrClone(gitUserName, name, paths, verbose)
   }
 
