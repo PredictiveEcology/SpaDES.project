@@ -4182,16 +4182,43 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
       gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
       if (is(gbc, "try-error")) {
         # Default fetch only hits the upstream of the current branch, so a
-        # branch that lives on a fork (or any non-default remote) won't be
-        # in the ref namespace yet.  Walk every configured remote and try
-        # again.
+        # branch that lives on a different remote, or one whose configured
+        # refspec is restricted (common for submodule-style clones that
+        # only track a single branch), won't be brought into the ref
+        # namespace.  For each configured remote, force a full-refspec
+        # fetch so every remote branch becomes a remote-tracking ref.
         remotes <- tryCatch(gert::git_remote_list(),
                             error = function(e) NULL)
         if (!is.null(remotes) && nrow(remotes) > 0L) {
-          for (rm in remotes$name)
-            try(gert::git_fetch(remote = rm), silent = TRUE)
+          for (rm in remotes$name) {
+            full_rs <- paste0("+refs/heads/*:refs/remotes/", rm, "/*")
+            ok <- tryCatch({
+              gert::git_fetch(remote = rm, refspec = full_rs); TRUE
+            }, error = function(e) FALSE)
+            if (!ok)
+              try(gert::git_fetch(remote = rm), silent = TRUE)
+          }
         }
         gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+        # Last-resort fallback: if gert still can't find the branch, use
+        # the system `git` binary, which is more permissive about ref
+        # discovery (handles edge-case submodule configs gert / libgit2
+        # sometimes mishandle).
+        if (is(gbc, "try-error") && nzchar(Sys.which("git"))) {
+          if (!is.null(remotes) && nrow(remotes) > 0L) {
+            for (rm in remotes$name) {
+              try(system2("git",
+                          c("fetch", rm,
+                            paste0("+refs/heads/*:refs/remotes/", rm, "/*")),
+                          stdout = FALSE, stderr = FALSE),
+                  silent = TRUE)
+            }
+          }
+          sys_co <- suppressWarnings(
+            system2("git", c("checkout", split$br),
+                    stdout = FALSE, stderr = FALSE))
+          if (identical(sys_co, 0L)) gbc <- TRUE
+        }
       }
       if (is(gbc, "try-error") && !is.null(split$acct) && !is.null(split$repo)) {
         # Still missing -- the branch may live on a github fork the working
