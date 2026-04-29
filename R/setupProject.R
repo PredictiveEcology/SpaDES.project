@@ -1595,6 +1595,15 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       }
 
       gitSplit <- splitGitRepo(modules)
+      # `Require::invertList()` is first-wins for duplicate keys: when two
+      # `modules` entries share a repo name (e.g. one pulled in via a
+      # module's `.depend`, the other an explicit user override), the
+      # FIRST entry's `acct` / `br` / etc. silently overwrite both output
+      # slots and the override is lost.  Dedup BEFORE invertList, taking
+      # the LAST occurrence per repo name -- standard "later writes win"
+      # semantics so a user's explicit spec at the end of `modules`
+      # overrides an earlier dependency-driven default.
+      gitSplit <- .dedupGitSplitLastWins(gitSplit, modules, verbose)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
         stop("Did you specify the modules correctly? Is this correct:\n",
@@ -4060,6 +4069,42 @@ getGitUserName <- function() {
 # Factored out so tests can mock it with a local file:// path.
 .gh_url <- function(acct, repo) {
   paste0("https://github.com/", acct, "/", repo)
+}
+
+# Dedup a `splitGitRepo()` output ($acct / $repo / $br / $versionSpec, each a
+# list keyed by repo name with possibly-duplicate keys) by taking the LAST
+# occurrence per repo name.  This makes a user's explicit module spec
+# override an earlier dependency-driven default with the same repo name.
+# Emits a single "overriding ..." message per repo when a real override
+# happens, so the user knows which acct/branch won.
+.dedupGitSplitLastWins <- function(gs, modules,
+                                    verbose = getOption("Require.verbose", 1)) {
+  if (is.null(gs) || !length(gs$acct)) return(gs)
+  keys <- names(gs$acct)
+  if (!anyDuplicated(keys)) return(gs)
+
+  keep <- !duplicated(keys, fromLast = TRUE)
+  losers <- which(!keep)
+  for (k in unique(keys[losers])) {
+    idxs <- which(keys == k)
+    last <- idxs[length(idxs)]
+    others <- setdiff(idxs, last)
+    chosen <- paste0(gs$acct[[last]], "/", gs$repo[[last]], "@", gs$br[[last]])
+    discarded <- vapply(others,
+      function(i) paste0(gs$acct[[i]], "/", gs$repo[[i]], "@", gs$br[[i]]),
+      character(1L))
+    messageVerbose(
+      "Module '", k, "' is specified ", length(idxs),
+      " times in `modules`; using the last one (", chosen,
+      ") and dropping: ", paste(discarded, collapse = ", "),
+      verbose = verbose
+    )
+  }
+
+  for (fld in names(gs)) {
+    gs[[fld]] <- gs[[fld]][keep]
+  }
+  gs
 }
 
 setupGitHub <- function(useGit, name, paths, verbose) {

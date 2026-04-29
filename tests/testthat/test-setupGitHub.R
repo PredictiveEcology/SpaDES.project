@@ -41,6 +41,35 @@ testthat::test_that(".shouldOfferClone is TRUE for an empty directory", {
   testthat::expect_true(SpaDES.project:::.shouldOfferClone(td))
 })
 
+testthat::test_that(".dedupGitSplitLastWins lets a later modules entry override an earlier one for the same repo", {
+  testthat::skip_if_not_installed("Require")
+
+  mods <- c("FOR-CAST/NRV_summary@main",
+            "PredictiveEcology/NRV_summary@modsForFireSense")
+  gs <- SpaDES.project:::splitGitRepo(mods)
+  # Pre-fix bug: invertList silently first-wins on duplicate keys, so
+  # both output slots got `FOR-CAST` and unique() collapsed to one
+  # FOR-CAST entry.  After the fix, the LAST occurrence wins.
+  out <- Require::invertList(
+    SpaDES.project:::.dedupGitSplitLastWins(gs, mods, verbose = -1)
+  )
+
+  testthat::expect_length(out, 1L)
+  testthat::expect_named(out, "NRV_summary")
+  testthat::expect_identical(out[[1L]]$acct, "PredictiveEcology")
+  testthat::expect_identical(out[[1L]]$br,   "modsForFireSense")
+})
+
+testthat::test_that(".dedupGitSplitLastWins is a no-op when there are no duplicate repo names", {
+  testthat::skip_if_not_installed("Require")
+  mods <- c("PredictiveEcology/Biomass_core@main",
+            "PredictiveEcology/NRV_summary@modsForFireSense")
+  gs <- SpaDES.project:::splitGitRepo(mods)
+  out <- SpaDES.project:::.dedupGitSplitLastWins(gs, mods, verbose = -1)
+  testthat::expect_length(out$acct, 2L)
+  testthat::expect_setequal(names(out$acct), c("Biomass_core", "NRV_summary"))
+})
+
 testthat::test_that(".shouldOfferClone is FALSE when both .git and .Rproj exist", {
   testthat::skip_if_not_installed("gert")
   td <- tempfile("both"); dir.create(td)
