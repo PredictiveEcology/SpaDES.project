@@ -127,23 +127,53 @@ NULL
 
 # --- queue: the GS sheet that drives simulations ----------------------------
 
-#' Read the driver queue sheet from a Drive folder.
+#' Read the driver queue (local RDS or Google Sheet).
 #'
-#' Convenience wrapper around `googledrive::drive_ls()` +
-#' `googlesheets4::read_sheet()`. The result is passed through
-#' `revertDotNames()` so callers see canonical `.ELFind`/`.GCM`/...
-#' column names rather than the `dotELFind`/`dotGCM`/... names Google
-#' Sheets forces. As a side effect, the non-meta column names are cached
-#' as the active scenario field set (see [scenarioFields()]).
+#' Two call shapes:
 #'
-#' @param folder    Folder URL or `dribble` of the parent folder.
+#' \describe{
+#'   \item{Local: `queueRead("path/to/queue.rds")`}{When the first
+#'     argument is an existing local `.rds` file and `name` is not
+#'     supplied, the queue is loaded via `readRDS()`. Useful for the
+#'     file-backed queues written by `experimentTmux()` /
+#'     `experimentFuture()` / `experimentSBATCH()` when no `ss_id` was
+#'     supplied.}
+#'   \item{Google Sheet: `queueRead(folder, name)`}{Convenience wrapper
+#'     around `googledrive::drive_ls()` + `googlesheets4::read_sheet()`.
+#'     `folder` is the Drive folder URL/id, `name` is the spreadsheet
+#'     name within it.}
+#' }
+#'
+#' Either way the result is passed through `revertDotNames()` so callers
+#' see canonical `.ELFind`/`.GCM`/... column names rather than the
+#' `dotELFind`/`dotGCM`/... names Google Sheets forces. As a side
+#' effect, the non-meta column names are cached as the active scenario
+#' field set (see [scenarioFields()]).
+#'
+#' @param folder    Either a local path to an `.rds` queue file (when
+#'   `name` is missing), or a Drive folder URL / `dribble` of the
+#'   parent folder containing the queue spreadsheet.
 #' @param name      Spreadsheet name (exact match) within `folder`.
+#'   Omit for local-RDS reads.
 #' @param sheet     Optional worksheet/tab name (passed to `read_sheet()`).
+#'   Ignored for local-RDS reads.
 #' @param col_types Column-types spec for `read_sheet()` (default `"c"`).
+#'   Ignored for local-RDS reads.
 #' @return A `data.table`. Pipe through [as_scenario()] for scenario records.
-#' @seealso [queueUploadMissing()], [outList()], [outScenarios()]
+#' @seealso [queueUploadMissing()], [outList()], [outScenarios()],
+#'   [experimentFuture()], [experimentTmux()], [experimentSBATCH()]
 #' @export
 queueRead <- function(folder, name, sheet = NULL, col_types = "c") {
+  # Local-RDS shortcut: queueRead("path/to/queue.rds")
+  if (missing(name) && is.character(folder) && length(folder) == 1L &&
+      file.exists(folder) && grepl("\\.rds$", folder, ignore.case = TRUE)) {
+    q <- readRDS(folder)
+    q <- revertDotNames(data.table::as.data.table(q))
+    scenarioFieldsSet(.discoverFields(q))
+    return(q)
+  }
+
+  # Google Sheet path
   reproducible::.requireNamespace("googledrive",    stopOnFALSE = TRUE)
   reproducible::.requireNamespace("googlesheets4",  stopOnFALSE = TRUE)
   sheets <- googledrive::drive_ls(folder, type = "spreadsheet")

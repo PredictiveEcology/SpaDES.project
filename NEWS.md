@@ -5,6 +5,12 @@ version 1.0.1
 
 ## New features
 
+* `queueRead()` now accepts a local `.rds` queue path as its sole
+  argument: `queueRead("path/to/queue.rds")`. Useful for reading the
+  file-backed queues written by `experimentTmux()` /
+  `experimentFuture()` / `experimentSBATCH()` without Google Sheets
+  involvement. The two-argument Google-Sheet shape
+  (`queueRead(folder, name)`) is unchanged.
 * New `experimentFutureList()` finds (and optionally kills) live
   `experimentFuture()` workers across R sessions. Scans `/proc` for R
   processes whose redirected stdout points to a `worker_<NN>.log`,
