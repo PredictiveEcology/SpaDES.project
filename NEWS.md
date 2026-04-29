@@ -5,6 +5,21 @@ version 1.0.1
 
 ## New features
 
+* New `experimentMonitor()` unifies tmux + experimentFuture worker discovery; `stats = TRUE` adds CPU / RAM / state. `tmuxListPanes()` is now a thin alias.
+* `experimentFutureList(ef)` works cluster-wide: probes hostname → SSH-alias and does batched SSH liveness / kill / `readlink` per machine; `kill = TRUE` also pushes the demotion to the Google Sheet via the `<queue_path>.ss_id` sidecar.
+* `experimentFuture(ss_id = ...)` drops a `<queue_path>.ss_id` sidecar for cross-session GS reconciliation.
+* Cluster `runWorkerLoopFuture()` now uses `callr::r_bg(stdout = log_file)` instead of `sink()` — log files flush in real time and remote workers show up under `/proc/<pid>/fd/1`.
+
+## Enhancements
+
+* Fresh claims scrub stale `finished_at` / `DEoptimElapsedTime` / `heartbeat_*` / `iterationsTotal` / `interrupted_at` (both backends).
+* `DONE` clears `claimed_by`; `process_id` and `machine_name` are preserved as a historical record.
+* `.gs_demote_after_kill()` clears every per-run metadata column, matching `tmuxRefreshQueueStatus()`.
+* `.gs_claim_next_job()` retries on lost race instead of returning `NULL`, so workers no longer silently exit on collisions.
+* `.setup_remote_machine()` uses absolute paths as-is on the remote when `global_path` / `queue_path` lives outside `$HOME` (e.g. NFS-shared `/mnt/shared_cache/...`); fixes `~//mnt/...` mangling.
+* `setupGitHub()` skips the clone prompt when `projectPath` is already a git working copy.
+* `setUpstreamWithTry()` walks every configured remote on lost-branch error, then auto-adds the github fork (`<acct>/<repo>` from the modules spec) as a new remote when the branch lives there; emits actionable message instead of aborting if the branch is missing everywhere.
+
 * `queueRead()` now accepts a local `.rds` queue path as its sole
   argument: `queueRead("path/to/queue.rds")`. Useful for reading the
   file-backed queues written by `experimentTmux()` /
