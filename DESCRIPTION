@@ -90,6 +90,7 @@ Config/testthat/edition: 3
 Collate: 
     'SpaDES.projectOptions.R'
     'environment.R'
+    'experiment-family.R'
     'experiment.R'
     'fileEdit.R'
     'future.R'

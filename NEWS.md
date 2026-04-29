@@ -5,6 +5,12 @@ version 1.0.1
 
 ## New features
 
+* New `experiment_family` documentation index (run `?experiment_family`)
+  giving a high-level overview of the three runners (`experimentTmux()`,
+  `experimentFuture()`, `experimentSBATCH()`), their shared
+  queue / `runNameLabel` / `statusCalculate` contract, and links to all
+  the companion helpers (`awaitExperiment*`, `killExperiment*`,
+  `tmuxListPanes`, `tmuxRefreshQueueStatus`, etc.).
 * New `experimentSBATCH()` runner: Slurm-native sibling of
   `experimentTmux()` and `experimentFuture()`. Submits `n_workers`
   long-lived SBATCH jobs that each call `tmuxRunWorkerLoop()` against
