@@ -7,54 +7,20 @@
 tmuxListPanes(stats = FALSE)
 }
 \arguments{
-\item{stats}{Logical.  When \code{TRUE}, parses the \verb{<host?>-<node>-<pid>-}
-prefix from each pane title and queries \code{ps} (locally or via one SSH
-connection per remote node) to append \code{cpu} (percent CPU) and
-\code{RAM (GB)} (resident memory in GB, rounded to 1 decimal place).
-Titles that lack a parseable \verb{<node>-<pid>} get \code{NA}; unreachable
-nodes get \code{NA} for all their rows.  Default \code{FALSE} (no \code{ps} calls,
-so the internal reclaim path pays no extra cost).}
+\item{stats}{Logical.  When \code{TRUE}, queries \code{ps} per worker (locally
+or via batched SSH) to append \code{state}, \code{cpuAvg} (percent CPU
+averaged over the process's lifetime -- not the instantaneous rate
+\code{htop} shows), \code{RAM (GB)} (resident memory), \code{availableCores}
+(total CPUs on the node, from \code{nproc}), and \verb{total RAM (GB)}
+(total RAM on the node, from \verb{/proc/meminfo}).  Default \code{FALSE}.}
 }
 \value{
-A data.frame with columns \code{session}, \code{window}, \code{pane}, \code{pane_id},
-\code{pane_ref} (the \code{"session:window.pane"} string), \code{title}, and \code{node}
-(the first dash-separated token in \code{title} that matches a cluster alias
-in \verb{/etc/hosts}; falls back to \code{\link[=localHostLabel]{localHostLabel()}} when the title
-contains only the raw local hostname; \code{NA} if no match).
-With \code{stats = TRUE}, five additional columns appear: \code{state} (see
-table below), \code{cpuAvg} (percent CPU averaged over the process's
-lifetime -- note this is NOT the instantaneous rate \code{htop} shows),
-\code{RAM (GB)} (resident memory, GB, 1 dp), \code{availableCores} (total
-CPUs on the node, from \code{nproc}), \verb{total RAM (GB)} (total RAM on
-the node, from \verb{/proc/meminfo}).  The last two are constant across
-all rows on the same node and let you see each pane's resource
-use relative to its node capacity.
-\code{Cluster_Monitor} panes are always filtered out -- they are
-operator-display panes with no associated job.
-Returns an empty data.frame (0 rows, same columns) if tmux is
-unavailable, no sockets exist, or the uid cannot be determined.
+Same as \code{experimentMonitor(stats = stats)} in tmux mode -- see
+that function's docs.
 }
 \description{
-Enumerates tmux sockets under \verb{$TMUX_TMPDIR/tmux-<uid>/} (default \verb{/tmp})
-and queries each with \verb{tmux -S <socket> list-panes -a} using a tab-delimited
-format.  Per-socket failures are swallowed so one broken socket cannot
-poison the rest.  Works outside a tmux pane and across multiple tmux
-servers (e.g. sessions started under different \code{-L} names).
+Thin alias for \code{\link[=experimentMonitor]{experimentMonitor()}} in tmux-scan mode (no \code{ef} /
+\code{queue_paths}).  Preserved for backwards compatibility; new code
+should call \code{experimentMonitor()} directly so the same call works for
+\code{\link[=experimentFuture]{experimentFuture()}} / \code{\link[=experimentSBATCH]{experimentSBATCH()}} runs by passing \code{ef}.
 }
-\section{State codes}{
-
-The \code{state} column is the best single signal for hang-detection because
-it is a snapshot (no time window needed).  Values:
-
-\tabular{ll}{
-\strong{State} \tab \strong{Meaning} \cr
-\code{R} \tab running on CPU right now \cr
-\code{S} \tab sleeping (waiting on I/O, timer, or lock) \cr
-\code{D} \tab uninterruptible sleep (usually disk I/O; persistent \code{D} can indicate a hang) \cr
-\code{T} \tab stopped (SIGSTOP or similar) \cr
-\code{Z} \tab zombie (dead but not yet reaped) \cr
-\code{Closed} \tab pane's R session has exited -- PID no longer exists but the tmux pane is still open \cr
-\code{NA} \tab could not determine (machine unreachable or title has no parseable \verb{<node>-<pid>}) \cr
-}
-}
-

@@ -4,16 +4,41 @@
 \alias{experimentFutureList}
 \title{Find (and optionally kill) live experimentFuture workers}
 \usage{
-experimentFutureList(kill = FALSE, signal = c("TERM", "INT", "KILL"))
+experimentFutureList(
+  ef = NULL,
+  kill = FALSE,
+  signal = c("TERM", "INT", "KILL"),
+  queue_paths = NULL
+)
 }
 \arguments{
-\item{kill}{If \code{TRUE}, send \code{signal} to every worker found.
-Default \code{FALSE} (list-only).  After killing, you may want to
-call \code{\link{tmuxRefreshQueueStatus}} on each affected
-\code{queue_path} to reset stale \verb{RUNNING} rows.}
+\item{ef}{Optional shorthand: an \code{"experimentFuture"} object (or
+list of them) whose \code{queue_path} will be added to the discovery
+set.  Equivalent to passing \code{queue_paths = ef$queue_path} and
+handy when the result of \code{experimentFuture()} is still in
+scope.}
+
+\item{kill}{If \code{TRUE}, send \code{signal} to every worker found,
+wait up to 10 s for the processes to exit, then call
+\code{\link{tmuxRefreshQueueStatus}()} on each unique
+\code{queue_path} to demote the now-orphaned \verb{RUNNING} rows
+back to \verb{PENDING}. Default \code{FALSE} (list-only).}
 
 \item{signal}{One of \code{"TERM"} (15, default; graceful), \code{"INT"}
 (2; like Ctrl-C), or \code{"KILL"} (9; immediate).}
+
+\item{queue_paths}{Optional character vector of queue \code{.rds} paths to
+inspect for workers.  Use this across R sessions when the
+\code{ef} handle is no longer in scope (e.g. you restarted R but
+the workers from a prior \code{experimentFuture()} call are still
+alive on \code{mega} and \code{camas}).  Each queue's
+\code{status == "RUNNING"} rows are verified for liveness via
+\code{/proc} (local) or batched SSH (remote).  When \code{NULL}
+(default) and \code{ef} is also \code{NULL}, the function uses
+only queue files auto-discovered from local \code{/proc} -- which
+in turn only finds \code{callr::r_bg} workers, not PSOCK cluster
+workers, so on a node with no \code{r_bg} workers it sees nothing
+unless \code{ef} or \code{queue_paths} is supplied.}
 }
 \value{
 A \code{data.frame} (one row per live worker) with columns:
@@ -58,16 +83,22 @@ worker is writing).  For other Unixes use \code{lsof -p <pid>} or
 }
 \examples{
 \dontrun{
-# Just list everything that's running
+# Just list everything that's running (auto-discovery via /proc only)
 experimentFutureList()
 
-# Same, but kill them gracefully
-df <- experimentFutureList(kill = TRUE)
+# Pass the ef handle to also pick up PSOCK cluster workers and remote
+# workers (anything in the queue, on any machine in `cores`).
+ef <- experimentFuture(df = df, global_path = "global.R",
+                       cores = c("localhost", "camas"), ...)
+experimentFutureList(ef)
+experimentFutureList(ef, kill = TRUE)
 
-# Hard-kill (no chance to update queue meta)
-experimentFutureList(kill = TRUE, signal = "KILL")
-for (qp in unique(df$queue_path[!is.na(df$queue_path)]))
-  tmuxRefreshQueueStatus(qp)        # reset stale RUNNING rows
+# Across R sessions, when ef is gone, drive discovery off the queue path:
+experimentFutureList(queue_paths = "/mnt/shared_cache/.../future_queue.rds")
+
+# Hard kill (SIGKILL, no chance to update queue meta on the worker side --
+# but the post-kill tmuxRefreshQueueStatus() still demotes the rows).
+experimentFutureList(ef, kill = TRUE, signal = "KILL")
 }
 
 }

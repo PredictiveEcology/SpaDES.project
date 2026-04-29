@@ -44,8 +44,18 @@ tmuxSetMouse <- function(on = TRUE) {
   # Fix: add 'set +e' guard to the BASH_ENV file so failures are non-fatal.
   local_home    <- path.expand("~")
   local_abs_dir <- dirname(normalizePath(global_path))
-  rel_dir       <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
-  remote_dir    <- paste0("~/", rel_dir)   # e.g. ~/GitHub/FireSenseTesting
+  # If global_path lives under the master's $HOME, mirror the same relative
+  # subpath under the remote's $HOME (different machines have different
+  # absolute home paths, but we want the project laid out the same way
+  # relative to ~).  If it lives elsewhere (e.g. /mnt/shared_cache or any
+  # NFS-mounted path that exists at the same absolute location on both
+  # ends), use the absolute path as-is so we don't mangle it with "~/".
+  if (startsWith(paste0(local_abs_dir, "/"), paste0(local_home, "/"))) {
+    rel_dir    <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
+    remote_dir <- if (nzchar(rel_dir)) paste0("~/", rel_dir) else "~"
+  } else {
+    remote_dir <- local_abs_dir
+  }
 
   # Repos: local option + r-universe prepended (remote machines won't have this set)
   install_repos <- unique(c("https://predictiveecology.r-universe.dev", getOption("repos")))
@@ -723,6 +733,14 @@ tmuxSetMouse <- function(on = TRUE) {
 #'   cores       = rep("localhost", 2L),
 #'   queue_path  = file.path(tdir, "queue.rds")
 #' )
+#'
+#' # --- Live inspection while panes run ---
+#' experimentMonitor()                       # tmux pane scan (no args)
+#' experimentMonitor(stats = TRUE)           # adds CPU / RAM / state per pane
+#' tmuxListPanes()                           # alias of experimentMonitor()
+#' queueRead(file.path(tdir, "queue.rds"))   # full queue snapshot
+#' tmuxFindDuplicates(workers)               # any double-claimed jobs?
+#' tmuxRefreshQueueStatus(file.path(tdir, "queue.rds"))   # reset stuck rows
 #'
 #' # --- Basic local usage with explicit pane sizing ---
 #' workers <- experimentTmux(
@@ -1518,9 +1536,20 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 
   # ---- Google Sheets backend ----
   if (use_gs) {
+    .trace <- isTRUE(getOption("spades.mirror.trace", FALSE)) ||
+              nzchar(Sys.getenv("SPADES_MIRROR_TRACE"))
     worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
-    claimed   <- .gs_claim_next_job(ss_id, worker_id)
-    if (is.null(claimed)) return("empty")   # queue empty or race lost  -- caller retries
+    if (.trace) message(sprintf("[gs-worker] claim attempt by %s queue_path=%s",
+                                worker_id, as.character(queue_path)))
+    claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path)
+    if (is.null(claimed)) {
+      if (.trace) message("[gs-worker] claim -> NULL (queue empty); exiting loop")
+      return("empty")
+    }
+    if (inherits(claimed, "gs_claim_lost")) {
+      if (.trace) message("[gs-worker] claim -> lost (collision); will retry")
+      return("lost")
+    }
 
     row_i     <- claimed$row_index
     sheet_row <- claimed$sheet_row
@@ -1528,6 +1557,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     q         <- claimed$data
     data.table::setDT(q)
     q <- revertDotNames(q)
+    if (.trace) message(sprintf("[gs-worker] claimed row_i=%s sheet_row=%s",
+                                row_i, sheet_row))
     
     data_cols    <- setdiff(names(q), meta_cols)
     scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
@@ -1552,12 +1583,14 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     # quit() bypasses tryCatch and function-frame on.exit() entirely, but
     # reg.finalizer(..., onexit=TRUE) IS called by R before it exits.
     # Store job state in a standalone environment so it outlives this frame.
-    .guard_env           <- new.env(parent = emptyenv())
-    .guard_env$done      <- FALSE
-    .guard_env$ss_id     <- ss_id
-    .guard_env$sheet_row <- sheet_row
-    .guard_env$col_pos   <- col_pos
-    .guard_env$runName   <- runName
+    .guard_env             <- new.env(parent = emptyenv())
+    .guard_env$done        <- FALSE
+    .guard_env$ss_id       <- ss_id
+    .guard_env$sheet_row   <- sheet_row
+    .guard_env$col_pos     <- col_pos
+    .guard_env$runName     <- runName
+    .guard_env$queue_path  <- queue_path
+    .guard_env$row_i       <- row_i
     reg.finalizer(globalenv(), function(ge) {
       ge2 <- tryCatch(get(".spades_guard_env", envir = ge, inherits = FALSE),
                       error = function(e) NULL)
@@ -1567,12 +1600,17 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
           "\n  Marking INTERRUPTED in GS."
         ), silent = TRUE)
+        now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        upd <- list(status         = SpaDES.project:::txtInterrupted,
+                    claimed_by     = NA_character_,
+                    interrupted_at = now)
         try(SpaDES.project:::.gs_write_cells(
           ge2$ss_id, ge2$sheet_row,
-          updates       = list(status         = SpaDES.project:::txtInterrupted,
-                               claimed_by     = NA_character_,
-                               interrupted_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
+          updates       = upd,
           col_positions = ge2$col_pos
+        ), silent = TRUE)
+        try(SpaDES.project:::.mirror_local_queue(
+          ge2$queue_path, ge2$row_i, upd
         ), silent = TRUE)
       }
     }, onexit = TRUE)
@@ -1621,11 +1659,13 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         # Capture call stack while frames are still intact, then mark INTERRUPTED.
         assign(".spades_tb", sys.calls(), envir = .GlobalEnv)
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        upd <- list(status         = txtInterrupted,
+                    claimed_by     = NA_character_,
+                    interrupted_at = now)
         try(.gs_write_cells(ss_id, sheet_row,
-                            updates       = list(status         = txtInterrupted,
-                                                 claimed_by     = NA_character_,
-                                                 interrupted_at = now),
+                            updates       = upd,
                             col_positions = col_pos), silent = TRUE)
+        try(.mirror_local_queue(queue_path, row_i, upd), silent = TRUE)
         # Return NULL so the error re-signals to the outer tryCatch below.
       }),
       error = function(e) {
@@ -1645,13 +1685,21 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     message("[", now, "] Job finished: ", runName, "  outcome=", outcome)
 
     final <- if (isTRUE(outcome == "ok")) {
-      list(status = txtDone, finished_at = now)
+      # Clear claimed_by on DONE -- the row is no longer claimed by the
+      # worker.  process_id / machine_name are preserved as a historical
+      # record of which worker on which machine produced the result.
+      list(status = txtDone, claimed_by = NA_character_, finished_at = now)
     } else if (on_interrupt == "requeue") {
       list(status = txtPending, claimed_by = NA_character_)
     } else {
       list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now)
     }
+    if (.trace) message(sprintf("[gs-worker] final outcome=%s row_i=%s -> %s",
+                                outcome, row_i,
+                                paste(sprintf("%s=%s", names(final), as.character(unlist(final))),
+                                      collapse = ", ")))
     .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
+    try(.mirror_local_queue(queue_path, row_i, final), silent = TRUE)
     .guard_env$done <- TRUE   # disarm the reg.finalizer quit() guard
     return(outcome)
   }
@@ -1708,6 +1756,13 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   q$started_at[i]   <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   q$machine_name[i] <- Sys.info()[["nodename"]]
   q$process_id[i]   <- Sys.getpid()
+  # Scrub stale completion/interrupt fields left from a prior run of this row,
+  # so RUNNING never carries a finished_at / heartbeat / interrupted_at value.
+  for (cn in intersect(c("finished_at", "DEoptimElapsedTime", "heartbeat_at",
+                         "heartbeat_iter", "iterationsTotal", "interrupted_at"),
+                       names(q))) {
+    q[[cn]][i] <- NA
+  }
 
   # Critical-section invariant: marking the row RUNNING in the queue and
   # writing its Running_*.rds sentinel must be visible together. If we
@@ -1801,6 +1856,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   q <- readRDS(queue_path)
   if (outcome == "ok") {
     q$status[i]      <- txtDone
+    q$claimed_by[i]  <- NA_character_   # row no longer claimed
     q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   } else if (outcome == "interrupt") {
     if (on_interrupt == "requeue") {
@@ -2153,38 +2209,68 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   out[nzchar(out)]
 }
 
-#' List all tmux panes on this machine across every tmux server
+#' Monitor live workers across an experiment (tmux panes or callr/cluster futures)
 #'
-#' Enumerates tmux sockets under `$TMUX_TMPDIR/tmux-<uid>/` (default `/tmp`)
-#' and queries each with `tmux -S <socket> list-panes -a` using a tab-delimited
-#' format.  Per-socket failures are swallowed so one broken socket cannot
-#' poison the rest.  Works outside a tmux pane and across multiple tmux
-#' servers (e.g. sessions started under different `-L` names).
+#' Single read-only entry point for inspecting workers regardless of which
+#' runner spawned them.  Discovery is driven by what you pass:
 #'
-#' @param stats Logical.  When `TRUE`, parses the `<host?>-<node>-<pid>-`
-#'   prefix from each pane title and queries `ps` (locally or via one SSH
-#'   connection per remote node) to append `cpu` (percent CPU) and
-#'   `RAM (GB)` (resident memory in GB, rounded to 1 decimal place).
-#'   Titles that lack a parseable `<node>-<pid>` get `NA`; unreachable
-#'   nodes get `NA` for all their rows.  Default `FALSE` (no `ps` calls,
-#'   so the internal reclaim path pays no extra cost).
-#' @return A data.frame with columns `session`, `window`, `pane`, `pane_id`,
-#'   `pane_ref` (the `"session:window.pane"` string), `title`, and `node`
-#'   (the first dash-separated token in `title` that matches a cluster alias
-#'   in `/etc/hosts`; falls back to [localHostLabel()] when the title
-#'   contains only the raw local hostname; `NA` if no match).
-#'   With `stats = TRUE`, five additional columns appear: `state` (see
-#'   table below), `cpuAvg` (percent CPU averaged over the process's
-#'   lifetime -- note this is NOT the instantaneous rate `htop` shows),
-#'   `RAM (GB)` (resident memory, GB, 1 dp), `availableCores` (total
-#'   CPUs on the node, from `nproc`), `total RAM (GB)` (total RAM on
-#'   the node, from `/proc/meminfo`).  The last two are constant across
-#'   all rows on the same node and let you see each pane's resource
-#'   use relative to its node capacity.
-#'   `Cluster_Monitor` panes are always filtered out -- they are
-#'   operator-display panes with no associated job.
-#'   Returns an empty data.frame (0 rows, same columns) if tmux is
-#'   unavailable, no sockets exist, or the uid cannot be determined.
+#' \itemize{
+#'   \item **Default (`ef = NULL`, `queue_paths = NULL`)** -- enumerates tmux
+#'     panes via `tmux -S <socket> list-panes -a` across every tmux server
+#'     under `$TMUX_TMPDIR/tmux-<uid>/`.  Same behaviour the historical
+#'     `tmuxListPanes()` had.  Per-socket failures are swallowed so one
+#'     broken socket cannot poison the rest; works outside a tmux pane
+#'     and across multiple tmux servers (e.g. sessions started under
+#'     different `-L` names).  `Cluster_Monitor` panes are filtered out.
+#'   \item **`ef` supplied (or `queue_paths`)** -- reads each queue file's
+#'     `status == "RUNNING"` rows, probes `ssh <core> hostname -s` once
+#'     per non-local entry in `ef$cores` to map OS hostnames (which is
+#'     what `Sys.info()[["nodename"]]` writes to the queue) back to SSH
+#'     aliases (`~/.ssh/config` / `/etc/hosts` entries), and verifies
+#'     each PID is alive (`/proc/<pid>` locally, batched
+#'     `ssh <alias> "[ -d /proc/<pid> ]"` remotely).  This is the
+#'     [experimentFuture()] / [experimentSBATCH()] equivalent of the
+#'     tmux pane scan -- workers there don't necessarily live in a
+#'     tmux pane, so the queue file is the authoritative record.
+#' }
+#'
+#' Either way, `stats = TRUE` runs the same `ps -o pid=,%cpu=,rss=,state=`
+#' batch (locally and via one SSH connection per remote node) to append
+#' CPU / RSS / state plus per-node `nproc` / total RAM.
+#'
+#' @param ef Optional `"experimentFuture"` object (or list of them) whose
+#'   `queue_path` and `cores` will be used for discovery.  Switches
+#'   the function from tmux-scan mode to queue-scan mode.
+#' @param queue_paths Optional character vector of queue `.rds` paths.
+#'   Equivalent to passing `ef = NULL` plus `queue_paths`; used when the
+#'   `ef` handle is no longer in scope (e.g. across R sessions).  When
+#'   `queue_paths` is supplied without `ef`, the SSH-alias probe is
+#'   skipped and `machine_name` from the queue is used verbatim as the
+#'   SSH target -- which only works if the OS hostname is itself a Host
+#'   entry in `~/.ssh/config` / `/etc/hosts`.
+#' @param stats Logical.  When `TRUE`, queries `ps` per worker (locally
+#'   or via batched SSH) to append `state`, `cpuAvg` (percent CPU
+#'   averaged over the process's lifetime -- not the instantaneous rate
+#'   `htop` shows), `RAM (GB)` (resident memory), `availableCores`
+#'   (total CPUs on the node, from `nproc`), and `total RAM (GB)`
+#'   (total RAM on the node, from `/proc/meminfo`).  Default `FALSE`.
+#'
+#' @return Data.frame whose columns depend on the discovery mode:
+#'
+#'   * **tmux mode** -- `session`, `window`, `pane`, `pane_id`,
+#'     `pane_ref` (the `"session:window.pane"` string), `title`,
+#'     `node` (first dash-separated token in `title` that matches a
+#'     cluster alias from `/etc/hosts`; falls back to
+#'     [localHostLabel()] when the title contains only the raw local
+#'     hostname; `NA` if no match).
+#'   * **queue mode** -- `pid`, `machine`, `started_at`, `log_file`
+#'     (`NA` when the worker isn't a `callr::r_bg` writer), `queue_path`,
+#'     `runName`.
+#'
+#'   With `stats = TRUE`, five additional columns appear in either
+#'   mode: `state`, `cpuAvg`, `RAM (GB)`, `availableCores`,
+#'   `total RAM (GB)`.  Returns an empty data.frame (0 rows, same
+#'   columns) if no workers are found.
 #'
 #' @section State codes:
 #' The `state` column is the best single signal for hang-detection because
@@ -2197,11 +2283,39 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #'   `D` \tab uninterruptible sleep (usually disk I/O; persistent `D` can indicate a hang) \cr
 #'   `T` \tab stopped (SIGSTOP or similar) \cr
 #'   `Z` \tab zombie (dead but not yet reaped) \cr
-#'   `Closed` \tab pane's R session has exited -- PID no longer exists but the tmux pane is still open \cr
-#'   `NA` \tab could not determine (machine unreachable or title has no parseable `<node>-<pid>`) \cr
+#'   `Closed` \tab worker process has exited -- PID no longer exists \cr
+#'   `NA` \tab could not determine (machine unreachable, or no parseable `<node>-<pid>` in title) \cr
 #' }
+#'
+#' @seealso [experimentFutureList()] for the same queue-mode discovery
+#'   plus cluster-wide kill / queue refresh / GS demotion.
+#'   [tmuxListPanes()] is preserved as a thin alias that calls this
+#'   function with no `ef`.
+#' @export
+experimentMonitor <- function(ef = NULL, queue_paths = NULL, stats = FALSE) {
+  use_queue <- !is.null(ef) || !is.null(queue_paths)
+  if (use_queue) .ef_monitor(ef = ef, queue_paths = queue_paths, stats = stats)
+  else           .tmux_monitor(stats = stats)
+}
+
+#' List all tmux panes on this machine across every tmux server
+#'
+#' Thin alias for [experimentMonitor()] in tmux-scan mode (no `ef` /
+#' `queue_paths`).  Preserved for backwards compatibility; new code
+#' should call `experimentMonitor()` directly so the same call works for
+#' [experimentFuture()] / [experimentSBATCH()] runs by passing `ef`.
+#'
+#' @inheritParams experimentMonitor
+#' @return Same as `experimentMonitor(stats = stats)` in tmux mode -- see
+#'   that function's docs.
 #' @export
 tmuxListPanes <- function(stats = FALSE) {
+  experimentMonitor(stats = stats)
+}
+
+#' @keywords internal
+#' @noRd
+.tmux_monitor <- function(stats = FALSE) {
   empty <- data.frame(
     session = character(0), window  = integer(0),   pane    = integer(0),
     pane_id = character(0), pane_ref = character(0),
@@ -2229,7 +2343,6 @@ tmuxListPanes <- function(stats = FALSE) {
     )
     if (!length(lines)) return(NULL)
     parts <- strsplit(lines, "\t", fixed = TRUE)
-    # Accept 4 (empty title) or 5 fields; pad empty title to preserve rows.
     parts <- lapply(parts, function(p) if (length(p) == 4L) c(p, "") else p)
     parts <- parts[vapply(parts, length, integer(1L)) == 5L]
     if (!length(parts)) return(NULL)
@@ -2248,8 +2361,6 @@ tmuxListPanes <- function(stats = FALSE) {
   out <- do.call(rbind, rows)
   out$pane_ref <- sprintf("%s:%d.%d", out$session, out$window, out$pane)
   out <- out[, c("session", "window", "pane", "pane_id", "pane_ref", "title")]
-  # Drop the Cluster_Monitor panes -- they exist purely for operator display
-  # and carry no job info; stats lookups for them would always be NA.
   out <- out[out$title != "Cluster_Monitor", , drop = FALSE]
   row.names(out) <- NULL
   out$node <- .tmux_match_node(out$title)

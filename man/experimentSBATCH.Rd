@@ -144,7 +144,14 @@ es <- experimentSBATCH(
   log_dir     = file.path(tdir, "logs"),
   sbatch_opts = list(partition = "compute", time = "00:30:00", mem = "1G")
 )
-awaitExperimentSBATCH(es)
+
+## -- Live inspection while jobs run --------------------------------------
+print(es)                                          # job IDs + squeue status
+queueRead(es$queue_path)                           # full queue snapshot
+experimentMonitor(queue_paths = es$queue_path)     # cluster-wide pid + machine
+experimentMonitor(queue_paths = es$queue_path, stats = TRUE)  # + CPU/RAM
+
+awaitExperimentSBATCH(es)                          # block until squeue empty
 
 ## -- Larger experiment with full sbatch_opts ------------------------------
 es <- experimentSBATCH(
@@ -171,6 +178,21 @@ killExperimentSBATCH(es)
 # Immediate stop (scancel; stale RUNNING entries can be cleaned up via:
 #   tmuxRefreshQueueStatus(es$queue_path)):
 killExperimentSBATCH(es, force = TRUE)
+tmuxRefreshQueueStatus(es$queue_path)
+
+## -- Resume after stop ---------------------------------------------------
+# Same `queue_path` -> DONE rows are skipped, demoted PENDING rows are
+# re-claimed by the new sbatch jobs.
+es2 <- experimentSBATCH(
+  df          = expt,                # ignored if queue exists
+  global_path = file.path(tdir, "global.R"),
+  n_workers   = 2L,
+  queue_path  = file.path(tdir, "sbatch_queue.rds"),
+  log_dir     = file.path(tdir, "logs"),
+  sbatch_opts = list(partition = "compute", time = "00:30:00", mem = "1G")
+)
+awaitExperimentSBATCH(es2)
+table(queueRead(es2$queue_path)$status)            # all DONE
 }
 
 }

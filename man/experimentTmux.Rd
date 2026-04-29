@@ -290,6 +290,14 @@ workers <- experimentTmux(
   queue_path  = file.path(tdir, "queue.rds")
 )
 
+# --- Live inspection while panes run ---
+experimentMonitor()                       # tmux pane scan (no args)
+experimentMonitor(stats = TRUE)           # adds CPU / RAM / state per pane
+tmuxListPanes()                           # alias of experimentMonitor()
+queueRead(file.path(tdir, "queue.rds"))   # full queue snapshot
+tmuxFindDuplicates(workers)               # any double-claimed jobs?
+tmuxRefreshQueueStatus(file.path(tdir, "queue.rds"))   # reset stuck rows
+
 # --- Basic local usage with explicit pane sizing ---
 workers <- experimentTmux(
   global_path         = "/abs/path/to/global.R",

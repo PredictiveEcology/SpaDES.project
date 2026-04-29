@@ -125,10 +125,16 @@ ef <- experimentFuture(
   queue_path  = file.path(tdir, "future_queue.rds"),
   log_dir     = file.path(tdir, "logs")
 )
-awaitExperimentFuture(ef)    # blocks until both workers exit
 
-print(ef)                    # live status (alive/done per worker)
-cat(readLines(ef$log_files[[1L]]), sep = "\n")  # inspect a single worker log
+## -- Live inspection while workers run -----------------------------------
+print(ef)                                         # alive/done per worker
+experimentMonitor(ef)                             # pid + machine + runName
+experimentMonitor(ef, stats = TRUE)               # adds CPU / RAM / state
+queueRead(ef$queue_path)                          # full queue snapshot
+experimentFutureList(ef)                          # cluster-wide pid list
+cat(readLines(ef$log_files[[1L]]), sep = "\n")    # tail one log
+
+awaitExperimentFuture(ef)    # blocks until both workers exit
 
 ## -- Killing workers ----------------------------------------------------
 
@@ -144,6 +150,12 @@ killExperimentFuture(ef)
 killExperimentFuture(ef, force = TRUE)
 tmuxRefreshQueueStatus(ef$queue_path)   # clean up stale RUNNING entries
 
+# Cluster-wide kill (works for `cores = c(...)` clusters too):
+# sends SIGTERM to every worker on every machine, waits for exit, runs
+# tmuxRefreshQueueStatus(), and pushes the demotion to the Google Sheet
+# if `ss_id` was used (via the <queue_path>.ss_id sidecar).
+experimentFutureList(ef, kill = TRUE)
+
 ## -- Resuming after a kill ----------------------------------------------
 
 # Jobs left as PENDING (or INTERRUPTED with on_interrupt = "requeue") are
@@ -158,8 +170,8 @@ ef2 <- experimentFuture(
 )
 awaitExperimentFuture(ef2)   # wait for remaining jobs to finish
 
-q <- readRDS(ef2$queue_path)
-table(q$status)              # all DONE
+queueRead(ef2$queue_path)    # full snapshot (data.table)
+table(queueRead(ef2$queue_path)$status)   # all DONE
 
 cat(readLines(ef2$log_files[[1]]), sep = "\n")   # inspect worker 1 log
 

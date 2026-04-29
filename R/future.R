@@ -100,10 +100,16 @@
 #'   queue_path  = file.path(tdir, "future_queue.rds"),
 #'   log_dir     = file.path(tdir, "logs")
 #' )
-#' awaitExperimentFuture(ef)    # blocks until both workers exit
 #'
-#' print(ef)                    # live status (alive/done per worker)
-#' cat(readLines(ef$log_files[[1L]]), sep = "\n")  # inspect a single worker log
+#' ## -- Live inspection while workers run -----------------------------------
+#' print(ef)                                         # alive/done per worker
+#' experimentMonitor(ef)                             # pid + machine + runName
+#' experimentMonitor(ef, stats = TRUE)               # adds CPU / RAM / state
+#' queueRead(ef$queue_path)                          # full queue snapshot
+#' experimentFutureList(ef)                          # cluster-wide pid list
+#' cat(readLines(ef$log_files[[1L]]), sep = "\n")    # tail one log
+#'
+#' awaitExperimentFuture(ef)    # blocks until both workers exit
 #'
 #' ## -- Killing workers ----------------------------------------------------
 #'
@@ -119,6 +125,12 @@
 #' killExperimentFuture(ef, force = TRUE)
 #' tmuxRefreshQueueStatus(ef$queue_path)   # clean up stale RUNNING entries
 #'
+#' # Cluster-wide kill (works for `cores = c(...)` clusters too):
+#' # sends SIGTERM to every worker on every machine, waits for exit, runs
+#' # tmuxRefreshQueueStatus(), and pushes the demotion to the Google Sheet
+#' # if `ss_id` was used (via the <queue_path>.ss_id sidecar).
+#' experimentFutureList(ef, kill = TRUE)
+#'
 #' ## -- Resuming after a kill ----------------------------------------------
 #'
 #' # Jobs left as PENDING (or INTERRUPTED with on_interrupt = "requeue") are
@@ -133,8 +145,8 @@
 #' )
 #' awaitExperimentFuture(ef2)   # wait for remaining jobs to finish
 #'
-#' q <- readRDS(ef2$queue_path)
-#' table(q$status)              # all DONE
+#' queueRead(ef2$queue_path)    # full snapshot (data.table)
+#' table(queueRead(ef2$queue_path)$status)   # all DONE
 #'
 #' cat(readLines(ef2$log_files[[1]]), sep = "\n")   # inspect worker 1 log
 #'
@@ -241,6 +253,12 @@ experimentFuture <- function(
       }
     }
 
+    # Drop a sidecar file so `experimentFutureList(kill = TRUE)` can find
+    # the GS sheet associated with this local queue and push the same
+    # demotion to GS after killing local workers.
+    try(writeLines(as.character(ss_id), paste0(queue_path, ".ss_id")),
+        silent = TRUE)
+
     # Sync local queue <-> GS
     gs_q <- try(.gs_read_queue(ss_id), silent = TRUE)
 
@@ -267,7 +285,7 @@ experimentFuture <- function(
           )
         }
       }
-      q <- data.table::setDT(gs_q)
+      q <- revertDotNames(data.table::setDT(gs_q))
       saveRDS(q, queue_path)
     } else {
       # Push local queue to GS
@@ -511,18 +529,65 @@ runWorkerLoopFuture <- function(
 ) {
   on_interrupt <- match.arg(on_interrupt)
 
-  # Redirect output to log file (used for remote cluster workers)
+  # When `log_file` is supplied (the cluster path always supplies one),
+  # spawn the worker loop as a callr::r_bg subprocess so stdout/stderr are
+  # OS-level redirected (real-time writes) and the subprocess is
+  # discoverable via /proc/<pid>/fd/1 -- same shape as the local
+  # callr::r_bg branch in experimentFuture(), so experimentMonitor() and
+  # the /proc-scan fallback see remote workers too.
+  #
+  # R-level sink() (the previous implementation) buffers writes until the
+  # connection closes, which makes long-running logs invisible during
+  # the run.
   if (!is.null(log_file)) {
-    log_con <- file(log_file, open = "wt")
-    sink(log_con, append = TRUE)
-    sink(log_con, type = "message", append = TRUE)
-    on.exit({
-      try(sink(NULL),                  silent = TRUE)
-      try(sink(NULL, type = "message"), silent = TRUE)
-      try(close(log_con),              silent = TRUE)
-    }, add = TRUE)
+    if (!requireNamespace("callr", quietly = TRUE))
+      stop("Package 'callr' is required for runWorkerLoopFuture(log_file=).",
+           call. = FALSE)
+
+    proc <- callr::r_bg(
+      func = function(queue_path, global_path, on_interrupt,
+                      ss_id, email, cache_path, runNameLabel,
+                      activeRunningPath, dots_path, stop_file, lib_paths) {
+        .libPaths(lib_paths)
+        SpaDES.project::tmuxRunWorkerLoop(
+          queue_path        = queue_path,
+          global_path       = global_path,
+          on_interrupt      = on_interrupt,
+          ss_id             = ss_id,
+          email             = email,
+          cache_path        = cache_path,
+          runNameLabel      = runNameLabel,
+          activeRunningPath = activeRunningPath,
+          dots_path         = dots_path,
+          stop_file         = stop_file,
+          pane_mode         = "reuse"
+        )
+      },
+      args = list(
+        queue_path        = queue_path,
+        global_path       = global_path,
+        on_interrupt      = on_interrupt,
+        ss_id             = ss_id,
+        email             = email,
+        cache_path        = cache_path,
+        runNameLabel      = runNameLabel,
+        activeRunningPath = activeRunningPath,
+        dots_path         = dots_path,
+        stop_file         = stop_file,
+        lib_paths         = .libPaths()
+      ),
+      stdout  = log_file,
+      stderr  = log_file,
+      env     = c(TMUX = "", TMUX_PANE = ""),
+      package = TRUE
+    )
+    worker_id <- paste0(Sys.info()[["nodename"]], "-", proc$get_pid())
+    proc$wait()
+    return(invisible(worker_id))
   }
 
+  # No log_file: run inline (fall-through path, used when callers want
+  # the worker to share the master's stdout, e.g. interactive debugging).
   worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
   message("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ",
           "Worker ", worker_id, " starting.")
@@ -708,12 +773,30 @@ killExperimentFuture <- function(ef, force = FALSE) {
 #' worker is writing).  For other Unixes use \code{lsof -p <pid>} or
 #' \code{ps -ef | grep tmuxRunWorkerLoop} as a manual substitute.
 #'
-#' @param kill   If \code{TRUE}, send \code{signal} to every worker found.
-#'   Default \code{FALSE} (list-only).  After killing, you may want to
-#'   call \code{\link{tmuxRefreshQueueStatus}} on each affected
-#'   \code{queue_path} to reset stale \verb{RUNNING} rows.
+#' @param ef Optional shorthand: an \code{"experimentFuture"} object (or
+#'   list of them) whose \code{queue_path} will be added to the discovery
+#'   set.  Equivalent to passing \code{queue_paths = ef$queue_path} and
+#'   handy when the result of \code{experimentFuture()} is still in
+#'   scope.
+#' @param kill   If \code{TRUE}, send \code{signal} to every worker found,
+#'   wait up to 10 s for the processes to exit, then call
+#'   \code{\link{tmuxRefreshQueueStatus}()} on each unique
+#'   \code{queue_path} to demote the now-orphaned \verb{RUNNING} rows
+#'   back to \verb{PENDING}. Default \code{FALSE} (list-only).
 #' @param signal One of \code{"TERM"} (15, default; graceful), \code{"INT"}
 #'   (2; like Ctrl-C), or \code{"KILL"} (9; immediate).
+#' @param queue_paths Optional character vector of queue \code{.rds} paths to
+#'   inspect for workers.  Use this across R sessions when the
+#'   \code{ef} handle is no longer in scope (e.g. you restarted R but
+#'   the workers from a prior \code{experimentFuture()} call are still
+#'   alive on \code{mega} and \code{camas}).  Each queue's
+#'   \code{status == "RUNNING"} rows are verified for liveness via
+#'   \code{/proc} (local) or batched SSH (remote).  When \code{NULL}
+#'   (default) and \code{ef} is also \code{NULL}, the function uses
+#'   only queue files auto-discovered from local \code{/proc} -- which
+#'   in turn only finds \code{callr::r_bg} workers, not PSOCK cluster
+#'   workers, so on a node with no \code{r_bg} workers it sees nothing
+#'   unless \code{ef} or \code{queue_paths} is supplied.
 #'
 #' @return A \code{data.frame} (one row per live worker) with columns:
 #'   \describe{
@@ -734,26 +817,80 @@ killExperimentFuture <- function(ef, force = FALSE) {
 #'
 #' @examples
 #' \dontrun{
-#' # Just list everything that's running
+#' # Just list everything that's running (auto-discovery via /proc only)
 #' experimentFutureList()
 #'
-#' # Same, but kill them gracefully
-#' df <- experimentFutureList(kill = TRUE)
+#' # Pass the ef handle to also pick up PSOCK cluster workers and remote
+#' # workers (anything in the queue, on any machine in `cores`).
+#' ef <- experimentFuture(df = df, global_path = "global.R",
+#'                        cores = c("localhost", "camas"), ...)
+#' experimentFutureList(ef)
+#' experimentFutureList(ef, kill = TRUE)
 #'
-#' # Hard-kill (no chance to update queue meta)
-#' experimentFutureList(kill = TRUE, signal = "KILL")
-#' for (qp in unique(df$queue_path[!is.na(df$queue_path)]))
-#'   tmuxRefreshQueueStatus(qp)        # reset stale RUNNING rows
+#' # Across R sessions, when ef is gone, drive discovery off the queue path:
+#' experimentFutureList(queue_paths = "/mnt/shared_cache/.../future_queue.rds")
+#'
+#' # Hard kill (SIGKILL, no chance to update queue meta on the worker side --
+#' # but the post-kill tmuxRefreshQueueStatus() still demotes the rows).
+#' experimentFutureList(ef, kill = TRUE, signal = "KILL")
 #' }
 #'
 #' @seealso \code{\link{experimentFuture}}, \code{\link{killExperimentFuture}},
 #'   \code{\link{tmuxRefreshQueueStatus}}
 #' @export
-experimentFutureList <- function(kill = FALSE, signal = c("TERM", "INT", "KILL")) {
+experimentFutureList <- function(ef = NULL,
+                                  kill = FALSE,
+                                  signal = c("TERM", "INT", "KILL"),
+                                  queue_paths = NULL) {
   signal <- match.arg(signal)
   if (.Platform$OS.type != "unix" || !dir.exists("/proc"))
     stop("experimentFutureList() requires a Linux-style /proc filesystem.",
          call. = FALSE)
+  local_node <- Sys.info()[["nodename"]]
+
+  # Accept a single experimentFuture object, a list of them, or NULL.
+  ef_list <- NULL
+  if (!is.null(ef)) {
+    ef_list <- if (inherits(ef, "experimentFuture")) list(ef)
+               else if (is.list(ef) &&
+                        all(vapply(ef, inherits, logical(1L), "experimentFuture")))
+                 ef
+               else stop("`ef` must be an experimentFuture object or a list of them.",
+                         call. = FALSE)
+    queue_paths <- unique(c(queue_paths,
+                            unlist(lapply(ef_list, `[[`, "queue_path"))))
+  }
+
+  # Build hostname -> SSH-name map.  Workers write `Sys.info()[["nodename"]]`
+  # into the queue's `machine_name` column; that's the OS hostname (e.g.
+  # "A159604"), not the SSH alias (e.g. "dougfir") in `~/.ssh/config` /
+  # `/etc/hosts`.  For each SSH name in `ef$cores` (excluding the local
+  # node aliases), probe `hostname -s` once and cache.  When the queue
+  # reports `machine_name = "A159604"`, we look up the alias and SSH to
+  # the alias instead.  Falls back to using machine_name verbatim when
+  # no mapping is known.
+  host_map <- character(0)   # named: hostname -> ssh_name
+  if (!is.null(ef_list)) {
+    cores_all <- unique(unlist(lapply(ef_list, `[[`, "cores")))
+    cores_all <- setdiff(cores_all, c("localhost", "127.0.0.1", local_node))
+    for (core in cores_all) {
+      res <- tryCatch(
+        suppressWarnings(system2(
+          "ssh",
+          c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+            core, "hostname -s"),
+          stdout = TRUE, stderr = FALSE
+        )),
+        error = function(e) NULL
+      )
+      if (!is.null(res) && length(res) > 0L && nzchar(trimws(res[1L])))
+        host_map[trimws(res[1L])] <- core
+    }
+  }
+  # Resolve a machine_name (OS hostname) to an SSH-reachable name.
+  .ssh_name_for <- function(m) {
+    if (m %in% names(host_map)) host_map[[m]] else m
+  }
 
   pid_dirs <- list.files("/proc", pattern = "^[0-9]+$")
   pids     <- suppressWarnings(as.integer(pid_dirs))
@@ -801,6 +938,7 @@ experimentFutureList <- function(kill = FALSE, signal = c("TERM", "INT", "KILL")
 
     rows[[length(rows) + 1L]] <- data.frame(
       pid        = pid,
+      machine    = local_node,
       started_at = started,
       log_file   = fd1,
       queue_path = queue_path,
@@ -810,20 +948,400 @@ experimentFutureList <- function(kill = FALSE, signal = c("TERM", "INT", "KILL")
   }
 
   out <- if (length(rows)) do.call(rbind, rows) else
-    data.frame(pid = integer(), started_at = character(),
+    data.frame(pid = integer(), machine = character(), started_at = character(),
                log_file = character(), queue_path = character(),
                runName = character(), stringsAsFactors = FALSE)
 
+  # ---- Queue-file-based discovery (catches PSOCK cluster workers) --------
+  # The local /proc scan only finds workers whose stdout fd points to a
+  # `worker_NN.log` file -- i.e. callr::r_bg workers.  PSOCK cluster
+  # workers spawned by experimentFuture(cores = ...) sink() to a log file
+  # from inside R, so their /proc/<pid>/fd/1 still points to the SSH
+  # socket and the scan misses them entirely (even on the local machine).
+  #
+  # The queue file is the authoritative record either way: every claim
+  # writes machine_name + process_id under filelock.  Scan it for
+  # status == "RUNNING" rows and verify each pid is alive
+  # (file.exists("/proc/<pid>") locally, batched SSH check remotely).
+  # Dedup against the /proc scan by (pid, machine).
+  qp_for_remote <- unique(c(out$queue_path[!is.na(out$queue_path)],
+                            queue_paths))
+  qp_for_remote <- qp_for_remote[!is.na(qp_for_remote) & file.exists(qp_for_remote)]
+  for (qp in qp_for_remote) {
+    q <- tryCatch(readRDS(qp), error = function(e) NULL)
+    if (is.null(q) || !all(c("status", "process_id", "machine_name") %in% names(q)))
+      next
+    idx <- which(q$status == "RUNNING" &
+                 !is.na(q$machine_name) &
+                 !is.na(suppressWarnings(as.integer(q$process_id))))
+    if (length(idx) == 0L) next
+    machines <- unique(q$machine_name[idx])
+    data_cols <- setdiff(names(q), .future_meta_cols)
+    seen <- if (nrow(out)) paste(out$pid, out$machine, sep = "@") else character(0)
+    for (m in machines) {
+      m_idx  <- idx[q$machine_name[idx] == m]
+      m_pids <- as.integer(q$process_id[m_idx])
+      keep   <- !(paste(m_pids, m, sep = "@") %in% seen)
+      m_idx  <- m_idx[keep]
+      m_pids <- m_pids[keep]
+      if (length(m_pids) == 0L) next
+
+      alive <- if (m == local_node) {
+        file.exists(paste0("/proc/", m_pids))
+      } else {
+        a <- .ssh_pids_alive(.ssh_name_for(m), m_pids)
+        if (is.null(a)) next   # SSH unreachable; skip silently
+        a
+      }
+      live_pids <- m_pids[alive]
+      log_for <- setNames(rep(NA_character_, length(m_pids)), as.character(m_pids))
+      if (length(live_pids)) {
+        if (m == local_node) {
+          for (p in live_pids) {
+            fp <- tryCatch(Sys.readlink(sprintf("/proc/%d/fd/1", p)),
+                           error = function(e) "", warning = function(w) "")
+            if (length(fp) == 1L && nzchar(fp) && grepl("worker_[0-9]+\\.log$", fp))
+              log_for[as.character(p)] <- fp
+          }
+        } else {
+          fp <- .ssh_pids_log_file(.ssh_name_for(m), live_pids)
+          if (!is.null(fp)) {
+            for (p in live_pids) {
+              v <- fp[[as.character(p)]]
+              if (!is.null(v) && nzchar(v) && grepl("worker_[0-9]+\\.log$", v))
+                log_for[as.character(p)] <- v
+            }
+          }
+        }
+      }
+      for (k in seq_along(m_pids)) {
+        if (!isTRUE(alive[k])) next
+        i <- m_idx[k]
+        vals <- vapply(data_cols,
+                       function(cn) as.character(q[[cn]][i]),
+                       character(1L))
+        rows[[length(rows) + 1L]] <- data.frame(
+          pid        = m_pids[k],
+          machine    = m,
+          started_at = as.character(q$started_at[i]),
+          log_file   = unname(log_for[as.character(m_pids[k])]),
+          queue_path = qp,
+          runName    = paste(vals, collapse = "-"),
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+
+  out <- if (length(rows)) do.call(rbind, rows) else out
+
   if (isTRUE(kill) && nrow(out) > 0L) {
     sig_num <- switch(signal, TERM = 15L, INT = 2L, KILL = 9L)
-    for (pid in out$pid) {
+    is_local_row <- out$machine == local_node
+    # Local kills via tools::pskill
+    for (pid in out$pid[is_local_row])
       try(tools::pskill(pid, signal = sig_num), silent = TRUE)
+    # Remote kills batched per machine via SSH
+    if (any(!is_local_row)) {
+      for (m in unique(out$machine[!is_local_row])) {
+        m_pids <- out$pid[out$machine == m]
+        try(.ssh_kill_pids(.ssh_name_for(m), m_pids, signal = signal),
+            silent = TRUE)
+      }
     }
-    message("Sent SIG", signal, " to ", nrow(out), " worker(s).",
-            if (signal != "KILL")
-              "\nFollow with tmuxRefreshQueueStatus(<queue_path>) to reset stale RUNNING rows."
-            else "")
+    message("Sent SIG", signal, " to ", nrow(out), " worker(s) (",
+            sum(is_local_row), " local, ", sum(!is_local_row), " remote).")
+
+    # Wait for the workers to actually exit before refreshing the queue.
+    # tmuxRefreshQueueStatus() demotes a RUNNING row to PENDING only if the
+    # row's process_id is no longer alive; if we refresh too eagerly, the
+    # killed workers' processes may not yet be reaped, so the demotion
+    # would be skipped and the queue would stay stuck.
+    deadline    <- Sys.time() + 10
+    remaining_l <- out$pid[is_local_row]
+    remaining_r <- split(out$pid[!is_local_row], out$machine[!is_local_row])
+    while ((length(remaining_l) || length(remaining_r)) &&
+           Sys.time() < deadline) {
+      if (length(remaining_l)) {
+        remaining_l <- remaining_l[
+          vapply(remaining_l,
+                 function(p) dir.exists(sprintf("/proc/%d", p)),
+                 logical(1L))
+        ]
+      }
+      if (length(remaining_r)) {
+        machine_names <- names(remaining_r)
+        remaining_r <- lapply(machine_names, function(m) {
+          alive <- .ssh_pids_alive(.ssh_name_for(m), remaining_r[[m]])
+          if (is.null(alive)) remaining_r[[m]] else remaining_r[[m]][alive]
+        })
+        names(remaining_r) <- machine_names
+        remaining_r <- remaining_r[lengths(remaining_r) > 0L]
+      }
+      if (length(remaining_l) || length(remaining_r)) Sys.sleep(0.5)
+    }
+    n_left <- length(remaining_l) + sum(lengths(remaining_r))
+    if (n_left > 0L)
+      message("Note: ", n_left, " worker PID(s) still alive after 10s; ",
+              "queue refresh may not fully reset the affected rows.")
+
+    qps <- unique(out$queue_path[!is.na(out$queue_path)])
+    qps <- qps[file.exists(qps)]
+    gs_demoted <- 0L
+    for (qp in qps) {
+      tryCatch(tmuxRefreshQueueStatus(qp),
+               error = function(e)
+                 message("Could not refresh ", qp, ": ", conditionMessage(e)))
+
+      # GS counterpart: if this queue has a sidecar `.ss_id` (written by
+      # experimentFuture when ss_id was supplied), push the same demotion
+      # to the Google Sheet for any RUNNING rows held by killed PIDs.
+      ss_file <- paste0(qp, ".ss_id")
+      if (file.exists(ss_file)) {
+        ss_id <- tryCatch(trimws(readLines(ss_file, warn = FALSE)[1L]),
+                          error = function(e) NA_character_)
+        if (!is.na(ss_id) && nzchar(ss_id)) {
+          pids_for_qp <- out$pid[out$queue_path == qp & !is.na(out$queue_path)]
+          n <- tryCatch(.gs_demote_after_kill(ss_id, pids_for_qp),
+                        error = function(e) {
+                          message("Could not demote GS rows for ", qp,
+                                  ": ", conditionMessage(e)); 0L
+                        })
+          gs_demoted <- gs_demoted + (n %||% 0L)
+        }
+      }
+    }
+    if (length(qps))
+      message("Refreshed ", length(qps), " queue file(s); stale RUNNING rows ",
+              "have been demoted to PENDING.")
+    if (gs_demoted > 0L)
+      message("Demoted ", gs_demoted, " RUNNING row(s) on associated Google Sheet(s).")
     return(invisible(out))
   }
   out
+}
+
+
+# Build hostname -> SSH-alias map by probing `ssh <core> hostname -s`.
+# Returns a named character vector (hostname -> alias). Cores already
+# matching the local node are skipped.  Unreachable cores produce no
+# entry (silent skip -- caller falls back to using hostname verbatim).
+.ef_build_host_map <- function(ef_list, local_node = Sys.info()[["nodename"]]) {
+  if (is.null(ef_list) || !length(ef_list)) return(character(0))
+  cores_all <- unique(unlist(lapply(ef_list, `[[`, "cores")))
+  cores_all <- setdiff(cores_all, c("localhost", "127.0.0.1", local_node))
+  host_map <- character(0)
+  for (core in cores_all) {
+    res <- tryCatch(
+      suppressWarnings(system2(
+        "ssh",
+        c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+          core, "hostname -s"),
+        stdout = TRUE, stderr = FALSE
+      )),
+      error = function(e) NULL
+    )
+    if (!is.null(res) && length(res) > 0L && nzchar(trimws(res[1L])))
+      host_map[trimws(res[1L])] <- core
+  }
+  host_map
+}
+
+# Queue-mode worker scan used by experimentMonitor() (and analogous to
+# the queue-driven discovery in experimentFutureList()).  Reads each
+# queue file's RUNNING rows, verifies aliveness via /proc (local) or
+# batched SSH (remote, using host_map for the alias lookup), and
+# returns a data.frame with pid / machine / started_at / log_file /
+# queue_path / runName.  With stats = TRUE, decorates with
+# state / cpuAvg / RAM (GB) / availableCores / total RAM (GB).
+.ef_monitor <- function(ef = NULL, queue_paths = NULL, stats = FALSE) {
+  local_node <- Sys.info()[["nodename"]]
+  ef_list <- NULL
+  if (!is.null(ef)) {
+    ef_list <- if (inherits(ef, "experimentFuture")) list(ef)
+               else if (is.list(ef) &&
+                        all(vapply(ef, inherits, logical(1L), "experimentFuture")))
+                 ef
+               else stop("`ef` must be an experimentFuture object or a list of them.",
+                         call. = FALSE)
+    queue_paths <- unique(c(queue_paths,
+                            unlist(lapply(ef_list, `[[`, "queue_path"))))
+  }
+  queue_paths <- queue_paths[!is.na(queue_paths) & file.exists(queue_paths)]
+  empty <- data.frame(pid = integer(0), machine = character(0),
+                      started_at = character(0), log_file = character(0),
+                      queue_path = character(0), runName = character(0),
+                      stringsAsFactors = FALSE)
+  if (!length(queue_paths)) return(empty)
+
+  host_map <- .ef_build_host_map(ef_list, local_node)
+  ssh_name_for <- function(m)
+    if (m %in% names(host_map)) host_map[[m]] else m
+
+  rows <- list()
+  for (qp in queue_paths) {
+    q <- tryCatch(readRDS(qp), error = function(e) NULL)
+    if (is.null(q) ||
+        !all(c("status", "process_id", "machine_name") %in% names(q))) next
+    idx <- which(q$status == "RUNNING" &
+                 !is.na(q$machine_name) &
+                 !is.na(suppressWarnings(as.integer(q$process_id))))
+    if (length(idx) == 0L) next
+    data_cols <- setdiff(names(q), .future_meta_cols)
+    for (m in unique(q$machine_name[idx])) {
+      m_idx  <- idx[q$machine_name[idx] == m]
+      m_pids <- as.integer(q$process_id[m_idx])
+      alive <- if (m == local_node) {
+        file.exists(paste0("/proc/", m_pids))
+      } else {
+        a <- .ssh_pids_alive(ssh_name_for(m), m_pids)
+        if (is.null(a)) next
+        a
+      }
+      # Resolve each live PID's stdout fd -> log file path.  Workers that
+      # went through callr::r_bg(stdout = log_file) (the local
+      # experimentFuture branch and the cluster runWorkerLoopFuture branch
+      # post-2026-04 fix) have /proc/<pid>/fd/1 pointing at worker_NN.log.
+      live_pids <- m_pids[alive]
+      log_for <- setNames(rep(NA_character_, length(m_pids)), as.character(m_pids))
+      if (length(live_pids)) {
+        if (m == local_node) {
+          for (p in live_pids) {
+            fp <- tryCatch(Sys.readlink(sprintf("/proc/%d/fd/1", p)),
+                           error = function(e) "", warning = function(w) "")
+            if (length(fp) == 1L && nzchar(fp) && grepl("worker_[0-9]+\\.log$", fp))
+              log_for[as.character(p)] <- fp
+          }
+        } else {
+          fp <- .ssh_pids_log_file(ssh_name_for(m), live_pids)
+          if (!is.null(fp)) {
+            for (p in live_pids) {
+              v <- fp[[as.character(p)]]
+              if (!is.null(v) && nzchar(v) && grepl("worker_[0-9]+\\.log$", v))
+                log_for[as.character(p)] <- v
+            }
+          }
+        }
+      }
+      for (k in seq_along(m_pids)) {
+        if (!isTRUE(alive[k])) next
+        i <- m_idx[k]
+        vals <- vapply(data_cols,
+                       function(cn) as.character(q[[cn]][i]),
+                       character(1L))
+        rows[[length(rows) + 1L]] <- data.frame(
+          pid        = m_pids[k],
+          machine    = m,
+          started_at = as.character(q$started_at[i]),
+          log_file   = unname(log_for[as.character(m_pids[k])]),
+          queue_path = qp,
+          runName    = paste(vals, collapse = "-"),
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+  out <- if (length(rows)) do.call(rbind, rows) else empty
+  if (isTRUE(stats) && nrow(out) > 0L)
+    out <- .ef_attach_ps_stats(out, ssh_name_for, local_node)
+  out
+}
+
+# Decorate a queue-mode worker frame with CPU / RSS / state / nproc /
+# total RAM by calling the same .tmux_ps_stats helper used by
+# tmuxListPanes(stats = TRUE), one batch per machine.
+.ef_attach_ps_stats <- function(workers, ssh_name_for,
+                                 local_node = Sys.info()[["nodename"]]) {
+  workers$state               <- NA_character_
+  workers$cpuAvg              <- NA_real_
+  workers[["RAM (GB)"]]       <- NA_real_
+  workers$availableCores      <- NA_integer_
+  workers[["total RAM (GB)"]] <- NA_real_
+  if (!nrow(workers)) return(workers)
+
+  for (m in unique(workers$machine)) {
+    idx    <- which(workers$machine == m)
+    m_pids <- workers$pid[idx]
+    target <- if (m == local_node) "__LOCAL__" else ssh_name_for(m)
+    res    <- tryCatch(.tmux_ps_stats(target, m_pids), error = function(e) NULL)
+    if (is.null(res)) next
+    if (!is.na(res$ncpu))
+      workers$availableCores[idx] <- res$ncpu
+    if (!is.na(res$mem_kb))
+      workers[["total RAM (GB)"]][idx] <- round(res$mem_kb / 1024^2, 1L)
+    stats_df <- res$procs
+    ix       <- match(m_pids, stats_df$pid)
+    missing  <- is.na(ix)
+    if (any(missing))
+      workers$state[idx[missing]] <- "Closed"
+    live <- !missing
+    if (any(live)) {
+      live_idx <- idx[live]
+      live_ix  <- ix[live]
+      workers$state[live_idx]         <- stats_df$state[live_ix]
+      workers$cpuAvg[live_idx]        <- stats_df$cpu[live_ix]
+      workers[["RAM (GB)"]][live_idx] <- round(stats_df$rss_mb[live_ix] / 1024, 1L)
+    }
+  }
+  workers
+}
+
+# Batched remote PID-liveness check: one SSH connection per machine.
+# Returns NULL if SSH is unreachable (treat as "leave alone"), or a logical
+# vector aligned to `pids` otherwise.
+.ssh_pids_alive <- function(machine, pids) {
+  if (length(pids) == 0L) return(logical(0))
+  pid_str <- paste(pids, collapse = " ")
+  cmd <- paste0("for pid in ", pid_str,
+                "; do [ -d /proc/$pid ] && echo alive || echo dead; done")
+  res <- tryCatch(
+    system2("ssh",
+            c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+              machine, shQuote(cmd)),
+            stdout = TRUE, stderr = FALSE),
+    error = function(e) NULL
+  )
+  if (is.null(res) || length(res) != length(pids)) return(NULL)
+  res == "alive"
+}
+
+# Batched remote `readlink /proc/<pid>/fd/1` for each pid; one SSH connection.
+# Returns a named character vector (pid as character -> resolved fd1 target),
+# or NULL on SSH failure.  Empty/missing entries indicate no readable fd 1.
+.ssh_pids_log_file <- function(machine, pids) {
+  if (length(pids) == 0L) return(setNames(character(0), character(0)))
+  pid_str <- paste(pids, collapse = " ")
+  cmd <- paste0(
+    "for pid in ", pid_str,
+    "; do printf '%s\\t' \"$pid\"; readlink /proc/$pid/fd/1 2>/dev/null || echo; done"
+  )
+  res <- tryCatch(
+    suppressWarnings(system2("ssh",
+            c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+              machine, shQuote(cmd)),
+            stdout = TRUE, stderr = FALSE)),
+    error = function(e) NULL
+  )
+  if (is.null(res)) return(NULL)
+  out <- setNames(rep(NA_character_, length(pids)), as.character(pids))
+  for (ln in res) {
+    parts <- strsplit(ln, "\t", fixed = TRUE)[[1L]]
+    if (length(parts) >= 1L && nzchar(parts[1L])) {
+      out[[parts[1L]]] <- if (length(parts) >= 2L) trimws(parts[2L]) else NA_character_
+    }
+  }
+  out
+}
+
+# Send `signal` to each pid on `machine`.  One SSH connection.
+.ssh_kill_pids <- function(machine, pids, signal = "TERM") {
+  if (length(pids) == 0L) return(invisible(NULL))
+  pid_str <- paste(pids, collapse = " ")
+  cmd <- paste0("kill -", signal, " ", pid_str, " 2>/dev/null || true")
+  try(system2("ssh",
+              c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+                machine, shQuote(cmd)),
+              stdout = FALSE, stderr = FALSE),
+      silent = TRUE)
+  invisible(NULL)
 }

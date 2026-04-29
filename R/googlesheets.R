@@ -170,46 +170,179 @@
   invisible(NULL)
 }
 
+# Mirror a row-level update from the GS-backed queue to the local RDS file.
+# No-op if queue_path is NULL or missing; safe under concurrent workers via
+# filelock. Updates are matched against local column names (which are the
+# .dotted form used by tmuxPrepareQueueFromDF / setupProject), not the GS
+# dotXxx form.
+.mirror_local_queue <- function(queue_path, row_i, updates) {
+  trace <- isTRUE(getOption("spades.mirror.trace", FALSE)) ||
+           nzchar(Sys.getenv("SPADES_MIRROR_TRACE"))
+  if (is.null(queue_path) || !nzchar(queue_path) || !file.exists(queue_path)) {
+    if (trace) message(sprintf("[mirror] SKIP row=%s queue_path=%s (missing/empty)",
+                               row_i, as.character(queue_path)))
+    return(invisible(NULL))
+  }
+  if (!requireNamespace("filelock", quietly = TRUE)) return(invisible(NULL))
+  LOCKF <- paste0(queue_path, ".lock")
+  lck <- try(filelock::lock(LOCKF, timeout = 10000L), silent = TRUE)
+  if (inherits(lck, "try-error") || is.null(lck)) {
+    if (trace) message(sprintf("[mirror] LOCK_FAIL row=%s", row_i))
+    return(invisible(NULL))
+  }
+  on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
+  q <- try(readRDS(queue_path), silent = TRUE)
+  if (inherits(q, "try-error")) {
+    if (trace) message(sprintf("[mirror] READ_FAIL row=%s", row_i))
+    return(invisible(NULL))
+  }
+  applied <- character(0)
+  skipped <- character(0)
+  for (nm in names(updates)) {
+    if (nm %in% names(q)) {
+      val <- updates[[nm]]
+      cur <- q[[nm]]
+      val2 <- tryCatch(
+        if (is.integer(cur)) suppressWarnings(as.integer(val))
+        else if (is.numeric(cur)) suppressWarnings(as.numeric(val))
+        else as.character(val),
+        error = function(e) val
+      )
+      q[[nm]][row_i] <- val2
+      applied <- c(applied, sprintf("%s=%s", nm, as.character(val2)))
+    } else {
+      skipped <- c(skipped, nm)
+    }
+  }
+  try(saveRDS(q, queue_path), silent = TRUE)
+  if (trace) {
+    msg <- sprintf("[mirror] WROTE row=%s [%s]", row_i, paste(applied, collapse = ", "))
+    if (length(skipped))
+      msg <- paste0(msg, sprintf("  SKIPPED_COLS=[%s]", paste(skipped, collapse = ",")))
+    message(msg)
+  }
+  invisible(NULL)
+}
+
+# Demote any GS rows whose RUNNING claim is held by one of `killed_pids`,
+# resetting status -> PENDING and clearing the run's metadata.  Used by
+# experimentFutureList(kill = TRUE) to mirror the local-queue demotion to GS.
+.gs_demote_after_kill <- function(ss_id, killed_pids, sheet = "Status") {
+  if (!nzchar(as.character(ss_id))) return(invisible(0L))
+  q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
+  if (is.null(q) || nrow(q) == 0L) return(invisible(0L))
+  pids <- suppressWarnings(as.integer(q$process_id))
+  to_demote <- which(q$status == "RUNNING" & pids %in% as.integer(killed_pids))
+  if (length(to_demote) == 0L) return(invisible(0L))
+  col_pos <- setNames(seq_along(names(q)), names(q))
+  # Demote to PENDING and wipe ALL run-specific metadata (matches the
+  # local-queue demotion in tmuxRefreshQueueStatus, which clears every
+  # meta column except `status`).
+  for (i in to_demote) {
+    try(.gs_write_cells(ss_id, sheet_row = i + 1L,
+      updates = list(
+        status             = "PENDING",
+        claimed_by         = NA_character_,
+        started_at         = NA_character_,
+        finished_at        = NA_character_,
+        DEoptimElapsedTime = NA_character_,
+        machine_name       = NA_character_,
+        process_id         = NA_character_,
+        heartbeat_at       = NA_character_,
+        heartbeat_iter     = NA_character_,
+        iterationsTotal    = NA_character_,
+        interrupted_at     = NA_character_
+      ),
+      col_positions = col_pos,
+      sheet         = sheet,
+      current_row   = as.list(q[i, ])
+    ), silent = TRUE)
+  }
+  invisible(length(to_demote))
+}
+
 # Attempt to claim the next PENDING/INTERRUPTED job from the sheet.
 # Uses optimistic concurrency: write claim, wait, re-read to verify.
-# Returns list(row_index, sheet_row, col_positions, data) or NULL (empty / lost race).
-.gs_claim_next_job <- function(ss_id, worker_id, sheet = "Status") {
-  # Reclaim any RUNNING rows whose process died on this machine before scanning.
-  .gs_reclaim_dead_jobs(ss_id, sheet)
+# Random pending-row selection reduces collisions when many workers race.
+# Retries on lost race; returns
+#   * list(row_index, sheet_row, col_positions, data)            -- success
+#   * NULL                                                       -- queue empty
+#   * structure(list(), class = "gs_claim_lost")                 -- exhausted retries
+# `queue_path`: when supplied, GS state is mirrored back to the local RDS
+# so queueRead(local) and experimentFutureList() see the live state.
+.gs_claim_next_job <- function(ss_id, worker_id, sheet = "Status",
+                                queue_path = NULL, max_attempts = 20L) {
+  for (attempt in seq_len(max_attempts)) {
+    # Reclaim any RUNNING rows whose process died on this machine before scanning.
+    .gs_reclaim_dead_jobs(ss_id, sheet)
 
-  q <- .gs_read_queue(ss_id, sheet)
-  if (nrow(q) == 0L) return(NULL)
+    q <- .gs_read_queue(ss_id, sheet)
+    if (nrow(q) == 0L) return(NULL)
 
-  col_pos     <- setNames(seq_along(names(q)), names(q))
-  pending_idx <- which(q$status %in% c("PENDING", "INTERRUPTED"))
-  if (length(pending_idx) == 0L) return(NULL)
+    col_pos     <- setNames(seq_along(names(q)), names(q))
+    pending_idx <- which(q$status %in% c("PENDING", "INTERRUPTED"))
+    if (length(pending_idx) == 0L) return(NULL)
 
-  row_i     <- pending_idx[1L]
-  sheet_row <- row_i + 1L          # +1 for the header row
-  now       <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    # Always claim the topmost pending row.  If two workers collide on the
+    # same row, the loser's retry sees that row already RUNNING and falls
+    # through to the next pending row.
+    row_i     <- pending_idx[1L]
+    sheet_row <- row_i + 1L          # +1 for the header row
+    now       <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
-  .gs_write_cells(ss_id, sheet_row,
-    updates = list(
-      status       = "RUNNING",
-      claimed_by   = worker_id,
-      started_at   = now,
-      machine_name = Sys.info()[["nodename"]],
-      process_id   = as.character(Sys.getpid())
-    ),
-    col_positions = col_pos,
-    sheet         = sheet,
-    current_row   = as.list(q[row_i, ])   # avoids an extra read in .gs_write_cells
-  )
+    # Claim updates: set the new run's owner / start time, and ALSO scrub
+    # any stale completion/interrupt fields left over from a previous run
+    # of the same row.  Without these clears, finished_at / DEoptimElapsedTime
+    # / heartbeat_* / interrupted_at would still carry the previous run's
+    # values while the row is RUNNING, which is misleading.
+    claim_updates <- list(
+      status             = "RUNNING",
+      claimed_by         = worker_id,
+      started_at         = now,
+      finished_at        = NA_character_,
+      DEoptimElapsedTime = NA_character_,
+      machine_name       = Sys.info()[["nodename"]],
+      process_id         = as.character(Sys.getpid()),
+      heartbeat_at       = NA_character_,
+      heartbeat_iter     = NA_character_,
+      iterationsTotal    = NA_character_,
+      interrupted_at     = NA_character_
+    )
+    .gs_write_cells(ss_id, sheet_row,
+      updates       = claim_updates,
+      col_positions = col_pos,
+      sheet         = sheet,
+      current_row   = as.list(q[row_i, ])
+    )
 
-  # Re-read to verify we won the race (another worker may have claimed first)
-  Sys.sleep(2)
-  q2 <- .gs_read_queue(ss_id, sheet)
-  if (!isTRUE(q2$claimed_by[row_i] == worker_id)) return(NULL)  # lost
-
-  list(row_index    = row_i,
-       sheet_row    = sheet_row,
-       col_positions = col_pos,
-       data         = q2[row_i, ])
+    # Re-read to verify we won the race (another worker may have claimed first)
+    Sys.sleep(2)
+    q2 <- .gs_read_queue(ss_id, sheet)
+    if (isTRUE(q2$claimed_by[row_i] == worker_id)) {
+      # Mirror claim back to the local RDS so non-GS readers see the truth.
+      .mirror_local_queue(queue_path, row_i, list(
+        status             = "RUNNING",
+        claimed_by         = worker_id,
+        started_at         = now,
+        finished_at        = NA,
+        DEoptimElapsedTime = NA,
+        machine_name       = Sys.info()[["nodename"]],
+        process_id         = Sys.getpid(),
+        heartbeat_at       = NA,
+        heartbeat_iter     = NA,
+        iterationsTotal    = NA,
+        interrupted_at     = NA
+      ))
+      return(list(row_index    = row_i,
+                  sheet_row    = sheet_row,
+                  col_positions = col_pos,
+                  data         = q2[row_i, ]))
+    }
+    # Lost race -- back off with jitter, then retry.
+    Sys.sleep(stats::runif(1, 0.5, 1.5))
+  }
+  # All attempts collided. Don't kill the worker; signal a transient miss.
+  structure(list(), class = "gs_claim_lost")
 }
 
 #' Mirror local queue to Google Sheets
