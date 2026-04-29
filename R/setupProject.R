@@ -4220,6 +4220,11 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
           if (identical(sys_co, 0L)) gbc <- TRUE
         }
       }
+      message("[setUpstreamWithTry] gbc try-error after fetch+system-git? ",
+              is(gbc, "try-error"),
+              " | split$acct=", paste(split$acct, collapse = "|"),
+              " | split$repo=", paste(split$repo, collapse = "|"),
+              " | split$br=",   paste(split$br,   collapse = "|"))
       if (is(gbc, "try-error") && !is.null(split$acct) && !is.null(split$repo)) {
         # Still missing -- the branch may live on a github fork the working
         # copy doesn't know about yet.  We have $acct/$repo from the modules
@@ -4230,9 +4235,13 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
         fork_url <- .gh_url(split$acct, split$repo)
         existing <- tryCatch(gert::git_remote_list(),
                              error = function(e) NULL)
+        message("[setUpstreamWithTry] auto-add: fork_url=", fork_url,
+                " | existing remotes=",
+                if (!is.null(existing)) paste(existing$name, "->", existing$url, collapse = "; ") else "<none>")
         already <- !is.null(existing) &&
                    any(existing$url == fork_url |
                        existing$url == paste0(fork_url, ".git"))
+        message("[setUpstreamWithTry] already=", already)
         if (!already) {
           # Pick a remote name that doesn't collide with an existing one.
           # `<acct>` is the natural choice (e.g. "eliotmcintire"); fall back
@@ -4240,16 +4249,25 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
           rname <- split$acct
           if (!is.null(existing) && rname %in% existing$name)
             rname <- paste0("fork-", split$acct)
-          add_ok <- tryCatch({
-            gert::git_remote_add(url = fork_url, name = rname)
-            TRUE
-          }, error = function(e) FALSE)
+          add_res <- tryCatch({
+            gert::git_remote_add(url = fork_url, name = rname); "ok"
+          }, error = function(e) conditionMessage(e))
+          add_ok <- identical(add_res, "ok")
+          message("[setUpstreamWithTry] git_remote_add(name='", rname,
+                  "') -> ", if (add_ok) "ok" else paste0("ERROR: ", add_res))
           if (add_ok) {
-            messageVerbose("Added remote '", rname, "' -> ", fork_url,
-                           " (looking for branch '", split$br, "')",
-                           verbose = verbose)
-            try(gert::git_fetch(remote = rname), silent = TRUE)
+            message("Added remote '", rname, "' -> ", fork_url,
+                    " (looking for branch '", split$br, "')")
+            full_rs <- paste0("+refs/heads/*:refs/remotes/", rname, "/*")
+            f_res <- tryCatch({
+              gert::git_fetch(remote = rname, refspec = full_rs); "ok"
+            }, error = function(e) conditionMessage(e))
+            message("[setUpstreamWithTry] git_fetch(remote='", rname,
+                    "', refspec='", full_rs, "') -> ",
+                    if (identical(f_res, "ok")) "ok" else paste0("ERROR: ", f_res))
             gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+            message("[setUpstreamWithTry] post-add checkout try-error? ",
+                    is(gbc, "try-error"))
           }
         } else {
           # The fork URL was already configured under some name -- fetch
