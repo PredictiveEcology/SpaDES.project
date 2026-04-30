@@ -1,22 +1,54 @@
-#' Experiment runners: one queue model, three spawn backends
+#' Experiment functions: one queue model, multiple backends
 #'
-#' A SpaDES.project "experiment" is a `data.frame` (or `data.table`) where
-#' each row is one job to run. Each runner pours the row's columns into the
-#' worker's `.GlobalEnv` and sources `global.R` against them, marks the row
-#' DONE in a shared queue, and moves on to the next PENDING row. The three
-#' runners share that queue, the run-name / status calculation contracts,
-#' and the resume-on-restart semantics; they differ only in *how* parallel
-#' workers are spawned:
+#' A SpaDES "experiment" is a way of running a single "global" script,
+#' but with varying `inputs`, `parameters`, `paths` etc. This allows users to
+#' run, for example, replication of stochastic models, hypothesis testing with 
+#' different data inputs, scenarios of different human decisions, build
+#' large datasets of alternative mechanisms to enable ensemble modeling, 
+#' and other possibilities.  
+#' 
+#' The structure of an experiment is a `data.frame` (or `data.table`) where
+#' each row describes one set of values to be assigned to variables in 
+#' the `.GlobalEnv`. When an experiment is run using one of the `experimentXXX`
+#' family of functions,
+#' e.g., `experimentFuture`, `experimentTmux`, `experimentSBATCH`, this 
+#' data.frame is translated into a `queue` data.frame that has all the
+#' same columns and rows as the experiment, plus a few more, including `status`,
+#' `claimed_by` etc. to help run the experiment. 
+#' After creating the queue, the function will spawn a number of
+#' independent R "worker" sessions (according to `n_workers` or `cores`).
+#' Each of these workers will select a single row, assign the values 
+#' in each user-specified column to an object in the 
+#' `.GlobalEnv` whose name is the column name. 
+#' For example, if the `data.frame` has 2 rows and a column named
+#' `runName` where the row values are `"trial1"`` and `"trial2"`,
+#' then during the `experimentXXX` function
+#' call, the first R script will run: `runName <- "trial1"; source(global_path)`,
+#' and the second R script will run: `runName <- "trial2"; source(global_path)`. 
+#' The "status" column will have initial values of "PENDING" for all rows. 
+#' The workers will take the next row in the 
+#' queue that is "PENDING" (or "INTERRUPTED"), 
+#' skipping any rows that have "DONE" or any other value. When a
+#' worker is done, without error, the `status` column will be marked as
+#' DONE in that row in a shared queue, and moves on to the next PENDING row. 
+#' 
+#' Currently, there are 3 different ways of running an `experiment`. All
+#' share the queue and the run naming convention; however, 
+#' they differ only in *how* parallel workers are spawned. 
 #'
 #' \describe{
-#'   \item{[experimentTmux()]}{One tmux pane per worker, optionally across
+#'   \item{[experimentTmux()]}{Allows the most interactivity and so
+#'     is helpful when there is still debugging to perform. This will 
+#'     only work on a computer that has `tmux` installed. The function
+#'     spawns one tmux pane per worker, optionally across
 #'     ssh-reachable machines. Best for interactive use where you want to
-#'     watch workers live (`tmux attach`). Workers can be torn down with
+#'     watch workers live (`tmux attach`). Workers can be stopped with
 #'     [tmuxKillPanes()].}
-#'   \item{[experimentFuture()]}{Background R processes via `callr::r_bg()`
-#'     (local) or `future::cluster` (remote). No tmux involvement. Best
-#'     for non-interactive driver scripts on a single workstation. Block
-#'     with [awaitExperimentFuture()] or stop with [killExperimentFuture()].}
+#'   \item{[experimentFuture()]}{When there is little to no debugging
+#'     necessary, this function will use background R processes using 
+#'     either `callr::r_bg()` if all workers are local,
+#'     or `future::cluster` if some of the workers are on different machines. 
+#'     Best for stable scripts. Workers can be stopped with [killExperimentFuture()].}
 #'   \item{[experimentSBATCH()]}{One Slurm batch job per worker. Best for
 #'     HPC clusters with `sbatch` / `squeue` / `scancel`. Block with
 #'     [awaitExperimentSBATCH()] (polls `squeue`) or stop with
@@ -25,7 +57,7 @@
 #'     `dry_run = TRUE`.}
 #' }
 #'
-#' All three runners accept the same core arguments:
+#' All experimentXXX functions accept the same core arguments:
 #'
 #' \describe{
 #'   \item{`df`}{The parameter grid; one row = one job. Column names become
@@ -84,26 +116,26 @@
 #'
 #' \describe{
 #'   \item{Concurrency control}{Two shells launched at the same second can
-#'     both pick the same row. The runners take an exclusive `filelock` lock
+#'     both pick the same row. The experimentXXX functions take an exclusive `filelock` lock
 #'     on the queue between read and write, so each row is claimed at most
 #'     once across all workers and machines.}
 #'   \item{Resume after crash / ctrl-C}{If a worker dies mid-job, the row is
-#'     stuck "in progress" with no record. The runners mark the row RUNNING
+#'     stuck "in progress" with no record. The experimentXXX functions mark the row RUNNING
 #'     when claimed and DONE / INTERRUPTED when finished, so the next launch
 #'     skips DONE rows and (optionally, via [tmuxRefreshQueueStatus()] or
 #'     [experimentFutureList()] `(kill = TRUE)`) demotes orphaned RUNNING
 #'     rows back to PENDING for re-claim.}
 #'   \item{Worker-pool sizing}{`Rscript &; Rscript &; Rscript &` scales as
 #'     "one process per row", which thrashes the box once you exceed the
-#'     core count. The runners take `n_workers` and let each worker pull
+#'     core count. The experimentXXX functions take `n_workers` and let each worker pull
 #'     rows in sequence, so you cap parallelism explicitly.}
 #'   \item{Cross-machine claims}{Spawning N rows on each of M machines means
 #'     either replicating the parameter grid by hand (and risking duplicate
 #'     work) or sharding it (and losing dynamic load-balancing). With the
-#'     runners, every worker on every machine pulls from the same queue, so
+#'     experimentXXX functions, every worker on every machine pulls from the same queue, so
 #'     a slow machine just claims fewer rows.}
 #'   \item{Live observability}{`Rscript -e` writes nothing structured -- you
-#'     scrape PIDs and tail logs. The runners maintain a queue with
+#'     scrape PIDs and tail logs. The experimentXXX functions maintain a queue with
 #'     `status` / `claimed_by` / `started_at` / `process_id` / `machine_name`
 #'     so [queueRead()] gives a full snapshot, and [experimentFutureList()]
 #'     can enumerate live workers (and kill them) cluster-wide.}
@@ -121,7 +153,7 @@
 #' }
 #'
 #' If you only ever run two rows on one machine and never restart, the
-#' two-line shell version is fine. The runners exist for the cases past
+#' two-line shell version is fine. The experimentXXX functions exist for the cases past
 #' that.
 #'
 #' @section Cross-machine propagation (cluster modes):
@@ -185,7 +217,7 @@
 #'     packages from GitHub.
 #'   }
 #'   \item{Google credentials}{
-#'     The runners pass \code{email} + \code{cache_path} into each
+#'     The experimentXXX functions pass \code{email} + \code{cache_path} into each
 #'     worker; the worker calls
 #'     \code{googlesheets4::gs4_auth(email = email, cache = cache_path)}
 #'     non-interactively against the same cached OAuth token directory
@@ -217,7 +249,7 @@
 #' helpers, the same SSL trust store, and the same Google identity as
 #' \code{global.R} on \code{mega}. Hand-rolling all of that for each
 #' remote machine before each run is the bulk of what makes
-#' "\code{Rscript -e ...} on N hosts" miserable in practice; the runners
+#' "\code{Rscript -e ...} on N hosts" miserable in practice; the experimentXXX functions
 #' do it once per unique host per call.
 #'
 #' @section Managing remote workers from the calling machine:
