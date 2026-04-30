@@ -5,6 +5,7 @@ version 1.0.1
 
 ## New features
 
+* New `re**` family — inverse of `out**` — for retrieving uploaded sims: `reGet()` (download from Google Drive), `reUntar()` (extract; optional `pathRemap` rewrites a path prefix via GNU `tar --transform`), `reLoad()` (`loadSimList()` / `readRDS()`), and the wrapper `reGetUntarLoad()`. Vectorised over a batch (e.g. a `dribble` from `outList()`). See `?reGetUntarLoad`.
 * New `experimentMonitor()` unifies tmux + experimentFuture worker discovery; `stats = TRUE` adds CPU / RAM / state. `tmuxListPanes()` is now a thin alias.
 * `experimentFutureList(ef)` works cluster-wide: probes hostname → SSH-alias and does batched SSH liveness / kill / `readlink` per machine; `kill = TRUE` also pushes the demotion to the Google Sheet via the `<queue_path>.ss_id` sidecar.
 * `experimentFuture(ss_id = ...)` drops a `<queue_path>.ss_id` sidecar for cross-session GS reconciliation.
