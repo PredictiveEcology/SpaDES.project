@@ -455,15 +455,15 @@ setupProject <- function(name, paths, modules, packages,
       caller = parent.frame(),
       dots   = dotsAll
     )
-    
+
     # envir <- proxy$env
-    
+
     # proxy <- build_proxy(envirCur, parent.frame(), dot_exprs)
     # proxy <- build_proxy(envirCur, envir)
     envir <- proxy$exec
     expose_new_bindings(proxy)
     # addNewObjsToProxy(proxy$cur, proxy$exec, proxy)
-    
+
     # Expose small helpers inside fn so you don't pass `exec` around:
     #ensure <- function(name) ensure_binding(name, proxy)
     #let_   <- function(name, value) let(name, value, proxy)
@@ -491,7 +491,7 @@ setupProject <- function(name, paths, modules, packages,
     pathsSUB <- pathsSUBOrig <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
     sideEffectsSUB <- sideEffectsSUBOrig <- substitute(sideEffects)
     libPaths <- libPathsOrig <- substitute(libPaths)
-    
+
     for (fullAttempt in 1:2) {
       if (fullAttempt == 2) {
         messageVerbose("Starting setupProject again with new packages installed", verbose = verbose)
@@ -521,7 +521,7 @@ setupProject <- function(name, paths, modules, packages,
         #envir = envir,
         #callingEnv = envir)
       }
-      
+
       if (missing(times))
         times <- list(start = 0, end = 1)
 
@@ -631,7 +631,7 @@ setupProject <- function(name, paths, modules, packages,
         message("Using fast options:")
         df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
         df <- df[!sapply(df, is.null)]
-        if (requireNamespace("reproducible", quietly = TRUE) && 
+        if (requireNamespace("reproducible", quietly = TRUE) &&
             requireNamespace("qs2", quietly = TRUE))
           reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
         else
@@ -1184,7 +1184,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
   if (!missing(sideEffects)) {
     messageVerbose(yellow(paste0(.txtSettingUp, " sideEffects...")), verbose = verbose, verboseLevel = 0)
 
-    # 
+    #
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envirCur, envir2 = envir)
 
@@ -1193,13 +1193,13 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     #   writeLines(format(sideEffects[-1]), con = tf)
     #   sideEffects <- tf
     # }
-    
+
     # parseFileLists needs paths, so must do this
     pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
     pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
     paths <- setupPaths(paths = pathsSUB, # defaultDots = defaultDots,
                         verbose = verbose - 2)
-    
+
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
                                   overwrite = isTRUE(overwrite), envir = envir, verbose = verbose - 1)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
@@ -1843,7 +1843,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
             remoteLocalFiles[[ii]] <- areFilesWithPackages & isGH %in% (ii %in% "remote")# the default isGitHub allows no branch
             # remoteFiles <- areFilesWithPackages & isGH # the default isGitHub allows no branch
             if (sum(remoteLocalFiles[[ii]])) {
-              pkgsInFiles[[ii]] <- parseFileLists(trimVersionNumber(packagesToTry[remoteLocalFiles[[ii]]]), 
+              pkgsInFiles[[ii]] <- parseFileLists(trimVersionNumber(packagesToTry[remoteLocalFiles[[ii]]]),
                                                   paths = paths,
                                                   envir = envir, namedList = FALSE)
               elementsToRm[[ii]] <- which(remoteLocalFiles[[ii]])
@@ -2131,7 +2131,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
             objNew <- append(objNew, nextBit)
           }
           obj <- objNew
-          
+
         }
       } else {
         obj <- Filter(is.list, obj)
@@ -2755,7 +2755,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
       uniqueObjsPassed <- setdiff(uniqueObjsPassed, "")
 
       for (dd in uniqueObjsPassed) {
-        
+
         # Add the default dots to the envir if they aren't there. If, later on, they
         #   are provided, then it will just be overwritten
         if (!exists(dd, envir = envir, inherits = FALSE) ||
@@ -4551,9 +4551,9 @@ bind_forward <- function(sym, cur, exec) {
 
 # Build a persistent proxy once, mirroring all current names + '...' + optional dot pronouns
 build_proxy <- function(cur, caller, dots) {
-  
+
   exec  <- new.env(parent = caller)
-  
+
   # 1) Mirror *all* current names in `cur` (arguments + locals)
   for (nm in ls(envir = cur, all.names = TRUE)) {
     if (nm == "...") next
@@ -4574,7 +4574,7 @@ build_proxy <- function(cur, caller, dots) {
   allObjs <- ls(envir = cur, all.names = TRUE)
   namedArgs <- intersect(names(mc), allObjs)
   haveDots <- !is.null(mc[["..."]])
-  
+
   # # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
   # if (isTRUE(haveDots)) {
   #   makeActiveBinding(
@@ -4590,26 +4590,26 @@ build_proxy <- function(cur, caller, dots) {
   # }
 
   # Promote named dot arguments into cur so they are real bindings
-  
+
   for (nm in names(dots$exprs)) {
     local({
       name <- nm
       expr <- dots$exprs[[nm]]
       val  <- dots$vals[[nm]]
-      
+
       makeActiveBinding(
         name,
         function(value) {
           if (!missing(value))
             stop(sprintf("Cannot assign to %s.", name), call. = FALSE)
-          
+
           if (!is.null(val)) val else expr
         },
         exec
       )
     })
   }
-  
+
   # # 3) Optional: positional pronouns ..1, ..2, ... (read-only)
   # if (isTRUE(haveDots)) {
   #   if (expose_dot_pronouns) {
@@ -4673,53 +4673,53 @@ let <- function(sym, value, proxy) {
 expose_new_bindings <- function(proxy) {
   cur  <- proxy$cur
   exec <- proxy$exec
-  
+
   newNames <- setdiff(
     ls(cur,  all.names = TRUE),
     ls(exec, all.names = TRUE)
   )
-  
+
   newNames <- setdiff(newNames, "...")
-  
+
   for (nm in newNames) {
     bind_forward(nm, cur, exec)
   }
-  
+
   invisible(NULL)
 }
 
 # addNewObjsToProxy <- function(envirCur, envir, proxy) {
-#   
+#
 #   # New symbols created in the execution frame
 #   newNames <- setdiff(
 #     ls(envirCur, all.names = TRUE),
 #     ls(envir, all.names = TRUE)
 #   )
-#   
+#
 #   # Exclude special symbols that should never be forwarded
 #   newNames <- setdiff(newNames, "...")
-#   
+#
 #   for (nm in newNames) {
 #     ensure_binding(nm, proxy)
 #   }
-#   
+#
 #   invisible(NULL)
 # }
 
 capture_dots <- function(...) {
   exprs <- as.list(substitute(list(...)))[-1L]
-  
+
   vals <- vector("list", length(exprs))
   names(vals) <- names(exprs)
-  
+
   for (i in seq_along(exprs)) {
-    # Need to keep vals[i] and use list( ... ) on RHS: 
+    # Need to keep vals[i] and use list( ... ) on RHS:
     #   otherwise if first element is NULL, it causes it to disappear
     vals[i] <- list(tryCatch(
       ...elt(i),
       error = function(e) NULL
     ))
   }
-  
+
   list(exprs = exprs, vals = vals)
 }
