@@ -194,6 +194,17 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
   t3 <- system.time(
     sims <- reLoad(simPaths, projectPath = projectPath, method = method)
   )
+  if (!is.null(pathRemap)) {
+    old <- pathRemap[["old"]]
+    new <- pathRemap[["new"]]
+    for (i in seq_along(sims)) {
+      out <- SpaDES.core::outputs(sims[[i]])
+      if (NROW(out) && "file" %in% names(out)) {
+        out$file <- sub(paste0("^", old), new, out$file)
+        SpaDES.core::outputs(sims[[i]]) <- out
+      }
+    }
+  }
   names(sims) <- sub("\\.tar\\.gz$", "", files$name)
 
   total <- t1[["elapsed"]] + t2[["elapsed"]] + t3[["elapsed"]]
