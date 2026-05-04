@@ -86,6 +86,8 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
         !all(c("old", "new") %in% names(pathRemap)))
       stop("pathRemap must be a named character vector: c(old = ..., new = ...)",
            call. = FALSE)
+    pathRemap[["old"]] <- path.expand(pathRemap[["old"]])
+    pathRemap[["new"]] <- path.expand(pathRemap[["new"]])
   }
   vflag <- if (isTRUE(verbose)) "-v" else ""
 
@@ -195,8 +197,8 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
     sims <- reLoad(simPaths, projectPath = projectPath, method = method)
   )
   if (!is.null(pathRemap)) {
-    old <- pathRemap[["old"]]
-    new <- pathRemap[["new"]]
+    old <- path.expand(pathRemap[["old"]])
+    new <- path.expand(pathRemap[["new"]])
     for (i in seq_along(sims)) {
       out <- SpaDES.core::outputs(sims[[i]])
       if (NROW(out) && "file" %in% names(out)) {

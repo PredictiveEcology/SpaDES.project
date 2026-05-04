@@ -50,6 +50,24 @@ test_that("reUntar with pathRemap rewrites the prefix", {
   expect_equal(readRDS(expected), payload)
 })
 
+test_that("reUntar with pathRemap expands ~ in new prefix", {
+  src <- withr::local_tempdir()
+  payload <- list(x = 2L)
+  tarball <- .makeFakeTar(payload, src)
+
+  # Stage a fake home so ~ expands somewhere we control and clean up
+  fakeHome <- withr::local_tempdir()
+  withr::local_envvar(HOME = fakeHome)
+  remap <- c(old = src, new = "~/sub/dir")
+
+  out <- reUntar(tarball, pathRemap = remap)
+
+  expected <- file.path(fakeHome, "sub/dir", "fake_sim.rds")
+  expect_equal(out, expected)
+  expect_true(file.exists(expected))
+  expect_equal(readRDS(expected), payload)
+})
+
 test_that("reUntar rejects malformed pathRemap", {
   src <- withr::local_tempdir()
   tarball <- .makeFakeTar(list(), src)

@@ -81,6 +81,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `reUntar()` / `reGetUntarLoad()` now `path.expand()` the `pathRemap` `old` / `new` so a leading `~` works (tar's `--transform` does not expand `~`).
 * Positional `pathBuild()` now infers field names from bare-symbol
   arguments (e.g. `pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep)`
   caches `c(".ELFind", ..., ".rep")` as `scenarioFields()` automatically).
