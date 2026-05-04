@@ -12,11 +12,15 @@
 #' @param simFilename Character scalar. Full path for the `.rds` file.
 #'   Defaults to `SpaDES.core::simFile(name = runName, path = outputPath(sim),
 #'   time = end(sim), ext = "rds")`.
+#' @param lazy Logical. Passed to [SpaDES.core::saveSimList()]. When `TRUE`
+#'   (default), each user object in `sim@.xData` is saved into a sibling
+#'   `<simFilename>_xData/` directory and lazily restored on load via
+#'   `delayedAssign`. [outTar()] picks up that directory automatically.
 #'
 #' @return Invisibly returns `simFilename`.
 #' @seealso [outTar()], [outUpload()], [outSaveTarUpload()]
 #' @export
-outSave <- function(sim, runName, simFilename = NULL) {
+outSave <- function(sim, runName, simFilename = NULL, lazy = TRUE) {
   if (is.null(simFilename))
     simFilename <- SpaDES.core::simFile(
       name = runName,
@@ -31,7 +35,8 @@ outSave <- function(sim, runName, simFilename = NULL) {
     inputs   = FALSE,
     outputs  = FALSE,
     cache    = FALSE,
-    files    = FALSE
+    files    = FALSE,
+    lazy     = lazy
   ))
   message("Saved sim to ", simFilename,
           " (", round(elapsed[["elapsed"]], 1), " s)")
@@ -61,7 +66,15 @@ outSave <- function(sim, runName, simFilename = NULL) {
 outTar <- function(simFilename, outputFiles = character(0), runName,
                    tarDir = dirname(simFilename), verbose = TRUE) {
   outputFiles <- outputFiles[nzchar(outputFiles) & file.exists(outputFiles)]
-  allFiles    <- unique(c(simFilename, outputFiles))
+
+  ## Lazy-saved sims have a sibling <simFilename>_xData.rdx/.rdb pair
+  ## (a tools::makeLazyLoadDB output). Bundle them alongside the .rds so
+  ## reLoad can attach the lazy DB via lazyLoad().
+  lazyBase    <- paste0(tools::file_path_sans_ext(simFilename), "_xData")
+  lazyDbFiles <- paste0(lazyBase, c(".rdx", ".rdb"))
+  lazyDbFiles <- lazyDbFiles[file.exists(lazyDbFiles)]
+
+  allFiles    <- unique(c(simFilename, lazyDbFiles, outputFiles))
   tarball     <- file.path(tarDir, paste0(runName, ".tar.gz"))
   tar(tarball, files = allFiles,
       extra_flags = if (isTRUE(verbose)) "-v" else "")
@@ -128,9 +141,9 @@ outUpload <- function(tarball, gFolder, overwrite = TRUE, cleanup = FALSE) {
 #' @export
 outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
                               tarDir = NULL, tarball = NULL, overwrite = TRUE, cleanup = FALSE,
-                              verbose = TRUE) {
+                              verbose = TRUE, lazy = TRUE) {
   t1 <- system.time(
-    simFilename <- outSave(sim, runName, simFilename)
+    simFilename <- outSave(sim, runName, simFilename, lazy = lazy)
   )
   if (is.null(tarDir))
     tarDir <- dirname(simFilename)
