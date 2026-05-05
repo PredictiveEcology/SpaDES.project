@@ -10,22 +10,13 @@ as_scenario(x, ...)
 \item{x}{A scenario, a character path/tarname, a named list, or a
 data.frame / tibble / dribble.}
 
-\item{...}{Unused.}
-
-\item{mapping}{Optional named character vector renaming columns:
-\verb{c(<canonical> = <actual>)}.}
-
-\item{name_col}{For data.frame input: column holding a path or tarname.
-If \code{NULL}, field columns are used; if no field columns are found and
-a \code{name}/\code{path}/\code{tarname}/\code{file}/\code{filename} column exists, that is
-used as a fallback.}
-
-\item{fields}{Optional character vector of field labels to extract
-(overrides the cached set).}
+\item{...}{Method-specific arguments (see Details).}
 }
 \value{
 A \code{scenario} (single input) or list of \code{scenario}s.
 }
 \description{
-Coerce any scenario representation to a canonical record.
+Method-specific arguments (\code{mapping}, \code{name_col}, \code{fields},
+\code{withFieldLabel}) are forwarded via \code{...} to the dispatched method;
+see the method definitions in \code{R/scenario.R}.
 }

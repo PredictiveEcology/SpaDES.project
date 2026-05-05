@@ -13,7 +13,8 @@ outSaveTarUpload(
   tarball = NULL,
   overwrite = TRUE,
   cleanup = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  lazy = TRUE
 )
 }
 \arguments{
@@ -24,7 +25,7 @@ file and tarball.}
 
 \item{gFolder}{A Google Drive folder identifier accepted by
 \code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}  -- a \code{dribble}, a Drive URL, or a bare
-folder ID from \code{\link[googledrive:drive_id]{googledrive::as_id()}}.}
+folder ID from \code{\link[googledrive:as_id]{googledrive::as_id()}}.}
 
 \item{simFilename}{Character scalar. Full path for the \code{.rds} file.
 Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}
@@ -42,6 +43,11 @@ Default \code{FALSE}.}
 
 \item{verbose}{Logical. Pass \code{-v} to \code{tar} for file-by-file progress.
 Default \code{TRUE}.}
+
+\item{lazy}{Logical. Passed to \code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. When \code{TRUE}
+(default), each user object in \code{sim@.xData} is saved into a sibling
+\verb{<simFilename>_xData/} directory and lazily restored on load via
+\code{delayedAssign}. \code{\link[=outTar]{outTar()}} picks up that directory automatically.}
 }
 \value{
 Invisibly returns the \code{dribble} from \code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}.

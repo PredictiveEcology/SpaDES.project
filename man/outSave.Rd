@@ -4,7 +4,7 @@
 \alias{outSave}
 \title{Save a SpaDES simulation to an RDS file}
 \usage{
-outSave(sim, runName, simFilename = NULL)
+outSave(sim, runName, simFilename = NULL, lazy = TRUE)
 }
 \arguments{
 \item{sim}{A \code{simList} object.}
@@ -14,6 +14,11 @@ file and tarball.}
 
 \item{simFilename}{Character scalar. Full path for the \code{.rds} file.
 Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}
+
+\item{lazy}{Logical. Passed to \code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. When \code{TRUE}
+(default), each user object in \code{sim@.xData} is saved into a sibling
+\verb{<simFilename>_xData/} directory and lazily restored on load via
+\code{delayedAssign}. \code{\link[=outTar]{outTar()}} picks up that directory automatically.}
 }
 \value{
 Invisibly returns \code{simFilename}.

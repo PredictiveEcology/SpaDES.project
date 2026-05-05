@@ -362,17 +362,13 @@ scenario <- function(...) {
 
 #' Coerce any scenario representation to a canonical record.
 #'
+#' Method-specific arguments (`mapping`, `name_col`, `fields`,
+#' `withFieldLabel`) are forwarded via `...` to the dispatched method;
+#' see the method definitions in `R/scenario.R`.
+#'
 #' @param x   A scenario, a character path/tarname, a named list, or a
 #'   data.frame / tibble / dribble.
-#' @param mapping Optional named character vector renaming columns:
-#'   `c(<canonical> = <actual>)`.
-#' @param name_col For data.frame input: column holding a path or tarname.
-#'   If `NULL`, field columns are used; if no field columns are found and
-#'   a `name`/`path`/`tarname`/`file`/`filename` column exists, that is
-#'   used as a fallback.
-#' @param fields Optional character vector of field labels to extract
-#'   (overrides the cached set).
-#' @param ... Unused.
+#' @param ... Method-specific arguments (see Details).
 #' @return A `scenario` (single input) or list of `scenario`s.
 #' @export
 as_scenario <- function(x, ...) UseMethod("as_scenario")

@@ -14,11 +14,23 @@
   tarball
 }
 
+# reUntar uses GNU tar's --absolute-names / --transform; BSD tar (macOS)
+# rejects those flags, so the tarball-extraction tests are GNU-tar only.
+.skip_if_no_gnu_tar <- function() {
+  tar_bin <- Sys.getenv("TAR", unset = "tar")
+  v <- tryCatch(suppressWarnings(system2(tar_bin, "--version", stdout = TRUE,
+                                         stderr = FALSE)),
+                error = function(e) character())
+  if (!any(grepl("GNU tar", v, fixed = TRUE)))
+    testthat::skip("GNU tar not available (reUntar uses GNU-only flags)")
+}
+
 # ---------------------------------------------------------------------------
 # reUntar
 # ---------------------------------------------------------------------------
 
 test_that("reUntar restores absolute paths and returns the sim file path", {
+  .skip_if_no_gnu_tar()
   src <- withr::local_tempdir()
   payload <- list(answer = 42L, name = "fake_sim")
   tarball <- .makeFakeTar(payload, src)
@@ -35,6 +47,7 @@ test_that("reUntar restores absolute paths and returns the sim file path", {
 })
 
 test_that("reUntar with pathRemap rewrites the prefix", {
+  .skip_if_no_gnu_tar()
   src <- withr::local_tempdir()
   payload <- list(x = 1L)
   tarball <- .makeFakeTar(payload, src)
@@ -51,6 +64,7 @@ test_that("reUntar with pathRemap rewrites the prefix", {
 })
 
 test_that("reUntar with pathRemap expands ~ in new prefix", {
+  .skip_if_no_gnu_tar()
   src <- withr::local_tempdir()
   payload <- list(x = 2L)
   tarball <- .makeFakeTar(payload, src)
@@ -79,6 +93,7 @@ test_that("reUntar rejects malformed pathRemap", {
 })
 
 test_that("reUntar is vectorised over tarballs", {
+  .skip_if_no_gnu_tar()
   src <- withr::local_tempdir()
   t1 <- .makeFakeTar(list(i = 1L), src)
   src2 <- withr::local_tempdir()
