@@ -69,7 +69,9 @@ testthat::test_that("experimentFuture returns an experimentFuture handle with ex
 
   testthat::expect_s3_class(ef, "experimentFuture")
   testthat::expect_true(all(c("procs", "queue_path", "log_dir") %in% names(ef)))
-  testthat::expect_equal(ef$queue_path, queue_path)
+  # experimentFuture() runs normalizePath() on queue_path, which on Windows
+  # converts forward slashes to backslashes and may resolve 8.3 short names.
+  testthat::expect_equal(ef$queue_path, normalizePath(queue_path, mustWork = FALSE))
   testthat::expect_equal(length(ef$procs), 1L)
 })
 
