@@ -2,13 +2,19 @@
 # sometimes does not include the user/site lib where setup-r-dependencies
 # installed Suggests deps (terra, reproducible, geodata, gert, ...). The result
 # is `requireNamespace("terra")` returning FALSE inside tests even though pak
-# logged a successful install. Belt-and-suspenders: prepend any candidate lib
+# logged a successful install. Belt-and-suspenders: append any candidate lib
 # that exists before we capture origLibPaths for setupTest().
-for (lp in c(Sys.getenv("R_LIBS_USER", unset = ""),
-             Sys.getenv("R_LIBS_SITE", unset = ""),
-             Sys.getenv("R_LIB_FOR_PAK", unset = ""))) {
-  if (nzchar(lp) && dir.exists(lp) && !lp %in% .libPaths()) {
-    .libPaths(c(.libPaths(), lp))
+#
+# Skip when `_R_CHECK_DEPENDS_ONLY_=true` — that matrix variant deliberately
+# hides Suggests so CRAN-style "no Suggests" checks pass; re-adding R_LIBS_USER
+# would defeat the restriction and surface false test failures.
+if (!identical(tolower(Sys.getenv("_R_CHECK_DEPENDS_ONLY_", unset = "")), "true")) {
+  for (lp in c(Sys.getenv("R_LIBS_USER", unset = ""),
+               Sys.getenv("R_LIBS_SITE", unset = ""),
+               Sys.getenv("R_LIB_FOR_PAK", unset = ""))) {
+    if (nzchar(lp) && dir.exists(lp) && !lp %in% .libPaths()) {
+      .libPaths(c(.libPaths(), lp))
+    }
   }
 }
 
