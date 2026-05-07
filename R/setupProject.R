@@ -991,6 +991,24 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- lapply(paths, normPath)
 
+  # Detect an R version change since the last setupProject run. The stale
+  # .Rprofile re-pins .libPaths()[1] to the previous R version's package dir,
+  # and Require::setLibPaths(updateRprofile = TRUE) silently skips rewriting
+  # an already-present block -- so without this, the new version would never
+  # be persisted to .Rprofile. Clear the block via Require::setupOff() and let
+  # the regular setLibPaths call below write a fresh one for the running R.
+  libPathLeaf <- basename(.libPaths()[1])
+  currentRMajMin <- paste0(version$major, ".",
+                           strsplit(version$minor, "[.]")[[1]][1])
+  if (grepl("^[0-9]+\\.[0-9]+$", libPathLeaf) &&
+      !identical(libPathLeaf, currentRMajMin)) {
+    messageVerbose(
+      yellow("R version change detected (", libPathLeaf, " -> ", currentRMajMin,
+             "); resetting project library via Require::setupOff()"),
+      verbose = verbose, verboseLevel = 0)
+    Require::setupOff(verbose = verbose)
+  }
+
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
