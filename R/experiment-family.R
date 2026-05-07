@@ -76,7 +76,7 @@
 #'     job's outputs and returns up-to-date status / heartbeat metadata.
 #'     [statusCalculate_LandR] and [statusCalculate_FireSenseFit] are
 #'     pre-built blocks for the most common SpaDES module outputs.}
-#'   \item{`ss_id`}{Optional Google Sheets / Drive folder ID. When provided,
+#'   \item{`ss_id`}{Optional Google Sheets / Drive *folder* ID. When provided,
 #'     workers mirror queue state to a sheet so a remote stakeholder can
 #'     watch progress in a browser. With `ss_id = NULL` (default) the
 #'     queue is purely local -- no Google APIs are touched.}
@@ -89,7 +89,6 @@
 #'                   stringsAsFactors = FALSE)
 #' ef <- experimentFuture(df = df, global_path = "global.R",
 #'                        n_workers = 2L, log_dir = "logs")
-#' awaitExperimentFuture(ef)         # block until all rows DONE
 #' }
 #'
 #' Swap `experimentFuture()` for `experimentTmux()` or `experimentSBATCH()`
@@ -98,7 +97,7 @@
 #'
 #' @section Why not just run `Rscript -e ...` per row?:
 #'
-#' At the kernel, that is exactly what each runner does. A worker assigns the
+#' At its core, that is exactly what each worker does. A worker assigns the
 #' row's columns into `.GlobalEnv` and calls `source("global.R")`, which is
 #' equivalent to:
 #'
@@ -107,12 +106,13 @@
 #' Rscript -e '.ELFind <- "6.3.1"; .rep <- 2; source("global.R")'
 #' }
 #'
-#' That works for a handful of rows you launch by hand. As you add scenarios,
-#' machines, restarts, or stakeholders, the bookkeeping grows past what's
-#' comfortable to maintain by hand. The runner functions are just that
+#' When the number of sets to run is small, this works. As you add scenarios,
+#' machines, authentication, race conditions, etc. the bookkeeping grows past what's
+#' comfortable to maintain by hand. The `experimentXXX` functions are just that
 #' bookkeeping.
 #'
-#' Concretely, a hand-rolled `Rscript -e ...` per row gives you no answer for:
+#' `experimentXXX` functions deal with several issues that arise when running "parallel"
+#' scripts, including:
 #'
 #' \describe{
 #'   \item{Concurrency control}{Two shells launched at the same second can
