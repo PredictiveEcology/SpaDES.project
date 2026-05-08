@@ -991,6 +991,21 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- lapply(paths, normPath)
 
+  ## Kick off the showCache async background scan against the *real*
+  ## cachePath as soon as we know it. On large caches this lets the fork
+  ## complete during the rest of setupProject + simInit, so the first
+  ## interactive showCache() call returns in ~1 s instead of 60+ s.
+  ## Idempotent and ~10us when a job already exists; silently no-ops on
+  ## Windows, when reproducible is not loaded, or when the running
+  ## reproducible doesn't yet export prepopulateCacheAsync.
+  if (!is.null(paths[["cachePath"]]) &&
+      requireNamespace("reproducible", quietly = TRUE) &&
+      exists("prepopulateCacheAsync",
+             envir = asNamespace("reproducible"),
+             inherits = FALSE)) {
+    try(reproducible::prepopulateCacheAsync(paths[["cachePath"]]), silent = TRUE)
+  }
+
   # Detect an R version change since the last setupProject run. The stale
   # .Rprofile re-pins .libPaths()[1] to the previous R version's package dir,
   # and Require::setLibPaths(updateRprofile = TRUE) silently skips rewriting
