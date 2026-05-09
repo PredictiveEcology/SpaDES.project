@@ -608,6 +608,11 @@ test_that("test mix git repos for modules and non-gitrepos", {
 
 test_that("test check if all args are used", {
   skip_on_cran()
+  # studyAreaName2() inside setupProject -> setupStudyArea hard-stops with
+  # "Please install `reproducible` to continue with setupStudyArea" when
+  # reproducible isn't installed. reproducible is in Suggests, so on the
+  # `nosuggests = true` matrix entry it's absent — skip rather than fail.
+  skip_if_not_installed("reproducible")
   setupTest() # setwd, sets .libPaths() to a temp
   # skip_on_ci()
   myProjectPath <- "hi3"
