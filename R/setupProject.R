@@ -1073,7 +1073,12 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     # setLibPaths will post-pend the R version number
 
     if (needSetLibPathsNow %in% FALSE)
-      on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
+      # updateRprofile = FALSE: this is an in-session reset of .libPaths() ahead
+      # of the pending R restart; touching .Rprofile here would (a) re-fire the
+      # "There is already a setLibPaths..." message and (b) rewrite a block that
+      # the just-completed setLibPaths above already wrote correctly.
+      on.exit(Require::setLibPaths(prevLibPaths, updateRprofile = FALSE),
+              add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
     if (isTRUE(needTryInstall))
       setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps,
@@ -3042,8 +3047,16 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           if (!is.character(Restart)) {
             rstudioUnsavedFile <- "~/.active-rstudio-document"
 
-            if (!nzchar(activeFile))
+            # getSourceEditorContext() returns NULL (-> activeFile is NULL) when
+            # the call is made from the console with no editor focused; nzchar(NULL)
+            # is logical(0) and trips the if(). Treat NULL like an empty path.
+            if (is.null(activeFile) || !nzchar(activeFile)) {
               activeFile <- rstudioUnsavedFile
+              warning("It looks like the user has pasted this code into the console, ",
+                      "without having it in a script file; guessing what should be put ",
+                      "in the new global.R. If it is incorrect, it will need to be ",
+                      "manually corrected.", call. = FALSE)
+            }
             fe <- file.exists(activeFile)
             wasUnsaved <- identical(activeFile, rstudioUnsavedFile)
             if (isFALSE(fe) || wasUnsaved) {
@@ -4190,6 +4203,10 @@ setupGitHub <- function(useGit, name, paths, verbose) {
       else
         stop("Please either remove modules from ", paths[["modulePath"]], " or set useGit = FALSE")
     }
+    # Pre-init with branch = "main" so the project doesn't get the historical
+    # git default of "master" (which then mismatches GitHub's default "main").
+    # usethis::use_git() detects an existing repo and skips its own init step.
+    try(gert::git_init(path = pp, branch = "main"), silent = TRUE)
     gitEvalWithGitConfigOnError(quote(usethis::use_git()))
     # for (iii in 1:2) {
     #   gitEvalWithGitConfigOnError <- function(expr, tryError)
@@ -4208,6 +4225,10 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     #     break
     #   }
     # }
+    # mess captures messages from gh::gh_whoami(); when gitUserNamePoss is
+    # already set by an earlier call (above), the capture is skipped, so the
+    # downstream grepl() needs a safe default to avoid "object 'mess' not found".
+    mess <- character()
     if (!(exists("gitUserNamePoss", inherits = FALSE)))
       mess <- capture.output(type = "message",
                      gitUserNamePoss <- gh::gh_whoami()$login)
