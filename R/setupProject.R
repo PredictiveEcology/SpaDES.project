@@ -3047,15 +3047,22 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           if (!is.character(Restart)) {
             rstudioUnsavedFile <- "~/.active-rstudio-document"
 
-            # getSourceEditorContext() returns NULL (-> activeFile is NULL) when
-            # the call is made from the console with no editor focused; nzchar(NULL)
-            # is logical(0) and trips the if(). Treat NULL like an empty path.
-            if (is.null(activeFile) || !nzchar(activeFile)) {
+            # getSourceEditorContext() distinguishes three cases:
+            #   * NULL          -- no source editor focused (console paste); we
+            #                      have to guess what goes in global.R, so warn.
+            #   * "" (length 1) -- editor open with an unsaved buffer (e.g. user
+            #                      Sourced an untitled script); the buffer's
+            #                      content lives in ~/.active-rstudio-document
+            #                      and IS the right thing to copy -- no warning.
+            #   * a real path   -- saved file; use it as-is.
+            if (is.null(activeFile)) {
               activeFile <- rstudioUnsavedFile
               warning("It looks like the user has pasted this code into the console, ",
                       "without having it in a script file; guessing what should be put ",
                       "in the new global.R. If it is incorrect, it will need to be ",
                       "manually corrected.", call. = FALSE)
+            } else if (!nzchar(activeFile)) {
+              activeFile <- rstudioUnsavedFile
             }
             fe <- file.exists(activeFile)
             wasUnsaved <- identical(activeFile, rstudioUnsavedFile)
@@ -4203,10 +4210,15 @@ setupGitHub <- function(useGit, name, paths, verbose) {
       else
         stop("Please either remove modules from ", paths[["modulePath"]], " or set useGit = FALSE")
     }
-    # Pre-init with branch = "main" so the project doesn't get the historical
-    # git default of "master" (which then mismatches GitHub's default "main").
-    # usethis::use_git() detects an existing repo and skips its own init step.
-    try(gert::git_init(path = pp, branch = "main"), silent = TRUE)
+    # Pre-init the repo and point HEAD at refs/heads/main so the project doesn't
+    # inherit git's historical default of "master" (which then mismatches GitHub's
+    # default "main"). gert::git_init() doesn't expose a `branch` argument, but a
+    # fresh repo has no commits yet, so overwriting .git/HEAD is safe.
+    # usethis::use_git() below detects the existing repo and skips its own init.
+    try({
+      gert::git_init(path = pp)
+      writeLines("ref: refs/heads/main", file.path(pp, ".git", "HEAD"))
+    }, silent = TRUE)
     gitEvalWithGitConfigOnError(quote(usethis::use_git()))
     # for (iii in 1:2) {
     #   gitEvalWithGitConfigOnError <- function(expr, tryError)
