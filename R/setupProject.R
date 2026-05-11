@@ -791,6 +791,13 @@ setupProject <- function(name, paths, modules, packages,
       messageVerbose("Missing package(s): ", pkgNotAvail, "; restarting setupProject after installing packages")
       invokeRestart("muffleWarning")
     }
+    # RStudio's repos = "@CRAN@" hook calls .rs.downloadFile() to refresh
+    # CRAN_mirrors.csv; on machines with TLS interception (corporate firewalls)
+    # this surfaces a "SSL connect error" warning that's unactionable for the
+    # user and unrelated to setupProject's work. Muffle only this exact URL.
+    if (grepl("CRAN_mirrors\\.csv", w$message, fixed = FALSE)) {
+      invokeRestart("muffleWarning")
+    }
   })
 
   return(out)

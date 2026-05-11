@@ -75,6 +75,32 @@ test_that("Require::setLibPaths(updateRprofile = FALSE) does not re-touch an exi
   expect_false(any(grepl("already a setLibPaths", msgs)))
 })
 
+test_that("setupProject muffles RStudio's CRAN_mirrors.csv SSL warning", {
+  # Bug: RStudio's repos = "@CRAN@" hook calls .rs.downloadFile() and surfaces
+  # an "SSL connect error" warning on hosts with TLS interception. The fix
+  # adds a branch in setupProject's withCallingHandlers warning handler that
+  # matches the CRAN_mirrors.csv URL and invokeRestart("muffleWarning").
+  handler <- function(w) {
+    if (grepl("CRAN_mirrors\\.csv", w$message, fixed = FALSE))
+      invokeRestart("muffleWarning")
+  }
+
+  msgs <- withCallingHandlers(
+    {
+      warning("URL 'https://cran.r-project.org/CRAN_mirrors.csv': status was 'SSL connect error'")
+      "ok"
+    },
+    warning = handler
+  )
+  expect_identical(msgs, "ok")
+
+  # Unrelated warnings still propagate.
+  expect_warning(
+    withCallingHandlers(warning("unrelated"), warning = handler),
+    "unrelated"
+  )
+})
+
 test_that("setupGitHub init points HEAD at refs/heads/main (regression: default `master`)", {
   # Bug: usethis::use_git() called git_init without a branch override,
   # so new repos inherited git's historical default of `master`,
