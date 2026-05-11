@@ -851,11 +851,14 @@ experimentTmux <- function(df,
     queue_path <- file.path(dirname(global_path), "tmux_queue.rds")
   }
   queue_path <- normalizePath(queue_path, mustWork = FALSE)
-  #tmuxPrepareQueueFromDF(df, queue_path)
-  #q <- readRDS(queue_path)
+  # Materialize the queue from `df` on first run; preserve existing state on resume.
+  # Without this, worker panes hit stopifnot(file.exists(queue_path)) in
+  # tmuxRunNextWorker() and exit silently before any job runs.
+  if (!file.exists(queue_path) && !missing(df) && is.data.frame(df))
+    tmuxPrepareQueueFromDF(df, queue_path)
 
   # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
-  dots_path <- file.path(dirname(normalizePath(queue_path)), ".tmux_dots.rds")
+  dots_path <- file.path(dirname(queue_path), ".tmux_dots.rds")
   if (length(list(...)) > 0L) {
     saveRDS(list(...), dots_path)
   } else if (file.exists(dots_path)) {
@@ -1202,10 +1205,13 @@ experimentTmux <- function(df,
     # pkgload::pkg_path() succeeds only when devtools::load_all() is active.
     # Pass the source path to .setup_remote_machine so the Rscript subprocess
     # (which only sees the installed binary) can still rsync the dev version.
-    .sp_dev_path <- tryCatch(
+    # suppressWarnings: pkgload's cli error formatter calls normalizePath() on
+    # the failing package name, generating a noisy "No such file" warning that
+    # leaks past the surrounding tryCatch when load_all is not active.
+    .sp_dev_path <- suppressWarnings(tryCatch(
       normalizePath(pkgload::pkg_path("SpaDES.project"), mustWork = TRUE),
       error = function(e) NULL
-    )
+    ))
     # Also treat as dev if source version > installed version.
     if (is.null(.sp_dev_path)) {
       .sp_src <- tryCatch(find.package("SpaDES.project"), error = function(e) NULL)
@@ -1466,8 +1472,13 @@ experimentTmux <- function(df,
         local_script <- file.path(activeRunningPath,
                                   sprintf("worker_startup_local_%02d.R", i))
         writeLines(.make_script(payload, pre_sleep = pre_sleep), local_script)
+        # Clear test-harness env vars that R inherits from `R CMD check` /
+        # `R CMD test`. R_TESTS points at the harness's startup script; if the
+        # new pane's R reads it the session never reaches global.R and the
+        # tests time out with no output files. R_BROWSER / R_PDFVIEWER are
+        # set to "false" by check and cause noise on first plot.
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+                  sprintf("env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
                           shQuote(local_script)), "C-m")
       }
     }  # end merged loop
@@ -1566,15 +1577,23 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     data_cols    <- setdiff(names(q), meta_cols)
     scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
 
+    # Per-job scenario environment. data columns + traceback breadcrumb live
+    # here, not in .GlobalEnv. global.R is sourced with `local = scn_env`,
+    # so unqualified references in the user's script (e.g. `.samplingRange`)
+    # still resolve, but no user-visible state is leaked into the REPL's
+    # global env. Use SpaDES.project::lastTraceback() for post-mortem
+    # inspection — that accessor reads `.pkgEnv$lastScn$.spades_tb`.
+    scn_env <- new.env(parent = globalenv())
     for (nm in data_cols) {
       # try parsing as it could be an expression written/recorded as a character
       newPoss <- tryCatch(eval(parse(text = q[[nm]][1L])), error = function(err) q[[nm]][1L], silent = TRUE)
-      assign(nm, newPoss, envir = .GlobalEnv)
+      assign(nm, newPoss, envir = scn_env)
     }
+    .pkgEnv$lastScn <- scn_env
 
-    # Compute runName from runNameLabel now that data cols are in .GlobalEnv
+    # Compute runName from runNameLabel now that data cols are in scn_env
     runName <- tryCatch({
-      raw <- eval(runNameLabel, envir = .GlobalEnv)
+      raw <- eval(runNameLabel, envir = scn_env)
       gsub("[^[:alnum:]_.:-]", "-", paste(as.character(raw), collapse = "-"))
     }, error = function(e) paste(q[[data_cols[1L]]][1L], collapse = "-"))
 
@@ -1582,10 +1601,9 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 
     # on.exit guard: if quit() is called from inside source(global_path)  --
     # e.g. pak::pak() restarting after a package update  -- it bypasses all
-    # Guard against quit() being called from inside source(global_path).
-    # quit() bypasses tryCatch and function-frame on.exit() entirely, but
-    # reg.finalizer(..., onexit=TRUE) IS called by R before it exits.
-    # Store job state in a standalone environment so it outlives this frame.
+    # tryCatch / on.exit. reg.finalizer(..., onexit=TRUE) IS called by R
+    # before it exits, and we capture `.guard_env` via closure so the
+    # finalizer doesn't need to retrieve any package state from .GlobalEnv.
     .guard_env             <- new.env(parent = emptyenv())
     .guard_env$done        <- FALSE
     .guard_env$ss_id       <- ss_id
@@ -1594,10 +1612,10 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     .guard_env$runName     <- runName
     .guard_env$queue_path  <- queue_path
     .guard_env$row_i       <- row_i
-    reg.finalizer(globalenv(), function(ge) {
-      ge2 <- tryCatch(get(".spades_guard_env", envir = ge, inherits = FALSE),
-                      error = function(e) NULL)
-      if (!is.null(ge2) && !isTRUE(ge2$done)) {
+    local({
+      ge2 <- .guard_env   # closed over by the finalizer below
+      reg.finalizer(globalenv(), function(unused_env) {
+        if (isTRUE(ge2$done)) return(invisible())
         try(message(
           "\nWARNING: R exiting before job outcome recorded for '", ge2$runName, "'.",
           "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
@@ -1615,9 +1633,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         try(.mirror_local_queue(
           ge2$queue_path, ge2$row_i, upd
         ), silent = TRUE)
-      }
-    }, onexit = TRUE)
-    assign(".spades_guard_env", .guard_env, envir = globalenv())
+      }, onexit = TRUE)
+    })
 
     try({
       .prefix <- getOption(".spades_pane_prefix", "")
@@ -1656,11 +1673,11 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     # tryCatch(interrupt=) wraps the outside so interrupts are still caught.
     outcome <- tryCatch(
       withCallingHandlers({
-        source(global_path, local = .GlobalEnv)
+        source(global_path, local = scn_env)
         "ok"
       }, error = function(e) {
         # Capture call stack while frames are still intact, then mark INTERRUPTED.
-        assign(".spades_tb", sys.calls(), envir = .GlobalEnv)
+        assign(".spades_tb", sys.calls(), envir = scn_env)
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         upd <- list(status         = txtInterrupted,
                     claimed_by     = NA_character_,
@@ -1677,7 +1694,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
         else
           message("Error: ", conditionMessage(e))
-        message("\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")
+        message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
         message("\nq(status=1L) to retry  |  q() to stop the loop")
         "error"
       },
@@ -1751,8 +1768,12 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   if (!all(runNameLabel %in% names(q)))
     stop(sprintf("runNameLabel '%s' is not a column in the queue.", runNameLabel))
 
+  # Per-job scenario environment — see the GS branch above. Keeps user-side
+  # state out of .GlobalEnv. lastTraceback() exposes the captured traceback.
+  scn_env <- new.env(parent = globalenv())
   for (nm in data_cols)
-    assign(nm, q[[nm]][i], envir = .GlobalEnv)
+    assign(nm, q[[nm]][i], envir = scn_env)
+  .pkgEnv$lastScn <- scn_env
 
   q$status[i]       <- txtRunning
   q$claimed_by[i]   <- if (nzchar(PANE)) PANE else paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
@@ -1823,11 +1844,11 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 
   outcome <- tryCatch(
     withCallingHandlers({
-      source(global_path, local = .GlobalEnv)
+      source(global_path, local = scn_env)
       "ok"
     }, error = function(e) {
       # Capture call stack while frames are still intact, then mark INTERRUPTED.
-      assign(".spades_tb", sys.calls(), envir = .GlobalEnv)
+      assign(".spades_tb", sys.calls(), envir = scn_env)
       lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
         try({
@@ -1847,7 +1868,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
       else
         message("Error: ", conditionMessage(e))
-      message("\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")
+      message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
       message("\nq(status=1L) to retry  |  q() to stop the loop")
       "error"
     },
@@ -1956,8 +1977,13 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    dots_path         = dots_path,
                    lib_path          = .libPaths()[1L]
                  ), .respawn_script)
+      # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
+      # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
+      # local-worker startup at the top of experimentTmux(). Without this,
+      # a respawned pane re-enters R with R_TESTS pointing at the harness
+      # startup script and never reaches the worker's profile.
       respawn_cmd <- sprintf(
-        "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+        "env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
         shQuote(.respawn_script)
       )
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)

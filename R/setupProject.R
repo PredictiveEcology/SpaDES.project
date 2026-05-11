@@ -1674,7 +1674,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
             out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
                                     path = localPathRelative))
             checkPath(localPath, create = TRUE)
-            assign("aaaa", 1, envir = .GlobalEnv); on.exit(rm(list = "aaaa", envir = .GlobalEnv))
             setwd(localPath)
             gert::git_branch_checkout(split$br)
             curBr <- gert::git_branch()

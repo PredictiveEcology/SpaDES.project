@@ -1,3 +1,4 @@
 {
-    "positron.r.pipe": "%>%"
+    "positron.r.pipe": "%>%",
+    "positron.r.useNativePipe": true
 }

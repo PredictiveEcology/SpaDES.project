@@ -7,8 +7,11 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
   global <- file.path(td, "global.R")
   outdir <- file.path(td, "out"); dir.create(outdir)
 
+  # Data columns are published to the source()-local scenario env, not
+  # .GlobalEnv (see commit refactoring tmuxRunNextWorker). Inside source()
+  # `environment()` at top-level returns that scn_env, so we capture from it.
   writeLines(sprintf(
-    'res <- as.list(mget(ls(.GlobalEnv, all.names = TRUE), .GlobalEnv))
+    'res <- as.list(mget(ls(envir = environment(), all.names = TRUE), envir = environment()))
      saveRDS(res, file.path("%s", paste0("res_", res$.ELFind, ".rds")))',
     outdir
   ), global)
