@@ -869,6 +869,7 @@ setupProject <- function(name, paths, modules, packages,
 #'   which represents the case where the inner `setup*` functions are called inside
 #'   `setupProject`, which was called by a user.
 #' @rdname setup
+#' @aliases setup
 #' @param envir An environment within which to look for objects. If called alone,
 #' the function should use its own internal environment. If called from another
 #' function, e.g., `setupProject`, then the `envir` should be the internal
@@ -1003,7 +1004,10 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       exists("prepopulateCacheAsync",
              envir = asNamespace("reproducible"),
              inherits = FALSE)) {
-    try(reproducible::prepopulateCacheAsync(paths[["cachePath"]]), silent = TRUE)
+    ## Use getExportedValue so that R CMD check does not flag a static
+    ## reference to a symbol that older reproducible versions don't export.
+    fn <- getExportedValue("reproducible", "prepopulateCacheAsync")
+    try(fn(paths[["cachePath"]]), silent = TRUE)
   }
 
   # Detect an R version change since the last setupProject run. The stale
@@ -1670,7 +1674,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
             out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
                                     path = localPathRelative))
             checkPath(localPath, create = TRUE)
-            aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
+            assign("aaaa", 1, envir = .GlobalEnv); on.exit(rm(list = "aaaa", envir = .GlobalEnv))
             setwd(localPath)
             gert::git_branch_checkout(split$br)
             curBr <- gert::git_branch()

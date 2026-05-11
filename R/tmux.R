@@ -1,3 +1,6 @@
+utils::globalVariables(c(
+  "..meta_cols", "interrupted_at"
+))
 
 # ======================================================================
 # tmux orchestrator (package-friendly)
@@ -212,7 +215,7 @@ tmuxSetMouse <- function(on = TRUE) {
   #    RemoteSha is the git commit SHA recorded at install time  -- it changes
   #    on every development push even when version and ref stay the same.
   local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
-  local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
+  local_req_dsc <- utils::packageDescription("Require", lib.loc = local_lib)
   local_req_sha <- local_req_dsc$RemoteSha
   if (is.null(local_req_sha)) local_req_sha <- ""   # "" for CRAN installs
   if (identical(local_req_dsc$RemoteType, "github")) {
@@ -1601,15 +1604,15 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           "\n  Marking INTERRUPTED in GS."
         ), silent = TRUE)
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        upd <- list(status         = SpaDES.project:::txtInterrupted,
+        upd <- list(status         = txtInterrupted,
                     claimed_by     = NA_character_,
                     interrupted_at = now)
-        try(SpaDES.project:::.gs_write_cells(
+        try(.gs_write_cells(
           ge2$ss_id, ge2$sheet_row,
           updates       = upd,
           col_positions = ge2$col_pos
         ), silent = TRUE)
-        try(SpaDES.project:::.mirror_local_queue(
+        try(.mirror_local_queue(
           ge2$queue_path, ge2$row_i, upd
         ), silent = TRUE)
       }
@@ -3474,6 +3477,8 @@ tmuxActiveRunningPath <- function(activeRunningPath = NULL, queue_path, prefix =
       suffix <- "tmuxStatus"
     activeRunningPath <- file.path(prefix, basename(suffix))
   }
+  if (!dir.exists(activeRunningPath))
+    dir.create(activeRunningPath, recursive = TRUE, showWarnings = FALSE)
   activeRunningPath
 }
 

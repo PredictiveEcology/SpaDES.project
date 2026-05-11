@@ -2,6 +2,7 @@
 % Please edit documentation in R/setupProject.R
 \name{setupPaths}
 \alias{setupPaths}
+\alias{setup}
 \alias{setupFunctions}
 \alias{setupSideEffects}
 \alias{setupOptions}

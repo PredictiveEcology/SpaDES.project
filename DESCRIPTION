@@ -31,8 +31,7 @@ Imports:
     rstudioapi,
     stats,
     tools,
-    utils,
-    withr
+    utils
 Suggests:
     callr,
     cli,
@@ -74,7 +73,8 @@ Suggests:
     tidyterra,
     usethis,
     visNetwork,
-    waldo
+    waldo,
+    withr
 Remotes: 
     PredictiveEcology/SpaDES.config@development,
     PredictiveEcology/SpaDES.core@development
