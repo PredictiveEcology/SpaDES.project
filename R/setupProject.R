@@ -439,8 +439,16 @@ setupProject <- function(name, paths, modules, packages,
   reposNow <- getOption("repos")
   if (is.null(reposNow) || is.null(reposNow[["CRAN"]]) ||
       identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
-    options(repos = c(CRAN = "https://cloud.r-project.org",
-                      reposNow[setdiff(names(reposNow), "CRAN")]))
+    # base::options(...) because setupProject's own `options` formal would
+    # otherwise shadow base::options here — R looks up the function name
+    # in the local frame first, finds the parameter promise, and (when
+    # the caller didn't supply `options=`) the promise is missing-without-
+    # default, so forcing it as a function blows up with
+    # "argument 'options' is missing, with no default". Same trick is
+    # already used at every other `base::options(...)` call site in this
+    # file (e.g. 564, 1307, 1341, 1355).
+    base::options(repos = c(CRAN = "https://cloud.r-project.org",
+                            reposNow[setdiff(names(reposNow), "CRAN")]))
   }
 
   withCallingHandlers({
