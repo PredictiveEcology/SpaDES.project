@@ -193,31 +193,38 @@ To facilitate batch submission, users can specify arguments in the form of `argu
 
 ```{r missingVals,eval=TRUE}
 .nodes <- 2
-## TODO REMOVE-AFTER-DEBUG: capture full backtrace into stderr because the CI
-## failure ("argument 'options' is missing, with no default") cannot be
-## reproduced locally and rlang's collapsed trace only shows the top frame.
-out <- tryCatch(
+## TODO REMOVE-AFTER-DEBUG: capture state + traceback into stderr. We use
+## withCallingHandlers (not tryCatch) so the call stack is intact at the
+## moment of error — withCallingHandlers's handler runs in the throwing
+## frame's context, so traceback() / sys.calls() see the real frames. We
+## also write directly to stderr() (bypassing message() and avoiding any
+## condition-handler entanglement) and explicitly avoid rlang::trace_back
+## which appeared to re-trigger the error from inside the prior tryCatch.
+.dbg <- function(...) writeLines(paste0(...), con = stderr())
+out <- withCallingHandlers(
   SpaDES.project::setupProject(.mode = .mode, .nodes = .nodes),
   error = function(e) {
-    message("\n!!!! DEBUG: setupProject(.mode=.mode) crashed !!!!")
-    message("R:           ", R.version.string)
-    message("Sys.info()[user]: ", Sys.info()[["user"]])
-    message("cwd:         ", getwd())
-    message("libPaths:")
-    for (p in .libPaths()) message("  ", p)
-    message("SpaDES.project: ", as.character(packageVersion("SpaDES.project")))
-    message("Require:        ", as.character(packageVersion("Require")))
-    message("Error message:  ", conditionMessage(e))
-    message("Error class:    ", paste(class(e), collapse = ","))
-    if (requireNamespace("rlang", quietly = TRUE)) {
-      message("rlang trace:")
-      tb <- rlang::trace_back()
-      message(paste(capture.output(print(tb)), collapse = "\n"))
+    .dbg("")
+    .dbg("!!!! DEBUG: setupProject(.mode=.mode) crashed !!!!")
+    .dbg("R:              ", R.version.string)
+    .dbg("user:           ", Sys.info()[["user"]])
+    .dbg("cwd:            ", getwd())
+    for (p in .libPaths()) .dbg("libPath:        ", p)
+    .dbg("SpaDES.project: ", as.character(packageVersion("SpaDES.project")))
+    .dbg("Require:        ", as.character(packageVersion("Require")))
+    .dbg("Error message:  ", conditionMessage(e))
+    .dbg("Error class:    ", paste(class(e), collapse = ","))
+    if (!is.null(conditionCall(e)))
+      .dbg("Error call:     ", paste(deparse(conditionCall(e)), collapse = " "))
+    .dbg("sys.calls() frames:")
+    sc <- sys.calls()
+    for (i in seq_along(sc)) {
+      d <- paste(deparse(sc[[i]], width.cutoff = 200), collapse = " ")
+      if (nchar(d) > 240) d <- paste0(substr(d, 1, 240), " ...")
+      .dbg(sprintf("  [%2d] %s", i, d))
     }
-    message("base traceback:")
-    message(paste(capture.output(traceback()), collapse = "\n"))
-    message("!!!! END DEBUG !!!!\n")
-    stop(e)
+    .dbg("!!!! END DEBUG !!!!")
+    .dbg("")
   }
 )
 out[c(".mode", ".nodes")]
