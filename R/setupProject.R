@@ -430,6 +430,19 @@ setupProject <- function(name, paths, modules, packages,
 
   # defaultDotsSUB <- substitute(defaultDots)
   failedBCMissingPackage <- FALSE
+
+  # RStudio's repos = "@CRAN@" overlay calls `.rs.downloadFile()` to refresh
+  # CRAN_mirrors.csv whenever something resolves a CRAN URL. On hosts with TLS
+  # interception this raises an "SSL connect error" that R defers via "In
+  # addition: Warning message:", so withCallingHandlers below can't muffle it.
+  # Setting a real CRAN URL up-front bypasses the overlay entirely.
+  reposNow <- getOption("repos")
+  if (is.null(reposNow) || is.null(reposNow[["CRAN"]]) ||
+      identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
+    options(repos = c(CRAN = "https://cloud.r-project.org",
+                      reposNow[setdiff(names(reposNow), "CRAN")]))
+  }
+
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
 
@@ -3143,6 +3156,19 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           newRprofile <- paste0("source('", tempfileInOther, "')")
           if (file.exists(RprofileInOther)) {
             rl <- readLines(RprofileInOther)
+            # Strip stale `source('.Restart_*')` lines (and unlink the orphaned
+            # tempfiles) from prior aborted/repeated setupProject runs in this
+            # projectPath. Each leftover entry registers a sessionInit hook
+            # with action='append', so without this scrub the "This is now an
+            # RStudio project..." banner fires once per accumulated hook on the
+            # next R restart.
+            staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
+            if (length(staleIdx)) {
+              staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
+              try(unlink(file.path(paths[["projectPath"]], staleFiles)),
+                  silent = TRUE)
+              rl <- rl[-staleIdx]
+            }
             newRprofile <- c(rl, newRprofile)
             lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
             lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")

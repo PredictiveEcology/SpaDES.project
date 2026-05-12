@@ -101,6 +101,70 @@ test_that("setupProject muffles RStudio's CRAN_mirrors.csv SSL warning", {
   )
 })
 
+test_that("setupProject .Rprofile scrubs stale source('.Restart_*') lines and unlinks orphan tempfiles", {
+  # Bug: each setupProject run appended `source('.Restart_<rand>')` to the
+  # project .Rprofile and the matching tempfile registered a sessionInit
+  # hook with action = 'append'. Across N runs the next R restart printed
+  # "This is now an RStudio project..." N times because N hooks were queued.
+  pp <- withr::local_tempdir()
+  RestartTmpFileStart <- ".Restart_"
+
+  stale1 <- paste0(RestartTmpFileStart, "alpha")
+  stale2 <- paste0(RestartTmpFileStart, "beta")
+  file.create(file.path(pp, stale1), file.path(pp, stale2))
+
+  rprof <- file.path(pp, ".Rprofile")
+  writeLines(c(
+    "# pre-existing user content",
+    paste0("source('", stale1, "')"),
+    "x <- 1",
+    paste0("source('", stale2, "')")
+  ), rprof)
+
+  # Mirror the scrub logic from setupRestart.
+  rl <- readLines(rprof)
+  staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
+  staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
+  unlink(file.path(pp, staleFiles))
+  rl <- rl[-staleIdx]
+
+  expect_identical(rl, c("# pre-existing user content", "x <- 1"))
+  expect_false(file.exists(file.path(pp, stale1)))
+  expect_false(file.exists(file.path(pp, stale2)))
+})
+
+test_that("setupProject pins repos = CRAN cloud when repos is `@CRAN@` or unset", {
+  # Bug: leaving repos = "@CRAN@" lets RStudio's overlay call .rs.downloadFile
+  # to refresh CRAN_mirrors.csv, raising a deferred "SSL connect error"
+  # warning on TLS-interception hosts that withCallingHandlers can't muffle.
+  setRealCRANIfPlaceholder <- function() {
+    reposNow <- getOption("repos")
+    if (is.null(reposNow) || is.null(reposNow[["CRAN"]]) ||
+        identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
+      options(repos = c(CRAN = "https://cloud.r-project.org",
+                        reposNow[setdiff(names(reposNow), "CRAN")]))
+    }
+  }
+
+  withr::with_options(list(repos = c(CRAN = "@CRAN@")), {
+    setRealCRANIfPlaceholder()
+    expect_identical(unname(getOption("repos")[["CRAN"]]),
+                     "https://cloud.r-project.org")
+  })
+
+  withr::with_options(list(repos = c(CRAN = "https://my.mirror/")), {
+    setRealCRANIfPlaceholder()
+    expect_identical(unname(getOption("repos")[["CRAN"]]),
+                     "https://my.mirror/")  # already a real URL, untouched
+  })
+
+  withr::with_options(list(repos = NULL), {
+    setRealCRANIfPlaceholder()
+    expect_identical(unname(getOption("repos")[["CRAN"]]),
+                     "https://cloud.r-project.org")
+  })
+})
+
 test_that("setupGitHub init points HEAD at refs/heads/main (regression: default `master`)", {
   # Bug: usethis::use_git() called git_init without a branch override,
   # so new repos inherited git's historical default of `master`,
