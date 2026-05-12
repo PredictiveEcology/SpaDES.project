@@ -193,8 +193,33 @@ To facilitate batch submission, users can specify arguments in the form of `argu
 
 ```{r missingVals,eval=TRUE}
 .nodes <- 2
-out <- SpaDES.project::setupProject(.mode = .mode,
-                                    .nodes = .nodes)
+## TODO REMOVE-AFTER-DEBUG: capture full backtrace into stderr because the CI
+## failure ("argument 'options' is missing, with no default") cannot be
+## reproduced locally and rlang's collapsed trace only shows the top frame.
+out <- tryCatch(
+  SpaDES.project::setupProject(.mode = .mode, .nodes = .nodes),
+  error = function(e) {
+    message("\n!!!! DEBUG: setupProject(.mode=.mode) crashed !!!!")
+    message("R:           ", R.version.string)
+    message("Sys.info()[user]: ", Sys.info()[["user"]])
+    message("cwd:         ", getwd())
+    message("libPaths:")
+    for (p in .libPaths()) message("  ", p)
+    message("SpaDES.project: ", as.character(packageVersion("SpaDES.project")))
+    message("Require:        ", as.character(packageVersion("Require")))
+    message("Error message:  ", conditionMessage(e))
+    message("Error class:    ", paste(class(e), collapse = ","))
+    if (requireNamespace("rlang", quietly = TRUE)) {
+      message("rlang trace:")
+      tb <- rlang::trace_back()
+      message(paste(capture.output(print(tb)), collapse = "\n"))
+    }
+    message("base traceback:")
+    message(paste(capture.output(traceback()), collapse = "\n"))
+    message("!!!! END DEBUG !!!!\n")
+    stop(e)
+  }
+)
 out[c(".mode", ".nodes")]
 ```
 
