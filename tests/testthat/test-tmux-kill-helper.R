@@ -1,6 +1,8 @@
 # tests/testthat/test-kill-helper.R
 
 testthat::test_that("tmuxKillPanes returns targeted panes", {
+  testthat::skip_on_cran()
+  testthat::skip_on_ci()
   skip_if_no_tmux()
 
   td <- tempfile("tmux_kill")

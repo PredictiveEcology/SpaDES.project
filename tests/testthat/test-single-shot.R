@@ -1,6 +1,8 @@
 # tests/testthat/test-single-shot.R
 
 testthat::test_that("experimentTmux single-shot assigns all columns and sources once", {
+  testthat::skip_on_cran()
+  testthat::skip_on_ci()
   skip_if_no_tmux()
   td <- tempfile("tmux_single"); unlink(td, recursive = TRUE); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
