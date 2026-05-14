@@ -372,7 +372,8 @@ within files and within lists. This means that a user can <em>use</em> the value
 upstream element in the list. For example, the following where <code>projectPath</code> is
 part of the list that will be assigned to the <code>paths</code> argument and it is then
 used in the subsequent list element is valid:</p>
-<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">setupPaths</span>(<span class="at">paths =</span> <span class="fu">list</span>(<span class="at">projectPath =</span> <span class="st">"here"</span>,</span>
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">setupPaths</span>(<span class="at">paths =</span> <span class="fu">list</span>(<span class="at">projectPath =</span> <span class="st">"here"</span>,</span>
+
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>                        <span class="at">modulePath =</span> <span class="fu">file.path</span>(paths[[<span class="st">"projectPath"</span>]], <span class="st">"modules"</span>)))</span></code></pre><p></p></div>
 <p>Because of such sequential evaluation, <code>paths</code>, <code>options</code>, and <code>params</code> files
 can be sequential lists that have impose a hierarchy specified
@@ -382,20 +383,31 @@ block that add new or override existing elements, followed by <code>machine</cod
 values, such as paths.</p>
 </div>
 
-<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">setupOptions</span>(</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  maxMemory <span class="ot">&lt;-</span> <span class="fl">5e+9</span> <span class="co"># if (grepl("LandWeb", runName)) 5e+12 else 5e+9</span></span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  <span class="co"># Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`</span></span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="co">#  or `setupProject`</span></span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>  <span class="cf">if</span> (.mode <span class="sc">==</span> <span class="st">"development"</span>) {</span>
-<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>     <span class="fu">list</span>(<span class="at">test =</span> <span class="dv">2</span>)</span>
-<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>  }</span>
-<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">machine</span>(<span class="st">"A127"</span>)) {</span>
-<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a>    <span class="fu">list</span>(<span class="at">test =</span> <span class="dv">3</span>)</span>
-<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a>  }</span>
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">setupOptions</span>(</span>
+
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  maxMemory <span class="ot">&lt;-</span> <span class="fl">5e+9</span> <span class="co"># if (grepl("LandWeb", runName)) 5e+12 else 5e+9</span></span>
+
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
+
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  <span class="co"># Example -- Use any arbitrary object that can be passed in the `...` of `setupOptions`</span></span>
+
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="co">#  or `setupProject`</span></span>
+
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>  <span class="cf">if</span> (.mode <span class="sc">==</span> <span class="st">"development"</span>) {</span>
+
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>     <span class="fu">list</span>(<span class="at">test =</span> <span class="dv">2</span>)</span>
+
+<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>  }</span>
+
+<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">machine</span>(<span class="st">"A127"</span>)) {</span>
+
+<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a>    <span class="fu">list</span>(<span class="at">test =</span> <span class="dv">3</span>)</span>
+
+<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a>  }</span>
+
 <span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a>)</span></code></pre><p></p></div>
 <div class="section">
-<h3 id="values-and-or-files">Values and/or files<a class="anchor" aria-label="anchor" href="#values-and-or-files"></a></h3>
+<h3 id="values-and-or-files">Values and/or files<a class="anchor" aria-label="anchor" href="#values-and-or-files"></a></@development
 <p>The arguments, <code>paths</code>, <code>options</code>, and <code>params</code>, can all
 understand lists of named values, character vectors, or a mixture by using a list where
 named elements are values and unnamed elements are character strings/vectors. Any unnamed
@@ -404,11 +416,16 @@ it will be assumed to be a file that exists on a GitHub repository in <code>http
 So a user can pass values, or pointers to remote and/or local paths that themselves have values.</p>
 <p>The following will set an option as declared, plus read the local file (with relative
 path), plus download and read the cloud-hosted file.</p>
-<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">setupProject</span>(</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>   <span class="at">options =</span> <span class="fu">list</span>(<span class="at">reproducible.useTerra =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>                  <span class="st">"inst/options.R"</span>,</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>                  <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span>)</span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>                 )</span>
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">setupProject</span>(</span>
+
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>   <span class="at">options =</span> <span class="fu">list</span>(<span class="at">reproducible.useTerra =</span> <span class="cn">TRUE</span>,</span>
+
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>                  <span class="st">"inst/options.R"</span>,</span>
+
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>                  <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span>)</span>
+
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>                 )</span>
+
 <span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>   <span class="er">)</span></span></code></pre><p></p></div>
 <p>This approach allows for an organic growth of complexity, e.g., a user begins with
 only named lists of values, but then as the number of values increases, it may be
@@ -472,10 +489,14 @@ is specified. When running this line without that batch script specification, th
 will assign no value to <code>.mode</code>. We include <code>.nodes</code> which shows an example of
 passing a value that does exist. The non-existent <code>.mode</code> will be returned in the <code>out</code>,
 but as an unevaluated, captured list element.</p>
-<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>.nodes <span class="ot">&lt;-</span> <span class="dv">2</span></span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">setupProject</span>(<span class="at">.mode =</span> .mode,</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>                    <span class="at">.nodes =</span> .nodes,</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>                    <span class="at">options =</span> <span class="st">"inst/options.R"</span></span>
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>.nodes <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">setupProject</span>(<span class="at">.mode =</span> .mode,</span>
+
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>                    <span class="at">.nodes =</span> .nodes,</span>
+
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>                    <span class="at">options =</span> <span class="st">"inst/options.R"</span></span>
+
 <span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>                    )</span></code></pre><p></p></div>
 </div>
 

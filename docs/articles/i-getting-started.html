@@ -274,13 +274,13 @@ pointers to remote and/or local paths that, themselves, have values.</p>
 <code>reproducible.useTerra = TRUE</code>), plus read the local
 <code>inst/options.R</code> file (with relative path), plus download and
 read the cloud-hosted
-<code>PredictiveEcology/SpaDES.project@transition/inst/options.R</code>
+<code>PredictiveEcology/SpaDES.project@development/inst/options.R</code>
 file.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>                 <span class="st">"inst/options.R"</span>,</span>
-<span>                 <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
+<span>                 <span class="st">"PredictiveEcology/SpaDES.project@development/inst/options.R"</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">out</span>, <span class="st">"projectOptions"</span><span class="op">)</span></span>
@@ -658,7 +658,7 @@ does not exist locally, then parsed from the local location.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span></span>
+<span>    <span class="st">"PredictiveEcology/SpaDES.project@development/inst/options.R"</span></span>
 <span>  <span class="op">)</span>,</span>
 <span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    Biomass_borealDataPrep <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>.plots <span class="op">=</span> <span class="st">"screen"</span><span class="op">)</span></span>
@@ -682,7 +682,7 @@ does not exist locally, then parsed from the local location.</p>
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  name <span class="op">=</span> <span class="st">"example_5"</span>, <span class="co"># puts in a folder with this name</span></span>
 <span>  modules <span class="op">=</span> <span class="st">"PredictiveEcology/Biomass_borealDataPrep@development"</span>,</span>
-<span>  sideEffects <span class="op">=</span> <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/sideEffects.R"</span>,</span>
+<span>  sideEffects <span class="op">=</span> <span class="st">"PredictiveEcology/SpaDES.project@development/inst/sideEffects.R"</span>,</span>
 <span></span>
 <span>  <span class="co"># if mode and studyAreaName are not available in the .GlobalEnv, then will use these</span></span>
 <span>  defaultDots <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mode <span class="op">=</span> <span class="st">"development"</span>,</span>
@@ -729,7 +729,7 @@ can also mix and match these ways:</p>
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setupProject.html">setupProject</a></span><span class="op">(</span></span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    reproducible.useTerra <span class="op">=</span> <span class="cn">TRUE</span>,                                 <span class="co"># direct argument # sets one option</span></span>
-<span>    <span class="st">"PredictiveEcology/SpaDES.project@transition/inst/options.R"</span>, <span class="co"># remote file -- sets many options</span></span>
+<span>    <span class="st">"PredictiveEcology/SpaDES.project@development/inst/options.R"</span>, <span class="co"># remote file -- sets many options</span></span>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"authentication.R"</span>, package <span class="op">=</span> <span class="st">"SpaDES.project"</span><span class="op">)</span>   <span class="co"># local file -- sets gargle options</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>

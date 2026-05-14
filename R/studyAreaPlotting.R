@@ -326,7 +326,7 @@ areas <- function(x) {
     sum(sf::st_area(x))
   } else {
     if (is(x, "SpatRaster")) {
-      sum(!is.na(x[])) * prod(res(x))
+      sum(!is.na(x[])) * prod(terra::res(x))
     } else {
       NULL
     }

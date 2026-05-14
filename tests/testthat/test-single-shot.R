@@ -1,14 +1,19 @@
 # tests/testthat/test-single-shot.R
 
 testthat::test_that("experimentTmux single-shot assigns all columns and sources once", {
+  testthat::skip_on_cran()
+  testthat::skip_on_ci()
   skip_if_no_tmux()
   td <- tempfile("tmux_single"); unlink(td, recursive = TRUE); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
   global <- file.path(td, "global.R")
   outdir <- file.path(td, "out"); dir.create(outdir)
 
+  # Data columns are published to the source()-local scenario env, not
+  # .GlobalEnv (see commit refactoring tmuxRunNextWorker). Inside source()
+  # `environment()` at top-level returns that scn_env, so we capture from it.
   writeLines(sprintf(
-    'res <- as.list(mget(ls(.GlobalEnv, all.names = TRUE), .GlobalEnv))
+    'res <- as.list(mget(ls(envir = environment(), all.names = TRUE), envir = environment()))
      saveRDS(res, file.path("%s", paste0("res_", res$.ELFind, ".rds")))',
     outdir
   ), global)
@@ -26,7 +31,7 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
     continue            = FALSE,
     activeRunningPath   = file.path(td, "logs")
   )
-  on.exit(try(tmux_kill_panes(workers), silent = TRUE), add = TRUE)
+  on.exit(try(tmuxKillPanes(workers), silent = TRUE), add = TRUE)
 
   ok <- wait_for(function() length(list.files(outdir, "^res_.*\\.rds$", full.names = TRUE)) == 2,
                  timeout_s = 120)

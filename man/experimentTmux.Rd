@@ -2,12 +2,13 @@
 % Please edit documentation in R/tmux.R
 \name{experimentTmux}
 \alias{experimentTmux}
-\title{Spawn tmux worker panes, start R, assign objects from a data.frame, and source a script (pane-internal delay)}
+\title{Spawn tmux worker panes and process a job queue}
 \usage{
 experimentTmux(
   df,
   global_path = "global.R",
-  n_workers = 4,
+  cores = NULL,
+  n_workers = if (is.null(cores)) 4L else length(cores),
   delay_after_split = 0.4,
   delay_after_layout = 0.4,
   delay_between_R_start = 0,
@@ -20,115 +21,311 @@ experimentTmux(
   continue = TRUE,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
+  pane_mode = c("killAndNewPane", "reuse"),
   ss_id = NULL,
+  forceLocalQueueToGS = FALSE,
+  enableGSSync = FALSE,
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
-  workersToMonitor = c("birds", "biomass", "camas", "carbon", "caribou", "coco", "core",
-    "dougfir", "fire", "mpb", "sbw", "mega", "acer", "abies", "pinus"),
+  workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
   runNameLabel = quote(colnames(q)[1:2]),
+  copyModules = FALSE,
   ...
 )
 }
 \arguments{
-\item{df}{A \code{data.frame}. Column names become object names in worker panes; values
-from each row are assigned prior to sourcing \code{global_path}.}
+\item{df}{A \code{data.frame} of parameter combinations. Each row is one job.
+Column names become object names in worker panes; values from each row
+are assigned prior to sourcing \code{global_path}.}
 
-\item{global_path}{Character scalar. Path to the script to \code{source()} in each pane.
-Prefer an \strong{absolute path} if worker panes start in a different directory.}
+\item{global_path}{Character scalar. Absolute path to the script sourced for each job.}
 
-\item{n_workers}{Integer. Number of worker panes to spawn. Default \code{4}.}
+\item{cores}{Character vector of machine hostnames, recycled to \code{n_workers}. Use
+\code{"localhost"} for the local machine or a bare hostname (e.g. \code{"sbw"}) for a remote
+machine reachable via passwordless SSH. When any remote hosts are listed,
+\code{.setup_remote_machine()} is called for each unique hostname before workers start.
+Default \code{NULL} (all localhost).}
 
-\item{delay_after_split}{Numeric. Seconds to wait after each \code{split-window}. Default \code{0.2}.}
+\item{n_workers}{Integer. Number of worker panes to spawn. Defaults to \code{length(cores)}
+if \code{cores} is supplied, otherwise \code{4}.}
+
+\item{delay_after_split}{Numeric. Seconds to wait after each \code{split-window}. Default \code{2}.}
 
 \item{delay_after_layout}{Numeric. Seconds to wait after \code{select-layout}. Default \code{0.2}.}
 
-\item{delay_between_R_start}{Numeric. Seconds to wait immediately \strong{after starting R}
-in each pane (or set \code{0} to skip). Default \code{0.0}.}
+\item{delay_between_R_start}{Numeric. Seconds to wait after starting R in each pane.
+Default \code{0.1}.}
 
-\item{delay_before_source}{Numeric. Seconds panes \strong{2..n} wait \strong{inside R} before
-injecting assignments + \code{source(global_path)}. Default \code{60.0}.}
+\item{delay_before_source}{Numeric. Seconds panes 2..n wait before claiming their first
+job. Default \code{60}.}
 
-\item{stagger_by}{Numeric. Extra seconds added per subsequent pane beyond pane 2, so pane i>1 waits
-\code{delay_before_source + (i-2)*stagger_by} inside R. Default \code{0.0}.}
+\item{stagger_by}{Numeric. Additional seconds per pane beyond pane 2:
+pane \code{i > 1} waits \code{delay_before_source + (i - 2) * stagger_by}. Default \code{delay_before_source}.}
 
-\item{set_mouse}{Logical. If \code{TRUE}, enables tmux mouse support. Default \code{TRUE}.}
+\item{set_mouse}{Logical. Enable tmux mouse support (pane selection, scroll). Default \code{TRUE}.}
 
-\item{statusCalculate}{A string or call using optionally \code{runName}, e.g.,
-\code{statusCalculate = quote(file.path("outputs", runName, "figures", "objFun"))}.
-Currently only effective for \code{fireSense_SpreadFit} outputs.
-Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
+\item{statusCalculate}{A quoted expression (optionally using \code{runName}) that evaluates
+to a path containing job-status output files. Currently used by \code{fireSense_SpreadFit}.
+Default \code{getOption("spades.statusCalculate", NULL)}.}
 
-\item{folderWithIterInFilename}{A string or call using optionally \code{runName}, e.g.,
-\code{folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))}.
-Currently only effective for \code{fireSense_SpreadFit} outputs.
-Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
+\item{folderWithIterInFilename}{A quoted expression (optionally using \code{runName}) for a
+folder whose filenames encode iteration info. Currently used by \code{fireSense_SpreadFit}.
+Default \code{getOption("spades.folderWithIterInFilename", NULL)}.}
 
-\item{activeRunningPath}{The directory where the "running" flag will be written.
-This flag (a file) should only be present while an ELF is running. At the end
-or at failure, it should be removed automatically. If it is not (because of a
-bad crash), then it MUST be manually deleted. Default is derived via
-\code{activeRunningPathForTmux} as \code{file.path("logs/", queue_path)}.}
+\item{activeRunningPath}{Directory for "running" flag files written while a job is
+active. Must be cleaned up manually if a job crashes without removing its flag.
+Default: \code{file.path("logs/", basename(queue_path))}.}
 
-\item{continue}{Logical. If \code{TRUE} (default), workers loop through the queue until empty.}
+\item{continue}{Logical. Reserved for future single-shot mode; currently ignored.}
 
 \item{queue_path}{Character. Path to the \code{.rds} queue file. Defaults to
 \code{file.path(dirname(global_path), "tmux_queue.rds")}.}
 
-\item{on_interrupt}{Character. Action when a job is interrupted: \code{"requeue"} (default)
-or \code{"fail"}.}
+\item{on_interrupt}{\code{"requeue"} (default) or \code{"fail"}. Action when a job errors:
+requeue it for another worker, or mark it failed and stop this worker.}
 
-\item{ss_id}{Optional Google Drive folder/sheet ID for queue syncing. \code{NULL} disables.}
+\item{pane_mode}{\code{"killAndNewPane"} (default) or \code{"reuse"}. See \strong{Worker loop modes}
+above.}
 
-\item{email}{Optional email for Google authentication.}
+\item{ss_id}{Optional Google Drive spreadsheet/folder ID for live status syncing via
+\code{googlesheets4}. \code{NULL} disables syncing.}
 
-\item{cache_path}{Optional path for gargle OAuth cache.}
+\item{forceLocalQueueToGS}{Logical. If \code{TRUE}, overwrite the Google Sheet
+queue with the local \code{df} even if the sheet already contains rows.
+Default \code{FALSE}.}
 
-\item{workersToMonitor}{Character vector of worker names to monitor.}
+\item{enableGSSync}{Logical. If \code{TRUE}, start an additional tmux pane
+that periodically syncs the local queue file to a Google Sheet (requires
+\code{ss_id}).  Default \code{FALSE}.}
 
-\item{runNameLabel}{A quoted expression to derive a run label from the queue data frame.}
+\item{email}{Optional email address for gargle/Google OAuth authentication.}
 
-\item{...}{Additional arguments (currently unused).}
+\item{cache_path}{Optional path to the gargle OAuth token cache directory.}
+
+\item{workersToMonitor}{Character vector of pane titles to monitor (currently unused).}
+
+\item{runNameLabel}{A quoted expression evaluated against the queue \code{data.frame} to
+produce a human-readable job label used in log files and Google Sheet status updates.}
+
+\item{copyModules}{Logical. If \code{TRUE} and remote hosts are present, rsyncs the
+directory given by \code{getOption("spades.modulePath")} to the same absolute path on
+each remote host before workers start.  Issues a warning and skips if the option is
+unset.  Default \code{FALSE}.}
+
+\item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
 }
 \value{
-Invisibly returns the character vector of tmux \strong{pane IDs} for the workers.
+Invisibly returns a character vector of tmux pane IDs for the spawned workers.
+Pass these to \code{tmuxKillPanes()} to tear down all workers at once.
 }
 \description{
-Controls the \strong{current tmux window} to:
-\enumerate{
-\item create \code{n_workers} panes and tile them,
-\item start plain \strong{R} in each pane,
-\item for the first \code{min(n_workers, nrow(df))} rows of \code{df}, assign objects named
-by the \strong{column names} in that row and then \code{source(global_path)}.
-}
+Creates \code{n_workers} tmux panes in the current window, tiles them, and starts
+a worker loop in each one that claims and runs jobs from a file-backed queue
+(\code{queue_path}).  Control returns immediately to the \strong{master pane}; all work
+happens asynchronously inside the worker panes.
+\subsection{Worker loop modes (\code{pane_mode})}{
+\subsection{\code{"killAndNewPane"} (default)}{
 
-\strong{Delays happen inside each pane’s R}, so control returns immediately to the \strong{master pane}:
+Each worker runs \strong{one job per R session}, then exits.  A fresh R session
+starts automatically for the next job, freeing all memory between runs.
 \itemize{
-\item Pane 1: \strong{no delay} before \code{source()}.
-\item Pane i>1: sleeps \code{delay_before_source + (i-2)*stagger_by} seconds \strong{inside R} before assignments + \code{source()}.
+\item \strong{localhost panes}: After each job, \code{tmuxRunWorkerLoop()} calls
+\verb{tmux respawn-pane -k}, which replaces the current pane's process
+in-place with a new \code{Rscript} invocation.  No retiling needed.
+\item \strong{Remote panes} (\code{cores = "hostname"}): The local pane runs a bash
+while-loop that repeatedly calls
+\verb{ssh -t host bash -c 'exec env R_PROFILE_USER=<script> R --interactive'}.
+\code{ssh -t} allocates a PTY so R runs interactively (readline, OSC 2 title
+updates, Ctrl+C propagation).  A startup script injected via
+\code{R_PROFILE_USER} runs one job then exits; \code{q(status = 1L)} (job done or
+queue empty) lets the while-loop start a fresh R session, \code{q()} (status 0)
+stops the loop.  \code{R_PROFILE_USER} is unset inside R immediately
+after startup so workers spawned by \code{makeClusterPSOCK()} do not inherit
+it and inadvertently re-run the startup script.
+}
 }
 
-Targeting uses tmux format expansion (\verb{#\{session_name\}:#\{window_index\}}) and pane IDs
-via \verb{list-panes -F "#\{pane_id\}"}; command injection uses \verb{send-keys … C-m}. \href{https://callr.r-lib.org/}{2}
+\subsection{\code{"reuse"}}{
+
+Each worker loops inside a single R session (\code{repeat { tmuxRunNextWorker() }}).
+Memory accumulates across jobs  -- useful for lightweight simulations.
 }
+
+}
+
+\subsection{Remote machine setup (\code{cores})}{
+
+Supplying a hostname in \code{cores} triggers \code{.setup_remote_machine()} once per
+unique host before any workers start.  Steps run in this order:
+\enumerate{
+\item \strong{Guard \code{BASH_ENV}}  -- wraps the remote \verb{$BASH_ENV} file's existing
+content in a subshell (\verb{( ... ) 2>/dev/null || true}) so that any \code{exit}
+or failing command inside it cannot abort the non-interactive SSH shell
+that carries setup commands.
+\item \strong{Create remote directory; copy files}  -- \code{mkdir -p} the remote working
+directory (same relative path from \code{~} as on localhost), then \code{scp}
+\code{global_path}, \code{queue_path}, and \code{dots_path} (if supplied) into it.
+\item \strong{Rsync project \verb{R/} folder}  -- syncs the \verb{R/} subdirectory next to
+\code{global_path} to the remote with \code{rsync --delete} so user-defined
+helper functions sourced by \code{global.R} are up to date.
+\item \strong{Write \verb{~/.Rprofile} on remote}  -- injects three lines (replacing any
+previous versions): \code{.libPaths(c(local_lib, ...))} so the project library
+takes precedence over system libraries; \code{options(repos = ...)} including
+the PredictiveEcology r-universe; and an SSL block that sets
+\code{CURL_CA_BUNDLE}/\code{SSL_CERT_FILE} so HTTPS downloads work in non-login
+SSH sessions where \verb{/etc/profile.d/} is not sourced.
+\item \strong{Verify/install \code{Require}}  -- compares the remote \code{Require} version and
+git commit SHA to the local installation.  If they differ, rsyncs the
+installed directory (GitHub source) or runs \code{install.packages("Require")}
+(CRAN source).
+\item \strong{Install \code{usethis}} on the remote via \code{Require::Install()}.
+\item \strong{Propagate GitHub credentials}  -- reads the local token via
+\code{gitcreds::gitcreds_get()} and pipes it into \verb{git credential approve} on
+the remote so private GitHub packages can be installed without interactive
+setup.  Falls back to checking whether the remote already has credentials;
+errors if neither is true.
+\item \strong{Install system libraries} via
+\verb{sudo -n apt-get install -y --no-install-recommends} (non-interactive;
+fails gracefully if passwordless sudo is not configured).  Libraries
+installed: spatial (\code{libgdal-dev}, \code{libgeos-dev}, \code{libproj-dev},
+\code{libsqlite3-dev}, \code{libudunits2-dev}), HTTP/TLS (\code{libssl-dev},
+\code{libcurl4-openssl-dev}), XML (\code{libxml2-dev}), archive (\code{libarchive-dev}),
+git (\code{libgit2-dev}), fonts/graphics (\code{libfontconfig1-dev},
+\code{libharfbuzz-dev}, \code{libfribidi-dev}, \code{libpng-dev}, \code{libjpeg-dev},
+\code{libtiff-dev}, \code{libfreetype6-dev}), protobuf (\code{libabsl-dev}), and R
+compilation headers (\code{r-base-dev}).
+\item \strong{Ensure remote lib path exists}  -- \code{mkdir -p} the project library path
+on the remote (must match localhost exactly so installed file paths are
+identical).
+\item \strong{Rsync \code{SpaDES.project}}  -- copies the locally installed \code{SpaDES.project}
+directory to the same path on the remote.  Both machines must share the
+same platform and R version so compiled lazy-load databases are compatible.
+\item \strong{Install \code{SpaDES.project} dependencies} via \code{Require::Install()}.
+Spatial packages (\code{terra}, \code{sf}, \code{rgdal}, \code{rgeos}, \code{lwgeom}) are compiled
+from source so they link against the remote's actual GDAL/GEOS/PROJ
+versions.  All other hard dependencies (Imports/Depends/LinkingTo) plus
+any Suggests packages installed locally are installed as binaries via
+\code{Require::setLinuxBinaryRepo()}.  Common packages with strict version
+requirements (\verb{purrr >= 1.2.1}, \verb{rlang >= 1.1.7}, \verb{cli >= 3.6.0},
+\verb{vctrs >= 0.6.0}) are pre-installed to the project library to avoid
+stale system-library versions being picked up during compilation.
+\item \strong{Rsync \code{Require} package cache} (\code{Require::cachePkgDir()}) to the
+remote to accelerate future package installations.
+\item \strong{Rsync gargle OAuth cache} (\code{cache_path} or
+\code{getOption("gargle_oauth_cache")}) to the remote so the worker can
+authenticate with Google APIs (Sheets, Drive) without a browser prompt.
+}
+}
+
+\subsection{Staggered starts}{
+
+Pane 1 starts immediately.  Pane \code{i > 1} waits
+\code{delay_before_source + (i - 2) * stagger_by} seconds inside R before
+claiming its first job, avoiding simultaneous queue contention at startup.
+For remote workers in \code{killAndNewPane} mode the stagger only applies to the
+first R session; subsequent while-loop iterations start immediately.
+}
+
+\subsection{Restarting a broken pane}{
+
+If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
+prompt, restart it by pressing \code{(up-arrow)} (up-arrow) in that pane and hitting Enter.
+The full command is always in the pane's bash history:
+\itemize{
+\item \strong{localhost}: \verb{Rscript -e "..."} (re-enters \code{tmuxRunWorkerLoop}; in
+\code{killAndNewPane} mode \code{respawn-pane} takes over from the first job onward).
+\item \strong{remote}: \verb{if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi}
+command (restarts the sh loop from scratch; plain POSIX  -- works in bash, dash, and sh).
+}
+}
+
+\subsection{ANSI colour support}{
+
+At startup, \code{experimentTmux} sets the tmux session option
+\code{default-terminal = "tmux-256color"}.  This ensures that all subsequently
+created panes advertise a full-colour ANSI terminal, which is required for
+R packages such as \code{cli} and \code{crayon} to render coloured/dynamic output
+correctly.  Without this, connections that arrive via Windows PowerShell
+-> SSH -> tmux often inherit \code{TERM=screen} or no \code{TERM} at all, causing
+R to fall back to plain-text output.  The setting is applied globally to the
+session (\code{-g}) and persists for the session's lifetime; it does not modify
+\verb{~/.tmux.conf}.
+}
+}
+\section{Related tmux helpers}{
+
+\tabular{ll}{
+\strong{Function} \tab \strong{Purpose} \cr
+\code{\link[=tmuxPrepareQueueFromDF]{tmuxPrepareQueueFromDF()}} \tab Build a file-backed queue RDS from a data.frame of runs \cr
+\code{\link[=tmuxRunNextWorker]{tmuxRunNextWorker()}} \tab Claim and run one queued job in the current R session \cr
+\code{\link[=tmuxRunWorkerLoop]{tmuxRunWorkerLoop()}} \tab Loop of \code{tmuxRunNextWorker()} inside a worker pane \cr
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} \tab Re-evaluate job status from output files and heartbeats \cr
+\code{\link[=tmuxMirrorQueueToSheets]{tmuxMirrorQueueToSheets()}} \tab Mirror a local queue RDS to a Google Sheet \cr
+\code{\link[=tmuxListPanes]{tmuxListPanes()}} \tab List every pane across every tmux server on this machine \cr
+\code{\link[=tmuxFindDuplicates]{tmuxFindDuplicates()}} \tab Surface panes running the same job (duplicate claims) \cr
+\code{\link[=tmuxSetPaneTitle]{tmuxSetPaneTitle()}} \tab Rewrite a pane's title by matching its current title \cr
+\code{\link[=tmuxKillPanes]{tmuxKillPanes()}} \tab Kill a set of panes by ID (tear-down) \cr
+\code{\link[=tmuxSetMouse]{tmuxSetMouse()}} \tab Enable or disable tmux mouse mode \cr
+\code{\link[=tmuxActiveRunningPath]{tmuxActiveRunningPath()}} \tab Default path for per-run "active" flag files \cr
+\code{\link[=localHostLabel]{localHostLabel()}} \tab Short cluster alias for this machine (\verb{/etc/hosts} lookup) \cr
+}
+}
+
 \examples{
 \dontrun{
-expt <- data.frame(
-  .ELFind = c("6.1.1","6.2.2","6.2.3","6.3.1"),
-  .rep    = 1,
-  check.names = FALSE
+# --- Minimal: build a tiny global.R, then run a 2 x 2 experiment ---
+tdir <- file.path(tempdir(), "experimentTmux-demo")
+dir.create(tdir, showWarnings = FALSE, recursive = TRUE)
+writeLines(
+  'message("scenario=", .scenario, " rep=", .rep); Sys.sleep(2)',
+  file.path(tdir, "global.R")
+)
+expt <- expand.grid(.scenario = c("A", "B"), .rep = 1:2,
+                    stringsAsFactors = FALSE)
+
+workers <- experimentTmux(
+  df          = expt,
+  global_path = file.path(tdir, "global.R"),
+  cores       = rep("localhost", 2L),
+  queue_path  = file.path(tdir, "queue.rds")
 )
 
-# First pane: no delay. Others: 60s, with +5s stagger per pane.
+# --- Live inspection while panes run ---
+experimentMonitor()                       # tmux pane scan (no args)
+experimentMonitor(stats = TRUE)           # adds CPU / RAM / state per pane
+tmuxListPanes()                           # alias of experimentMonitor()
+queueRead(file.path(tdir, "queue.rds"))   # full queue snapshot
+tmuxFindDuplicates(workers)               # any double-claimed jobs?
+tmuxRefreshQueueStatus(file.path(tdir, "queue.rds"))   # reset stuck rows
+
+# --- Basic local usage with explicit pane sizing ---
 workers <- experimentTmux(
-  df                  = expt,
   global_path         = "/abs/path/to/global.R",
+  queue_path          = "/abs/path/to/queue.rds",
   n_workers           = 4,
+  pane_mode           = "killAndNewPane",
   delay_before_source = 60,
-  stagger_by          = 5,
+  stagger_by          = 60,
   set_mouse           = TRUE
 )
 
-# If something goes wrong during development:
-tmux_kill_panes(workers)
+# --- Mixed local + remote ---
+# Runs 2 workers on localhost and 2 on remote host "sbw".
+# .setup_remote_machine("sbw", ...) is called automatically before workers start.
+workers <- experimentTmux(
+  global_path = "/abs/path/to/global.R",
+  queue_path  = "/abs/path/to/queue.rds",
+  cores       = c("localhost", "localhost", "sbw", "sbw"),
+  pane_mode   = "killAndNewPane",
+  email       = "you@example.com",
+  cache_path  = "/abs/path/to/.secret",
+  ss_id       = "your-google-sheet-id"
+)
+
+# --- Tear down all workers ---
+tmuxKillPanes(workers)
+
+# --- Restart a single broken pane ---
+# In the broken pane, press Up then Enter to re-run the last command.
 }
 }
