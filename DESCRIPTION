@@ -66,7 +66,6 @@ Suggests:
     reproducible,
     rmarkdown,
     sf,
-    SpaDES.config,
     SpaDES.core,
     terra,
     testthat (>= 3.0.0),
@@ -75,8 +74,7 @@ Suggests:
     visNetwork,
     waldo,
     withr
-Remotes: 
-    PredictiveEcology/SpaDES.config@development,
+Remotes:
     PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
