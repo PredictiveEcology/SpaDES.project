@@ -101,8 +101,8 @@ packages, prefix the function call with the package e.g., \code{terra::rast}. Wh
 using \code{setupProject}, the \code{functions} argument is evaluated after \code{paths}, so
 it cannot be used to define functions that help specify \code{paths}.}
 
-\item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
-not working.}
+\item{config}{Reserved for future use. Currently unimplemented; supplying
+a value triggers an error.}
 
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start

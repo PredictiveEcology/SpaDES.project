@@ -79,6 +79,10 @@ version 1.0.1
   queue-less micro-runner. The conceptual differences are documented
   in the "Experiments" chapter of the SpaDES4Modellers book.
 
+## Removed
+
+* Drop `SpaDES.config` dependency (Suggests + Remotes); resolves the circular dep flagged in #78. The `config` arg to `setupProject()` was never wired up and now stops with a clearer message.
+
 ## Bug fixes
 
 * `tmuxRunNextWorker()` no longer calls `reproducible::checkPath()`; uses `dir.create()` so workers run under `_R_CHECK_DEPENDS_ONLY_=true` (where Suggests are absent).

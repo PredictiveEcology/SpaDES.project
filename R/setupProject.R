@@ -56,8 +56,8 @@ utils::globalVariables(c(
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
 #'   See help for `SpaDES.core::simInit`.
-#' @param config Still experimental linkage to the `SpaDES.config` package. Currently
-#'   not working.
+#' @param config Reserved for future use. Currently unimplemented; supplying
+#'   a value triggers an error.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
 #'   not attached to the search path. See also the `require` argument. To force skip
@@ -668,22 +668,11 @@ setupProject <- function(name, paths, modules, packages,
       #               libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
 
       if (!missing(config)) {
-        # messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
-        # if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
-        #   Require::Install("PredictiveEcology/SpaDES.config@development")
-        # }
-        messageWarnStop("config is not yet setup to run with SpaDES.project")
-        # if (FALSE)
-        #   out <- do.call(SpaDES.config::useConfig, append(
-        #     list(projectName = config,
-        #          projectPath = paths[["projectPath"]], paths = paths),
-        #     localVars))
-
+        messageWarnStop("`config` is not yet supported by setupProject().")
       }
       if (failedBCMissingPackage %in% FALSE)
         break
     }
-    # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
     remainingArgs <- origArgOrder[!argsAreInFormals]
     remainingArgs <- remainingArgs[nzchar(remainingArgs)]
     # if (missing(paramsSUB))
