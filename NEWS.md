@@ -5,6 +5,7 @@ version 1.0.1
 
 ## New features
 
+* New `teardownProject(out)`: reverses a `setupProject()` call. Removes the project library, unlinks the project paths, and restores the prior `.libPaths()` that `setupProject()` now stores on its output as `out$paths$.previousLibPaths` (#31). The previous (dot-prefixed) `.teardownProject()` is kept as an alias.
 * New `re**` family — inverse of `out**` — for retrieving uploaded sims: `reGet()` (download from Google Drive), `reUntar()` (extract; optional `pathRemap` rewrites a path prefix via GNU `tar --transform`), `reLoad()` (`loadSimList()` / `readRDS()`), and the wrapper `reGetUntarLoad()` (also applies `pathRemap` to each sim's `outputs()$file` column). Vectorised over a batch (e.g. a `dribble` from `outList()`). See `?reGetUntarLoad`.
 * New `experimentMonitor()` unifies tmux + experimentFuture worker discovery; `stats = TRUE` adds CPU / RAM / state. `tmuxListPanes()` is now a thin alias.
 * `experimentFutureList(ef)` works cluster-wide: probes hostname → SSH-alias and does batched SSH liveness / kill / `readlink` per machine; `kill = TRUE` also pushes the demotion to the Google Sheet via the `<queue_path>.ss_id` sidecar.
