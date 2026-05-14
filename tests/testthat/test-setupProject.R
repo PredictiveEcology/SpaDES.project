@@ -190,64 +190,6 @@ test_that("test setupProject - arbitrary arguments", {
   #   expect_true(sum(grepl("Authenticating as", mess)) == 1)
 })
 
-test_that("test setupProject - args from global envir -- allow pkg installs", {
-  skip("Not completed tests yet")
-  skip_on_cran()
-  setupTest("geodata", "reproducible")
-  ## Pass args from GlobalEnv
-  studyAreaName <- "AB"
-  mess <- capture_messages({
-    out <- setupProject(
-      paths = list(packagePath = .libPaths()[1L], projectPath = "LandWeb"),
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-      defaultDots = list(mode = "development",
-                         studyAreaName = "MB"),
-      mode = "development",
-      studyAreaName = studyAreaName)
-  })
-})
-
-test_that("test setupProject - mixture of named list elements", {
-  skip("Not completed tests yet")
-  skip_on_cran()
-  setupTest()
-  ## mixture of named list element, github file and local file for e.g., options
-  mess <- capture_messages({
-    out <- setupProject(
-      name = paste0("test_SpaDES_project_", .rndstr(1)),
-      # name = "test_SpaDES_project",
-      options = list(reproducible.useTerra = TRUE,
-                     "PredictiveEcology/SpaDES.project@development/inst/options.R",
-                     system.file("authentication.R", package = "SpaDES.project")), # local file
-      params = list(Biomass_borealDataPrep = list(.plots = "screen")),
-      paths = list(packagePath = .libPaths()[1L], modulePath = "m", # projectPath = "test",
-                   scratchPath = tempdir()),
-      modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-      packages = NULL
-    )
-  })
-})
-
-test_that("test setupProject - load packages using require argument", {
-  skip("Not completed tests yet")
-  skip_on_cran()
-  setupTest()
-  ## load packages using `require` argument -- now loads SpaDES.core & reproducible
-  mess <- capture_messages({
-    out <- setupProject(
-      paths = list(packagePath = .libPaths()[1L], projectPath = paste0("MEE_Paper", .rndstr(1))), # will deduce name of project from projectPath
-      standAlone = TRUE,
-      require = c("PredictiveEcology/reproducible@development (>= 1.2.16.9017)",
-                  "PredictiveEcology/SpaDES.core@development (>= 1.1.0.9001)"),
-      modules = c("PredictiveEcology/Biomass_speciesData@master",
-                  "PredictiveEcology/Biomass_borealDataPrep@development",
-                  "PredictiveEcology/Biomass_core@master",
-                  "PredictiveEcology/Biomass_validationKNN@master",
-                  "PredictiveEcology/Biomass_speciesParameters@development")
-    )
-  })
-
-})
 
 test_that("test setupProject - pass modules as a list", {
   skip_on_cran()
@@ -330,27 +272,6 @@ test_that("projectPath is in a tempdir", {
                        paths = list(packagePath = .libPaths()[1L])))
 
   expect_true(sum(grepl("but the projectPath is the tempdir", warns)) == 1)
-})
-
-test_that("projectPath is in a tempdir", {
-  skip("config not working yet")
-
-  skip_on_cran()
-  setupTest("geodata", "reproducible")
-
-  err <- capture_error({
-    mess <- capture_messages({
-      out <- setupProject(
-        paths = list(packagePath = .libPaths()[1L], projectPath = paste0("test_LandWeb", .rndstr(1))),
-        modules = "PredictiveEcology/Biomass_borealDataPrep@development",
-        packages = NULL,
-        config = "LandWeb",
-        defaultDots = list(mode = "development", studyAreaName = "MB"),
-        mode = mode, studyAreaName = studyAreaName#,
-      )
-    })
-  })
-
 })
 
 test_that("test setupProject - nested GH modules", {
@@ -576,35 +497,6 @@ test_that("test sideEffects that are not in sideEffect", {
   expect_true(!is.null(out$lala))
   expect_true(is.null(out2$lala))
 })
-
-test_that("test mix git repos for modules and non-gitrepos", {
-  skip_on_cran()
-  skip_on_ci()
-  skip("Not Ready Yet")
-
-  setupTest(pkgs = "httr") # setwd, sets .libPaths() to a temp
-  testingDir <- "~/testing"
-  activeDir <- file.path(testingDir, "setupProject", basename(tempfile()))
-  dir.create(activeDir, recursive = TRUE, showWarnings = FALSE)
-  withr::local_dir(activeDir)
-
-  withr::local_options("Require.verbose" = 1)
-  browser()
-  out <- SpaDES.project::setupProject(
-    Restart = FALSE,
-    useGit = "eliotmcintire",
-    paths = list(packagePath = .libPaths()[1L], projectPath = "cccandies-demo-test2",
-                 modulePath = 'modules',
-                 inputPath = 'input',
-                 outputPath = 'output',
-                 cachePath = 'cache'),
-    # overwrite = TRUE, # useGit = "eliotmcintire",
-    modules = c("PredictiveEcology/spades_ws3_dataInit@main",
-                "PredictiveEcology/spades_ws3@dev",
-                "bogus_fire")
-  )
-})
-
 
 test_that("test check if all args are used", {
   skip_on_cran()
