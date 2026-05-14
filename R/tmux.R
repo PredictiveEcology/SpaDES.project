@@ -1798,7 +1798,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
   activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
   startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
-  reproducible::checkPath(dirname(startedFile), create = TRUE)
+  dir.create(dirname(startedFile), recursive = TRUE, showWarnings = FALSE)
   saveRDS(runName, file = startedFile)
   saveRDS(q, queue_path)
   filelock::unlock(lck)

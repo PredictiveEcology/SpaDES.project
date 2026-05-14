@@ -81,6 +81,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `tmuxRunNextWorker()` no longer calls `reproducible::checkPath()`; uses `dir.create()` so workers run under `_R_CHECK_DEPENDS_ONLY_=true` (where Suggests are absent).
 * `setupPaths()` detects an R version change since the previous run (e.g. 4.3 -> 4.5) by comparing the running R `major.minor` to the trailing version segment of `.libPaths()[1]`. On mismatch it calls `Require::setupOff()` to clear the stale `.Rprofile` block before the regular `Require::setLibPaths(updateRprofile = TRUE)` rewrites both `.libPaths()` and `.Rprofile` for the current R.
 * `reUntar()` tests now skip on systems without GNU tar (BSD tar on macOS rejects `--absolute-names` / `--transform`); regenerate `outSave()` / `outSaveTarUpload()` Rd to include `lazy`; trim stray `@param`s on the `as_scenario()` generic so they no longer trip the `Rd \usage` check. Together these unstick GHA R-CMD-check on macOS.
 * `reUntar()` / `reGetUntarLoad()` now `path.expand()` the `pathRemap` `old` / `new` so a leading `~` works (tar's `--transform` does not expand `~`).
