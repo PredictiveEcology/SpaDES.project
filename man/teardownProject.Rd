@@ -6,8 +6,6 @@
 \title{Tear down a project created by \code{setupProject()}}
 \usage{
 teardownProject(x, origLibPaths)
-
-.teardownProject(prjPaths, origLibPaths)
 }
 \arguments{
 \item{x}{Either the list returned by \code{\link[=setupProject]{setupProject()}}, or a character

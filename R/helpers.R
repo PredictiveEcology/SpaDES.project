@@ -168,7 +168,6 @@ teardownProject <- function(x, origLibPaths) {
 }
 
 #' @rdname teardownProject
+#' @usage NULL
 #' @export
-.teardownProject <- function(prjPaths, origLibPaths) {
-  teardownProject(prjPaths, origLibPaths)
-}
+.teardownProject <- teardownProject
