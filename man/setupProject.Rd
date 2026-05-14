@@ -459,9 +459,12 @@ out <- setupProject(
 \dontshow{setwd(origDir)}
 }
 \seealso{
-\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
-\code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
-\code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
+Inner \verb{setup*} helpers (each has its own help page; see \link{setup_family}
+for a one-page overview):
+\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupFunctions]{setupFunctions()}}, \code{\link[=setupSideEffects]{setupSideEffects()}},
+\code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupPackages]{setupPackages()}},
+\code{\link[=setupParams]{setupParams()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}, \code{\link[=setupStudyArea]{setupStudyArea()}}, \code{\link[=setupFiles]{setupFiles()}}.
+Also, helpful functions such as \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}.
 
 \code{vignette("i-getting-started", package = "SpaDES.project")}
 }

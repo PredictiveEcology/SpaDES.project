@@ -4,6 +4,40 @@ utils::globalVariables(c(
   "rasterToMatch"
 ))
 
+#' Overview: the `setup*` family
+#'
+#' [setupProject()] is the high-level entry point that calls each of the
+#' inner `setup*` helpers in order. The helpers are normally invoked
+#' indirectly via `setupProject()`, but each is exported so users can call
+#' it on its own (for diagnosis, partial setup, or post-hoc tweaks).
+#'
+#' Order in which `setupProject()` calls the helpers:
+#' \enumerate{
+#'   \item [setupOptions()] (first pass -- before paths)
+#'   \item [setupPaths()]
+#'   \item `setupRestart` (internal)
+#'   \item [setupFunctions()]
+#'   \item [setupModules()]
+#'   \item [setupPackages()]
+#'   \item [setupSideEffects()]
+#'   \item [setupOptions()] (second pass -- after packages)
+#'   \item [setupParams()]
+#'   \item [setupGitIgnore()]
+#' }
+#'
+#' Other companions used directly by user code or by `setupProject()`:
+#' [setupStudyArea()] (resolves a study-area polygon via `geodata::gadm()`)
+#' and [setupFiles()] (parses local / remote files into named lists).
+#'
+#' @seealso [setupProject()], [setupPaths()], [setupFunctions()],
+#'   [setupSideEffects()], [setupOptions()], [setupModules()],
+#'   [setupPackages()], [setupParams()], [setupGitIgnore()],
+#'   [setupStudyArea()], [setupFiles()].
+#' @name setup_family
+#' @aliases setup
+#' @keywords internal
+NULL
+
 #' Sets up a new or existing SpaDES project
 #'
 #' @description `setupProject` calls a sequence of functions in this order:
@@ -389,10 +423,13 @@ utils::globalVariables(c(
 #' @importFrom stats na.omit setNames
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
-#' @rdname setupProject
-#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
-#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
-#' [user()], [machine()], [node()]
+#' @seealso
+#' Inner `setup*` helpers (each has its own help page; see [setup_family]
+#' for a one-page overview):
+#' [setupPaths()], [setupFunctions()], [setupSideEffects()],
+#' [setupOptions()], [setupModules()], [setupPackages()],
+#' [setupParams()], [setupGitIgnore()], [setupStudyArea()], [setupFiles()].
+#' Also, helpful functions such as [user()], [machine()], [node()].
 #' @seealso `vignette("i-getting-started", package = "SpaDES.project")`
 #'
 #' @examples
@@ -813,13 +850,12 @@ setupProject <- function(name, paths, modules, packages,
   return(out)
 }
 
-#' Individual `setup*` functions that are contained within `setupProject`
+#' Set up project, module, and scratch paths
 #'
-#' These functions will allow more user control, though in most circumstances,
-#' it should be unnecessary to call them directly.
+#' Resolve, default-fill, and apply the path list used by [setupProject()].
 #'
 #' @details
-#' `setPaths` will fill in any paths that are not explicitly supplied by the
+#' `setupPaths` will fill in any paths that are not explicitly supplied by the
 #' user as a named list. These paths that can be set are:
 #' `projectPath`, `packagePath`, `cachePath`, `inputPath`,
 #' `modulePath`, `outputPath`, `rasterPath`, `scratchPath`, `terraPath`.
@@ -844,6 +880,8 @@ setupProject <- function(name, paths, modules, packages,
 #' In addition, three paths will be added to this same attribute automatically:
 #' `projectPath`, `packagePath`, and `.prevLibPaths` which is the previous value for
 #' `.libPaths()` before changing to `packagePath`.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
 #' @section Paths:
 #'   \tabular{lll}{
@@ -885,8 +923,6 @@ setupProject <- function(name, paths, modules, packages,
 #' @param callingEnv The environment from which the function was called. Defaults to `sys.frame(-2)`
 #'   which represents the case where the inner `setup*` functions are called inside
 #'   `setupProject`, which was called by a user.
-#' @rdname setup
-#' @aliases setup
 #' @param envir An environment within which to look for objects. If called alone,
 #' the function should use its own internal environment. If called from another
 #' function, e.g., `setupProject`, then the `envir` should be the internal
@@ -1135,17 +1171,24 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 }
 
 
-#' @export
-#' @rdname setup
+#' Source user-supplied helper functions into the project environment
+#'
+#' Source the functions supplied to [setupProject()] so they are available
+#' to subsequent `setup*` steps and to the user's session.
 #'
 #' @details
 #' `setupFunctions` will source the functions supplied, with a parent environment being
 #' the internal temporary environment of the `setupProject`, i.e., they will have
 #' access to all the objects in the call.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupFunctions` returns NULL. All functions will be placed in `envir`.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 #' @importFrom data.table data.table
 #' @examples
 #'
@@ -1209,8 +1252,10 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 
 
 
-#' @export
-#' @rdname setup
+#' Run side-effect scripts (e.g., authentication, custom package options)
+#'
+#' Source the side-effect scripts or expressions supplied to [setupProject()];
+#' nothing is returned to the user.
 #'
 #' @details
 #' Most arguments in the family of `setup*` functions are run *sequentially*, even within
@@ -1223,6 +1268,8 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 #' may or may not replace individual values. This can create hierarchies, *based on
 #' order*.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupSideEffects` is run for its side effects (e.g., web authentication, custom package
 #' options that cannot use `base::options`), with deliberately nothing returned to user.
@@ -1230,7 +1277,9 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 #' that occur when a user uses e.g., `source` without being very careful about
 #' what and where the objects are sourced to.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
+#' @export
 #' @importFrom data.table data.table
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
                              envir = parent.frame(), callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L),
@@ -1267,8 +1316,10 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 }
 
 
-#' @export
-#' @rdname setup
+#' Apply (and stage) project options
+#'
+#' Set the `options()` supplied to [setupProject()] and record the prior values
+#' so they can be restored.
 #'
 #' @details
 #' `setupOptions` can handle sequentially specified values, meaning a user can
@@ -1276,12 +1327,16 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' may or may not replace individual values. Thus final values will be based on the
 #' order that they are provided.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupOptions` is run for its side effects, namely, changes to the `options()`. The
 #'   list of modified options will be added as an attribute (`attr(out, "projectOptions")`),
 #'   e.g., so they can be "unset" by user later.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
+#' @export
 #' @importFrom data.table data.table
 setupOptions <- function(name, options, paths, times, overwrite = FALSE,
                          envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -1503,14 +1558,19 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   l
 }
 
-#' @export
-#' @rdname setup
+#' Download (or git clone) SpaDES modules into the project's `modulePath`
+#'
+#' Materialise the modules requested in [setupProject()] beneath
+#' `paths[["modulePath"]]`, optionally as git submodules.
+#'
 #' @details
 #' `setupModules` will download all modules do not yet exist locally. The current
 #' test for "exists locally" is simply whether the directory exists. If a user
 #' wants to update the module, `overwrite = TRUE` must be set, or else the user can
 #' remove the folder manually.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupModules` is run for its side effects, i.e., downloads modules and puts them
 #' into the `paths[["modulePath"]]`. It will return a named list, where the names are the
@@ -1518,6 +1578,10 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' depends on (`reqsPkgs`)
 #'
 #' @param gitUserName The GitHub account name. Used with git clone git@github.com:*gitHuserName*/name
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 #' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -1841,12 +1905,18 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 }
 
 
-#' @export
-#' @rdname setup
+#' Install module + user-supplied R packages into the project library
+#'
+#' Combine the modules' `reqdPkgs` with the user-supplied `packages` and
+#' install all of them into `paths[["packagePath"]]` via `Require::Install()`.
+#'
 #' @details
 #' `setupPackages` will read the modules' metadata `reqdPkgs` element. It will combine
 #' these with any packages passed manually by the user to `packages`, and pass all
 #' these packages to `Require::Install(...)`.
+#'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @param modulePackages A named list, where names are the module names, and the elements
 #'   of the list are packages in a form that `Require::Require` accepts.
 #'
@@ -1854,6 +1924,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 #' `setupPackages` is run for its side effects, i.e., installing packages to
 #' `paths[["packagePath"]]`.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 setupPackages <- function(packages, modulePackages = list(), require = list(), paths, libPaths,
                           setLinuxBinaryRepo = TRUE,
                           standAlone, envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -2042,14 +2115,20 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
   invisible(NULL)
 }
 
-#' @export
-#' @rdname setup
+#' Prepare module parameter lists for `simInit()`
 #'
+#' Build the nested `params` list that [SpaDES.core::simInit()] consumes from
+#' the user-supplied `params` argument to [setupProject()].
+#'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupParams` prepares a named list of named lists, suitable to be passed to
 #' the `params` argument of `simInit`.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
+#' @export
 #' @importFrom data.table data.table
 setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE,
                         envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -2504,14 +2583,19 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 }
 
 
-#' @export
-#' @rdname setup
+#' Add `packagePath` and/or `modulePath` to the project's `.gitignore`
+#'
+#' Helper that keeps the `.gitignore` of a project under git control in sync
+#' with the project's resolved paths.
+#'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @param gitignore Logical. Only has an effect if the `paths$projectPath`
 #'   is a git repositories without submodules. This case is ambiguous what a user
 #'   wants. If `TRUE`, the default, then `paths$modulePath` will be added to
 #'   the `.gitignore` file. Can be controled with `options(SpadES.project.gitignore = ...)`.
 #' @details
-#' `setupGitIgnore` will add.
+#' `setupGitIgnore` will add the relevant paths to `.gitignore`.
 #'
 #' @return
 #' `setupGitIgnore` is run for its side effects, i.e., adding either `paths$packagePath`
@@ -2522,6 +2606,10 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' If the project is a git repository without git submodules, then the `paths$modulePath`
 #' will be added to the `.gitignore` file. It is assumed that these modules are
 #' used in a `read only` manner.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE),
                            verbose) {
 
@@ -2938,10 +3026,13 @@ stopMessForRequireFail <- function(pkg) {
          "for a manual install.packages ...")
 }
 
-#' @rdname setup
-#' @export
+#' Resolve a study area from a `studyArea` spec via `geodata::gadm()`
+#'
+#' Convenience wrapper that returns an `sf` polygon for the requested
+#' country / subregion using `geodata::gadm()`.
+#'
 #' @inheritParams setupProject
-#' @importFrom rstudioapi getActiveProject getSourceEditorContext
+#' @inheritParams setupPaths
 #'
 #' @details
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
@@ -2955,7 +3046,12 @@ stopMessForRequireFail <- function(pkg) {
 #'
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
-#' with subregion specification as described in the `studyArea` argument.fsu
+#' with subregion specification as described in the `studyArea` argument.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
+#' @importFrom rstudioapi getActiveProject getSourceEditorContext
 setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
                            callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L)) {
 
@@ -3934,9 +4030,14 @@ simplifyModuleName <- function(modules) {
   modulesSimple
 }
 
-#' @rdname setup
-#' @export
+#' Parse a list of (possibly remote) R / config files
+#'
+#' Convenience helper, intended primarily for interactive use, that parses
+#' each file (local path or `github.com` URL with `@branch` notation) into a
+#' named list.
+#'
 #' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @param files A vector or list of files to parse. These can be remote github.com files.
 #'
 #' @details
@@ -3951,6 +4052,10 @@ simplifyModuleName <- function(modules) {
 #'
 #' @return
 #' `setupFiles` a named list with each element that was parsed.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 setupFiles <- function(files, paths, envir = parent.frame(), verbose = getOption("Require.verbose", 1L)) {
   messageVerbose(yellow(paste0(.txtSettingUp, " and parsing files ...")), verbose = verbose, verboseLevel = 0)
   envirCur = environment()

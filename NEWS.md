@@ -79,6 +79,9 @@ version 1.0.1
   queue-less micro-runner. The conceptual differences are documented
   in the "Experiments" chapter of the SpaDES4Modellers book.
 
+## Documentation
+
+* Each `setup*` helper now has its own help page, with `@seealso` cross-links and a new `?setup_family` overview (#44). The composite `?setup` page is gone; `?setup` still resolves (alias on `setup_family`).
 ## Removed
 
 * Drop `SpaDES.config` dependency (Suggests + Remotes); resolves the circular dep flagged in #78. The `config` arg to `setupProject()` was never wired up and now stops with a clearer message.
