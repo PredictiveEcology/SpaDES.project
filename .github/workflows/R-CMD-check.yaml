@@ -45,7 +45,23 @@ jobs:
 
       - uses: r-lib/actions/setup-pandoc@v2
 
-      - uses: PredictiveEcology/actions/install-spatial-deps@v0.2
+      # Install geospatial system deps WITHOUT the ubuntugis-unstable PPA.
+      # That PPA installs libgdal37 (GDAL 3.11.x), but Posit's noble binary cache
+      # builds quickPlot/sf/terra against the Ubuntu-default libgdal34 -- the ABI
+      # mismatch surfaces as `libgdal.so.34: cannot open shared object file` when
+      # quickPlot loads (and fails the whole check via SpaDES.core lazy-load).
+      - name: Install geospatial system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libudunits2-dev libgdal-dev libgeos-dev libproj-dev libsqlite3-dev
+        shell: bash
+      - name: Install geospatial system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install pkg-config
+          brew install gdal
+        shell: zsh {0}
 
       # Homebrew's gdal/proj install does not always leave proj.db on PROJ's
       # default search path. Without it, terra::project()/terra::crs() emit
@@ -87,6 +103,8 @@ jobs:
 
       # Fallback when setup-r-dependencies fails (most often a transient
       # binary-fetch failure under pak). Up to 3 attempts with 60s backoff.
+      # `nick-fields/retry@v3` does not accept `shell: Rscript {0}`, so we
+      # invoke Rscript -e from bash.
       - name: Install R deps (retry fallback)
         if: steps.deps.outcome == 'failure'
         uses: nick-fields/retry@v3
@@ -95,13 +113,11 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 60
           retry_on: error
-          shell: 'Rscript {0}'
+          shell: bash
           command: |
-            install.packages("pak", repos = "https://r-lib.github.io/p/pak/stable/")
-            pak::local_install_dev_deps(ask = FALSE, dependencies = TRUE)
-            pak::pkg_install(c("any::rcmdcheck", "any::rematch2",
-                               "PredictiveEcology/Require@development"),
-                             ask = FALSE)
+            Rscript -e 'install.packages("pak", repos = "https://r-lib.github.io/p/pak/stable/")' \
+                    -e 'pak::local_install_dev_deps(ask = FALSE, dependencies = TRUE)' \
+                    -e 'pak::pkg_install(c("any::rcmdcheck", "any::rematch2", "PredictiveEcology/Require@development"), ask = FALSE)'
 
       - name: Install additional package dependencies
         run: |
