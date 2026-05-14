@@ -79,6 +79,10 @@ version 1.0.1
   queue-less micro-runner. The conceptual differences are documented
   in the "Experiments" chapter of the SpaDES4Modellers book.
 
+## Documentation
+
+* Each `setup*` helper now has its own help page, with `@seealso` cross-links and a new `?setup_family` overview (#44). The composite `?setup` page is gone; `?setup` still resolves (alias on `setup_family`).
+
 ## Bug fixes
 
 * `tmuxRunNextWorker()` no longer calls `reproducible::checkPath()`; uses `dir.create()` so workers run under `_R_CHECK_DEPENDS_ONLY_=true` (where Suggests are absent).
