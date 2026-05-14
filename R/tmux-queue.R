@@ -5,7 +5,7 @@
 #' @param queue_path character path to `.rds`
 #' @return Invisibly returns `queue_path`.
 #' @export
-tmux_prepare_queue_from_df <- function(df, queue_path) {
+tmuxPrepareQueueFromDF <- function(df, queue_path) {
   stopifnot(is.data.frame(df), is.character(queue_path), length(queue_path) == 1)
   q <- cbind(
     df,

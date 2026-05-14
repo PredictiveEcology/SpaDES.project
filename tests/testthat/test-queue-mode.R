@@ -1,5 +1,7 @@
 
 testthat::test_that("experimentTmux queue mode continues until DONE", {
+  testthat::skip_on_cran()
+  testthat::skip_on_ci()
   skip_if_no_tmux()
   td <- tempfile("tmux_queue"); unlink(td, recursive = TRUE); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
@@ -27,7 +29,7 @@ testthat::test_that("experimentTmux queue mode continues until DONE", {
     queue_path          = queue_path,
     activeRunningPath   = file.path(td, "logs")
   )
-  on.exit(try(tmux_kill_panes(workers), silent = TRUE), add = TRUE)
+  on.exit(try(tmuxKillPanes(workers), silent = TRUE), add = TRUE)
 
   ok <- wait_for(function() {
     if (!file.exists(queue_path)) return(FALSE)

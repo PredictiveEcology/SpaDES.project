@@ -101,8 +101,8 @@ packages, prefix the function call with the package e.g., \code{terra::rast}. Wh
 using \code{setupProject}, the \code{functions} argument is evaluated after \code{paths}, so
 it cannot be used to define functions that help specify \code{paths}.}
 
-\item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
-not working.}
+\item{config}{Reserved for future use. Currently unimplemented; supplying
+a value triggers an error.}
 
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
@@ -459,9 +459,12 @@ out <- setupProject(
 \dontshow{setwd(origDir)}
 }
 \seealso{
-\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
-\code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
-\code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
+Inner \verb{setup*} helpers (each has its own help page; see \link{setup_family}
+for a one-page overview):
+\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupFunctions]{setupFunctions()}}, \code{\link[=setupSideEffects]{setupSideEffects()}},
+\code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupPackages]{setupPackages()}},
+\code{\link[=setupParams]{setupParams()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}, \code{\link[=setupStudyArea]{setupStudyArea()}}, \code{\link[=setupFiles]{setupFiles()}}.
+Also, helpful functions such as \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}.
 
 \code{vignette("i-getting-started", package = "SpaDES.project")}
 }

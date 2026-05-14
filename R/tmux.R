@@ -1,3 +1,6 @@
+utils::globalVariables(c(
+  "..meta_cols", "interrupted_at"
+))
 
 # ======================================================================
 # tmux orchestrator (package-friendly)
@@ -19,7 +22,7 @@
 #' @param on Logical; `TRUE` to enable, `FALSE` to disable. Default `TRUE`.
 #' @return Invisibly returns `on`.
 #' @export
-tmux_set_mouse <- function(on = TRUE) {
+tmuxSetMouse <- function(on = TRUE) {
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
@@ -30,17 +33,36 @@ tmux_set_mouse <- function(on = TRUE) {
 # ------------------------------------------------------------------
 # Internal helper: prepare a remote machine before launching a worker
 # ------------------------------------------------------------------
-.setup_remote_machine <- function(host, global_path, queue_path) {
+.setup_remote_machine <- function(host, global_path, queue_path, extra_args_path = NULL,
+                                   cache_path = NULL, sp_dev_path = NULL,
+                                   local_pat_file = NULL, module_path = NULL) {
   message("Setting up remote machine: ", host)
 
   # Derive remote working directory: same relative path from ~ as local
+  # NOTE: steps below use .ssh_r() which runs Rscript via non-PTY SSH.
+  # Non-PTY SSH shells check $BASH_ENV; if BASH_ENV calls 'sleep $UNSET'
+  # with set -e, it fails silently (non-PTY shell continues).
+  # PTY SSH (ssh -t, used for interactive R) has a controlling terminal so
+  # BASH_ENV terminal-checks ([ -t 1 ]) succeed -> sleep fires -> shell exits.
+  # Fix: add 'set +e' guard to the BASH_ENV file so failures are non-fatal.
   local_home    <- path.expand("~")
   local_abs_dir <- dirname(normalizePath(global_path))
-  rel_dir       <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
-  remote_dir    <- paste0("~/", rel_dir)   # e.g. ~/GitHub/FireSenseTesting
+  # If global_path lives under the master's $HOME, mirror the same relative
+  # subpath under the remote's $HOME (different machines have different
+  # absolute home paths, but we want the project laid out the same way
+  # relative to ~).  If it lives elsewhere (e.g. /mnt/shared_cache or any
+  # NFS-mounted path that exists at the same absolute location on both
+  # ends), use the absolute path as-is so we don't mangle it with "~/".
+  if (startsWith(paste0(local_abs_dir, "/"), paste0(local_home, "/"))) {
+    rel_dir    <- sub(paste0("^", local_home, "/?"), "", local_abs_dir)
+    remote_dir <- if (nzchar(rel_dir)) paste0("~/", rel_dir) else "~"
+  } else {
+    remote_dir <- local_abs_dir
+  }
 
   # Repos: local option + r-universe prepended (remote machines won't have this set)
   install_repos <- unique(c("https://predictiveecology.r-universe.dev", getOption("repos")))
+  local_lib     <- .libPaths()[1L]
 
   # Internal helper: write R code to a local temp file, scp it to remote,
   # run it with Rscript (no shell quoting of R expressions needed), then delete.
@@ -49,15 +71,63 @@ tmux_set_mouse <- function(on = TRUE) {
     tmp <- tempfile(fileext = ".R")
     on.exit(unlink(tmp))
     writeLines(c(
+      paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))"),
       paste0("options(repos = ", deparse1(install_repos), ")"),
       paste0("setwd(path.expand('", remote_dir, "'))"),
       expr
     ), tmp)
     remote_tmp <- paste0("/tmp/", basename(tmp))
     system(paste0("scp -q ", shQuote(tmp), " ", host, ":", remote_tmp))
-    system2("ssh", c(host, paste0("Rscript ", remote_tmp, "; rm -f ", remote_tmp)),
+    system2("ssh", c(host, paste0(
+      "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
+      "Rscript ", remote_tmp, "; rm -f ", remote_tmp)),
             stdout = intern, stderr = "")
   }
+
+  # 0. Guard BASH_ENV file on remote.
+  #
+  #    Problem: when sshd runs a command it invokes the user's login shell as
+  #      /bin/bash -c "OUR_COMMAND"
+  #    That outer bash is a non-login, non-interactive shell, so it reads
+  #    $BASH_ENV before executing OUR_COMMAND.  If BASH_ENV contains a failing
+  #    'sleep $UNSET_VAR' (or an explicit 'exit') the outer bash may exit
+  #    *before* OUR_COMMAND runs:
+  #      - With set -e (bash default on some systems): exit non-zero -> while
+  #        loop stops (ok), but R never started.
+  #      - With set +e / explicit 'exit 0': exit zero -> while loop continues
+  #        -> infinite "Connection to ... closed." spam.
+  #
+  #    Fix: wrap the *entire* original BASH_ENV content in a subshell:
+  #      set +e
+  #      ( <original content> ) 2>/dev/null || true
+  #    A subshell's 'exit' cannot kill the parent shell.  '|| true' ensures
+  #    even a non-zero subshell exit is absorbed.  After this wrapper runs
+  #    (harmlessly), the outer bash proceeds to execute OUR_COMMAND.
+  #
+  #    Our 'env -u BASH_ENV bash ...' in OUR_COMMAND then strips BASH_ENV so
+  #    the inner bash we launch never reads the file at all.
+  .ssh_r(paste0(
+    "local({",
+    "  be <- Sys.getenv('BASH_ENV');",
+    "  if (!nzchar(be)) return(invisible(NULL));",
+    "  be <- path.expand(be);",
+    "  if (!file.exists(be)) return(invisible(NULL));",
+    "  lines <- readLines(be, warn = FALSE);",
+    # Already has the subshell wrapper  -- nothing to do.
+    "  if (any(grepl('spades_guard_v2', lines, fixed = TRUE))) return(invisible(NULL));",
+    # Strip the old v1 'set +e' prepend if present (same spades_guard tag,
+    # different approach  -- replace it with the subshell wrapper below).
+    "  lines <- lines[!grepl('spades_guard', lines, fixed = TRUE)];",
+    "  wrapped <- c(",
+    "    '# spades_guard_v2: original content wrapped in subshell so exit/failures cannot abort outer bash',",
+    "    'set +e',",
+    "    '(',",
+    "    lines,",
+    "    ') 2>/dev/null || true');",
+    "  writeLines(wrapped, be);",
+    "  message('  Wrapped BASH_ENV in subshell guard (v2): ', be)",
+    "})"
+  ))
 
   # 1. Create remote directory, scp global_path into it
   .ssh_r(paste0("dir.create(path.expand('", remote_dir,
@@ -71,138 +141,639 @@ tmux_set_mouse <- function(on = TRUE) {
   if (scp_ret != 0L)
     stop("scp of queue_path to '", host, "' failed.", call. = FALSE)
 
-  # 2. Verify Require matches local installation (version + source)
-  local_lib     <- .libPaths()[1]
+  if (!is.null(extra_args_path) && file.exists(extra_args_path)) {
+    scp_ret <- system(paste0("scp ", shQuote(normalizePath(extra_args_path)),
+                              " ", host, ":", remote_dir, "/"))
+    if (scp_ret != 0L)
+      warning("scp of extra_args_path to '", host, "' failed.", call. = FALSE)
+  }
+
+  # 1b. Rsync the project R/ folder (user-defined functions sourced by global.R).
+  #     Use rsync --delete so removals on localhost propagate to remote.
+  local_r_dir <- file.path(dirname(normalizePath(global_path)), "R")
+  if (dir.exists(local_r_dir)) {
+    message("  rsyncing R/ folder to ", host, ":", remote_dir, "/R/")
+    rsync_r_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(local_r_dir, "/")),
+      " ", host, ":", file.path(remote_dir, "R"), "/"
+    ))
+    if (rsync_r_ret != 0L)
+      warning("rsync of R/ folder to '", host, "' failed.", call. = FALSE)
+  }
+
+  # 1c. Rsync SpaDES modules (copyModules = TRUE).
+  if (!is.null(module_path)) {
+    message("  rsyncing modules to ", host, ":", module_path, "/")
+    rsync_mod_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(module_path, "/")),
+      " ", host, ":", module_path, "/"
+    ))
+    if (rsync_mod_ret != 0L)
+      warning("rsync of modules to '", host, "' failed.", call. = FALSE)
+  }
+
+  # 2. Persist repos, .libPaths(), defaultPackages, and SSL env vars in
+  #    ~/.Rprofile on remote.  Profile files are sourced by R before
+  #    .First.sys() attaches the default packages, so options("defaultPackages")
+  #    set here controls exactly which packages get attached.  This overrides
+  #    any Rprofile.site on the remote that sets defaultPackages=character(0)
+  #    (common on HPC clusters to minimise startup time).
+  #    SSL vars (CURL_CA_BUNDLE / SSL_CERT_FILE) are set here so that libcurl
+  #    inside R can find CA certificates for HTTPS downloads, even when R is
+  #    launched via a non-login SSH session where /etc/profile.d/ is not sourced.
+  repos_line    <- paste0("options(repos = ", deparse1(install_repos), ")")
+  libpath_line  <- paste0(".libPaths(c(", deparse1(local_lib), ", .libPaths()))")
+  defpkgs_line  <- paste0(
+    "options(defaultPackages = c(",
+    "'datasets','utils','grDevices','graphics','stats','methods'",
+    "))"
+  )
+  ssl_line     <- paste0(
+    "local({",
+    "  ca <- c('/etc/ssl/certs/ca-certificates.crt',",   # Debian/Ubuntu
+    "          '/etc/pki/tls/certs/ca-bundle.crt',",      # CentOS/RHEL
+    "          '/etc/ssl/cert.pem');",                     # macOS/Alpine
+    "  ca <- ca[file.exists(ca)];",
+    "  if (length(ca)) Sys.setenv(CURL_CA_BUNDLE = ca[1L], SSL_CERT_FILE = ca[1L])",
+    "})"
+  )
+  .ssh_r(paste0(
+    "rprof <- path.expand('~/.Rprofile'); ",
+    "existing <- if (file.exists(rprof)) readLines(rprof, warn = FALSE) else character(0); ",
+    "existing <- existing[!grepl('^options\\\\(repos|^options\\\\(defaultPackages|^\\\\.libPaths\\\\(|^local\\\\(\\\\{.*ca <-', existing)]; ",
+    "writeLines(c(existing, ",
+    deparse1(defpkgs_line), ", ",
+    deparse1(libpath_line), ", ",
+    deparse1(repos_line),   ", ",
+    deparse1(ssl_line),
+    "), rprof)"
+  ))
+
+  # 3. Verify Require matches local installation (version + RemoteSha).
+  #    RemoteSha is the git commit SHA recorded at install time  -- it changes
+  #    on every development push even when version and ref stay the same.
   local_req_ver <- as.character(packageVersion("Require", lib.loc = local_lib))
-  local_req_dsc <- packageDescription("Require", lib.loc = local_lib)
+  local_req_dsc <- utils::packageDescription("Require", lib.loc = local_lib)
+  local_req_sha <- local_req_dsc$RemoteSha
+  if (is.null(local_req_sha)) local_req_sha <- ""   # "" for CRAN installs
   if (identical(local_req_dsc$RemoteType, "github")) {
     local_req_src <- paste0(local_req_dsc$RemoteUsername, "/", local_req_dsc$RemoteRepo)
     if (!is.null(local_req_dsc$RemoteRef))
       local_req_src <- paste0(local_req_src, "@", local_req_dsc$RemoteRef)
   } else if (!is.null(local_req_dsc$Repository)) {
-    local_req_src <- local_req_dsc$Repository  # e.g. https://predictiveecology.r-universe.dev
+    local_req_src <- local_req_dsc$Repository
   } else {
     local_req_src <- "CRAN"
   }
 
-  remote_req_ver <- trimws(paste(collapse = "",
-    .ssh_r("cat(as.character(packageVersion('Require')))", intern = TRUE)))
+  remote_req_info <- trimws(paste(collapse = "",
+    .ssh_r(paste0(
+      "dsc <- packageDescription('Require');",
+      "ver <- as.character(packageVersion('Require'));",
+      "sha <- if (!is.null(dsc$RemoteSha)) dsc$RemoteSha else '';",
+      "src <- if (identical(dsc$RemoteType, 'github')) {",
+      "  ref <- paste0(dsc$RemoteUsername, '/', dsc$RemoteRepo);",
+      "  if (!is.null(dsc$RemoteRef)) ref <- paste0(ref, '@', dsc$RemoteRef);",
+      "  ref",
+      "} else if (!is.null(dsc$Repository)) dsc$Repository else 'CRAN';",
+      "cat(ver, sha, src)"
+    ), intern = TRUE)))
+  remote_req_parts <- strsplit(trimws(remote_req_info), "\\s+")[[1L]]
+  remote_req_ver   <- if (length(remote_req_parts) >= 1L) remote_req_parts[1L] else "0"
+  remote_req_sha   <- if (length(remote_req_parts) >= 2L) remote_req_parts[2L] else ""
+  remote_req_src   <- if (length(remote_req_parts) >= 3L) remote_req_parts[3L] else "CRAN"
 
-  if (numeric_version(remote_req_ver) < numeric_version(local_req_ver)) {
-    message("  Installing Require ", local_req_ver, " (", local_req_src, ") on ", host)
-    .ssh_r("install.packages('Require')")
+  needs_install <- tryCatch(
+    numeric_version(remote_req_ver) < numeric_version(local_req_ver),
+    error = function(e) TRUE
+  ) || !identical(remote_req_src, local_req_src) ||
+    (nzchar(local_req_sha) && !identical(remote_req_sha, local_req_sha))
+
+  if (needs_install) {
+    message("  Installing Require ", local_req_ver, " (", local_req_src,
+            " sha=", substr(local_req_sha, 1L, 7L), ") on ", host,
+            "\n  (remote has: ", remote_req_ver,
+            " sha=", substr(remote_req_sha, 1L, 7L),
+            " / ", remote_req_src, ")")
+    if (grepl("/", local_req_src)) {
+      # GitHub source: rsync the installed directory directly  -- faster than
+      # re-cloning via pak, and guarantees byte-for-byte identity with local.
+      local_req_path <- find.package("Require", lib.loc = local_lib)
+      message("  rsyncing Require (", local_req_ver, ") to ", host, ":", local_lib, "/")
+      system(paste0(
+        "rsync -a --delete ",
+        shQuote(paste0(normalizePath(local_req_path), "/")),
+        " ", host, ":", file.path(local_lib, "Require"), "/"
+      ))
+    } else {
+      .ssh_r("install.packages('Require')")
+    }
   }
 
-  # 3. Install usethis
+  # 4. Install usethis
   .ssh_r("Require::Install('usethis')")
 
-  # 4. Check git credentials
-  creds_out <- trimws(paste(collapse = "",
-    .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error = function(e) cat('none'))",
-           intern = TRUE)))
-
-  if (!grepl("ok", creds_out, fixed = TRUE))
-    stop(
-      "No GitHub credentials found on '", host, "'. ",
-      "On that machine run: usethis::create_github_token() then gitcreds::gitcreds_set()",
-      call. = FALSE
+  # 5. Propagate GitHub credentials from localhost to remote.
+  # Use gitcreds::gitcreds_set() on the remote  -- it calls gitcreds_approve()
+  # internally and therefore uses the exact same credential backend as
+  # gitcreds_get(), guaranteeing consistency.
+  # gitcreds_set() is interactive but reads from stdin in non-interactive R,
+  # so we pipe the responses via system2(input=).  When an existing credential
+  # is present it first asks "1: Keep / 2: Replace" before requesting the PAT;
+  # we detect this upfront and prepend "2" to the piped input when needed.
+  # Read PAT from caller-supplied file (written in the interactive session where
+  # the correct credential store is accessible), falling back to gitcreds_get()
+  # in this subprocess (which may see a different/stale credential store).
+  local_pat <- if (!is.null(local_pat_file) && file.exists(local_pat_file))
+    readLines(local_pat_file, warn = FALSE)[1L]
+  else
+    tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
+  if (!is.null(local_pat) && nzchar(local_pat)) {
+    message("  Propagating GitHub credentials to ", host)
+    # 5a. Write the correct GITHUB_PAT to ~/.Renviron on the remote.
+    #     ~/.Renviron is read by every R subprocess at startup (including pak's
+    #     callr subprocess) and overrides anything the parent set via Sys.setenv().
+    #     If a stale GITHUB_PAT is already there, this replaces it; if absent, it
+    #     adds it.  chmod 0600 keeps it owner-readable only.
+    .ssh_r(paste0(
+      "local({",
+      "  renv<-path.expand('~/.Renviron');",
+      "  lines<-if(file.exists(renv))readLines(renv,warn=FALSE) else character(0);",
+      "  lines<-lines[!grepl('^GITHUB_PAT=|^GITHUB_TOKEN=|^GH_TOKEN=',lines)];",
+      "  writeLines(c(lines,paste0('GITHUB_PAT=',", deparse1(local_pat), ")),renv);",
+      "  Sys.chmod(renv,'0600')",
+      "})"
+    ))
+    # Also write PAT to a file inside local_lib for the worker startup script
+    # (which reads it before Sys.unsetenv('R_PROFILE_USER') and before any
+    # callr subprocesses are started).
+    pat_file     <- file.path(local_lib, ".spades_github_pat")
+    pat_tmp_local <- tempfile()
+    on.exit(unlink(pat_tmp_local), add = TRUE)
+    writeLines(local_pat, pat_tmp_local)
+    Sys.chmod(pat_tmp_local, mode = "0600")
+    system(paste0("scp -q ", shQuote(pat_tmp_local), " ", host, ":", pat_file))
+    system2("ssh", c(host, paste0("chmod 0600 ", shQuote(pat_file))))
+    # Add/refresh the reader line in ~/.Rprofile.
+    pat_read_line <- paste0(
+      "local({f<-", deparse1(pat_file), ";",
+      "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
+      "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
     )
+    .ssh_r(paste0(
+      "rprof<-path.expand('~/.Rprofile');",
+      "lines<-if(file.exists(rprof))readLines(rprof,warn=FALSE) else character(0);",
+      "lines<-lines[!grepl('spades_github_pat',lines,fixed=TRUE)];",
+      "writeLines(c(lines,", deparse1(pat_read_line), "),rprof)"
+    ))
+    # 5b. Also propagate via git credential approve for git operations.
+    #     gitcreds_set() was used here previously but newer versions refuse to
+    #     run in non-interactive sessions.  git credential approve reads the
+    #     same credential store and works in any session type.
+    system2("ssh", c(host, "git credential approve"),
+            input = c("protocol=https", "host=github.com",
+                      "username=x-oauth-basic", paste0("password=", local_pat), ""))
+  } else {
+    # Fall back to checking whether the remote already has valid credentials.
+    creds_out <- trimws(paste(collapse = "",
+      .ssh_r("tryCatch({gitcreds::gitcreds_get(); cat('ok')}, error=function(e) cat('none'))",
+             intern = TRUE)))
+    if (!grepl("ok", creds_out, fixed = TRUE))
+      stop(
+        "No GitHub credentials found locally or on '", host, "'. ",
+        "Run: usethis::create_github_token() then gitcreds::gitcreds_set()",
+        call. = FALSE
+      )
+  }
 
-  # 5 & 6. Determine local SpaDES.project version and install >= that on remote
-  local_sp_ver <- as.character(packageVersion("SpaDES.project"))
-  sp_expr <- paste0(
-    "Require::Install('PredictiveEcology/SpaDES.project@development (>= ", local_sp_ver, ")')"
+  # 6. Install system libraries required by R packages that compile from source.
+  #    Covers: spatial (terra/sf), HTTP (curl/httr), XML, archive, git, fonts, graphics.
+  sys_pkgs <- paste(
+    "libgdal-dev libgeos-dev libproj-dev libsqlite3-dev libudunits2-dev",  # spatial
+    "libssl-dev libcurl4-openssl-dev libxml2-dev",                          # curl/httr/xml2
+    "libarchive-dev",                                                        # archive pkg
+    "libgit2-dev",                                                           # gert/git2r
+    "libfontconfig1-dev libharfbuzz-dev libfribidi-dev",                    # textshaping/ragg
+    "libpng-dev libjpeg-dev libtiff-dev",                                   # graphics devices
+    "libfreetype6-dev",                                                      # freetypeharfbuzz
+    "libabsl-dev",                                                           # abseil (grpc/protobuf deps)
+    "r-base-dev"                                                             # R compilation headers
   )
-  ret <- .ssh_r(sp_expr)
-  if (ret != 0L)
-    stop("SpaDES.project installation failed on '", host, "'.", call. = FALSE)
+  message("  Installing system libraries on ", host,
+          "\n  (if this fails, configure passwordless sudo on ", host,
+          " for apt-get, or run manually: ",
+          "sudo apt-get install -y --no-install-recommends ", sys_pkgs, ")")
+  # sudo -n: non-interactive (fails immediately if password required, no hang).
+  # || true so a missing sudo/password doesn't abort the whole setup.
+  system2("ssh", c(host, paste0(
+    "DEBIAN_FRONTEND=noninteractive sudo -n apt-get install -y --no-install-recommends ",
+    sys_pkgs,
+    " || echo 'NOTE: sudo apt-get failed on ", host,
+    " -- passwordless sudo may be needed; continuing anyway'"
+  )))
+
+  # 8. Ensure remote lib path exists (must match localhost so installed paths are identical).
+  message("  Ensuring remote lib path exists: ", local_lib)
+  system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_lib))))
+
+  # Rsync SpaDES.project to remote.
+  # sp_dev_path: set by experimentTmux when SpaDES.project is loaded via
+  # devtools::load_all() (dev version newer than installed). In dev mode we
+  # rsync the source tree to a temp location on the remote, then run
+  # R CMD INSTALL so the remote gets properly compiled lazy-load databases.
+  # If sp_dev_path is NULL, fall back to rsyncing the installed binary (fast
+  # path when local and remote share the same R version / platform).
+  if (!is.null(sp_dev_path) && dir.exists(sp_dev_path)) {
+    local_sp_ver <- tryCatch(
+      as.character(read.dcf(file.path(sp_dev_path, "DESCRIPTION"), "Version")[[1L]]),
+      error = function(e) "unknown"
+    )
+    message("  rsyncing SpaDES.project (", local_sp_ver,
+            " dev source) to ", host, " then running R CMD INSTALL")
+    remote_src <- "/tmp/SpaDES.project_src"
+    system2("ssh", c(host, paste0("rm -rf ", remote_src)))
+    rsync_ret <- system(paste0(
+      "rsync -a --exclude '.git' --exclude '.github' --exclude '*.o' --exclude '*.so' ",
+      shQuote(paste0(normalizePath(sp_dev_path), "/")),
+      " ", host, ":", remote_src, "/"
+    ))
+    if (rsync_ret != 0L)
+      stop("rsync of SpaDES.project source to '", host, "' failed.", call. = FALSE)
+    system2("ssh", c(host, paste0(
+      "env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods ",
+      "R CMD INSTALL --library=", shQuote(local_lib), " ", remote_src,
+      "; rm -rf ", remote_src
+    )))
+  } else {
+    # Binary fast path: rsync the installed package directory directly.
+    # Both machines should share the same platform and R version so the
+    # compiled lazy-load databases (.rdb) are compatible.
+    local_sp_path <- tryCatch(
+      find.package("SpaDES.project", lib.loc = local_lib),
+      error = function(e) stop(
+        "SpaDES.project not found in local_lib (", local_lib, "). ",
+        "Run devtools::install() or pass sp_dev_path explicitly.",
+        call. = FALSE
+      )
+    )
+    local_sp_ver  <- as.character(packageVersion("SpaDES.project", lib.loc = local_lib))
+    message("  rsyncing SpaDES.project (", local_sp_ver, ") to ", host, ":", local_lib, "/")
+    rsync_ret <- system(paste0(
+      "rsync -a --delete ",
+      shQuote(paste0(normalizePath(local_sp_path), "/")),
+      " ", host, ":", file.path(local_lib, "SpaDES.project"), "/"
+    ))
+    if (rsync_ret != 0L)
+      stop("rsync of SpaDES.project to '", host, "' failed.", call. = FALSE)
+  }
+
+  # 9. Install SpaDES.project's dependencies on remote via Require::Install.
+  # For Imports/Depends/LinkingTo: install all (hard requirements).
+  # For Suggests: only those installed on localhost  -- avoids pulling in dev/test
+  # packages (testthat, knitr, ...) while still propagating runtime Suggests like
+  # googlesheets4/googledrive/cli.
+  .parse_desc_pkgs <- function(fields) {
+    desc_path <- if (!is.null(sp_dev_path) && file.exists(file.path(sp_dev_path, "DESCRIPTION")))
+      file.path(sp_dev_path, "DESCRIPTION")
+    else
+      system.file("DESCRIPTION", package = "SpaDES.project")
+    dsc <- read.dcf(desc_path, fields = fields)
+    raw  <- paste(dsc[!is.na(dsc)], collapse = ",")
+    pkgs <- trimws(unlist(strsplit(raw, ",")))
+    pkgs <- trimws(sub("\\s*\\(.*", "", pkgs))
+    pkgs[nzchar(pkgs) & pkgs != "R"]
+  }
+  hard_pkgs      <- .parse_desc_pkgs(c("Imports", "Depends", "LinkingTo"))
+  suggests_all   <- .parse_desc_pkgs("Suggests")
+  local_inst     <- rownames(utils::installed.packages(lib.loc = local_lib))
+  suggests_local <- intersect(suggests_all, local_inst)
+  all_pkgs       <- unique(c(hard_pkgs, suggests_local))
+  # Packages whose pre-compiled binaries link against specific system library
+  # versions (e.g. libgdal.so.37) that may differ on the remote  -- compile from
+  # source so they link against whatever version the remote actually has.
+  src_pkgs  <- c("terra", "sf", "rgdal", "rgeos", "lwgeom")
+  src_pkgs  <- intersect(src_pkgs, all_pkgs)
+  bin_pkgs  <- setdiff(all_pkgs, src_pkgs)
+  # Ensure pak is installed  -- newer versions of Require use it as a backend.
+  .ssh_r("if (!requireNamespace('pak', quietly = TRUE)) install.packages('pak')")
+
+  if (length(src_pkgs) > 0L) {
+    message("  Compiling from source on ", host, ": ", paste(src_pkgs, collapse = ", "))
+    .ssh_r(paste0("Require::Install(", deparse1(src_pkgs),
+                  ", libPaths = .libPaths()[1L], type = 'source')"))
+  }
+  message("  Installing ", length(bin_pkgs), " dependency packages on ", host)
+  # Pre-install packages whose system-lib versions are commonly too old to satisfy
+  # transitive version requirements during compilation.  Require::Install searches
+  # all .libPaths() when deciding what is "already installed", so without explicit
+  # version constraints it would see purrr 1.0.4 in the system lib and skip it  --
+  # then furrr's R CMD INSTALL subprocess would find the wrong purrr.
+  # By stating the minimum required version, Require is forced to install a
+  # qualifying version to local_lib before the main batch install runs.
+  .ssh_r(paste0(
+    "Require::setLinuxBinaryRepo(); ",
+    "Require::Install(",
+    "c('purrr (>= 1.2.1)', 'rlang (>= 1.1.7)', 'cli (>= 3.6.0)', 'vctrs (>= 0.6.0)'),",
+    " libPaths = .libPaths()[1L])"
+  ))
+  .ssh_r(paste0("Require::setLinuxBinaryRepo(); Require::Install(", deparse1(bin_pkgs),
+                ", libPaths = .libPaths()[1L])"))
+
+  # 10. Rsync Require package binary cache to speed up future installations on remote.
+  local_cache <- Require::cachePkgDir()
+  if (nzchar(local_cache) && dir.exists(local_cache)) {
+    message("  Ensuring remote Require cache exists: ", local_cache)
+    system2("ssh", c(host, paste0("mkdir -p ", shQuote(local_cache))))
+    message("  rsyncing Require package cache to ", host, ":", local_cache)
+    cache_rsync_ret <- system(paste0(
+      "rsync -a ",
+      shQuote(paste0(local_cache, "/")),
+      " ", host, ":", local_cache, "/"
+    ))
+    if (cache_rsync_ret != 0L)
+      warning("rsync of Require cache to '", host, "' may have failed.")
+  }
+
+  # 11. Rsync gargle OAuth cache so the remote can authenticate without a browser prompt.
+  # Use the explicitly-passed cache_path first (must match what the worker uses),
+  # falling back to getOption("gargle_oauth_cache") if not supplied.
+  gargle_cache <- if (!is.null(cache_path)) cache_path else getOption("gargle_oauth_cache")
+  if (!is.null(gargle_cache) && !isFALSE(gargle_cache)) {
+    gargle_cache <- normalizePath(gargle_cache, mustWork = FALSE)
+    if (dir.exists(gargle_cache)) {
+      cache_parent <- dirname(gargle_cache)
+      message("  Ensuring remote gargle cache parent exists: ", cache_parent)
+      system2("ssh", c(host, paste0("mkdir -p ", shQuote(cache_parent))))
+      message("  rsyncing gargle OAuth cache to ", host, ":", gargle_cache)
+      cache_rsync_ret <- system(paste0(
+        "rsync -a --delete ",
+        shQuote(paste0(gargle_cache, "/")),
+        " ", host, ":", gargle_cache, "/"
+      ))
+      if (cache_rsync_ret != 0L)
+        warning("rsync of gargle OAuth cache to '", host, "' may have failed.")
+    } else {
+      message("  gargle_oauth_cache path does not exist locally, skipping: ", gargle_cache)
+    }
+  }
 
   invisible(TRUE)
 }
 
-#' Spawn tmux worker panes, start R, assign objects from a data.frame, and source a script (pane-internal delay)
+#' Spawn tmux worker panes and process a job queue
 #'
 #' @description
-#' Controls the **current tmux window** to:
-#' 1) create `n_workers` panes and tile them,
-#' 2) start plain **R** in each pane,
-#' 3) for the first `min(n_workers, nrow(df))` rows of `df`, assign objects named
-#'    by the **column names** in that row and then `source(global_path)`.
+#' Creates `n_workers` tmux panes in the current window, tiles them, and starts
+#' a worker loop in each one that claims and runs jobs from a file-backed queue
+#' (`queue_path`).  Control returns immediately to the **master pane**; all work
+#' happens asynchronously inside the worker panes.
 #'
-#' **Delays happen inside each pane’s R**, so control returns immediately to the **master pane**:
-#' - Pane 1: **no delay** before `source()`.
-#' - Pane i>1: sleeps `delay_before_source + (i-2)*stagger_by` seconds **inside R** before assignments + `source()`.
+#' ## Worker loop modes (`pane_mode`)
 #'
-#' Targeting uses tmux format expansion (`#{session_name}:#{window_index}`) and pane IDs
-#' via `list-panes -F "#{pane_id}"`; command injection uses `send-keys … C-m`. [2](https://callr.r-lib.org/)
+#' ### `"killAndNewPane"` (default)
+#' Each worker runs **one job per R session**, then exits.  A fresh R session
+#' starts automatically for the next job, freeing all memory between runs.
 #'
-#' @param df A `data.frame`. Column names become object names in worker panes; values
-#'   from each row are assigned prior to sourcing `global_path`.
-#' @param global_path Character scalar. Path to the script to `source()` in each pane.
-#'   Prefer an **absolute path** if worker panes start in a different directory.
-#' @param n_workers Integer. Number of worker panes to spawn. Default `4`.
-#' @param delay_after_split Numeric. Seconds to wait after each `split-window`. Default `0.2`.
+#' - **localhost panes**: After each job, `tmuxRunWorkerLoop()` calls
+#'   `tmux respawn-pane -k`, which replaces the current pane's process
+#'   in-place with a new `Rscript` invocation.  No retiling needed.
+#' - **Remote panes** (`cores = "hostname"`): The local pane runs a bash
+#'   while-loop that repeatedly calls
+#'   `ssh -t host bash -c 'exec env R_PROFILE_USER=<script> R --interactive'`.
+#'   `ssh -t` allocates a PTY so R runs interactively (readline, OSC 2 title
+#'   updates, Ctrl+C propagation).  A startup script injected via
+#'   `R_PROFILE_USER` runs one job then exits; `q(status = 1L)` (job done or
+#'   queue empty) lets the while-loop start a fresh R session, `q()` (status 0)
+#'   stops the loop.  `R_PROFILE_USER` is unset inside R immediately
+#'   after startup so workers spawned by `makeClusterPSOCK()` do not inherit
+#'   it and inadvertently re-run the startup script.
+#'
+#' ### `"reuse"`
+#' Each worker loops inside a single R session (`repeat { tmuxRunNextWorker() }`).
+#' Memory accumulates across jobs  -- useful for lightweight simulations.
+#'
+#' ## Remote machine setup (`cores`)
+#' Supplying a hostname in `cores` triggers `.setup_remote_machine()` once per
+#' unique host before any workers start.  Steps run in this order:
+#'
+#' 0. **Guard `BASH_ENV`**  -- wraps the remote `$BASH_ENV` file's existing
+#'    content in a subshell (`( ... ) 2>/dev/null || true`) so that any `exit`
+#'    or failing command inside it cannot abort the non-interactive SSH shell
+#'    that carries setup commands.
+#' 1. **Create remote directory; copy files**  -- `mkdir -p` the remote working
+#'    directory (same relative path from `~` as on localhost), then `scp`
+#'    `global_path`, `queue_path`, and `dots_path` (if supplied) into it.
+#' 2. **Rsync project `R/` folder**  -- syncs the `R/` subdirectory next to
+#'    `global_path` to the remote with `rsync --delete` so user-defined
+#'    helper functions sourced by `global.R` are up to date.
+#' 3. **Write `~/.Rprofile` on remote**  -- injects three lines (replacing any
+#'    previous versions): `.libPaths(c(local_lib, ...))` so the project library
+#'    takes precedence over system libraries; `options(repos = ...)` including
+#'    the PredictiveEcology r-universe; and an SSL block that sets
+#'    `CURL_CA_BUNDLE`/`SSL_CERT_FILE` so HTTPS downloads work in non-login
+#'    SSH sessions where `/etc/profile.d/` is not sourced.
+#' 4. **Verify/install `Require`**  -- compares the remote `Require` version and
+#'    git commit SHA to the local installation.  If they differ, rsyncs the
+#'    installed directory (GitHub source) or runs `install.packages("Require")`
+#'    (CRAN source).
+#' 5. **Install `usethis`** on the remote via `Require::Install()`.
+#' 6. **Propagate GitHub credentials**  -- reads the local token via
+#'    `gitcreds::gitcreds_get()` and pipes it into `git credential approve` on
+#'    the remote so private GitHub packages can be installed without interactive
+#'    setup.  Falls back to checking whether the remote already has credentials;
+#'    errors if neither is true.
+#' 7. **Install system libraries** via
+#'    `sudo -n apt-get install -y --no-install-recommends` (non-interactive;
+#'    fails gracefully if passwordless sudo is not configured).  Libraries
+#'    installed: spatial (`libgdal-dev`, `libgeos-dev`, `libproj-dev`,
+#'    `libsqlite3-dev`, `libudunits2-dev`), HTTP/TLS (`libssl-dev`,
+#'    `libcurl4-openssl-dev`), XML (`libxml2-dev`), archive (`libarchive-dev`),
+#'    git (`libgit2-dev`), fonts/graphics (`libfontconfig1-dev`,
+#'    `libharfbuzz-dev`, `libfribidi-dev`, `libpng-dev`, `libjpeg-dev`,
+#'    `libtiff-dev`, `libfreetype6-dev`), protobuf (`libabsl-dev`), and R
+#'    compilation headers (`r-base-dev`).
+#' 8. **Ensure remote lib path exists**  -- `mkdir -p` the project library path
+#'    on the remote (must match localhost exactly so installed file paths are
+#'    identical).
+#' 9. **Rsync `SpaDES.project`**  -- copies the locally installed `SpaDES.project`
+#'    directory to the same path on the remote.  Both machines must share the
+#'    same platform and R version so compiled lazy-load databases are compatible.
+#' 10. **Install `SpaDES.project` dependencies** via `Require::Install()`.
+#'     Spatial packages (`terra`, `sf`, `rgdal`, `rgeos`, `lwgeom`) are compiled
+#'     from source so they link against the remote's actual GDAL/GEOS/PROJ
+#'     versions.  All other hard dependencies (Imports/Depends/LinkingTo) plus
+#'     any Suggests packages installed locally are installed as binaries via
+#'     `Require::setLinuxBinaryRepo()`.  Common packages with strict version
+#'     requirements (`purrr >= 1.2.1`, `rlang >= 1.1.7`, `cli >= 3.6.0`,
+#'     `vctrs >= 0.6.0`) are pre-installed to the project library to avoid
+#'     stale system-library versions being picked up during compilation.
+#' 11. **Rsync `Require` package cache** (`Require::cachePkgDir()`) to the
+#'     remote to accelerate future package installations.
+#' 12. **Rsync gargle OAuth cache** (`cache_path` or
+#'     `getOption("gargle_oauth_cache")`) to the remote so the worker can
+#'     authenticate with Google APIs (Sheets, Drive) without a browser prompt.
+#'
+#' ## Staggered starts
+#' Pane 1 starts immediately.  Pane `i > 1` waits
+#' `delay_before_source + (i - 2) * stagger_by` seconds inside R before
+#' claiming its first job, avoiding simultaneous queue contention at startup.
+#' For remote workers in `killAndNewPane` mode the stagger only applies to the
+#' first R session; subsequent while-loop iterations start immediately.
+#'
+#' ## Restarting a broken pane
+#' If a worker pane is manually interrupted (e.g. Ctrl+C) and drops to a shell
+#' prompt, restart it by pressing `(up-arrow)` (up-arrow) in that pane and hitting Enter.
+#' The full command is always in the pane's bash history:
+#' - **localhost**: `Rscript -e "..."` (re-enters `tmuxRunWorkerLoop`; in
+#'   `killAndNewPane` mode `respawn-pane` takes over from the first job onward).
+#' - **remote**: `if setup && scp; then first_run; _st=$?; while [ $_st -ne 0 ]; do sleep 2; loop_run; _st=$?; done; fi`
+#'   command (restarts the sh loop from scratch; plain POSIX  -- works in bash, dash, and sh).
+#'
+#' ## ANSI colour support
+#' At startup, `experimentTmux` sets the tmux session option
+#' `default-terminal = "tmux-256color"`.  This ensures that all subsequently
+#' created panes advertise a full-colour ANSI terminal, which is required for
+#' R packages such as `cli` and `crayon` to render coloured/dynamic output
+#' correctly.  Without this, connections that arrive via Windows PowerShell
+#' -> SSH -> tmux often inherit `TERM=screen` or no `TERM` at all, causing
+#' R to fall back to plain-text output.  The setting is applied globally to the
+#' session (`-g`) and persists for the session's lifetime; it does not modify
+#' `~/.tmux.conf`.
+#'
+#' @param df A `data.frame` of parameter combinations. Each row is one job.
+#'   Column names become object names in worker panes; values from each row
+#'   are assigned prior to sourcing `global_path`.
+#' @param forceLocalQueueToGS Logical. If `TRUE`, overwrite the Google Sheet
+#'   queue with the local `df` even if the sheet already contains rows.
+#'   Default `FALSE`.
+#' @param enableGSSync Logical. If `TRUE`, start an additional tmux pane
+#'   that periodically syncs the local queue file to a Google Sheet (requires
+#'   `ss_id`).  Default `FALSE`.
+#' @param global_path Character scalar. Absolute path to the script sourced for each job.
+#' @param n_workers Integer. Number of worker panes to spawn. Defaults to `length(cores)`
+#'   if `cores` is supplied, otherwise `4`.
+#' @param delay_after_split Numeric. Seconds to wait after each `split-window`. Default `2`.
 #' @param delay_after_layout Numeric. Seconds to wait after `select-layout`. Default `0.2`.
-#' @param delay_between_R_start Numeric. Seconds to wait immediately **after starting R**
-#'   in each pane (or set `0` to skip). Default `0.0`.
-#' @param delay_before_source Numeric. Seconds panes **2..n** wait **inside R** before
-#'   injecting assignments + `source(global_path)`. Default `60.0`.
-#' @param stagger_by Numeric. Extra seconds added per subsequent pane beyond pane 2, so pane i>1 waits
-#'   `delay_before_source + (i-2)*stagger_by` inside R. Default `0.0`.
-#' @param activeRunningPath The directory where the "running" flag will be written.
-#'   This flag (a file) should only be present while an ELF is running. At the end
-#'   or at failure, it should be removed automatically. If it is not (because of a
-#'   bad crash), then it MUST be manually deleted. Default is derived via
-#'   `activeRunningPathForTmux` as `file.path("logs/", queue_path)`.
-#' @param folderWithIterInFilename A string or call using optionally `runName`, e.g.,
-#'    `folderWithIterInFilename = quote(file.path("outputs", runName, "figures", "hists"))`.
-#'    Currently only effective for `fireSense_SpreadFit` outputs.
-#'    Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
-#' @param statusCalculate A string or call using optionally `runName`, e.g.,
-#'    `statusCalculate = quote(file.path("outputs", runName, "figures", "objFun"))`.
-#'    Currently only effective for `fireSense_SpreadFit` outputs.
-#'    Defaults to `getOption("spades.statusCalculate", NULL)`.
-#' @param continue Logical. If `TRUE` (default), workers loop through the queue until empty.
+#' @param delay_between_R_start Numeric. Seconds to wait after starting R in each pane.
+#'   Default `0.1`.
+#' @param delay_before_source Numeric. Seconds panes 2..n wait before claiming their first
+#'   job. Default `60`.
+#' @param stagger_by Numeric. Additional seconds per pane beyond pane 2:
+#'   pane `i > 1` waits `delay_before_source + (i - 2) * stagger_by`. Default `delay_before_source`.
+#' @param activeRunningPath Directory for "running" flag files written while a job is
+#'   active. Must be cleaned up manually if a job crashes without removing its flag.
+#'   Default: `file.path("logs/", basename(queue_path))`.
+#' @param folderWithIterInFilename A quoted expression (optionally using `runName`) for a
+#'   folder whose filenames encode iteration info. Currently used by `fireSense_SpreadFit`.
+#'   Default `getOption("spades.folderWithIterInFilename", NULL)`.
+#' @param statusCalculate A quoted expression (optionally using `runName`) that evaluates
+#'   to a path containing job-status output files. Currently used by `fireSense_SpreadFit`.
+#'   Default `getOption("spades.statusCalculate", NULL)`.
+#' @param continue Logical. Reserved for future single-shot mode; currently ignored.
 #' @param queue_path Character. Path to the `.rds` queue file. Defaults to
 #'   `file.path(dirname(global_path), "tmux_queue.rds")`.
-#' @param on_interrupt Character. Action when a job is interrupted: `"requeue"` (default)
-#'   or `"fail"`.
-#' @param ss_id Optional Google Drive folder/sheet ID for queue syncing. `NULL` disables.
-#' @param email Optional email for Google authentication.
-#' @param cache_path Optional path for gargle OAuth cache.
-#' @param cores Character vector of machine names to run workers on. Each element is either
-#'   `"localhost"` (run R in the pane directly) or a hostname reachable via `ssh <host>`
-#'   (the pane will open an SSH session and start R there). When supplied, its length
-#'   determines the number of worker panes unless `n_workers` is also specified explicitly.
-#'   Default `NULL` runs all workers on localhost.
-#' @param workersToMonitor Character vector of worker names to monitor.
-#' @param runNameLabel A quoted expression to derive a run label from the queue data frame.
-#' @param ... Additional arguments (currently unused).
-#' @param set_mouse Logical. If `TRUE`, enables tmux mouse support. Default `TRUE`.
+#' @param on_interrupt `"requeue"` (default) or `"fail"`. Action when a job errors:
+#'   requeue it for another worker, or mark it failed and stop this worker.
+#' @param ss_id Optional Google Drive spreadsheet/folder ID for live status syncing via
+#'   `googlesheets4`. `NULL` disables syncing.
+#' @param email Optional email address for gargle/Google OAuth authentication.
+#' @param cache_path Optional path to the gargle OAuth token cache directory.
+#' @param pane_mode `"killAndNewPane"` (default) or `"reuse"`. See **Worker loop modes**
+#'   above.
+#' @param cores Character vector of machine hostnames, recycled to `n_workers`. Use
+#'   `"localhost"` for the local machine or a bare hostname (e.g. `"sbw"`) for a remote
+#'   machine reachable via passwordless SSH. When any remote hosts are listed,
+#'   `.setup_remote_machine()` is called for each unique hostname before workers start.
+#'   Default `NULL` (all localhost).
+#' @param workersToMonitor Character vector of pane titles to monitor (currently unused).
+#' @param runNameLabel A quoted expression evaluated against the queue `data.frame` to
+#'   produce a human-readable job label used in log files and Google Sheet status updates.
+#' @param set_mouse Logical. Enable tmux mouse support (pane selection, scroll). Default `TRUE`.
+#' @param copyModules Logical. If `TRUE` and remote hosts are present, rsyncs the
+#'   directory given by `getOption("spades.modulePath")` to the same absolute path on
+#'   each remote host before workers start.  Issues a warning and skips if the option is
+#'   unset.  Default `FALSE`.
+#' @param ... Additional arguments passed to `.setup_remote_machine()`.
 #'
-#' @return Invisibly returns the character vector of tmux **pane IDs** for the workers.
+#' @section Related tmux helpers:
+#' \tabular{ll}{
+#'   **Function** \tab **Purpose** \cr
+#'   [tmuxPrepareQueueFromDF()] \tab Build a file-backed queue RDS from a data.frame of runs \cr
+#'   [tmuxRunNextWorker()] \tab Claim and run one queued job in the current R session \cr
+#'   [tmuxRunWorkerLoop()] \tab Loop of `tmuxRunNextWorker()` inside a worker pane \cr
+#'   [tmuxRefreshQueueStatus()] \tab Re-evaluate job status from output files and heartbeats \cr
+#'   [tmuxMirrorQueueToSheets()] \tab Mirror a local queue RDS to a Google Sheet \cr
+#'   [tmuxListPanes()] \tab List every pane across every tmux server on this machine \cr
+#'   [tmuxFindDuplicates()] \tab Surface panes running the same job (duplicate claims) \cr
+#'   [tmuxSetPaneTitle()] \tab Rewrite a pane's title by matching its current title \cr
+#'   [tmuxKillPanes()] \tab Kill a set of panes by ID (tear-down) \cr
+#'   [tmuxSetMouse()] \tab Enable or disable tmux mouse mode \cr
+#'   [tmuxActiveRunningPath()] \tab Default path for per-run "active" flag files \cr
+#'   [localHostLabel()] \tab Short cluster alias for this machine (`/etc/hosts` lookup) \cr
+#' }
+#'
+#' @return Invisibly returns a character vector of tmux pane IDs for the spawned workers.
+#'   Pass these to `tmuxKillPanes()` to tear down all workers at once.
 #' @export
 #'
 #' @examples
 #' \dontrun{
-#' expt <- data.frame(
-#'   .ELFind = c("6.1.1","6.2.2","6.2.3","6.3.1"),
-#'   .rep    = 1,
-#'   check.names = FALSE
+#' # --- Minimal: build a tiny global.R, then run a 2 x 2 experiment ---
+#' tdir <- file.path(tempdir(), "experimentTmux-demo")
+#' dir.create(tdir, showWarnings = FALSE, recursive = TRUE)
+#' writeLines(
+#'   'message("scenario=", .scenario, " rep=", .rep); Sys.sleep(2)',
+#'   file.path(tdir, "global.R")
+#' )
+#' expt <- expand.grid(.scenario = c("A", "B"), .rep = 1:2,
+#'                     stringsAsFactors = FALSE)
+#'
+#' workers <- experimentTmux(
+#'   df          = expt,
+#'   global_path = file.path(tdir, "global.R"),
+#'   cores       = rep("localhost", 2L),
+#'   queue_path  = file.path(tdir, "queue.rds")
 #' )
 #'
-#' # First pane: no delay. Others: 60s, with +5s stagger per pane.
+#' # --- Live inspection while panes run ---
+#' experimentMonitor()                       # tmux pane scan (no args)
+#' experimentMonitor(stats = TRUE)           # adds CPU / RAM / state per pane
+#' tmuxListPanes()                           # alias of experimentMonitor()
+#' queueRead(file.path(tdir, "queue.rds"))   # full queue snapshot
+#' tmuxFindDuplicates(workers)               # any double-claimed jobs?
+#' tmuxRefreshQueueStatus(file.path(tdir, "queue.rds"))   # reset stuck rows
+#'
+#' # --- Basic local usage with explicit pane sizing ---
 #' workers <- experimentTmux(
-#'   df                  = expt,
 #'   global_path         = "/abs/path/to/global.R",
+#'   queue_path          = "/abs/path/to/queue.rds",
 #'   n_workers           = 4,
+#'   pane_mode           = "killAndNewPane",
 #'   delay_before_source = 60,
-#'   stagger_by          = 5,
+#'   stagger_by          = 60,
 #'   set_mouse           = TRUE
 #' )
 #'
-#' # If something goes wrong during development:
-#' tmux_kill_panes(workers)
+#' # --- Mixed local + remote ---
+#' # Runs 2 workers on localhost and 2 on remote host "sbw".
+#' # .setup_remote_machine("sbw", ...) is called automatically before workers start.
+#' workers <- experimentTmux(
+#'   global_path = "/abs/path/to/global.R",
+#'   queue_path  = "/abs/path/to/queue.rds",
+#'   cores       = c("localhost", "localhost", "sbw", "sbw"),
+#'   pane_mode   = "killAndNewPane",
+#'   email       = "you@example.com",
+#'   cache_path  = "/abs/path/to/.secret",
+#'   ss_id       = "your-google-sheet-id"
+#' )
+#'
+#' # --- Tear down all workers ---
+#' tmuxKillPanes(workers)
+#'
+#' # --- Restart a single broken pane ---
+#' # In the broken pane, press Up then Enter to re-run the last command.
 #' }
 experimentTmux <- function(df,
                            global_path = "global.R",
@@ -223,41 +794,88 @@ experimentTmux <- function(df,
                            continue = TRUE,
                            queue_path = NULL,
                            on_interrupt = c("requeue", "fail"),
+                           pane_mode = c("killAndNewPane", "reuse"),
                            ss_id = NULL,
+                           forceLocalQueueToGS = FALSE,
+                           enableGSSync = FALSE,
                            email = getOption("gargle_oauth_email"),
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
                            runNameLabel = quote(colnames(q)[1:2]),
+                           copyModules = FALSE,
                            ...) {
   
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
-  
+
+  # -- warn if any cores are remote and local tmux is not in a systemd scope.
+  # Without a scope, a local logout / session end can SIGHUP the tmux server and
+  # kill the bash while-loops that drive remote workers.
+  # Start tmux with:  tmuxs='systemd-run --user --scope tmux'  to avoid this.
+  has_remote <- !is.null(cores) && any(!cores %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+  if (has_remote && .Platform$OS.type == "unix") {
+    tmux_pid <- tryCatch(
+      as.integer(trimws(system2("tmux", c("display-message", "-p", "#{pid}"),
+                                stdout = TRUE, stderr = FALSE))),
+      error = function(e) NA_integer_
+    )
+    if (!is.na(tmux_pid)) {
+      cgroup_lines <- tryCatch(readLines(paste0("/proc/", tmux_pid, "/cgroup"), warn = FALSE),
+                               error = function(e) character(0))
+      in_scope <- any(grepl("\\.scope", cgroup_lines))
+      if (!in_scope)
+        message("NOTE: tmux is NOT running under a systemd user scope.\n",
+                "  Remote workers may die if your local session is interrupted.\n",
+                "  Start tmux with:  systemd-run --user --scope tmux\n",
+                "  (alias: tmuxs='systemd-run --user --scope tmux')")
+    }
+  }
+
   on_interrupt <- match.arg(on_interrupt)
+  pane_mode    <- match.arg(pane_mode)
   # on_error     <- match.arg(on_error)
-  
+
+  # Cache scenario fields from df so positional pathBuild() calls in
+  # runNameLabel / statusCalculate work without an explicit queueRead().
+  if (!missing(df) && !is.null(df))
+    scenarioFieldsSet(setdiff(names(df), meta_cols))
+
   # -- preconditions
   
+  # Normalize to absolute paths immediately so worker panes launched via
+  # `Rscript -e "..."` (which start in ~) can always locate these files.
+  global_path <- normalizePath(global_path, mustWork = FALSE)
   if (is.null(queue_path)) {
-    queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
+    queue_path <- file.path(dirname(global_path), "tmux_queue.rds")
   }
-  tmux_prepare_queue_from_df(df, queue_path)
-  q <- readRDS(queue_path)
-  runNameLabel <- eval(runNameLabel)
-  
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-                            activeRunningPath = activeRunningPath, ...)
-  if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
-  if (!file.exists(global_path)) {
-    warning("global_path not found from master R working directory: ", global_path)
+  queue_path <- normalizePath(queue_path, mustWork = FALSE)
+  # Materialize the queue from `df` on first run; preserve existing state on resume.
+  # Without this, worker panes hit stopifnot(file.exists(queue_path)) in
+  # tmuxRunNextWorker() and exit silently before any job runs.
+  if (!file.exists(queue_path) && !missing(df) && is.data.frame(df))
+    tmuxPrepareQueueFromDF(df, queue_path)
+
+  # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
+  dots_path <- file.path(dirname(queue_path), ".tmux_dots.rds")
+  if (length(list(...)) > 0L) {
+    saveRDS(list(...), dots_path)
+  } else if (file.exists(dots_path)) {
+    unlink(dots_path)
   }
-  
-  if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
-  
+  # data.table::setDT(q)
+  # list2env(as.list(q[, -..meta_cols]), envir = environment())
+  # runNameLabel <- eval(runNameLabel)
+
+  if (!is.null(ss_id)) {
+    if (!is.null(email))      options(gargle_oauth_email = email)
+    if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+    options(gargle_oauth_client_type = "web")
+  }
+  # GS sync: check for existing sheet state before overwriting
   if (!is.null(queue_path)) {
-    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+    # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
     
     if (!is.null(ss_id)) {
       isDir <- isGoogleDriveDirectory(ss_id)
@@ -267,7 +885,7 @@ experimentTmux <- function(df,
         
         # 1. Derive the name from the local queue file
         sheet_name <- gsub("\\.rds$", "", basename(queue_path))
-
+        
         # 2. Check if it already exists in that folder to avoid duplicates
         existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
         
@@ -277,8 +895,8 @@ experimentTmux <- function(df,
           reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
           # googlesheets4::gs4_auth()
           # 3. Create the sheet (defaults to root) then move it to the folder
-          googlesheets4::gs4_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
-          googledrive::drive_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+          googlesheets4::gs4_auth()
+          googledrive::drive_auth()
           # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
           # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
           
@@ -291,14 +909,163 @@ experimentTmux <- function(df,
     }
   }
   
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
+  if (!is.null(ss_id)) {
+    # if (!is.null(email))      options(gargle_oauth_email = email)
+    # if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+    gs_q <- try(.gs_read_queue(ss_id), silent = TRUE) 
+
+    if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
+      # Validate GS column names against df before using GS data.
+      # GS strips leading dots, so we write `.col` as `dotcol` and revert on read.
+      # If the reversal fails (GS stored `col` instead of `dotcol`), the reverted
+      # name will still be `col`  -- mismatching `.col` in df  -- and runNameLabel eval
+      # will give "object '.col' not found".  Catch this early with a clear message.
+      if (!missing(df) && !is.null(df)) {
+        gs_names_reverted <- names(revertDotNames(data.table::copy(data.table::setDT(gs_q))))
+        gs_data_cols  <- setdiff(gs_names_reverted, meta_cols)
+        df_data_cols  <- setdiff(names(df),         meta_cols)
+        extra_in_gs   <- setdiff(gs_data_cols, df_data_cols)
+        missing_in_gs <- setdiff(df_data_cols, gs_data_cols)
+        if (length(extra_in_gs) > 0L || length(missing_in_gs) > 0L) {
+          msg_parts <- character(0)
+          if (length(missing_in_gs))
+            msg_parts <- c(msg_parts,
+              paste0("  In df but missing from GS : ", paste(missing_in_gs, collapse = ", ")))
+          if (length(extra_in_gs))
+            msg_parts <- c(msg_parts,
+              paste0("  In GS but missing from df : ", paste(extra_in_gs, collapse = ", ")))
+          stop(
+            "Google Sheet column names do not match 'df'.\n",
+            "This usually means GS lost the leading dot from a column name\n",
+            "(e.g. '.samplingRange' was stored as 'samplingRange' instead of 'dotsamplingRange').\n",
+            "Fix the sheet header row so dot-prefixed columns are stored with the 'dot' prefix,\n",
+            "or pass forceLocalQueueToGS = TRUE to overwrite the sheet with the local df.\n",
+            paste(msg_parts, collapse = "\n"),
+            call. = FALSE
+          )
+        }
+      }
+      q <- data.table::setDT(gs_q)
+      # GS has existing state  -- merge rather than overwrite
+      # data_cols <- gsub("^.", "", data_cols)
+      # data.table::setnames(q, new = gsub("^\\.", "", names(q)), old = names(q))
+      # runNameLabel <- gsub("^\\.", "", runNameLabel)
+      # for (rn in runNameLabel) {
+      #   if (!is.character(q[[rn]])) {
+      #     set(q, NULL, rn, as.character(q[[rn]]))
+      #   }
+      # }
+      
+      # data_cols  <- setdiff(names(q), meta_cols)
+      # gs_dcols   <- intersect(data_cols, names(gs_q))
+      # browser()
+      # 
+      # # any rows not represented
+      # newRows <- gs_q[!q, on = runNameLabel]
+      # localRowThatisDifftOnGS <- q[!gs_q, on = runNameLabel]
+      # if (NROW(newRows)) {
+      #   q <- rbindlist(list())
+      # }
+      # 
+      # # Row-matching keys from data columns
+      # local_keys <- apply(q[,  ..data_cols, drop = FALSE], 1, paste, collapse = "\t")
+      # gs_keys    <- apply(gs_q[, ..gs_dcols, drop = FALSE], 1, paste, collapse = "\t")
+      # 
+      # # For rows present in local df: use GS metadata where row matches
+      # for (j in seq_len(nrow(q))) {
+      #   gs_match <- which(gs_keys == local_keys[j])
+      #   if (length(gs_match) > 0L) {
+      #     gs_row <- gs_q[gs_match[1L], ]
+      #     for (mc in intersect(meta_cols, names(gs_q)))
+      #       q[[mc]][j] <- gs_row[[mc]]
+      #   }
+      #   # No match -> row is new in this run, stays PENDING
+      # }
+      # 
+      # # Append GS rows not present in local df (history from prior runs)
+      # gs_only <- which(!gs_keys %in% local_keys)
+      # if (length(gs_only) > 0L) {
+      #   gs_extra <- gs_q[gs_only, , drop = FALSE]
+      #   # Align columns to local schema; fill missing with NA
+      #   for (col in setdiff(names(q), names(gs_extra)))
+      #     gs_extra[[col]] <- NA
+      #   q <- rbind(q, gs_extra[, names(q), drop = FALSE])
+      # }
+
+      saveRDS(q, queue_path)
+    }
+
+    # Push merged (or fresh) queue to GS
+    q_sync        <- as.data.frame(lapply(q, as.character))
+    names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
+    try(googlesheets4::with_gs4_quiet(
+      googlesheets4::range_write(ss = ss_id, data = q_sync,
+                                  sheet = "Status", range = "A1", reformat = FALSE)
+    ), silent = TRUE)
+  }
+  tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
+                            activeRunningPath = activeRunningPath, ...)
+  if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
+  if (!file.exists(global_path)) {
+    warning("global_path not found from master R working directory: ", global_path)
+  }
+  
+  if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
+  
+  # if (!is.null(queue_path)) {
+  #   # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
+  #   
+  #   if (!is.null(ss_id)) {
+  #     isDir <- isGoogleDriveDirectory(ss_id)
+  #     if (isTRUE(isDir)) {
+  #       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
+  #       # googledrive::drive_auth()
+  #       
+  #       # 1. Derive the name from the local queue file
+  #       sheet_name <- gsub("\\.rds$", "", basename(queue_path))
+  # 
+  #       # 2. Check if it already exists in that folder to avoid duplicates
+  #       existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
+  #       
+  #       if (nrow(existing) > 0) {
+  #         ss_id <- existing$id[1]
+  #       } else {
+  #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
+  #         # googlesheets4::gs4_auth()
+  #         # 3. Create the sheet (defaults to root) then move it to the folder
+  #         googlesheets4::gs4_auth(email = email, cache = cache_path)
+  #         googledrive::drive_auth(email = email, cache = cache_path)
+  #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+  #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+  #         
+  #         new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
+  #         googledrive::drive_mv(file = googledrive::as_id(new_sheet),
+  #                               path = googledrive::as_id(ss_id))
+  #         ss_id <- as.character(googledrive::as_id(new_sheet))
+  #       }
+  #     }
+  #   }
+  # }
+  
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
   
   inTmux <- Sys.getenv("TMUX") != ""
 
-  # Resolve cores and set up any remote machines before spawning panes
+  # Convert a local absolute path to its remote equivalent (same relative to ~).
+  # Used in both the tmux pane loop and the non-tmux fallback.
+  .to_remote_path <- function(p) {
+    if (is.null(p)) return(p)
+    sub(paste0("^", path.expand("~")), "~", normalizePath(p, mustWork = FALSE))
+  }
+
+  # Resolve cores. Setup runs in parallel inside each pane (see below).
   if (is.null(cores)) cores <- rep("localhost", n_workers)
-  for (.host in setdiff(unique(cores), "localhost")) {
-    .setup_remote_machine(.host, global_path, queue_path)
+
+  # Clean up any stale ready-flags from a previous run
+  .unique_remote_hosts <- setdiff(unique(cores), c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+  for (.host in .unique_remote_hosts) {
+    flag <- .setup_flag_path(.host)
+    if (file.exists(flag)) unlink(flag)
   }
 
   if (inTmux) {
@@ -308,16 +1075,17 @@ experimentTmux <- function(df,
     # -- resolve current tmux window
     target_win <- .tmux_current_window()
     system("tmux set -g pane-border-status top") # sets so titles have names
+    .tmux_run("set-option", "-g", "default-terminal", "tmux-256color") # ensures ANSI/colour detection works for R cli/crayon (e.g. Windows SSH -> tmux)
     
     # -- list existing panes
     pre <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
     
     # -- mouse on, if requested
-    if (set_mouse) tmux_set_mouse(TRUE)
+    if (set_mouse) tmuxSetMouse(TRUE)
     
     # 1. Create a new pane for the sync process
     if (!is.null(queue_path)) {
-      #   # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel)
+      #   # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
       #   
       if (!is.null(ss_id)) {
         #     isDir <- isGoogleDriveDirectory(ss_id)
@@ -337,8 +1105,8 @@ experimentTmux <- function(df,
         #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
         #         # googlesheets4::gs4_auth()
         #         # 3. Create the sheet (defaults to root) then move it to the folder
-        #         googlesheets4::gs4_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
-        #         googledrive::drive_auth(email = getOption("gargle_oauth_email"), cache = getOption("gargle_oauth_cache"))
+        #         googlesheets4::gs4_auth(email = email, cache = cache_path)
+        #         googledrive::drive_auth(email = email, cache = cache_path)
         #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
         #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
         #         
@@ -371,178 +1139,375 @@ experimentTmux <- function(df,
         .tmux_run("select-layout", "-t", target_win, "tiled")
         .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
         
-        full_bash_mon_cmd <- sprintf("Rscript -e %s", shQuote(mon_cmd))
+        full_bash_mon_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(mon_cmd))
         .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
         
-        
-        # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
-        # This ensures the focus stays on the Master Pane
-        sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-        .tmux_run("select-layout", "-t", target_win, "tiled")
-        
-        # 2. Prepare the command as a SINGLE line to prevent shell splitting
-        # Use deparse1() and force ss_id to character
-        sync_cmd <- sprintf(
-          "options(gargle_oauth_email = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=%s, statusCalculate=quote(%s), cache_path=%s)",
-          deparse1(email),
-          # deparse1(getOption("spades.statusCalculate")),
-          deparse1(normalizePath(queue_path)),
-          deparse1(as.character(ss_id)),
-          deparse1(email),
-          deparse1(runNameLabel),
-          deparse1(statusCalculate, collapse = "\n"),
-          deparse1(normalizePath(cache_path))
-        )
-        
-        ndots <- length(...names())
-        extraArgs <- NULL
-        aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
-        if (ndots) {
-          dots <- list(...)
-          dots <- lapply(dots, deparse1)  
-          extraArgs <- paste(paste(names(dots), "=", unname(unlist(dots))  ), collapse = "; ")
-          sync_cmd <- out <- paste0(extraArgs, ";", sync_cmd)
+
+        if (isTRUE(enableGSSync)) {
+          # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
+          # This ensures the focus stays on the Master Pane
+          sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+          .tmux_run("select-layout", "-t", target_win, "tiled")
+
+          # 2. Prepare the command as a SINGLE line to prevent shell splitting
+          # Load ... args from RDS so complex objects (lists, etc.) reach statusCalculate
+          dots_preamble_sync <- if (file.exists(dots_path)) {
+            sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
+                    deparse1(dots_path), deparse1(dots_path))
+          } else ""
+
+          sync_cmd <- sprintf(
+            "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
+            dots_preamble_sync,
+            deparse1(email),
+            deparse1(normalizePath(cache_path)),
+            deparse1(normalizePath(queue_path)),
+            deparse1(as.character(ss_id)),
+            deparse1(email),
+            deparse1(runNameLabel),
+            deparse1(statusCalculate, collapse = "\n"),
+            deparse1(normalizePath(cache_path))
+          )
+
+          # 3. Send keys to the specific ID
+          full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
+          .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
+
+          # 4. Label the pane for clarity
+          .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
         }
-        
-        
-        # 3. Send keys to the specific ID
-        # Adding a leading space ' ' prevents the command from being saved in bash history;
-        #  I took this away because I wanted access to the command
-        full_bash_cmd <- sprintf("Rscript -e %s", shQuote(sync_cmd))
-        .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
-        
-        # 4. Label the pane for clarity
-        .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
       }
     }
     
-    # -- create worker panes
+    # -- Recycle cores; define helpers used per-iteration in the merged loop.
+    cores_full <- rep_len(cores, n_workers)
+
+    # For remote panes, the first pane per unique host runs .setup_remote_machine()
+    # then starts working; subsequent panes for the same host wait for a local
+    # flag file before starting, so all setups happen in parallel across hosts.
+    setup_assigned <- character(0)
+    # Capture the GitHub PAT from THIS interactive session so that the Rscript
+    # subprocess running .setup_remote_machine() gets the correct token.
+    # The subprocess may hit a different (stale) git credential store entry.
+    # Write to a temp file (not the command line) to keep the token off ps/top.
+    .local_pat_file <- NULL
+    local({
+      .pat <- tryCatch(gitcreds::gitcreds_get()$password, error = function(e) NULL)
+      if (!is.null(.pat) && nzchar(.pat)) {
+        f <- tempfile()
+        writeLines(.pat, f)
+        Sys.chmod(f, mode = "0600")
+        .local_pat_file <<- f
+      }
+    })
+
+    # Detect if SpaDES.project is loaded from a dev source in THIS session.
+    # pkgload::pkg_path() succeeds only when devtools::load_all() is active.
+    # Pass the source path to .setup_remote_machine so the Rscript subprocess
+    # (which only sees the installed binary) can still rsync the dev version.
+    # suppressWarnings: pkgload's cli error formatter calls normalizePath() on
+    # the failing package name, generating a noisy "No such file" warning that
+    # leaks past the surrounding tryCatch when load_all is not active.
+    .sp_dev_path <- suppressWarnings(tryCatch(
+      normalizePath(pkgload::pkg_path("SpaDES.project"), mustWork = TRUE),
+      error = function(e) NULL
+    ))
+    # Also treat as dev if source version > installed version.
+    if (is.null(.sp_dev_path)) {
+      .sp_src <- tryCatch(find.package("SpaDES.project"), error = function(e) NULL)
+      if (!is.null(.sp_src) && file.exists(file.path(.sp_src, "DESCRIPTION"))) {
+        .sp_src_ver <- tryCatch(
+          as.character(read.dcf(file.path(.sp_src, "DESCRIPTION"), "Version")[[1L]]),
+          error = function(e) "0"
+        )
+        .sp_inst_ver <- tryCatch(
+          as.character(packageVersion("SpaDES.project", lib.loc = .libPaths()[1L])),
+          error = function(e) "0"
+        )
+        if (tryCatch(numeric_version(.sp_src_ver) > numeric_version(.sp_inst_ver),
+                     error = function(e) FALSE))
+          .sp_dev_path <- .sp_src
+      }
+    }
+
+    .module_path <- if (isTRUE(copyModules)) {
+      mp <- getOption("spades.modulePath")
+      if (is.null(mp) || !nzchar(mp)) {
+        warning("copyModules = TRUE but getOption('spades.modulePath') is not set; skipping module rsync.",
+                call. = FALSE)
+        NULL
+      } else {
+        normalizePath(mp, mustWork = FALSE)
+      }
+    } else {
+      NULL
+    }
+
+    setup_expr_for <- function(host) {
+      sprintf(
+        "SpaDES.project:::.setup_remote_machine(%s, %s, %s, extra_args_path=%s, cache_path=%s, sp_dev_path=%s, local_pat_file=%s, module_path=%s)",
+        deparse1(host),
+        deparse1(normalizePath(global_path, mustWork = FALSE)),
+        deparse1(normalizePath(queue_path,  mustWork = FALSE)),
+        deparse1(if (!is.null(dots_path) && file.exists(dots_path))
+                   normalizePath(dots_path) else NULL),
+        deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL),
+        deparse1(.sp_dev_path),
+        deparse1(.local_pat_file),
+        deparse1(.module_path)
+      )
+    }
+    # bash snippet: run setup and write flag, or wait for flag (600s timeout).
+    # Probe passwordless SSH; if it fails, copy the local public key to the
+    # remote (~/.ssh/authorized_keys) via ssh-copy-id.
+    ssh_ready_bash <- function(host)
+      sprintf(
+        "ssh -o BatchMode=yes -o ConnectTimeout=5 %s true 2>/dev/null || ssh-copy-id %s",
+        host, host
+      )
+    setup_bash_for <- function(host, first) {
+      flag <- shQuote(.setup_flag_path(host))
+      if (first)
+        sprintf("%s && env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s && touch %s",
+                ssh_ready_bash(host), shQuote(setup_expr_for(host)), flag)
+      else
+        sprintf("%s && i=0; until [ -f %s ] || [ $i -gt 300 ]; do sleep 2; i=$((i+1)); done; [ -f %s ]",
+                ssh_ready_bash(host), flag, flag)
+    }
+
+    # -- Merged loop: create each pane, retile, and immediately send its
+    # startup command.  Pane 1's remote setup starts running while pane 2 is
+    # still being created  -- no waiting for all N panes before work begins.
     worker_ids <- character()
     for (i in seq_len(n_workers)) {
-      # Create detached so focus stays on Master
+      # 1. Create pane detached so focus stays on Master
       new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
       worker_ids <- c(worker_ids, new_id)
-      
-      # MANDATORY: Reset layout immediately so the next split has room
+      # MANDATORY: reset layout immediately so the next split has room
       .tmux_run("select-layout", "-t", target_win, "tiled")
-      # was 
-      Sys.sleep(2)
-      #Sys.sleep(0.1)
-    }
-    
-    # -- arrange evenly
-    # 2. Force the window into a tiled grid layout
-    # This fixes the "tiny sliver" problem immediately
-    # .tmux_run("select-layout", "-t", target_win, "tiled")
-    # if (delay_after_layout > 0) Sys.sleep(delay_after_layout)
-    
-    # -- mouse on, if requested
-    if (set_mouse) tmux_set_mouse(TRUE)
-    
-    # -- collect new worker panes
-    post <- .tmux_out("list-panes", "-t", target_win, "-F", "#{pane_id}")
-    if (length(post) == 0L) stop("tmux list-panes returned no panes.", call. = FALSE)
-    
-    master  <- Sys.getenv("TMUX_PANE")
-    workers <- setdiff(post, pre)
-    workers <- setdiff(workers, master)
-    
-    if (length(workers) < n_workers) {
-      stop(sprintf("Expected %d new worker panes, found %d. Check tmux version/layout.",
-                   n_workers, length(workers)), call. = FALSE)
-    }
-    workers <- workers[seq_len(n_workers)]
-    
-    # 3. Now send the R commands to the clean, tiled panes
-    start_cmds <- ifelse(cores == "localhost", "R", paste0("ssh -t ", cores, " R"))
+      Sys.sleep(delay_after_split)
 
-    for (i in seq_along(worker_ids)) {
-      .tmux_run("send-keys", "-t", worker_ids[i], start_cmds[i], "C-m")
-      # Your existing staggered start delay
-      Sys.sleep(0.1)
-    }
-    
-    # ---------- branching: single-shot vs queue mode ----------
-    # if (!continue) {
-    #   # -- inject pane-specific code (pane 1: no delay; panes i>1: pane-internal sleep)
-    #   n_send <- min(n_workers, nrow(df))
-    #   for (i in seq_len(n_send)) {
-    #     # compute pane-internal sleep: pane 1 => 0; pane i>1 => delay_before_source + (i-2)*stagger_by
-    #     runName <- as.character(df[[runNameLabel]][i])
-    #     runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
-    #     code <- sprintf(
-    #       "Sys.sleep(%s); system2('tmux', c('select-pane','-t', Sys.getenv('TMUX_PANE'), '-T', %s)); %s",
-    #       pre_sleep,
-    #       deparse(runName),
-    #       .make_assignment_code(df, i, global_path, pre_sleep = 0)
-    #     )
-    #     .tmux_run("send-keys", "-t", workers[i], code, "C-m")
-    #     
-    #     # No orchestrator sleeps—control returns immediately to master
-    #   }
-    # } else {
-    # ---- queue mode: file-backed queue & **direct function invocation** (no source()) ----
-    # if (is.null(queue_path)) {
-    #   queue_path <- file.path(dirname(normalizePath(global_path)), "tmux_queue.rds")
-    # }
-    
-    
-    # tmux_prepare_queue_from_df(df, queue_path)
-    # q <- readRDS(queue_path)
-    # runNameLabel <- eval(runNameLabel)
-    # 
-    # tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-    #                           activeRunningPath = activeRunningPath)
-    # 
-    
-    
+      # 2. Per-worker paths and payload expression
+      pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
+      is_remote <- cores_full[i] != "localhost"
+      qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
+      gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
+      arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
+      dp  <- if (is_remote) .to_remote_path(dots_path)         else dots_path
+      payload <- .build_worker_r_expr(
+        queue_path        = qp,
+        global_path       = gp,
+        on_interrupt      = on_interrupt,
+        runNameLabel      = runNameLabel,
+        activeRunningPath = arp,
+        ss_id             = ss_id,
+        pane_mode         = pane_mode,
+        email             = email,
+        cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+        dots_path         = if (file.exists(dots_path)) dp else NULL,
+        lib_path          = .libPaths()[1L]
+      )
+
+      # 3. Send startup command immediately to the freshly created pane
+      # Build a multi-line R script sourced via R_PROFILE_USER that:
+      #  1. Loads the worker call into readline history (up-arrow to re-run)
+      #  2. Echoes it so it is visible in the pane
+      #  3. Wraps execution in tryCatch + withCallingHandlers:
+      #     - withCallingHandlers captures sys.calls() while stack is intact
+      #     - tryCatch error handler shows the error and keeps R at '>'
+      #     - On success tmuxRunWorkerLoop() calls quit(0) -> bash while-loop
+      #       restarts for the next job
+      # R_PROFILE_USER silently swallows errors that reach its startup
+      # tryCatch, so we MUST catch and display here.
+      # PAT reader injected into every worker script.
+      # ~/.Rprofile is bypassed when R_PROFILE_USER is set, so the reader we
+      # wrote to ~/.Rprofile during setup never fires.  Embed it here instead.
+      # Path mirrors local_lib (same on localhost and remote by design).
+      .remote_pat_file <- file.path(.libPaths()[1L], ".spades_github_pat")
+      .pat_reader_line  <- paste0(
+          "local({f<-", deparse1(.remote_pat_file), ";",
+          "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
+          "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
+        )
+
+        .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
+          hl <- if (!is.null(host_label) && !host_label %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+            host_label
+          else
+            trimws(system("hostname -s", intern = TRUE, ignore.stderr = TRUE)[1L])
+          c(
+            # Override any Rprofile.site that sets defaultPackages=character(0).
+            # Profile files run before .First.sys() attaches packages, so setting
+            # this option here ensures the standard packages are always attached.
+            # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
+            # set it here too  -- not just in ~/.Rprofile written by setup.)
+            "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
+            # Load GITHUB_PAT from the file written during setup so pak/gh can
+            # authenticate even though ~/.Rprofile is skipped here.
+            .pat_reader_line,
+            # Stagger delay (pane 2+): only fires on the FIRST R session for this
+            # pane.  A flag file (R_PROFILE_USER path + ".started") is created
+            # after sleeping so that subsequent while-loop iterations skip it.
+            # NOTE: must run BEFORE Sys.unsetenv('R_PROFILE_USER') below because
+            # the flag file path is derived from R_PROFILE_USER.
+            if (pre_sleep > 0) c(
+              "local({",
+              "  .flag <- paste0(Sys.getenv('R_PROFILE_USER'), '.started')",
+              sprintf("  if (!file.exists(.flag)) { Sys.sleep(%g); writeLines('', .flag) }", pre_sleep),
+              "})"
+            ) else NULL,
+            # Unset R_PROFILE_USER so Rscript workers spawned by makeClusterPSOCK
+            # don't inherit it and re-source this startup script.
+            "Sys.unsetenv('R_PROFILE_USER')",
+            paste0(".wc <- ", deparse1(expr)),
+            # Load worker call into readline history so up-arrow re-runs it.
+            "local({.h <- tempfile(); writeLines(.wc, .h); try(utils::loadhistory(.h), silent = TRUE); try(file.remove(.h), silent = TRUE); invisible(NULL)})",
+            # Session header + OSC 2 pane-title (requires PTY; works via ssh -t).
+            # Store the prefix in an option so tmuxRunNextWorker can append runName.
+            "local({",
+            paste0("  .host  <- ", deparse1(hl)),
+            "  .node  <- Sys.info()[[\"nodename\"]]",
+            "  .pid   <- Sys.getpid()",
+            "  .title <- if (nzchar(.host)) paste0(.host, \"-\", .node, \"-\", .pid) else paste0(.node, \"-\", .pid)",
+            "  options(.spades_pane_prefix = .title)",
+            "  cat(sprintf(\"\\033]2;%s\\007\", .title))",
+            "  message(\"\\n\", strrep(\"-\", 60))",
+            "  message(\"[\", format(Sys.time(), \"%H:%M:%S\"), \"] New worker session\",",
+            "          \"  node: \", .node, \"  PID: \", .pid)",
+            "})",
+            'message("\\nWorker call (up-arrow to re-run):\\n", .wc, "\\n")',
+            ".spades_tb <- NULL",
+            "tryCatch(",
+            "  withCallingHandlers({",
+            paste0("    ", expr),
+            "  }, error = function(.e) {",
+            "    .spades_tb <<- sys.calls()",
+            "  }),",
+            "  error = function(.e) {",
+            "    .cl <- conditionCall(.e)",
+            "    if (!is.null(.cl))",
+            '      message("Error in ", deparse(.cl, nlines = 1L), " :\\n  ", conditionMessage(.e))',
+            "    else",
+            '      message("Error: ", conditionMessage(.e))',
+            '    message("\\n(call stack in .spades_tb -- type traceback(.spades_tb) to inspect)")',
+            '    message("\\nq(status=1L) to restart loop | q() to stop.")',
+            "  }",
+            ")"
+          )
+        }
+      if (is_remote && pane_mode == "killAndNewPane") {
+        # Setup preamble: first pane per unique host runs .setup_remote_machine()
+        # and writes a flag; subsequent panes for the same host wait for it.
+        first_for_host <- !cores_full[i] %in% setup_assigned
+        if (first_for_host) setup_assigned <- c(setup_assigned, cores_full[i])
+        setup_pre <- paste0(setup_bash_for(cores_full[i], first_for_host), " && ")
+
+        first_script <- tempfile(fileext = ".R")
+        writeLines(.make_script(payload, pre_sleep = pre_sleep, host_label = cores_full[i]), first_script)
+        remote_first <- paste0("/tmp/", basename(first_script))
+        remote_loop  <- remote_first
+        scp_pre      <- sprintf("scp -q %s %s:%s",
+                                shQuote(first_script), cores_full[i], remote_first)
+
+        # ssh -t: PTY for interactive R (readline, OSC 2, Ctrl+C).
+        # SIGHUP fix: `trap '' HUP` in bash sets SIGHUP->SIG_IGN; `exec` replaces
+        # bash with R and POSIX guarantees SIG_IGN is preserved across exec.
+        # makeClusterPSOCK workers that inherit and close the PTY slave fd can no
+        # longer kill R via SIGHUP.  stdout stays on the PTY (no nohup.out redirect).
+        # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
+        r_run <- function(rpath) {
+          inner <- sprintf(
+            "trap '' HUP; exec env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+            rpath)
+          sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
+                  cores_full[i], shQuote(inner))
+        }
+        bash_cmd <- sprintf("trap '' INT; if %s%s; then %s; _st=$?; while [ $_st -ne 0 ]; do sleep 2; %s; _st=$?; done; fi",
+                            setup_pre, scp_pre,
+                            r_run(remote_first), r_run(remote_loop))
+        remote_node <- tryCatch(
+          trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE,
+                         stderr = FALSE)[1L]),
+          error = function(e) ""
+        )
+        pane_title <- if (nzchar(remote_node) && remote_node != cores_full[i])
+          paste0(cores_full[i], "-", remote_node)
+        else
+          cores_full[i]
+        .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title)
+        .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
+      } else if (is_remote) {
+        # Remote + reuse mode: single SSH session; R loops internally.
+        # Write a minimal R script and run it via R_PROFILE_USER so the session
+        # is interactive (OSC 2 title updates work, errors stay at '>').
+        remote_script  <- tempfile(fileext = ".R")
+        remote_path    <- paste0("/tmp/", basename(remote_script))
+        writeLines(c(
+          if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
+          payload
+        ), remote_script)
+        scp_cmd <- sprintf("scp -q %s %s:%s",
+                           shQuote(remote_script), cores_full[i], remote_path)
+        ssh_cmd <- sprintf(
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+          cores_full[i], shQuote(remote_path)
+        )
+        remote_node2 <- tryCatch(
+          trimws(system2("ssh", c(cores_full[i], "hostname -s"), stdout = TRUE, stderr = FALSE)[1L]),
+          error = function(e) ""
+        )
+        pane_title2 <- if (nzchar(remote_node2) && remote_node2 != cores_full[i])
+          paste0(cores_full[i], "-", remote_node2)
+        else
+          cores_full[i]
+        .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title2)
+        .tmux_run("send-keys", "-t", worker_ids[i],
+                  paste(scp_cmd, "&&", ssh_cmd), "C-m")
+      } else {
+        # Local worker: use R --interactive with R_PROFILE_USER so that on error
+        # tmuxRunWorkerLoop returns to the '>' prompt instead of exiting (Rscript exits
+        # unconditionally when the script ends; R --interactive does not).
+        # Write to activeRunningPath (not tempfile) so the script survives q() and
+        # can be re-run from the pane without stalling on a deleted tempfile.
+        local_script <- file.path(activeRunningPath,
+                                  sprintf("worker_startup_local_%02d.R", i))
+        writeLines(.make_script(payload, pre_sleep = pre_sleep), local_script)
+        # Clear test-harness env vars that R inherits from `R CMD check` /
+        # `R CMD test`. R_TESTS points at the harness's startup script; if the
+        # new pane's R reads it the session never reaches global.R and the
+        # tests time out with no output files. R_BROWSER / R_PDFVIEWER are
+        # set to "false" by check and cause noise on first plot.
+        .tmux_run("send-keys", "-t", worker_ids[i],
+                  sprintf("env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+                          shQuote(local_script)), "C-m")
+      }
+    }  # end merged loop
+
+    if (length(worker_ids) < n_workers)
+      stop(sprintf("Expected %d new worker panes, found %d.", n_workers, length(worker_ids)))
+
   } else {
-    warning("Not running in tmux; running just 1 worker... ")
-    n_workers <- 1
-    workers <- seq_along(n_workers)
-  }
-  
-  # Warn if filelock missing (workers will error in panes if not installed)
-  if (!requireNamespace("filelock", quietly = TRUE)) {
-    warning("Workers require 'filelock' installed on the host. Install with install.packages('filelock').")
-  }
-  
-  # Convert a local absolute path to its remote equivalent (same path relative to ~)
-  .to_remote_path <- function(p) {
-    if (is.null(p)) return(p)
-    sub(paste0("^", path.expand("~")), "~", normalizePath(p, mustWork = FALSE))
-  }
-
-  # Build a pane payload that **calls functions** instead of source()ing files.
-  # Default preserves previous behavior (loop); if you want single-shot workers, swap to runNextWorker().
-
-  for (i in seq_along(workers)) {
-    pre_sleep <- if (i == 1L) 0 else (delay_before_source + max(0, i - 2) * stagger_by)
-    is_remote <- cores[i] != "localhost"
-    qp  <- if (is_remote) .to_remote_path(queue_path)        else queue_path
-    gp  <- if (is_remote) .to_remote_path(global_path)       else global_path
-    arp <- if (is_remote) .to_remote_path(activeRunningPath) else activeRunningPath
-    payload <- sprintf(
-      "SpaDES.project::runWorkerLoop(queue_path=%s, global_path=%s, on_interrupt=%s, runNameLabel=%s, activeRunningPath=%s)",
-      deparse1(qp),
-      deparse1(gp),
-      deparse1(match.arg(on_interrupt)),
-      deparse1(runNameLabel),
-      deparse1(arp)
+    # Not inside tmux: run first job inline in this R session.
+    worker_ids <- NA_character_
+    message("Not inside a tmux session; running first job sequentially in this R session.",
+             call. = FALSE)
+    pre_sleep <- 0
+    payload <- .build_worker_r_expr(
+      queue_path = queue_path, global_path = global_path,
+      on_interrupt = on_interrupt, runNameLabel = runNameLabel,
+      activeRunningPath = activeRunningPath, ss_id = ss_id,
+      pane_mode = pane_mode, email = email,
+      cache_path = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+      dots_path = if (file.exists(dots_path)) dots_path else NULL,
+      lib_path = .libPaths()[1L]
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
-    if (inTmux) {
-      .tmux_run("send-keys", "-t", workers[i], code, "C-m")
-    } else {
-      message("running:\n")
-      message(code)
-      eval(parse(text = code))
-    }
+    message("running:\n")
+    message(code)
+    eval(parse(text = code))
   }
-  
-  # }
-  
-  invisible(workers)
+
+  invisible(worker_ids)
 }
 
 
@@ -552,7 +1517,7 @@ experimentTmux <- function(df,
 #' @param global_path character; script to source for the job
 #' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as FAILED.
 #' @param heartbeat_interval_s numeric; seconds between heartbeats while the job runs
-#' @return "ok" | "interrupt" | "empty" (if no pending work found); used by runWorkerLoop()
+#' @return "ok" | "interrupt" | "empty" (if no pending work found); used by tmuxRunWorkerLoop()
 #' @export
 #' @param runNameLabel A quoted expression (possibly of `q`, which is the result of `q <- readRDS(queue_path)`).
 #'   Default is the first 2 column names of `q`. These will be concatenated and used as
@@ -561,9 +1526,11 @@ experimentTmux <- function(df,
 #'   Defaults to `getOption("spades.statusCalculate", NULL)`.
 #' @param folderWithIterInFilename A quoted expression for a folder containing iteration
 #'   info in filenames. Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
-#' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
+#' @param activeRunningPath Directory for "running" flag files. See `tmuxActiveRunningPath`.
+#' @param ss_id Optional Google Sheets/Drive ID for the shared queue. When
+#'   supplied workers use the GS backend instead of the local RDS file.
 #' @export
-runNextWorker <- function(queue_path, global_path,
+tmuxRunNextWorker <- function(queue_path, global_path,
                           on_interrupt = c("requeue","fail"),
                           heartbeat_interval_s = 60,
                           runNameLabel = quote(colnames(q)[1:2]),
@@ -571,40 +1538,228 @@ runNextWorker <- function(queue_path, global_path,
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
                           folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
-                          activeRunningPath = getOption("spades.activeRunningPath")) {
+                          activeRunningPath = getOption("spades.activeRunningPath"),
+                          ss_id = NULL) {
   if (missing(global_path))
     global_path <- "global.R"
-  stopifnot(file.exists(queue_path), file.exists(global_path))
+  stopifnot(file.exists(global_path))
   on_interrupt <- match.arg(on_interrupt)
+
+  PANE      <- Sys.getenv("TMUX_PANE")
+  use_gs    <- !is.null(ss_id)
+
+  # ---- Google Sheets backend ----
+  if (use_gs) {
+    .trace <- isTRUE(getOption("spades.mirror.trace", FALSE)) ||
+              nzchar(Sys.getenv("SPADES_MIRROR_TRACE"))
+    worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
+    if (.trace) message(sprintf("[gs-worker] claim attempt by %s queue_path=%s",
+                                worker_id, as.character(queue_path)))
+    claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path)
+    if (is.null(claimed)) {
+      if (.trace) message("[gs-worker] claim -> NULL (queue empty); exiting loop")
+      return("empty")
+    }
+    if (inherits(claimed, "gs_claim_lost")) {
+      if (.trace) message("[gs-worker] claim -> lost (collision); will retry")
+      return("lost")
+    }
+
+    row_i     <- claimed$row_index
+    sheet_row <- claimed$sheet_row
+    col_pos   <- claimed$col_positions
+    q         <- claimed$data
+    data.table::setDT(q)
+    q <- revertDotNames(q)
+    if (.trace) message(sprintf("[gs-worker] claimed row_i=%s sheet_row=%s",
+                                row_i, sheet_row))
+    
+    data_cols    <- setdiff(names(q), meta_cols)
+    scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
+
+    # Per-job scenario environment. data columns + traceback breadcrumb live
+    # here, not in .GlobalEnv. global.R is sourced with `local = scn_env`,
+    # so unqualified references in the user's script (e.g. `.samplingRange`)
+    # still resolve, but no user-visible state is leaked into the REPL's
+    # global env. Use SpaDES.project::lastTraceback() for post-mortem
+    # inspection — that accessor reads `.pkgEnv$lastScn$.spades_tb`.
+    scn_env <- new.env(parent = globalenv())
+    for (nm in data_cols) {
+      # try parsing as it could be an expression written/recorded as a character
+      newPoss <- tryCatch(eval(parse(text = q[[nm]][1L])), error = function(err) q[[nm]][1L], silent = TRUE)
+      assign(nm, newPoss, envir = scn_env)
+    }
+    .pkgEnv$lastScn <- scn_env
+
+    # Compute runName from runNameLabel now that data cols are in scn_env
+    runName <- tryCatch({
+      raw <- eval(runNameLabel, envir = scn_env)
+      gsub("[^[:alnum:]_.:-]", "-", paste(as.character(raw), collapse = "-"))
+    }, error = function(e) paste(q[[data_cols[1L]]][1L], collapse = "-"))
+
+    message("\n[", format(Sys.time(), "%H:%M:%S"), "] Claimed job: ", runName)
+
+    # on.exit guard: if quit() is called from inside source(global_path)  --
+    # e.g. pak::pak() restarting after a package update  -- it bypasses all
+    # tryCatch / on.exit. reg.finalizer(..., onexit=TRUE) IS called by R
+    # before it exits, and we capture `.guard_env` via closure so the
+    # finalizer doesn't need to retrieve any package state from .GlobalEnv.
+    .guard_env             <- new.env(parent = emptyenv())
+    .guard_env$done        <- FALSE
+    .guard_env$ss_id       <- ss_id
+    .guard_env$sheet_row   <- sheet_row
+    .guard_env$col_pos     <- col_pos
+    .guard_env$runName     <- runName
+    .guard_env$queue_path  <- queue_path
+    .guard_env$row_i       <- row_i
+    local({
+      ge2 <- .guard_env   # closed over by the finalizer below
+      reg.finalizer(globalenv(), function(unused_env) {
+        if (isTRUE(ge2$done)) return(invisible())
+        try(message(
+          "\nWARNING: R exiting before job outcome recorded for '", ge2$runName, "'.",
+          "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
+          "\n  Marking INTERRUPTED in GS."
+        ), silent = TRUE)
+        now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        upd <- list(status         = txtInterrupted,
+                    claimed_by     = NA_character_,
+                    interrupted_at = now)
+        try(.gs_write_cells(
+          ge2$ss_id, ge2$sheet_row,
+          updates       = upd,
+          col_positions = ge2$col_pos
+        ), silent = TRUE)
+        try(.mirror_local_queue(
+          ge2$queue_path, ge2$row_i, upd
+        ), silent = TRUE)
+      }, onexit = TRUE)
+    })
+
+    try({
+      .prefix <- getOption(".spades_pane_prefix", "")
+      .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
+      # OSC 2 propagates through the SSH PTY to local tmux and updates
+      # #{pane_title}  -- works for both local and remote panes.
+      # Guard against polluting non-tmux log files with raw escape bytes.
+      if (nzchar(Sys.getenv("TMUX")) || isatty(stdout())) cat(sprintf("\033]2;%s\007", .pane_title))
+      # select-pane -T is more reliable but requires a local TMUX_PANE id.
+      if (nzchar(PANE)) {
+        if (exists(".tmux_run", mode = "function"))
+          .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
+        else
+          processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
+                        echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
+      }
+    }, silent = TRUE)
+    
+    # Heartbeat: write directly to GS
+    if (FALSE) {
+      hb_thread <- try(parallel::mcparallel({
+        repeat {
+          Sys.sleep(heartbeat_interval_s)
+          hb_vals <- get_latest_heartbeat(current_run, folderWithIterInFilename = folderWithIterInFilename)
+          .gs_write_cells(ss_id, sheet_row,
+                          updates       = list(heartbeat_at = hb_vals$ts, heartbeat_iter = hb_vals$iter),
+                          col_positions = col_pos)
+        }
+      }), silent = TRUE)
+    }
+
+    # withCallingHandlers runs the error handler WITHOUT unwinding the call
+    # stack, so traceback() shows the full chain inside source(global_path).
+    # After the handler returns, the error propagates naturally to R's
+    # top-level handler (interactive session stays alive).
+    # tryCatch(interrupt=) wraps the outside so interrupts are still caught.
+    outcome <- tryCatch(
+      withCallingHandlers({
+        source(global_path, local = scn_env)
+        "ok"
+      }, error = function(e) {
+        # Capture call stack while frames are still intact, then mark INTERRUPTED.
+        assign(".spades_tb", sys.calls(), envir = scn_env)
+        now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        upd <- list(status         = txtInterrupted,
+                    claimed_by     = NA_character_,
+                    interrupted_at = now)
+        try(.gs_write_cells(ss_id, sheet_row,
+                            updates       = upd,
+                            col_positions = col_pos), silent = TRUE)
+        try(.mirror_local_queue(queue_path, row_i, upd), silent = TRUE)
+        # Return NULL so the error re-signals to the outer tryCatch below.
+      }),
+      error = function(e) {
+        .cl <- conditionCall(e)
+        if (!is.null(.cl))
+          message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
+        else
+          message("Error: ", conditionMessage(e))
+        message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
+        message("\nq(status=1L) to retry  |  q() to stop the loop")
+        "error"
+      },
+      interrupt = function(e) "interrupt"
+    )
+
+    now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    message("[", now, "] Job finished: ", runName, "  outcome=", outcome)
+
+    final <- if (isTRUE(outcome == "ok")) {
+      # Clear claimed_by on DONE -- the row is no longer claimed by the
+      # worker.  process_id / machine_name are preserved as a historical
+      # record of which worker on which machine produced the result.
+      list(status = txtDone, claimed_by = NA_character_, finished_at = now)
+    } else if (on_interrupt == "requeue") {
+      list(status = txtPending, claimed_by = NA_character_)
+    } else {
+      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now)
+    }
+    if (.trace) message(sprintf("[gs-worker] final outcome=%s row_i=%s -> %s",
+                                outcome, row_i,
+                                paste(sprintf("%s=%s", names(final), as.character(unlist(final))),
+                                      collapse = ", ")))
+    .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
+    try(.mirror_local_queue(queue_path, row_i, final), silent = TRUE)
+    .guard_env$done <- TRUE   # disarm the reg.finalizer quit() guard
+    return(outcome)
+  }
+
+  # ---- File-based backend (original) ----
+  stopifnot(file.exists(queue_path))
   if (!requireNamespace("filelock", quietly = TRUE))
     stop("Package 'filelock' is required.")
-  
-  PANE  <- Sys.getenv("TMUX_PANE")
+
   LOCKF <- paste0(queue_path, ".lock")
-  
-  # update queue file from log files
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = activeRunningPath, queue_path)
-  tmux_refresh_queue_status(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
-                            activeRunningPath = activeRunningPath)
-  # claim a row (unchanged)
+
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
+  # NOTE: tmuxRefreshQueueStatus is intentionally NOT called per-iteration
+  # here. It races with the claim path's atomic queue+Running-file write
+  # and can demote a just-claimed row back to PENDING under fast jobs,
+  # producing duplicate claims. Recovery of stuck RUNNING rows from a
+  # previous run should be performed once by the master (experimentTmux /
+  # experimentFuture / experimentSBATCH already do this) before any worker
+  # starts, not on every claim.
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
+  q <- revertDotNames(q)
   
-  runNameLabel <- eval(runNameLabel)
-  
-  # Take the first one on the list that is PENDING or INTERRUPTED
-  pending_idx <- which(q$status %in% c(txtInterrupted,txtPending))[1]
+  # Convert runNameLabel to a character column-name vector.
+  # If it is a bare symbol like quote(.samplingRange), deparse it to get the name.
+  # If it is a call like quote(colnames(q)[1:2]), evaluate it now that q is in scope.
+  runNameLabel <- if (is.symbol(runNameLabel)) as.character(runNameLabel)
+                  else eval(runNameLabel, envir = environment())
 
+  pending_idx <- which(q$status %in% c(txtInterrupted, txtPending))[1]
   if (is.na(pending_idx)) {
     filelock::unlock(lck)
     return("empty")
   }
   i <- pending_idx
-  
-  # derive data_cols for defaulting runNameLabel
+
   data_cols <- setdiff(names(q), meta_cols)
-  
+  scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
+
   if (is.null(runNameLabel)) {
     if (length(data_cols) == 0L)
       stop("No data columns available to infer 'runNameLabel'.")
@@ -612,109 +1767,253 @@ runNextWorker <- function(queue_path, global_path,
   }
   if (!all(runNameLabel %in% names(q)))
     stop(sprintf("runNameLabel '%s' is not a column in the queue.", runNameLabel))
-  
-  # inject globals (unchanged)
-  for (nm in data_cols) {
-    assign(nm, q[[nm]][i], envir = .GlobalEnv)
-  }
-  
-  # status bookkeeping (unchanged)
+
+  # Per-job scenario environment — see the GS branch above. Keeps user-side
+  # state out of .GlobalEnv. lastTraceback() exposes the captured traceback.
+  scn_env <- new.env(parent = globalenv())
+  for (nm in data_cols)
+    assign(nm, q[[nm]][i], envir = scn_env)
+  .pkgEnv$lastScn <- scn_env
+
   q$status[i]       <- txtRunning
-  q$claimed_by[i]   <- PANE
+  q$claimed_by[i]   <- if (nzchar(PANE)) PANE else paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
   q$started_at[i]   <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   q$machine_name[i] <- Sys.info()[["nodename"]]
   q$process_id[i]   <- Sys.getpid()
+  # Scrub stale completion/interrupt fields left from a prior run of this row,
+  # so RUNNING never carries a finished_at / heartbeat / interrupted_at value.
+  for (cn in intersect(c("finished_at", "DEoptimElapsedTime", "heartbeat_at",
+                         "heartbeat_iter", "iterationsTotal", "interrupted_at"),
+                       names(q))) {
+    q[[cn]][i] <- NA
+  }
+
+  # Critical-section invariant: marking the row RUNNING in the queue and
+  # writing its Running_*.rds sentinel must be visible together. If we
+  # released the lock between these two writes, a concurrent worker's
+  # tmuxRefreshQueueStatus() could observe status=RUNNING with no matching
+  # Running file and demote the row back to PENDING (default at the top
+  # of its loop), causing this row to be re-claimed by another worker.
+  current_run <- getRunName(q, i, runNameLabel)
+  runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
+  startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
+  dir.create(dirname(startedFile), recursive = TRUE, showWarnings = FALSE)
+  saveRDS(runName, file = startedFile)
   saveRDS(q, queue_path)
   filelock::unlock(lck)
-  
-  # --- Pane title uses runName ---
-  
-  current_run <- getRunName(q, i, runNameLabel)# q[i, runNameLabel] |> paste(collapse = "-")
-  
-  runName <- as.character(current_run)
-  runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
-  try({
-    if (exists(".tmux_run", mode = "function")) {
-      .tmux_run("select-pane", "-t", PANE, "-T", runName)
-    } else {
-      processx::run("tmux", c("select-pane","-t", PANE, "-T", runName),
-                    echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
-    }
-  }, silent = TRUE)
-  
-  activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
-  startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
-  reproducible::checkPath(dirname(startedFile), create = TRUE)
-  saveRDS(runName, file = startedFile)
+
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
 
-  # --- Heartbeat now tracks runNameLabel-based location ---
-  hb_thread <- try(parallel::mcparallel({
-    repeat {
-      Sys.sleep(heartbeat_interval_s)
-      hb_vals <- get_latest_heartbeat(current_run, folderWithIterInFilename = folderWithIterInFilename)
-      l2 <- filelock::lock(LOCKF, timeout = 10)
-      on.exit(try(filelock::unlock(l2), silent = TRUE), add = TRUE)
-      if (!is.null(l2)) {
-        q2 <- readRDS(queue_path)
-        idx <- which(q2$status == txtRunning & q2$claimed_by == PANE)
-        if (length(idx)) {
-          q2$heartbeat_at[idx]   <- hb_vals$ts
-          q2$heartbeat_iter[idx] <- hb_vals$iter
-          saveRDS(q2, queue_path)
-        }
-        filelock::unlock(l2)
-      }
+  try({
+    .prefix <- getOption(".spades_pane_prefix", "")
+    .pane_title <- if (nzchar(.prefix)) paste0(.prefix, "-", runName) else runName
+    if (nzchar(Sys.getenv("TMUX")) || isatty(stdout())) cat(sprintf("\033]2;%s\007", .pane_title))
+    if (nzchar(PANE)) {
+      if (exists(".tmux_run", mode = "function"))
+        .tmux_run("select-pane", "-t", PANE, "-T", .pane_title)
+      else
+        processx::run("tmux", c("select-pane", "-t", PANE, "-T", .pane_title),
+                      echo_cmd = FALSE, echo = FALSE, error_on_status = FALSE)
     }
-  }), silent = TRUE)
+  }, silent = TRUE)
+
   
-  outcome <- tryCatch({
-    source(global_path, local = .GlobalEnv)
-    "ok"
-  }, interrupt = function(e) "interrupt")
-  
-  # finalize (unchanged except for return)
+  if (FALSE) {
+    hb_thread <- try(parallel::mcparallel({
+      repeat {
+        Sys.sleep(heartbeat_interval_s)
+        hb_vals <- get_latest_heartbeat(current_run, folderWithIterInFilename = folderWithIterInFilename)
+        l2 <- filelock::lock(LOCKF, timeout = 10)
+        on.exit(try(filelock::unlock(l2), silent = TRUE), add = TRUE)
+        if (!is.null(l2)) {
+          q2  <- readRDS(queue_path)
+          q2 <- revertDotNames(q2)
+          
+          idx <- which(q2$status == txtRunning & q2$claimed_by == PANE)
+          if (length(idx)) {
+            q2$heartbeat_at[idx]   <- hb_vals$ts
+            q2$heartbeat_iter[idx] <- hb_vals$iter
+            saveRDS(q2, queue_path)
+          }
+          filelock::unlock(l2)
+        }
+      }
+    }), silent = TRUE)
+  }
+
+  outcome <- tryCatch(
+    withCallingHandlers({
+      source(global_path, local = scn_env)
+      "ok"
+    }, error = function(e) {
+      # Capture call stack while frames are still intact, then mark INTERRUPTED.
+      assign(".spades_tb", sys.calls(), envir = scn_env)
+      lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
+      if (!inherits(lck2, "try-error") && !is.null(lck2)) {
+        try({
+          q2 <- readRDS(queue_path)
+          q2$status[i]         <- txtInterrupted
+          q2$claimed_by[i]     <- NA_character_
+          q2$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          saveRDS(q2, queue_path)
+        }, silent = TRUE)
+        try(filelock::unlock(lck2), silent = TRUE)
+      }
+      # Return NULL so the error re-signals to the outer tryCatch below.
+    }),
+    error = function(e) {
+      .cl <- conditionCall(e)
+      if (!is.null(.cl))
+        message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
+      else
+        message("Error: ", conditionMessage(e))
+      message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
+      message("\nq(status=1L) to retry  |  q() to stop the loop")
+      "error"
+    },
+    interrupt = function(e) "interrupt"
+  )
+
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   if (outcome == "ok") {
     q$status[i]      <- txtDone
+    q$claimed_by[i]  <- NA_character_   # row no longer claimed
     q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   } else if (outcome == "interrupt") {
     if (on_interrupt == "requeue") {
-      q$status[i]    <- txtPending
+      q$status[i]     <- txtPending
       q$claimed_by[i] <- NA_character_
     } else {
-      q$status[i]      <- "FAILED"
-      q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      q$status[i]         <- txtInterrupted
+      q$claimed_by[i]     <- NA_character_
+      q$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
     }
   }
   saveRDS(q, queue_path)
   filelock::unlock(lck)
-  if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
+  # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
   outcome
 }
 
 #' Run queued jobs repeatedly (pane-local loop).
 #'
-#' @inheritParams runNextWorker
+#' @inheritParams tmuxRunNextWorker
 #' @param stop_file optional path; if present, stop after current iteration
+#' @param pane_mode Character. `"reuse"` (default) loops inside the same R session.
+#'   `"killAndNewPane"` runs one job, spawns a fresh replacement pane, retiles the
+#'   tmux window, then kills the current pane  -- freeing all R memory between jobs.
+#' @param email gargle OAuth email; forwarded to replacement panes in `killAndNewPane` mode.
+#' @param cache_path gargle OAuth cache path; forwarded to replacement panes.
+#' @param dots_path Path to `.tmux_dots.rds` holding extra `...` args; forwarded to
+#'   replacement panes so they can reload complex objects before sourcing.
 #' @return invisibly TRUE
 #' @export
-runWorkerLoop <- function(queue_path, global_path,
-                          on_interrupt = c("requeue","fail"),
+tmuxRunWorkerLoop <- function(queue_path, global_path,
+                          on_interrupt = c("requeue", "fail"),
                           heartbeat_interval_s = 60,
                           stop_file = NULL,
                           activeRunningPath = getOption("spades.activeRunningPath"),
-                          runNameLabel = quote(colnames(q)[1:2])) {
+                          runNameLabel = quote(colnames(q)[1:2]),
+                          ss_id = NULL,
+                          pane_mode = c("reuse", "killAndNewPane"),
+                          email = getOption("gargle_oauth_email"),
+                          cache_path = getOption("gargle_oauth_cache"),
+                          dots_path = NULL) {
   on_interrupt <- match.arg(on_interrupt)
+  pane_mode    <- match.arg(pane_mode)
+  # Authenticate with Google before any sheet access.
+  # Setting options alone is not sufficient in a non-interactive Rscript session;
+  # gs4_auth() must be called explicitly so gargle loads the cached token.
+  options(gargle_oauth_client_type = "web")
+  if (!is.null(email))      options(gargle_oauth_email = email)
+  if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
+  if (!is.null(ss_id) && !is.null(email) && !is.null(cache_path)) {
+    tryCatch(
+      googlesheets4::gs4_auth(email = email, cache = cache_path),
+      error = function(e) message("gs4_auth warning: ", conditionMessage(e))
+    )
+  }
+
+  if (missing(global_path)) global_path <- "global.R"
+
+  # ------------------------------------------------------------------
+  # killAndNewPane: run one job, respawn this pane in-place, die.
+  # respawn-pane -k replaces the current pane's process with a fresh
+  # Rscript  -- same tmux position, no split/retile needed.
+  # ------------------------------------------------------------------
+  if (pane_mode == "killAndNewPane") {
+    if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) return(invisible(TRUE))
+
+    res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
+                         heartbeat_interval_s, runNameLabel = runNameLabel,
+                         activeRunningPath = activeRunningPath, ss_id = ss_id)
+
+    should_continue <- !identical(res, "empty") &&
+                       !identical(res, "error") &&
+                       !(identical(res, "interrupt") && on_interrupt == "fail")
+
+    if (should_continue && nzchar(Sys.getenv("TMUX"))) {
+      # Local tmux pane: respawn-pane replaces this process with a fresh R session.
+      # Use R --interactive (not Rscript) so that if a future job errors, R stays
+      # at '>' instead of exiting when the startup script finishes.
+      # (Remote workers are handled by the bash while-loop in the local pane.)
+      PANE            <- Sys.getenv("TMUX_PANE")
+      # Use activeRunningPath (not tempfile) so the script survives q() and can be
+      # re-run from the pane without stalling on a deleted tempfile.
+      .respawn_script <- file.path(activeRunningPath, "worker_respawn.R")
+      writeLines(.build_worker_r_expr(
+                   queue_path        = queue_path,
+                   global_path       = global_path,
+                   on_interrupt      = on_interrupt,
+                   runNameLabel      = runNameLabel,
+                   activeRunningPath = activeRunningPath,
+                   ss_id             = ss_id,
+                   pane_mode         = "killAndNewPane",
+                   email             = email,
+                   cache_path        = cache_path,
+                   dots_path         = dots_path,
+                   lib_path          = .libPaths()[1L]
+                 ), .respawn_script)
+      # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
+      # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
+      # local-worker startup at the top of experimentTmux(). Without this,
+      # a respawned pane re-enters R with R_TESTS pointing at the harness
+      # startup script and never reaches the worker's profile.
+      respawn_cmd <- sprintf(
+        "env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+        shQuote(.respawn_script)
+      )
+      .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
+    }
+    if (should_continue) {
+      # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) ->
+      # exit 1 so the remote bash `while !` condition fails -> loop continues.
+      message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
+              "  -- restarting R session for next job")
+      flush(stderr()); flush(stdout())
+      Sys.sleep(0.5)   # let PTY flush before SSH connection drops
+      quit(save = "no", status = 1L)
+    } else {
+      # Queue empty or interrupt+fail: stay at '>' so the user can debug.
+      message("\nWorker idle: res=", res,
+              "\n  q(status=1L) to retry  |  q() to stop the loop")
+      return(invisible(res))
+    }
+  }
+
+  # ------------------------------------------------------------------
+  # reuse (default): loop inside the same R session
+  # ------------------------------------------------------------------
   repeat {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
-    if (missing(global_path))
-      global_path <- "global.R"
-    res <- runNextWorker(queue_path, global_path, on_interrupt,
-                         heartbeat_interval_s, runNameLabel = runNameLabel, activeRunningPath = activeRunningPath)
+    res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
+                         heartbeat_interval_s, runNameLabel = runNameLabel,
+                         activeRunningPath = activeRunningPath, ss_id = ss_id)
     if (identical(res, "empty")) break
+    if (identical(res, "error")) break
     if (identical(res, "interrupt") && on_interrupt == "fail") break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
   }
@@ -732,7 +2031,7 @@ runWorkerLoop <- function(queue_path, global_path,
 #'   `experimentTmux()`.
 #' @return Invisibly returns the subset of `panes` successfully targeted.
 #' @export
-tmux_kill_panes <- function(panes) {
+tmuxKillPanes <- function(panes) {
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
@@ -745,7 +2044,182 @@ tmux_kill_panes <- function(panes) {
   invisible(killed)
 }
 
+#' Short friendly name for the local machine
+#'
+#' Resolves the cluster-facing short name for this host, trying in order:
+#' 1. `/etc/hosts` lookup by a local IP (shortest alias wins);
+#' 2. `~/.ssh/config` `Host` entry whose `Hostname` is a local IP (CRLF-safe);
+#' 3. `hostname -s`.
+#'
+#' Useful for deriving the pane-title host prefix when the cluster knows this
+#' machine by a name different from `hostname -s` (e.g. mega, whose raw
+#' hostname is the node id but whose cluster alias is `mega` via `/etc/hosts`).
+#'
+#' @return Character(1) short name, or `NULL` if none could be determined.
+#' @export
+localHostLabel <- function() {
+  ips <- tryCatch({
+    raw <- suppressWarnings(system2("hostname", "-I",
+                                    stdout = TRUE, stderr = FALSE))
+    toks <- strsplit(trimws(paste(raw, collapse = " ")), "\\s+")[[1L]]
+    toks[nzchar(toks)]
+  }, error = function(e) character(0))
+
+  # 1) /etc/hosts -- canonical on this cluster per CLAUDE.md
+  if (length(ips)) {
+    hosts <- tryCatch(readLines("/etc/hosts", warn = FALSE),
+                      error = function(e) character(0))
+    hosts <- hosts[!grepl("^\\s*#", hosts) & nzchar(trimws(hosts))]
+    for (ip in ips) {
+      ip_rx <- paste0("^\\s*", gsub(".", "\\.", ip, fixed = TRUE), "\\s+")
+      hit   <- grep(ip_rx, hosts, value = TRUE)
+      if (length(hit)) {
+        toks <- strsplit(trimws(hit[[1L]]), "\\s+")[[1L]]
+        names_after_ip <- toks[-1L]
+        if (length(names_after_ip))
+          return(names_after_ip[which.min(nchar(names_after_ip))])
+      }
+    }
+  }
+
+  # 2) ~/.ssh/config -- strip CRLF per CLAUDE.md
+  ssh_cfg <- path.expand("~/.ssh/config")
+  if (length(ips) && file.exists(ssh_cfg)) {
+    lines <- tryCatch(readLines(ssh_cfg, warn = FALSE),
+                      error = function(e) character(0))
+    lines <- gsub("\r", "", lines, fixed = TRUE)
+    current_host <- NULL
+    host_map     <- list()
+    for (ln in lines) {
+      t <- trimws(ln)
+      if (!nzchar(t) || startsWith(t, "#")) next
+      toks <- strsplit(t, "\\s+")[[1L]]
+      key  <- tolower(toks[[1L]])
+      val  <- if (length(toks) >= 2L) toks[[2L]] else ""
+      if (key == "host") {
+        current_host <- val
+      } else if (key == "hostname" && !is.null(current_host)) {
+        host_map[[current_host]] <- val
+      }
+    }
+    for (h in names(host_map)) {
+      if (host_map[[h]] %in% ips) return(h)
+    }
+  }
+
+  # 3) hostname -s fallback
+  short <- tryCatch(
+    trimws(system2("hostname", "-s", stdout = TRUE, stderr = FALSE)[[1L]]),
+    error = function(e) NULL
+  )
+  if (length(short) && nzchar(short)) return(short)
+  NULL
+}
+
+#' Set a tmux pane's title by matching its current title
+#'
+#' Scans every tmux server on this machine (sockets under
+#' `$TMUX_TMPDIR/tmux-<uid>/`) for panes whose current title exactly matches
+#' `oldTitle`, then rewrites each to `newTitle`.  Useful for upgrading
+#' old-style worker-pane titles (without `<node>-<pid>` prefix) to the new
+#' convention so that `.gs_reclaim_dead_jobs()` can recognise them.
+#'
+#' @param oldTitle Character(1). Exact current title to match.
+#' @param newTitle Character(1). Replacement title.
+#' @return Invisibly, a character vector of the pane IDs that were updated
+#'   (e.g. `c("%12", "%33")`).  Prints a message per update and a warning
+#'   when no match is found.
+#' @export
+tmuxSetPaneTitle <- function(oldTitle, newTitle) {
+  stopifnot(is.character(oldTitle), length(oldTitle) == 1L, nzchar(oldTitle),
+            is.character(newTitle), length(newTitle) == 1L, nzchar(newTitle))
+  if (identical(oldTitle, newTitle)) {
+    message("oldTitle and newTitle are identical; nothing to do.")
+    return(invisible(character()))
+  }
+  uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
+                  error = function(e) character(0))
+  if (!length(uid) || !nzchar(uid[1L]))
+    stop("Could not determine uid for tmux socket discovery.", call. = FALSE)
+  tmpdir   <- Sys.getenv("TMUX_TMPDIR", unset = "/tmp")
+  sock_dir <- file.path(tmpdir, paste0("tmux-", uid[1L]))
+  if (!dir.exists(sock_dir))
+    stop("No tmux socket directory at ", sock_dir, call. = FALSE)
+  sockets <- list.files(sock_dir, full.names = TRUE)
+  if (!length(sockets))
+    stop("No tmux sockets found in ", sock_dir, call. = FALSE)
+
+  fmt <- shQuote("#{pane_id}\t#{pane_title}")
+  updated <- character()
+  for (s in sockets) {
+    rows <- tryCatch(
+      system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) character(0)
+    )
+    if (!length(rows)) next
+    for (row in rows) {
+      parts <- strsplit(row, "\t", fixed = TRUE)[[1L]]
+      if (length(parts) != 2L) next
+      pane_id <- parts[[1L]]
+      title   <- parts[[2L]]
+      if (!identical(title, oldTitle)) next
+      ok <- tryCatch(
+        system2("tmux", c("-S", s, "select-pane", "-t", pane_id,
+                          "-T", shQuote(newTitle)),
+                stdout = FALSE, stderr = FALSE),
+        error = function(e) 1L
+      )
+      if (identical(as.integer(ok), 0L)) {
+        updated <- c(updated, pane_id)
+        message("Retitled ", pane_id, " on ", basename(s), ": ",
+                oldTitle, " -> ", newTitle)
+      } else {
+        warning("Failed to retitle ", pane_id, " on ", basename(s),
+                call. = FALSE)
+      }
+    }
+  }
+  if (!length(updated))
+    message("No pane found with title: ", oldTitle)
+  invisible(updated)
+}
+
 # ---- internal helpers --------------------------------------------------
+
+# Build the R expression string that launches a worker pane.
+# Returns a character(1) suitable for send-keys (interactive R) or
+# wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
+# No options() preamble  -- tmuxRunWorkerLoop() sets gargle options from its params.
+.build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
+                                  activeRunningPath, ss_id, pane_mode, email, cache_path,
+                                  dots_path, lib_path = .libPaths()[1L]) {
+  # Ensure project lib is first so correct package versions are loaded
+  lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
+  # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
+  wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
+  wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
+  dots_pre <- if (!is.null(dots_path) && file.exists(dots_path))
+    sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
+            deparse1(dots_path), deparse1(dots_path))
+  else ""
+  sprintf(
+    paste0("%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
+           "queue_path=%s, global_path=%s, on_interrupt=%s,",
+           " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
+    lib_pre, wd_pre, dots_pre,
+    deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
+    deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
+    deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
+  )
+}
+
+#' @keywords internal
+#' @noRd
+.setup_flag_path <- function(host) {
+  file.path(tempdir(), paste0(".spades_ready_", gsub("[^a-zA-Z0-9]", "_", host)))
+}
 
 #' @keywords internal
 #' @noRd
@@ -762,6 +2236,470 @@ tmux_kill_panes <- function(panes) {
   res <- .tmux_run(...)
   out <- strsplit(res$stdout, "\n", fixed = TRUE)[[1]]
   out[nzchar(out)]
+}
+
+#' Monitor live workers across an experiment (tmux panes or callr/cluster futures)
+#'
+#' Single read-only entry point for inspecting workers regardless of which
+#' runner spawned them.  Discovery is driven by what you pass:
+#'
+#' \itemize{
+#'   \item **Default (`ef = NULL`, `queue_paths = NULL`)** -- enumerates tmux
+#'     panes via `tmux -S <socket> list-panes -a` across every tmux server
+#'     under `$TMUX_TMPDIR/tmux-<uid>/`.  Same behaviour the historical
+#'     `tmuxListPanes()` had.  Per-socket failures are swallowed so one
+#'     broken socket cannot poison the rest; works outside a tmux pane
+#'     and across multiple tmux servers (e.g. sessions started under
+#'     different `-L` names).  `Cluster_Monitor` panes are filtered out.
+#'   \item **`ef` supplied (or `queue_paths`)** -- reads each queue file's
+#'     `status == "RUNNING"` rows, probes `ssh <core> hostname -s` once
+#'     per non-local entry in `ef$cores` to map OS hostnames (which is
+#'     what `Sys.info()[["nodename"]]` writes to the queue) back to SSH
+#'     aliases (`~/.ssh/config` / `/etc/hosts` entries), and verifies
+#'     each PID is alive (`/proc/<pid>` locally, batched
+#'     `ssh <alias> "[ -d /proc/<pid> ]"` remotely).  This is the
+#'     [experimentFuture()] / [experimentSBATCH()] equivalent of the
+#'     tmux pane scan -- workers there don't necessarily live in a
+#'     tmux pane, so the queue file is the authoritative record.
+#' }
+#'
+#' Either way, `stats = TRUE` runs the same `ps -o pid=,%cpu=,rss=,state=`
+#' batch (locally and via one SSH connection per remote node) to append
+#' CPU / RSS / state plus per-node `nproc` / total RAM.
+#'
+#' @param ef Optional `"experimentFuture"` object (or list of them) whose
+#'   `queue_path` and `cores` will be used for discovery.  Switches
+#'   the function from tmux-scan mode to queue-scan mode.
+#' @param queue_paths Optional character vector of queue `.rds` paths.
+#'   Equivalent to passing `ef = NULL` plus `queue_paths`; used when the
+#'   `ef` handle is no longer in scope (e.g. across R sessions).  When
+#'   `queue_paths` is supplied without `ef`, the SSH-alias probe is
+#'   skipped and `machine_name` from the queue is used verbatim as the
+#'   SSH target -- which only works if the OS hostname is itself a Host
+#'   entry in `~/.ssh/config` / `/etc/hosts`.
+#' @param stats Logical.  When `TRUE`, queries `ps` per worker (locally
+#'   or via batched SSH) to append `state`, `cpuAvg` (percent CPU
+#'   averaged over the process's lifetime -- not the instantaneous rate
+#'   `htop` shows), `RAM (GB)` (resident memory), `availableCores`
+#'   (total CPUs on the node, from `nproc`), and `total RAM (GB)`
+#'   (total RAM on the node, from `/proc/meminfo`).  Default `FALSE`.
+#'
+#' @return Data.frame whose columns depend on the discovery mode:
+#'
+#'   * **tmux mode** -- `session`, `window`, `pane`, `pane_id`,
+#'     `pane_ref` (the `"session:window.pane"` string), `title`,
+#'     `node` (first dash-separated token in `title` that matches a
+#'     cluster alias from `/etc/hosts`; falls back to
+#'     [localHostLabel()] when the title contains only the raw local
+#'     hostname; `NA` if no match).
+#'   * **queue mode** -- `pid`, `machine`, `started_at`, `log_file`
+#'     (`NA` when the worker isn't a `callr::r_bg` writer), `queue_path`,
+#'     `runName`.
+#'
+#'   With `stats = TRUE`, five additional columns appear in either
+#'   mode: `state`, `cpuAvg`, `RAM (GB)`, `availableCores`,
+#'   `total RAM (GB)`.  Returns an empty data.frame (0 rows, same
+#'   columns) if no workers are found.
+#'
+#' @section State codes:
+#' The `state` column is the best single signal for hang-detection because
+#' it is a snapshot (no time window needed).  Values:
+#'
+#' \tabular{ll}{
+#'   **State** \tab **Meaning** \cr
+#'   `R` \tab running on CPU right now \cr
+#'   `S` \tab sleeping (waiting on I/O, timer, or lock) \cr
+#'   `D` \tab uninterruptible sleep (usually disk I/O; persistent `D` can indicate a hang) \cr
+#'   `T` \tab stopped (SIGSTOP or similar) \cr
+#'   `Z` \tab zombie (dead but not yet reaped) \cr
+#'   `Closed` \tab worker process has exited -- PID no longer exists \cr
+#'   `NA` \tab could not determine (machine unreachable, or no parseable `<node>-<pid>` in title) \cr
+#' }
+#'
+#' @seealso [experimentFutureList()] for the same queue-mode discovery
+#'   plus cluster-wide kill / queue refresh / GS demotion.
+#'   [tmuxListPanes()] is preserved as a thin alias that calls this
+#'   function with no `ef`.
+#' @export
+experimentMonitor <- function(ef = NULL, queue_paths = NULL, stats = FALSE) {
+  use_queue <- !is.null(ef) || !is.null(queue_paths)
+  if (use_queue) .ef_monitor(ef = ef, queue_paths = queue_paths, stats = stats)
+  else           .tmux_monitor(stats = stats)
+}
+
+#' List all tmux panes on this machine across every tmux server
+#'
+#' Thin alias for [experimentMonitor()] in tmux-scan mode (no `ef` /
+#' `queue_paths`).  Preserved for backwards compatibility; new code
+#' should call `experimentMonitor()` directly so the same call works for
+#' [experimentFuture()] / [experimentSBATCH()] runs by passing `ef`.
+#'
+#' @inheritParams experimentMonitor
+#' @return Same as `experimentMonitor(stats = stats)` in tmux mode -- see
+#'   that function's docs.
+#' @export
+tmuxListPanes <- function(stats = FALSE) {
+  experimentMonitor(stats = stats)
+}
+
+#' @keywords internal
+#' @noRd
+.tmux_monitor <- function(stats = FALSE) {
+  empty <- data.frame(
+    session = character(0), window  = integer(0),   pane    = integer(0),
+    pane_id = character(0), pane_ref = character(0),
+    title   = character(0), node    = character(0),
+    stringsAsFactors = FALSE
+  )
+  uid <- tryCatch(system2("id", "-u", stdout = TRUE, stderr = FALSE),
+                  error = function(e) character(0))
+  if (!length(uid) || !nzchar(uid[1L])) return(empty)
+  tmpdir   <- Sys.getenv("TMUX_TMPDIR", unset = "/tmp")
+  sock_dir <- file.path(tmpdir, paste0("tmux-", uid[1L]))
+  if (!dir.exists(sock_dir)) return(empty)
+  sockets <- list.files(sock_dir, full.names = TRUE)
+  if (!length(sockets)) return(empty)
+
+  # Shell-quote the format string: system2 routes through a shell when
+  # stderr = FALSE, and '#' would otherwise start a shell comment.
+  fmt <- shQuote("#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_title}")
+
+  rows <- lapply(sockets, function(s) {
+    lines <- tryCatch(
+      system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) character(0)
+    )
+    if (!length(lines)) return(NULL)
+    parts <- strsplit(lines, "\t", fixed = TRUE)
+    parts <- lapply(parts, function(p) if (length(p) == 4L) c(p, "") else p)
+    parts <- parts[vapply(parts, length, integer(1L)) == 5L]
+    if (!length(parts)) return(NULL)
+    m <- do.call(rbind, parts)
+    data.frame(
+      session = m[, 1L],
+      window  = suppressWarnings(as.integer(m[, 2L])),
+      pane    = suppressWarnings(as.integer(m[, 3L])),
+      pane_id = m[, 4L],
+      title   = m[, 5L],
+      stringsAsFactors = FALSE
+    )
+  })
+  rows <- rows[!vapply(rows, is.null, logical(1L))]
+  if (!length(rows)) return(empty)
+  out <- do.call(rbind, rows)
+  out$pane_ref <- sprintf("%s:%d.%d", out$session, out$window, out$pane)
+  out <- out[, c("session", "window", "pane", "pane_id", "pane_ref", "title")]
+  out <- out[out$title != "Cluster_Monitor", , drop = FALSE]
+  row.names(out) <- NULL
+  out$node <- .tmux_match_node(out$title)
+  if (isTRUE(stats)) out <- .tmux_attach_ps_stats(out)
+  out
+}
+
+# Return the cluster-alias set known to this machine.  Sources:
+#   1. /etc/hosts -- short names per routable IPv4 line (loopback/IPv6 skipped)
+#   2. ~/.ssh/config -- Host entries (CRLF-safe per CLAUDE.md), excluding
+#      wildcards and FQDNs.  Some clusters only declare nodes here (e.g. a
+#      node named `carbon` that resolves via DNS plus an SSH Host entry).
+#' @keywords internal
+#' @noRd
+.tmux_cluster_aliases <- function() {
+  hosts <- tryCatch(readLines("/etc/hosts", warn = FALSE),
+                    error = function(e) character(0))
+  hosts <- hosts[nzchar(trimws(hosts))]
+  hosts <- hosts[!grepl("^\\s*#", hosts)]
+  hosts <- hosts[!grepl("^\\s*(127\\.|::|fe[0-9a-fA-F]{1,}|ff[0-9a-fA-F]{1,})", hosts)]
+  from_hosts <- unlist(lapply(hosts, function(ln) {
+    toks <- strsplit(trimws(ln), "\\s+")[[1L]]
+    if (length(toks) < 2L) return(character(0))
+    names <- toks[-1L]                       # skip the IP
+    names[!grepl("\\.", names)]              # drop FQDNs, keep short names
+  }))
+
+  from_ssh <- character(0)
+  ssh_cfg  <- path.expand("~/.ssh/config")
+  if (file.exists(ssh_cfg)) {
+    lines <- tryCatch(readLines(ssh_cfg, warn = FALSE),
+                      error = function(e) character(0))
+    lines <- gsub("\r", "", lines, fixed = TRUE)        # strip CRLF
+    # Strip inline comments -- ssh_config treats '#' at the start of a line
+    # OR after whitespace as a comment.  We only need a conservative parse:
+    # drop everything from the first '#' onwards.
+    lines <- sub("#.*$", "", lines)
+    for (ln in lines) {
+      t <- trimws(ln)
+      if (!nzchar(t)) next
+      toks <- strsplit(t, "\\s+")[[1L]]
+      if (length(toks) < 2L || tolower(toks[[1L]]) != "host") next
+      for (h in toks[-1L]) {
+        # skip wildcard patterns and FQDNs
+        if (!grepl("[*?]", h) && !grepl("\\.", h)) from_ssh <- c(from_ssh, h)
+      }
+    }
+  }
+  unique(c(from_hosts, from_ssh))
+}
+
+# Map each title to its cluster alias by taking the first dash-separated
+# token that appears in the known alias set.  As a fallback, if any token
+# equals the local machine's raw hostname, return `localHostLabel()` so
+# old-style local titles (`A159568-<pid>-...`) still resolve to `mega`.
+# Returns NA when no match is found.
+#' @keywords internal
+#' @noRd
+.tmux_match_node <- function(titles, aliases = .tmux_cluster_aliases()) {
+  if (!length(titles)) return(character(0))
+  local_node  <- Sys.info()[["nodename"]]
+  local_alias <- tryCatch(localHostLabel(), error = function(e) NULL)
+  vapply(titles, function(t) {
+    if (!nzchar(t)) return(NA_character_)
+    toks <- strsplit(t, "-", fixed = TRUE)[[1L]]
+    hit  <- toks[toks %in% aliases]
+    if (length(hit)) return(hit[[1L]])
+    if (!is.null(local_alias) && nzchar(local_alias) &&
+        !is.na(local_node) && local_node %in% toks) return(local_alias)
+    NA_character_
+  }, character(1L))
+}
+
+# Parse "<host?>-<node>-<pid>-" from each title, query `ps` (local sh or one
+# SSH connection per remote host), attach cpu / rss_mb columns.
+# Title format: "<host?>-<node>-<pid>-<runName>" where <host> is the cluster
+# alias (e.g. "sbw", "mega") that /etc/hosts / ~/.ssh/config resolves, and
+# <node> is the raw hostname (e.g. "A159603").  SSH needs the alias; `ps`
+# on the local machine uses /proc directly.  Dispatch:
+#   - parsed <node> equals our own Sys.info()[["nodename"]]  -> local sh
+#   - host prefix present                                    -> ssh <host>
+#   - otherwise (e.g. old-style title on a remote node)      -> NA row
+#' @keywords internal
+#' @noRd
+.tmux_attach_ps_stats <- function(panes) {
+  panes$state                <- NA_character_
+  panes$cpuAvg               <- NA_real_
+  panes[["RAM (GB)"]]        <- NA_real_
+  panes$availableCores       <- NA_integer_
+  panes[["total RAM (GB)"]]  <- NA_real_
+  if (!nrow(panes)) return(panes)
+
+  # Anchor the PID with (?:-|$) so titles lacking a trailing runName still
+  # parse, e.g. "A159568-2418239" or "mega-A159568-2418239".
+  re <- "^(?:([^-]+)-)?([^-]+)-([0-9]{6,})(?:-|$)"
+  m  <- regmatches(panes$title, regexec(re, panes$title, perl = TRUE))
+  parsed_host <- vapply(m, function(x)
+    if (length(x) >= 4L) x[[2L]] else NA_character_, character(1L))
+  parsed_node <- vapply(m, function(x)
+    if (length(x) >= 4L) x[[3L]] else NA_character_, character(1L))
+  parsed_pid  <- vapply(m, function(x)
+    if (length(x) >= 4L) suppressWarnings(as.integer(x[[4L]])) else NA_integer_,
+    integer(1L))
+  valid <- !is.na(parsed_node) & !is.na(parsed_pid)
+  if (!any(valid)) return(panes)
+
+  # 2-part title (no host prefix, no raw node): e.g. "mega-2424563".  When
+  # the parsed "node" is actually a known cluster alias, promote it into
+  # the host slot so the dispatch below sees it as a host target.
+  aliases <- .tmux_cluster_aliases()
+  alias_as_node <- valid &
+    (is.na(parsed_host) | !nzchar(parsed_host)) &
+    parsed_node %in% aliases
+  if (any(alias_as_node)) {
+    parsed_host[alias_as_node] <- parsed_node[alias_as_node]
+    parsed_node[alias_as_node] <- NA_character_
+  }
+
+  local_node  <- Sys.info()[["nodename"]]
+  local_alias <- tryCatch(localHostLabel(), error = function(e) NULL)
+  has_local_alias <- !is.null(local_alias) && nzchar(local_alias)
+  match_node  <- valid & !is.na(parsed_node) & parsed_node == local_node
+  match_alias <- if (has_local_alias)
+    valid & !is.na(parsed_host) & parsed_host == local_alias
+  else
+    rep(FALSE, nrow(panes))
+  is_local <- match_node | match_alias
+  has_host <- valid & !is.na(parsed_host) & nzchar(parsed_host) & !is_local
+  # SSH target = host alias; local target uses a sentinel so we can key on it.
+  target <- rep(NA_character_, nrow(panes))
+  target[is_local] <- "__LOCAL__"
+  target[has_host] <- parsed_host[has_host]
+
+  # Group unique pids per target and query each target in parallel.  SSH setup
+  # dominates wall time; parallelising collapses N*latency down to ~1*latency.
+  # `split` (unlike `parsed_pid[target == tgt]`) drops rows where target is NA.
+  keep <- !is.na(target)
+  target_pids <- lapply(split(parsed_pid[keep], target[keep]), unique)
+  targets <- names(target_pids)
+  mc <- max(1L, min(length(targets), 16L))
+  results <- parallel::mclapply(targets, function(tgt)
+    .tmux_ps_stats(tgt, target_pids[[tgt]]),
+    mc.cores = mc, mc.preschedule = FALSE)
+  names(results) <- targets
+
+  for (tgt in targets) {
+    idx <- which(target == tgt)
+    res <- results[[tgt]]
+    # NULL means the machine was unreachable -- leave state as NA.
+    if (is.null(res)) next
+    # Machine-level fields are identical for every row on this target.
+    if (!is.na(res$ncpu))
+      panes$availableCores[idx] <- res$ncpu
+    if (!is.na(res$mem_kb))
+      panes[["total RAM (GB)"]][idx] <- round(res$mem_kb / 1024^2, 1L)
+    # ps ran.  Match each pane's pid against the returned rows; any that
+    # don't match are definitely gone (R session has quit, PID recycled, etc.)
+    # so flag them as "Closed" rather than leaving as NA.
+    stats_df <- res$procs
+    ix      <- match(parsed_pid[idx], stats_df$pid)
+    missing <- is.na(ix)
+    if (any(missing)) {
+      panes$state[idx[missing]] <- "Closed"
+    }
+    live <- !missing
+    if (any(live)) {
+      live_idx <- idx[live]
+      live_ix  <- ix[live]
+      panes$state[live_idx]          <- stats_df$state[live_ix]
+      panes$cpuAvg[live_idx]         <- stats_df$cpu[live_ix]
+      panes[["RAM (GB)"]][live_idx]  <- round(stats_df$rss_mb[live_ix] / 1024, 1L)
+    }
+  }
+  panes
+}
+
+# Run `ps -o pid=,%cpu=,rss= -p <pids>` for the given target.
+# target == "__LOCAL__"  -> run locally via sh -c
+# otherwise              -> ssh to `target` (cluster alias)
+# Returns data.frame(pid, cpu, rss_mb); rss (kB) is converted to MB.
+#' @keywords internal
+#' @noRd
+.tmux_ps_stats <- function(target, pids) {
+  empty_procs <- data.frame(pid = integer(0), cpu = numeric(0),
+                            rss_mb = numeric(0), state = character(0),
+                            stringsAsFactors = FALSE)
+  if (!length(pids)) return(NULL)
+  pid_str <- paste(pids, collapse = ",")
+
+  if (identical(target, "__LOCAL__")) {
+    # Local: three separate execs (all near-instant, no shell indirection)
+    ncpu <- tryCatch(
+      suppressWarnings(as.integer(trimws(
+        system2("nproc", stdout = TRUE, stderr = FALSE)[[1L]]))),
+      error = function(e) NA_integer_
+    )
+    mem_kb <- tryCatch({
+      # Shell-quote the awk pattern: system2 routes through sh when
+      # stderr = FALSE, and $2 would otherwise be expanded by the shell.
+      out <- system2("awk",
+        c(shQuote("/^MemTotal/{print $2}"), "/proc/meminfo"),
+        stdout = TRUE, stderr = FALSE)
+      if (length(out)) suppressWarnings(as.integer(trimws(out[[1L]])))
+      else NA_integer_
+    }, error = function(e) NA_integer_)
+    ps_lines <- tryCatch(
+      system2("ps", c("-o", "pid=,%cpu=,rss=,state=", "-p", pid_str),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) structure(character(0), status = 127L)
+    )
+    status <- attr(ps_lines, "status")
+    if (!is.null(status) && identical(status, 127L)) return(NULL)
+  } else {
+    # Remote: one SSH connection carrying nproc + meminfo + ps, in that order.
+    cmd <- sprintf(
+      "nproc; awk '/^MemTotal/{print $2}' /proc/meminfo; ps -o pid=,%%cpu=,rss=,state= -p %s",
+      pid_str
+    )
+    lines <- tryCatch(
+      system2("ssh",
+              c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+                target, shQuote(cmd)),
+              stdout = TRUE, stderr = FALSE),
+      error = function(e) structure(character(0), status = 255L)
+    )
+    status <- attr(lines, "status")
+    # ssh 255 = connection failure -> unreachable.  Distinguish from a
+    # reachable host where the PID simply doesn't exist (ps exits 1).
+    if (!is.null(status) && identical(status, 255L)) return(NULL)
+    if (length(lines) < 2L) return(NULL)  # truncated / broken output
+    ncpu     <- suppressWarnings(as.integer(trimws(lines[[1L]])))
+    mem_kb   <- suppressWarnings(as.integer(trimws(lines[[2L]])))
+    ps_lines <- if (length(lines) > 2L) lines[-(1:2)] else character(0)
+  }
+
+  # Parse ps output -- any matches, else empty data.frame.
+  procs <- if (length(ps_lines)) {
+    toks <- lapply(ps_lines, function(ln) strsplit(trimws(ln), "\\s+")[[1L]])
+    toks <- toks[vapply(toks, length, integer(1L)) == 4L]
+    if (length(toks)) {
+      m <- do.call(rbind, toks)
+      data.frame(
+        pid    = suppressWarnings(as.integer(m[, 1L])),
+        cpu    = suppressWarnings(as.numeric(m[, 2L])),
+        rss_mb = suppressWarnings(as.numeric(m[, 3L])) / 1024,
+        state  = m[, 4L],
+        stringsAsFactors = FALSE
+      )
+    } else empty_procs
+  } else empty_procs
+
+  list(procs = procs, ncpu = ncpu, mem_kb = mem_kb)
+}
+
+#' Find duplicate worker panes running the same job
+#'
+#' Strips the leading `"<host?>-<node>-<pid>-"` prefix from each pane title
+#' and groups panes whose remainders are identical.  Intended to surface
+#' cases where the same queue row has been claimed by two workers (e.g. a
+#' stale RUNNING reclaim that was actually live).
+#'
+#' The prefix strip matches 1 or 2 non-dash chunks followed by a 6+-digit
+#' PID followed by a dash -- covering both `<host>-<node>-<pid>-<runName>`
+#' and `<node>-<pid>-<runName>` title formats.  Old-style titles lacking
+#' this prefix are kept verbatim; a title is considered a duplicate only if
+#' its stripped form appears on 2+ panes, so two differently-formatted titles
+#' with the same tail still collapse correctly.
+#'
+#' @param panes Optional data.frame as returned by [tmuxListPanes()]. If
+#'   `NULL` (the default) one is fetched internally.
+#' @param runPattern Optional regex; only panes whose stripped title matches
+#'   it are considered.  Default `"outputs-"` matches this codebase's usual
+#'   runName prefix; pass `NULL` to disable the filter.
+#' @return data.frame with the same columns as [tmuxListPanes()] plus
+#'   `run_id` (the stripped runName used for grouping) and `group` (integer
+#'   identifying each duplicate set).  Rows are ordered by `group` then
+#'   `pane_ref`.  Empty data.frame (with these columns) when no duplicates.
+#' @export
+tmuxFindDuplicates <- function(panes = NULL, runPattern = "outputs-") {
+  if (is.null(panes)) panes <- tmuxListPanes()
+  # Build the empty-result skeleton from whatever columns `panes` has.
+  empty <- cbind(panes[0L, , drop = FALSE],
+                 run_id = character(0), group = integer(0),
+                 stringsAsFactors = FALSE)
+  if (!nrow(panes)) return(empty)
+
+  run_id <- sub("^([^-]+-){1,2}([0-9]{6,})-", "", panes$title)
+  keep   <- if (is.null(runPattern)) rep(TRUE, length(run_id))
+            else grepl(runPattern, run_id, perl = TRUE)
+  if (!any(keep)) return(empty)
+
+  tab <- table(run_id[keep])
+  dup_ids <- names(tab[tab > 1L])
+  if (!length(dup_ids)) return(empty)
+
+  idx <- which(keep & run_id %in% dup_ids)
+  out <- panes[idx, , drop = FALSE]
+  out$run_id <- run_id[idx]
+  out$group  <- match(out$run_id, dup_ids)
+  out <- out[order(out$group, out$pane_ref), , drop = FALSE]
+  row.names(out) <- NULL
+  out
+}
+
+# Backwards-compatible thin wrapper for existing internal callers
+# (.gs_reclaim_dead_jobs).  Returns just the title column.
+#' @keywords internal
+#' @noRd
+.tmux_all_pane_titles <- function() {
+  tmuxListPanes()$title
 }
 
 #' @keywords internal
@@ -828,7 +2766,7 @@ tmux_kill_panes <- function(panes) {
 #' @param queue_path character; path to the queue `.rds` (absolute recommended)
 #' @return Invisibly returns `queue_path`.
 #' @export
-tmux_prepare_queue_from_df <- function(df, queue_path) {
+tmuxPrepareQueueFromDF <- function(df, queue_path) {
   stopifnot(is.data.frame(df), is.character(queue_path), length(queue_path) == 1)
   q <- cbind(
     df,
@@ -841,7 +2779,8 @@ tmux_prepare_queue_from_df <- function(df, queue_path) {
     process_id     = as.integer(NA),
     heartbeat_at   = as.character(NA),
     heartbeat_iter = as.integer(NA),
-    iterationsTotal= as.integer(NA)
+    iterationsTotal= as.integer(NA),
+    interrupted_at = as.character(NA)
   )
   saveRDS(q, queue_path)
   invisible(queue_path)
@@ -1013,9 +2952,8 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
   # }
 
   if (!is.null(statusCalculate)) {
-    
     if (is.call(statusCalculate))
-      statusCalculate <- eval(statusCalculate)
+      statusCalculate <- eval(statusCalculate, envir = environment())
     # statusCalculate <- file.path("outputs", runName, "figures", "objFun")
     if (length(statusCalculate) == 0 || !dir.exists(statusCalculate)) return(txtPending)
     
@@ -1074,7 +3012,7 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' @param folderWithIterInFilename A quoted expression for a folder with iteration info in filenames.
 #'   Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
 #' @param recheckDone Logical. If `TRUE`, re-evaluate DONE status. Default `FALSE`.
-#' @param activeRunningPath Directory for "running" flag files. See `activeRunningPathForTmux`.
+#' @param activeRunningPath Directory for "running" flag files. See `tmuxActiveRunningPath`.
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return A data.frame (the updated queue), invisibly.
@@ -1087,9 +3025,9 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #' @examples
 #' \dontrun{
 #' # Assessment of all simulations in the current project
-#' tmux_refresh_queue_status("experiment_queue.rds", timeout_min = 30)
+#' tmuxRefreshQueueStatus("experiment_queue.rds", timeout_min = 30)
 #' }
-tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
+tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
                                       statusCalculate = getOption("spades.statusCalculate"),
                                       folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                                       recheckDone = FALSE, #!is.null(statusCalculate),
@@ -1106,24 +3044,46 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       unlink(queue_path)
       return(invisible(NULL))
     }
+    q <- revertDotNames(q)
+    data.table::setDT(q)
+    if (!"interrupted_at" %in% names(q))
+      q[, interrupted_at := NA_character_]
+    scenarioFieldsSet(setdiff(names(q), meta_cols))   # for positional pathBuild() in runNameLabel / statusCalculate
 
-    # Only refresh rows that aren't already marked DONE
+    # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
+    # Any other status (DONE, CANCELLED, or user-defined) is left untouched.
+    # recheckDone=TRUE re-adds DONE rows so their status can be re-evaluated.
     to_check <- if (!isTRUE(try(recheckDone))) {
-      which(!q$status %in% txtDone)
+      which(q$status %in% c(txtPending, txtRunning, txtInterrupted))
     } else {
       seq_along(q$status)
     }
       # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
 
-    runNameLabel <- eval(runNameLabel)
-    if (missing(runNameLabel) || is.null(runNameLabel)) {
-      runNameLabel <- setdiff(colnames(q), meta_cols)[1L]
-    }
-    activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+    activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
     for (i in to_check) {
       new_status <- txtPending
-      runName <- getRunName(q, i, runNameLabel)# 
-      runNameSimples <- sapply(runNameLabel, function(rnl) q[i, ..rnl])
+
+      # put the values from the q columns into this environment so runNameLabel can use them
+      list2env(as.list(q[i, -..meta_cols]), envir = environment())
+
+      # Compute runName the same way the claim path does (tmuxRunNextWorker
+      # at line ~1713). Two flavours of runNameLabel:
+      #   * a quoted expression that evaluates to column NAMES of q (e.g. the
+      #     default quote(colnames(q)[1:2])) -- treat as column names and
+      #     extract values from row i;
+      #   * any other expression -- treat its evaluation as the runName itself
+      #     (collapsed to a single string).
+      # Sanitize identically to the claim path so the resulting runName
+      # matches the segment in Running_<runName>_<pid>_.rds filenames.
+      raw <- eval(runNameLabel, envir = environment())
+      runName <- if (is.character(raw) && length(raw) > 0L && all(raw %in% names(q))) {
+        paste(vapply(raw, function(cn) as.character(q[[cn]][i]), character(1L)),
+              collapse = "-")
+      } else {
+        paste(as.character(raw), collapse = "-")
+      }
+      runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
       
       # runName <- q[i, runNameLabel] |> paste(collapse = "-")
       # if (runName == "14.1") {
@@ -1141,6 +3101,12 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         filename <- runningFilesFull[is_running]
         if (length(filename)) {
           toRm <- Map(fiHere = filename, function(fiHere) {
+            # Only delete Running_ files whose PID is dead on the LOCAL machine.
+            # Remote PIDs are invisible to tools::pskill here; treating them as
+            # dead would delete a live job's sentinel file from NFS.
+            this_machine <- q$machine_name[i]
+            if (!is.na(this_machine) && this_machine != Sys.info()[["nodename"]])
+              return(NULL)
             pid <- strsplit(basename(fiHere), split = "_")[[1]][3] |> as.integer()
             alive <- is_pid_alive_tools(pid)
             if (isFALSE(alive)) {
@@ -1148,7 +3114,6 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
             } else {
               return(NULL)
             }
-            
           })
           toRm <- unlist(toRm)
           if (length(toRm)) {
@@ -1166,10 +3131,14 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
       }
       
       done <- FALSE
-      if (exists("aaaa", envir = .GlobalEnv)) browser()
       if (!is.null(statusCalculate)) {
-        evaled <- try(eval(statusCalculate))
-        if (is(evaled, "try-error")) {
+        # Unpack ... into local scope so statusCalculate can reference them by name
+        dots <- list(...)
+        if (length(dots)) list2env(dots, envir = environment())
+        # put the values from the q columns into this environment so runNameLabel can use them
+        list2env(as.list(q[i, -..meta_cols]), envir = environment())
+        evaled <- try(eval(statusCalculate, envir = environment()))
+        if (is(evaled, "try-error") || is.null(evaled)) {
           statusCalculate <- NULL
         } else {
           cn <- meta_cols
@@ -1177,7 +3146,7 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
             q[[cc]][i] <- NA
             if (exists(cc, inherits = FALSE)) {
               outHere <- get(cc, inherits = FALSE)
-              if (length(outHere) > 0) # browser()
+              if (length(outHere) > 0) 
               # if (is(outHere, "try-error")) browser()
                 q[[cc]][i] <- outHere
               
@@ -1289,12 +3258,24 @@ tmux_refresh_queue_status <- function(queue_path, timeout_min = 20, runNameLabel
         new_status <- txtDone
       }
 
+      # Remote-machine guard: the local node cannot observe a remote process via
+      # /proc or tools::pskill, so absence of a Running_ file on NFS or a failed
+      # is_pid_alive_tools() check is not proof the remote job died.  Only a
+      # definitive authoritative signal (done=TRUE from statusCalculate) should
+      # demote a remote RUNNING job.
+      if (q$status[i]  == txtRunning  &&
+          new_status    %in% c(txtPending, txtInterrupted) &&
+          !is.na(q$machine_name[i])   &&
+          q$machine_name[i] != Sys.info()[["nodename"]]) {
+        new_status <- txtRunning  # preserve remote ownership
+      }
+
       if (!q$status[i] %in% new_status) {
         q$status[i] <- new_status
-        # If newly finished, record current time
-        # if (new_status  "FINISHED") {
-        #   q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        # }
+        if (new_status == txtInterrupted) {
+          q$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          q$claimed_by[i]     <- NA_character_
+        }
       }
       
     }
@@ -1365,17 +3346,116 @@ get_latest_heartbeat <- function(runName,
 }
 
 
+#' Heartbeat for year-checkpoint SpaDES simulations
+#'
+#' Scans an output directory for files matching the pattern
+#' `<file_prefix>_year<XXXX>.<ext>` (e.g. `cohortData_year2920.rds`) and
+#' returns the furthest simulation year reached, the wall-clock elapsed time
+#' since the first checkpoint, and a percentage-complete estimate.
+#'
+#' @param output_path Character. Directory to scan for checkpoint files.
+#' @param start_year Integer or `NULL`.  Expected start year of the simulation.
+#'   If `NULL` (default), inferred as the minimum year found in `output_path`.
+#' @param end_year Integer or `NULL`.  Expected end year.
+#'   If `NULL` (default), inferred as the maximum year found in `output_path`
+#'   (i.e. 100 % is reported only once the final checkpoint exists).
+#'   Supply a value (e.g. `3020L`) to get a meaningful percentage before the
+#'   run completes.
+#' @param file_prefix Character.  Only files whose basename begins with this
+#'   prefix are used as checkpoint indicators.  Defaults to `"cohortData"`
+#'   because that file is written **after** all others at each SpaDES save
+#'   event, making it the most reliable completion signal.
+#'
+#' @return A named list with elements:
+#' \describe{
+#'   \item{`ts`}{Character. Modification timestamp of the latest checkpoint file.}
+#'   \item{`iter`}{Integer. Simulation year of the latest checkpoint.}
+#'   \item{`started`}{Character. Modification timestamp of the first checkpoint file.}
+#'   \item{`elapsed`}{`difftime`. Wall-clock time between first and latest checkpoint.}
+#'   \item{`pct_complete`}{Numeric 0-100. Percentage of the simulation completed,
+#'     or `NA` if `start_year == end_year`.}
+#' }
+#' All elements are `NA` / `NA_character_` when no matching files are found.
+#'
+#' @examples
+#' \dontrun{
+#' hb <- get_sim_year_heartbeat(
+#'   output_path = "outputs/6.5/1991-2020/NRV_ssp370/rep1",
+#'   end_year    = 3020L
+#' )
+#' message("Year: ", hb$iter, " (", hb$pct_complete, "%)  -- last checkpoint: ", hb$ts)
+#' }
+#' @export
+get_sim_year_heartbeat <- function(output_path,
+                                   start_year  = NULL,
+                                   end_year    = NULL,
+                                   file_prefix = "cohortData") {
+  ret_names <- c("ts", "iter", "started", "elapsed", "pct_complete")
+  ret_early <- setNames(
+    list(NA_character_, NA_integer_, NA_character_,
+         as.difftime(NA_real_, units = "days"), NA_real_),
+    ret_names
+  )
+
+  if (!dir.exists(output_path)) return(ret_early)
+
+  # Prefer file_prefix files; fall back to any *_yearXXXX.* file.
+  pat <- paste0("^", file_prefix, "_year\\d+\\.")
+  files <- list.files(output_path, pattern = pat, full.names = TRUE)
+  if (!length(files))
+    files <- list.files(output_path, pattern = "_year\\d+\\.", full.names = TRUE)
+  if (!length(files)) return(ret_early)
+
+  years <- suppressWarnings(
+    as.integer(regmatches(basename(files),
+                          regexpr("(?<=_year)\\d+", basename(files), perl = TRUE)))
+  )
+  ok    <- !is.na(years)
+  files <- files[ok]
+  years <- years[ok]
+  if (!length(years)) return(ret_early)
+
+  ord   <- order(years)
+  files <- files[ord]
+  years <- years[ord]
+
+  if (is.null(start_year)) start_year <- years[1L]
+  if (is.null(end_year))   end_year   <- years[length(years)]
+
+  fi_all    <- file.info(files)
+  fi_latest <- fi_all[length(files), , drop = FALSE]
+  # Use earliest mtime across all files as "started"  -- the min-year file may be
+  # re-written on restart, so mtime(year_min) is not reliably the run start.
+  start_idx <- which.min(fi_all$mtime)
+  fi_first  <- fi_all[start_idx, , drop = FALSE]
+
+  ts_latest <- format(fi_latest$mtime, "%Y-%m-%d %H:%M:%S")
+  ts_first  <- format(fi_first$mtime,  "%Y-%m-%d %H:%M:%S")
+  elapsed   <- difftime(fi_latest$mtime, fi_first$mtime, units = "days")
+
+  pct <- if (end_year > start_year) {
+    round(100 * (years[length(years)] - start_year) / (end_year - start_year), 1)
+  } else NA_real_
+
+  list(ts = ts_latest, iter = years[length(years)],
+       started = ts_first, elapsed = elapsed, pct_complete = pct)
+}
+
+
 activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRunningPath"), pattern = txtRunning, queue_path, runName) {
   if (is.null(activeRunningPath))
-    activeRunningPath <- activeRunningPathForTmux(activeRunningPath = NULL, queue_path)
+    activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
   
   startedFiles <- dir(activeRunningPath, pattern = pattern, ignore.case = TRUE)
   if (length(startedFiles)) {
     startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
-    if (missing(runName) || is.null(runName) || !nzchar(runName)) {
+    if (missing(runName) || is.null(runName) || all(!nzchar(runName))) {
       wh <- seq(NROW(startedFiles))
     } else {
-      wh <- which(startedFilesELFind == runName)
+      # %in% (not ==) so a multi-element runName -- e.g. the default
+      # quote(colnames(q)[1:2]), which evaluates to a length-2 vector --
+      # doesn't trigger recycling warnings against startedFilesELFind.
+      wh <- which(startedFilesELFind %in% runName)
     }
     startedFilesFull <- dir(activeRunningPath, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
     fi <- file.info(startedFilesFull[wh])
@@ -1387,7 +3467,8 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
 
 meta_cols <- c("status","claimed_by","started_at","finished_at",
                "DEoptimElapsedTime","machine_name","process_id",
-               "heartbeat_at","heartbeat_iter","iterationsTotal")
+               "heartbeat_at","heartbeat_iter","iterationsTotal",
+               "interrupted_at")
 
 is_pid_alive_tools <- function(pid) {
   stopifnot(length(pid) == 1L, is.numeric(pid), pid > 0)
@@ -1416,18 +3497,28 @@ txtRunning <- "RUNNING"
 #' @param suffix Character. Suffix used in the path. Defaults to `queue_path`.
 #' @return The default path.
 #' @export
-activeRunningPathForTmux <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
+tmuxActiveRunningPath <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
   if (is.null(activeRunningPath)) {
     if (missing(queue_path))
       suffix <- "tmuxStatus"
     activeRunningPath <- file.path(prefix, basename(suffix))
   }
+  if (!dir.exists(activeRunningPath))
+    dir.create(activeRunningPath, recursive = TRUE, showWarnings = FALSE)
   activeRunningPath
 }
 
 
 getRunName <- function(queue, i, runNameLabel) {
-  queue[i, ..runNameLabel] |> paste(collapse = "-")
+  # Base R subset so this works for both data.frame and data.table queues.
+  # `queue[i, ..runNameLabel]` (data.table NSE) errors on a data.frame with
+  # "object '..runNameLabel' not found"; revertDotNames() returns a
+  # data.frame when no `dot*` columns are present, so we can't rely on
+  # the queue being a data.table here.
+  paste(vapply(runNameLabel,
+               function(cn) as.character(queue[[cn]][i]),
+               character(1L)),
+        collapse = "-")
 }
 
 
@@ -1442,7 +3533,7 @@ statusCalculator <- function(type = "fireSense") {
       ee <- grep(value = TRUE, pattern = "burnMap.*tif$", dd)
       done <- grepl(paste0("year", endTime), ee)
       if (done %in% FALSE) {
-        runningFile <- dir(activeRunningPathForTmux(queue_path = queue_path), pattern = runName, full.names = TRUE)
+        runningFile <- dir(tmuxActiveRunningPath(queue_path = queue_path), pattern = runName, full.names = TRUE)
         fi <- file.info(runningFile)
         started_at <- format(fi[, "mtime"])
         ff <- grep(value = TRUE, pattern = "Annual Fire Maps", dd)
@@ -1462,3 +3553,12 @@ statusCalculator <- function(type = "fireSense") {
  
   return(calc) 
 }
+
+revertDotNames <- function(q) {
+  dotCols <- grep(dotTxt, names(q), value = TRUE)
+  dotColsGsub <- gsub(dotTxt, ".", dotCols)
+  data.table::setnames(q, old = dotCols, new = dotColsGsub)
+  q[]
+}
+
+dotTxt <- "dot"

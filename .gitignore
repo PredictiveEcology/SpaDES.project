@@ -21,3 +21,4 @@ outputs
 Linux*
 SpaDES.project.Rcheck
 *.tar.gz
+.claude
