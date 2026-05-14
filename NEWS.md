@@ -78,17 +78,15 @@ version 1.0.1
   10-line `furrr::future_pmap()` kernel inline if you want a
   queue-less micro-runner. The conceptual differences are documented
   in the "Experiments" chapter of the SpaDES4Modellers book.
+* `SpaDES.config` is no longer a dependency. The `config` argument of `setupProject()` is still reserved but currently does nothing except give a clearer error (#78).
 
 ## Documentation
 
-* Each `setup*` helper now has its own help page, with `@seealso` cross-links and a new `?setup_family` overview (#44). The composite `?setup` page is gone; `?setup` still resolves (alias on `setup_family`).
-## Removed
-
-* Drop `SpaDES.config` dependency (Suggests + Remotes); resolves the circular dep flagged in #78. The `config` arg to `setupProject()` was never wired up and now stops with a clearer message.
+* `setupPaths()`, `setupModules()`, `setupPackages()`, and the other inner `setup*` helpers each have their own help page now; `?setup_family` is a new one-page overview showing how they fit together (#44).
 
 ## Bug fixes
 
-* `tmuxRunNextWorker()` no longer calls `reproducible::checkPath()`; uses `dir.create()` so workers run under `_R_CHECK_DEPENDS_ONLY_=true` (where Suggests are absent).
+* `tmuxRunNextWorker()`: workers no longer need the `reproducible` package to start.
 * `setupPaths()` detects an R version change since the previous run (e.g. 4.3 -> 4.5) by comparing the running R `major.minor` to the trailing version segment of `.libPaths()[1]`. On mismatch it calls `Require::setupOff()` to clear the stale `.Rprofile` block before the regular `Require::setLibPaths(updateRprofile = TRUE)` rewrites both `.libPaths()` and `.Rprofile` for the current R.
 * `reUntar()` tests now skip on systems without GNU tar (BSD tar on macOS rejects `--absolute-names` / `--transform`); regenerate `outSave()` / `outSaveTarUpload()` Rd to include `lazy`; trim stray `@param`s on the `as_scenario()` generic so they no longer trip the `Rd \usage` check. Together these unstick GHA R-CMD-check on macOS.
 * `reUntar()` / `reGetUntarLoad()` now `path.expand()` the `pathRemap` `old` / `new` so a leading `~` works (tar's `--transform` does not expand `~`).
