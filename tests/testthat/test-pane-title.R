@@ -6,17 +6,17 @@
 # Fix (6248bd1): guard is now nzchar(Sys.getenv("TMUX")) || isatty(stdout()).
 
 test_that("OSC2 guard includes isatty(stdout()) for SSH-session compatibility", {
-  # Source-level assertion: catches anyone reverting the fix.
-  src_path <- system.file("R", "tmux.R", package = "SpaDES.project")
-  if (!nzchar(src_path) || !file.exists(src_path))
-    src_path <- file.path(testthat::test_path(), "..", "..", "R", "tmux.R")
-  skip_if(!file.exists(src_path), "tmux.R source not found")
+  # Source-level assertion: catches anyone reverting the fix.  Reads from
+  # the loaded function body so it works under R CMD check (where the R/
+  # source tree is not exposed).  Both worker entry points must guard the
+  # OSC2 escape with isatty(stdout()) for ssh -t pane-title updates.
+  body_str <- function(fn)
+    paste(deparse(body(fn)), collapse = "\n")
 
-  src <- paste(readLines(src_path, warn = FALSE), collapse = "\n")
-
+  next_body <- body_str(SpaDES.project::tmuxRunNextWorker)
   expect_true(
-    grepl("isatty(stdout())", src, fixed = TRUE),
-    label = "isatty(stdout()) present in tmux.R",
+    grepl("isatty(stdout())", next_body, fixed = TRUE),
+    label = "isatty(stdout()) present in tmuxRunNextWorker",
     info  = paste(
       "The OSC2 pane-title guard must include isatty(stdout()) so that",
       "remote workers running via ssh -t can update their pane title.",
