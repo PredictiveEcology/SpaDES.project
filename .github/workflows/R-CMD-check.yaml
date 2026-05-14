@@ -14,6 +14,9 @@ on:
 
 name: R-CMD-check
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   R-CMD-check:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
@@ -43,7 +46,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: r-lib/actions/setup-pandoc@v2
+      # setup-pandoc occasionally fails with HTTP 5xx (CDN blip).
+      # Three attempts with continue-on-error ride out transient failures.
+      - id: pandoc1
+        continue-on-error: true
+        uses: r-lib/actions/setup-pandoc@v2
+      - if: steps.pandoc1.outcome == 'failure'
+        id: pandoc2
+        continue-on-error: true
+        uses: r-lib/actions/setup-pandoc@v2
+      - if: steps.pandoc1.outcome == 'failure' && steps.pandoc2.outcome == 'failure'
+        uses: r-lib/actions/setup-pandoc@v2
 
       # Install geospatial system deps WITHOUT the ubuntugis-unstable PPA.
       # That PPA installs libgdal37 (GDAL 3.11.x), but Posit's noble binary cache
@@ -62,6 +75,22 @@ jobs:
           brew install pkg-config
           brew install gdal
         shell: zsh {0}
+
+      # Homebrew's gdal/proj install does not always leave proj.db on PROJ's
+      # default search path. Without it, terra::project()/terra::crs() emit
+      # "PROJ: proj_identify: Cannot find proj.db (GDAL error 1)" and any
+      # reprojection-touching test fails. Point PROJ at Homebrew's data dir.
+      - name: Configure PROJ data path (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          PROJ_PREFIX="$(brew --prefix proj 2>/dev/null || true)"
+          PROJ_DATA="$PROJ_PREFIX/share/proj"
+          if [ ! -d "$PROJ_DATA" ]; then PROJ_DATA="/opt/homebrew/share/proj"; fi
+          if [ ! -d "$PROJ_DATA" ]; then PROJ_DATA="/usr/local/share/proj"; fi
+          echo "PROJ_DATA=$PROJ_DATA" >> "$GITHUB_ENV"
+          echo "PROJ_LIB=$PROJ_DATA"  >> "$GITHUB_ENV"
+          echo "Using PROJ_DATA=$PROJ_DATA"
+          ls -1 "$PROJ_DATA" | head -5 || true
 
       # Homebrew's gdal/proj install does not always leave proj.db on PROJ's
       # default search path. Without it, terra::project()/terra::crs() emit
