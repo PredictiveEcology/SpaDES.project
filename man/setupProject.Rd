@@ -165,12 +165,12 @@ be read upon restart.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
 to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
-will be overwritten throughout the sequence of \code{setupProject}. If a vector of
-logical or character, these will be passed to \code{getModule}: only the named
+will be overwritten throughout the sequence of \code{setupProject} -- including those downloaded via \code{sideEffects}.
+If a length > 1 logical or character vector, these will be passed to \code{getModule}: only the named
 modules will be overwritten or the logical vector of the modules.
-NOTE: if a vector, no other file specified anywhere in \code{setupProject} will be
-overwritten except a module that/those names, because
-only \code{setupModules} is currently responsive to a vector. To have fine grained control,
+NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
+overwritten except a module matching the vector \code{names()} (because
+only \code{setupModules} is currently responsive to a vector). To have fine grained control,
 a user can just manually delete a file, then rerun.}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
@@ -464,6 +464,8 @@ for a one-page overview):
 \code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupFunctions]{setupFunctions()}}, \code{\link[=setupSideEffects]{setupSideEffects()}},
 \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupPackages]{setupPackages()}},
 \code{\link[=setupParams]{setupParams()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}, \code{\link[=setupStudyArea]{setupStudyArea()}}, \code{\link[=setupFiles]{setupFiles()}}.
+\code{\link[=teardownProject]{teardownProject()}} reverses \code{setupProject()} and restores the prior
+\code{.libPaths()} (kept on the output as \code{out$paths$.previousLibPaths}).
 Also, helpful functions such as \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}.
 
 \code{vignette("i-getting-started", package = "SpaDES.project")}

@@ -429,6 +429,8 @@ NULL
 #' [setupPaths()], [setupFunctions()], [setupSideEffects()],
 #' [setupOptions()], [setupModules()], [setupPackages()],
 #' [setupParams()], [setupGitIgnore()], [setupStudyArea()], [setupFiles()].
+#' [teardownProject()] reverses `setupProject()` and restores the prior
+#' `.libPaths()` (kept on the output as `out$paths$.previousLibPaths`).
 #' Also, helpful functions such as [user()], [machine()], [node()].
 #' @seealso `vignette("i-getting-started", package = "SpaDES.project")`
 #'

@@ -91,27 +91,51 @@ machine <- function(machinename = NULL) {
 #' `node` is an alias for `machine`
 node <- machine
 
-#' Helpers for cleanup of global state in examples and tests
+#' Tear down a project created by `setupProject()`
 #'
-#' 1. remove project library directory created using `setupProject()`;
-#' 2. remove project paths created using `setupProject`;
-#' 3. restore original library paths.
+#' Reverse the side-effects of [setupProject()]:
 #'
-#' @note not intended to be called by users
+#' 1. remove the project library directory created by `setupProject()`,
+#' 2. unlink the project paths returned by `setupProject()`,
+#' 3. restore the `.libPaths()` value that was in effect before
+#'    `setupProject()` was called.
 #'
-#' @param prjPaths character vector of paths to be removed
+#' The previous `.libPaths()` is stored on the `setupProject()` output as
+#' `out$paths$.previousLibPaths` (and on `attr(out$paths, "extraPaths")`),
+#' so `teardownProject(out)` is enough -- no need to remember
+#' `origLibPaths` separately.
 #'
-#' @param origLibPaths character string giving the original library path to be restored
+#' @param x Either the list returned by [setupProject()], or a character
+#'   vector of paths to remove (back-compat with the previous
+#'   `.teardownProject(prjPaths, origLibPaths)` signature).
+#' @param origLibPaths Optional. The `.libPaths()` to restore. Defaults to
+#'   `x$paths$.previousLibPaths` when `x` is a `setupProject()` output, so
+#'   most callers will not need to supply this.
 #'
-#' @return NULL. Invoked for its side effects.
+#' @return `NULL`, invisibly. Called for its side effects.
+#'
+#' @seealso [setupProject()] for what is being torn down.
 #'
 #' @export
 #' @importFrom fs path_has_parent path_rel path_split
 #' @importFrom Require normPath
 #' @importFrom tools R_user_dir
 #' @importFrom utils head
-#' @rdname test-helpers
-.teardownProject <- function(prjPaths, origLibPaths) {
+teardownProject <- function(x, origLibPaths) {
+  if (is.list(x) && !is.null(x[["paths"]])) {
+    prjPaths <- x[["paths"]]
+    if (missing(origLibPaths)) {
+      origLibPaths <- prjPaths[[".previousLibPaths"]]
+      if (is.null(origLibPaths))
+        origLibPaths <- attr(prjPaths, "extraPaths")[[".previousLibPaths"]]
+    }
+  } else {
+    prjPaths <- x
+  }
+  if (missing(origLibPaths) || is.null(origLibPaths))
+    stop("`origLibPaths` not found; pass it explicitly or supply a setupProject() output that carries `.previousLibPaths`.",
+         call. = FALSE)
+
   curlibpath <- utils::head(.libPaths(), 1) |> Require::normPath()
   donttouch <- c(
     "~/R-dev",
@@ -140,5 +164,10 @@ node <- machine
 
   .libPaths(origLibPaths)
 
-  return(NULL)
+  invisible(NULL)
 }
+
+#' @rdname teardownProject
+#' @usage NULL
+#' @export
+.teardownProject <- teardownProject

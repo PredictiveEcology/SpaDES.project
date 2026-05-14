@@ -51,10 +51,13 @@ Convenience wrapper that returns an \code{sf} polygon for the requested
 country / subregion using \code{geodata::gadm()}.
 }
 \details{
+\code{setupStudyArea} calls \verb{[geodata::gadm()]} to get an \code{sf} polygon or set of polygons
+of a country or a subdivision of a country. The user can pass a named \code{list} of character elements
+that match entries in the columns "NAME_1" and "NAME_2" of the \code{sf} object. If passing
+\code{NAME_2}, the user must pass \code{level = 2}. If passing \code{NAME_1} and \code{level = 2} all subdivision polygons under
+\code{NAME_1} will be returned, which can be useful to explore subdivision names.
 \code{setupStudyArea} only uses \code{inputPath} within its \code{paths} argument, which will
-be passed to \code{path} argument of \code{gadm}. User can pass any named list element
-that matches the columns in the \code{sf} object, including e.g., \code{NAME_1} and, if \code{level = 2},
-is specified, then \code{NAME_2}.
+be passed to \code{path} argument of \code{gadm}.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
 }\if{html}{\out{</div>}}
