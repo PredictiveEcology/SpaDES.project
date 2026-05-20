@@ -139,7 +139,7 @@ test_that("setupProject pins repos = CRAN cloud when repos is `@CRAN@` or unset"
   # warning on TLS-interception hosts that withCallingHandlers can't muffle.
   setRealCRANIfPlaceholder <- function() {
     reposNow <- getOption("repos")
-    if (is.null(reposNow) || is.null(reposNow[["CRAN"]]) ||
+    if (is.null(reposNow) || !"CRAN" %in% names(reposNow) ||
         identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
       options(repos = c(CRAN = "https://cloud.r-project.org",
                         reposNow[setdiff(names(reposNow), "CRAN")]))
@@ -162,6 +162,22 @@ test_that("setupProject pins repos = CRAN cloud when repos is `@CRAN@` or unset"
     setRealCRANIfPlaceholder()
     expect_identical(unname(getOption("repos")[["CRAN"]]),
                      "https://cloud.r-project.org")
+  })
+
+  # Regression: `getOption("repos")` may be an unnamed character vector, or
+  # named without a "CRAN" entry. `[["CRAN"]]` errors with "subscript out of
+  # bounds" on atomic vectors in that case, so the guard must use names().
+  withr::with_options(list(repos = "https://my.mirror/"), {
+    expect_no_error(setRealCRANIfPlaceholder())
+    expect_identical(unname(getOption("repos")[["CRAN"]]),
+                     "https://cloud.r-project.org")
+  })
+  withr::with_options(list(repos = c(BioC = "https://bioconductor.org")), {
+    expect_no_error(setRealCRANIfPlaceholder())
+    expect_identical(unname(getOption("repos")[["CRAN"]]),
+                     "https://cloud.r-project.org")
+    expect_identical(unname(getOption("repos")[["BioC"]]),
+                     "https://bioconductor.org")
   })
 })
 

@@ -476,7 +476,10 @@ setupProject <- function(name, paths, modules, packages,
   # addition: Warning message:", so withCallingHandlers below can't muffle it.
   # Setting a real CRAN URL up-front bypasses the overlay entirely.
   reposNow <- getOption("repos")
-  if (is.null(reposNow) || is.null(reposNow[["CRAN"]]) ||
+  # `reposNow` may be an unnamed character vector, or named without a "CRAN"
+  # entry; `[["CRAN"]]` errors with "subscript out of bounds" on atomic vectors
+  # in that case (lists would return NULL), so gate on names() first.
+  if (is.null(reposNow) || !"CRAN" %in% names(reposNow) ||
       identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
     # base::options(...) because setupProject's own `options` formal would
     # otherwise shadow base::options here — R looks up the function name

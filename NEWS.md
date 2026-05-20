@@ -87,6 +87,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject()`: CRAN placeholder guard no longer errors with `subscript out of bounds` when `getOption("repos")` is an unnamed character vector or lacks a `CRAN` entry.
 * `tmuxRunNextWorker()`: workers no longer need the `reproducible` package to start.
 * `setupPaths()` detects an R version change since the previous run (e.g. 4.3 -> 4.5) by comparing the running R `major.minor` to the trailing version segment of `.libPaths()[1]`. On mismatch it calls `Require::setupOff()` to clear the stale `.Rprofile` block before the regular `Require::setLibPaths(updateRprofile = TRUE)` rewrites both `.libPaths()` and `.Rprofile` for the current R.
 * `reUntar()` tests now skip on systems without GNU tar (BSD tar on macOS rejects `--absolute-names` / `--transform`); regenerate `outSave()` / `outSaveTarUpload()` Rd to include `lazy`; trim stray `@param`s on the `as_scenario()` generic so they no longer trip the `Rd \usage` check. Together these unstick GHA R-CMD-check on macOS.
