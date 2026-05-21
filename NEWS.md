@@ -14,6 +14,7 @@ version 1.0.1
 
 ## Enhancements
 
+* `setupProject()` / `setupPackages()` print the `dput()` of the exact package vector passed to `Require::Require` at `verbose >= 3`.
 * Fresh claims scrub stale `finished_at` / `DEoptimElapsedTime` / `heartbeat_*` / `iterationsTotal` / `interrupted_at` (both backends).
 * `DONE` clears `claimed_by`; `process_id` and `machine_name` are preserved as a historical record.
 * `.gs_demote_after_kill()` clears every per-run metadata column, matching `tmuxRefreshQueueStatus()`.

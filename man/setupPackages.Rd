@@ -57,11 +57,11 @@ to set this}
 which represents the case where the inner \verb{setup*} functions are called inside
 \code{setupProject}, which was called by a user.}
 
-\item{verbose}{Numeric or logical indicating how verbose should the function
-be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
-then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOTE: in
-\code{Require} function, when \code{verbose >= 2}, also returns details as if
-\code{returnDetails = TRUE} (for backwards compatibility).}
+\item{verbose}{Numeric or logical indicating how verbose the function should be.
+At \code{verbose >= 2}, the combined \code{reqdPkgs} are printed grouped by module. At
+\code{verbose >= 3}, additionally the \code{dput()} of the exact package vector passed to
+\code{Require::Require} is printed, which can be copy-pasted to reproduce the install
+call. If not supplied, defaults to \code{getOption("Require.verbose")}.}
 
 \item{dots}{Any other named objects passed as a list a user might want for other elements.}
 
