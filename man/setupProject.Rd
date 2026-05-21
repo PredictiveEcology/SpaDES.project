@@ -438,6 +438,14 @@ out <- setupProject(.mode = .mode,
 }
 }
 
+\section{Verbosity}{
+
+\code{verbose} is passed through to the inner \verb{setup*} helpers. Notably, \code{verbose >= 2}
+prints the modules' \code{reqdPkgs} grouped by module, and \code{verbose >= 3} additionally
+prints the \code{dput()} of the exact package vector passed to \code{Require::Require} (see
+\code{\link[=setupPackages]{setupPackages()}}).
+}
+
 \examples{
 ## For more examples:
 vignette("i-getting-started", package = "SpaDES.project")

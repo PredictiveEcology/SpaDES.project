@@ -423,6 +423,11 @@ NULL
 #' @importFrom stats na.omit setNames
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
+#' @section Verbosity:
+#' `verbose` is passed through to the inner `setup*` helpers. Notably, `verbose >= 2`
+#' prints the modules' `reqdPkgs` grouped by module, and `verbose >= 3` additionally
+#' prints the `dput()` of the exact package vector passed to `Require::Require` (see
+#' [setupPackages()]).
 #' @seealso
 #' Inner `setup*` helpers (each has its own help page; see [setup_family]
 #' for a one-page overview):
@@ -1924,6 +1929,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 #' @inheritParams setupPaths
 #' @param modulePackages A named list, where names are the module names, and the elements
 #'   of the list are packages in a form that `Require::Require` accepts.
+#' @param verbose Numeric or logical indicating how verbose the function should be.
+#'   At `verbose >= 2`, the combined `reqdPkgs` are printed grouped by module. At
+#'   `verbose >= 3`, additionally the `dput()` of the exact package vector passed to
+#'   `Require::Require` is printed, which can be copy-pasted to reproduce the install
+#'   call. If not supplied, defaults to `getOption("Require.verbose")`.
 #'
 #' @return
 #' `setupPackages` is run for its side effects, i.e., installing packages to
@@ -2024,6 +2034,12 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         #   }
         # }
         # needToAssess <- packagesToTry
+
+        if (verbose >= 3) {
+          messageVerbose("Packages passed to Require::Require:", verbose = verbose, verboseLevel = 3)
+          messageVerbose(paste(capture.output(dput(needToAssess)), collapse = "\n"),
+                         verbose = verbose, verboseLevel = 3)
+        }
 
         if (sum(nzchar(needToAssess))) {
           withCallingHandlers(
