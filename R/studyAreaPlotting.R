@@ -126,21 +126,44 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
       isWhitebox <- paletteThisRas %in% WhiteboxCols
       isRColBrew <- paletteThisRas %in% rownames(RColorBrewer::brewer.pal.info)
 
+      ## A categorical (factor) rasterToMatch (e.g., ELF classes) produces a
+      ## discrete fill aesthetic; a continuous scale (gradientn / whitebox_c)
+      ## errors with "Discrete value supplied to a continuous scale". Pick the
+      ## matching discrete scale in that case.
+      isCategorical <- isTRUE(any(terra::is.factor(ll[[rtmNam]])))
+
       if (isRColBrew) {
         theColFun <- RColorBrewer::brewer.pal(9, paletteThisRas) |>
           colorRampPalette()
 
-        g[[rtmNam]] <- g[[rtmNam]] +
-          ggplot2::scale_fill_gradientn(name = rtmNam,
-                                        na.value = "transparent",
-                                        colours = theColFun(20))
+        if (isCategorical) {
+          nLev <- nrow(terra::cats(ll[[rtmNam]])[[1]])
+          g[[rtmNam]] <- g[[rtmNam]] +
+            ggplot2::scale_fill_manual(name = rtmNam,
+                                       na.value = "transparent",
+                                       na.translate = FALSE,
+                                       values = theColFun(max(1L, nLev)))
+        } else {
+          g[[rtmNam]] <- g[[rtmNam]] +
+            ggplot2::scale_fill_gradientn(name = rtmNam,
+                                          na.value = "transparent",
+                                          colours = theColFun(20))
+        }
 
       } else {
-        g[[rtmNam]] <- g[[rtmNam]] +
-          tidyterra::scale_fill_whitebox_c(
-            na.value = "transparent",
-            palette = paletteThisRas
-          )
+        if (isCategorical) {
+          g[[rtmNam]] <- g[[rtmNam]] +
+            tidyterra::scale_fill_whitebox_d(
+              na.value = "transparent",
+              palette = paletteThisRas
+            )
+        } else {
+          g[[rtmNam]] <- g[[rtmNam]] +
+            tidyterra::scale_fill_whitebox_c(
+              na.value = "transparent",
+              palette = paletteThisRas
+            )
+        }
       }
     }
   }
@@ -163,6 +186,31 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
         ) +
         ggplot2::theme_bw()
 
+    }
+  }
+
+  ## Study-area-only case: with no rasterToMatch, study areas are never added to
+  ## `g` above (they are only drawn as overlays on rasterToMatch panels), leaving
+  ## `g` empty and `patchwork::wrap_plots(list())` failing with
+  ## "'x' and 'units' must have length > 0". Build a single panel of the study
+  ## area polygons over the `Canada` base instead.
+  if (length(rtmsNames) == 0 && length(sasNames) > 0) {
+    saPlotName <- "studyAreas"
+    g[[saPlotName]] <- p + tidyterra::geom_spatvector(data = Canada, fill = "NA")
+    subTitle[[saPlotName]] <- character()
+    i <- 0
+    for (sa in names(ordSas)) {
+      i <- i + 1
+      g[[saPlotName]] <- g[[saPlotName]] +
+        tidyterra::geom_spatvector(data = ll[[sa]], fill = NA, col = saCols[i], lwd = 0.5)
+      subTitle[[saPlotName]] <- c(subTitle[[saPlotName]], paste0(sa, " (", saCols[i], ")"))
+    }
+    g[[saPlotName]] <- g[[saPlotName]] +
+      ggplot2::labs(subtitle = paste(subTitle[[saPlotName]], collapse = ", ")) +
+      ggplot2::theme_bw()
+
+    if (missing(title)) {
+      title <- singularPlural(c("studyArea", "studyAreas"), l = sasNames)
     }
   }
 
