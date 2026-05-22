@@ -12,7 +12,7 @@ name: pkgdown
 
 jobs:
   pkgdown:
-    uses: PredictiveEcology/actions/.github/workflows/pkgdown.yaml@reusable-workflows
+    uses: PredictiveEcology/actions/.github/workflows/pkgdown.yaml@main
     secrets: inherit
     with:
       # Only pin Require@development (matches R-CMD-check / test-coverage).

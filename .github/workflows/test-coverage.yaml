@@ -14,7 +14,7 @@ concurrency:
 jobs:
   test-coverage:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
-    uses: PredictiveEcology/actions/.github/workflows/test-coverage.yaml@reusable-workflows
+    uses: PredictiveEcology/actions/.github/workflows/test-coverage.yaml@main
     secrets: inherit
     with:
       extra-packages: |

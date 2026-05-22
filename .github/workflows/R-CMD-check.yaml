@@ -14,7 +14,7 @@ concurrency:
 jobs:
   R-CMD-check:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
-    uses: PredictiveEcology/actions/.github/workflows/R-CMD-check.yaml@reusable-workflows
+    uses: PredictiveEcology/actions/.github/workflows/R-CMD-check.yaml@main
     secrets: inherit
     with:
       extra-packages: |
