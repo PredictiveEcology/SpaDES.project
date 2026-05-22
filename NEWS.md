@@ -15,11 +15,11 @@ version 1.0.1
 ## Enhancements
 
 * `setupProject()` / `setupPackages()` print the `dput()` of the exact package vector passed to `Require::Require` at `verbose >= 3`.
-* Fresh claims scrub stale `finished_at` / `DEoptimElapsedTime` / `heartbeat_*` / `iterationsTotal` / `interrupted_at` (both backends).
-* `DONE` clears `claimed_by`; `process_id` and `machine_name` are preserved as a historical record.
-* `.gs_demote_after_kill()` clears every per-run metadata column, matching `tmuxRefreshQueueStatus()`.
-* `.gs_claim_next_job()` retries on lost race instead of returning `NULL`, so workers no longer silently exit on collisions.
-* `.setup_remote_machine()` uses absolute paths as-is on the remote when `global_path` / `queue_path` lives outside `$HOME` (e.g. NFS-shared `/mnt/shared_cache/...`); fixes `~//mnt/...` mangling.
+* When a worker claims a job, any leftover status from a previous attempt (finish time, elapsed time, heartbeat, iteration count, interruption time) is cleared first. This applies to both the Google Sheet and the file-based job queues.
+* When a job is marked finished, its "claimed by" marker is cleared, while the process ID and machine name are kept as a record of what ran it.
+* After a running job is killed, its row in the job-tracking sheet is fully reset so it can be picked up and run again.
+* When two workers try to claim the same job at the same moment, the one that loses now retries with the next job instead of quitting.
+* Running jobs on another machine no longer corrupts file paths that live on shared/network storage outside the home directory (e.g. `/mnt/shared_cache/...`).
 * `setupGitHub()` skips the clone prompt when `projectPath` is already a git working copy.
 * `setUpstreamWithTry()` walks every configured remote on lost-branch error, then auto-adds the github fork (`<acct>/<repo>` from the modules spec) as a new remote when the branch lives there; emits actionable message instead of aborting if the branch is missing everywhere.
 
@@ -64,7 +64,7 @@ version 1.0.1
   `scenario()`, `as_scenario()` (with methods for character paths,
   lists, data.frames, and re-coercion), `as_path()`, `as_tarname()`,
   `format.scenario`, `print.scenario`, and
-  `register_scenario_aliases()` for project-specific column-name
+  `register_scenario_format()` for project-specific column-name
   mappings. Companion helpers `queueRead()`, `queueUploadMissing()`,
   `outList()`, `outScenarios()` work with the project queue
   (Google Sheet) and output directory.
@@ -88,6 +88,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `plotSAs()` (which plots study areas) no longer fails when the raster used for matching has categorical (factor) layers: those layers are now drawn with a discrete colour scale instead of erroring with "Discrete value supplied to a continuous scale". It also now handles plotting a study area on its own (with no matching raster), which previously failed.
 * `setupProject()`: CRAN placeholder guard no longer errors with `subscript out of bounds` when `getOption("repos")` is an unnamed character vector or lacks a `CRAN` entry.
 * `tmuxRunNextWorker()`: workers no longer need the `reproducible` package to start.
 * `setupPaths()` detects an R version change since the previous run (e.g. 4.3 -> 4.5) by comparing the running R `major.minor` to the trailing version segment of `.libPaths()[1]`. On mismatch it calls `Require::setupOff()` to clear the stale `.Rprofile` block before the regular `Require::setLibPaths(updateRprofile = TRUE)` rewrites both `.libPaths()` and `.Rprofile` for the current R.
