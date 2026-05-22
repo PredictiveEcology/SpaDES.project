@@ -43,14 +43,16 @@ Users can certainly attempt to address these issues individually, but we've deve
 
 # Getting Started
 
-See [this package readme](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PredictiveEcology/SpaDES.project/transition/docs/index.html) and vignettes to get started.
+The [package website](https://spades-project.predictiveecology.org) is the best place to start. We would suggest these vignettes, roughly in this order:
 
-1. [Getting started vignette](articles/i-getting-started.html)
+1. [Getting started](articles/i-getting-started.html)
 2. [Using `git` and GitHub](articles/iii-using-git-github.html)
 3. [Installing R](articles/iv-Installing-R.html)
 4. [Finding other SpaDES modules](articles/v-finding-other-modules.html)
 
-**Website:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
+**Package website:** [https://spades-project.predictiveecology.org](https://spades-project.predictiveecology.org)
+
+**The wider `SpaDES` ecosystem:** [https://SpaDES.PredictiveEcology.org](https://SpaDES.PredictiveEcology.org)
 
 **Wiki:** [https://github.com/PredictiveEcology/SpaDES/wiki](https://github.com/PredictiveEcology/SpaDES/wiki)
 
@@ -88,23 +90,19 @@ setupProject(paths = list(projectPath = tempdir()),
 
 ### More examples
 
-The following example provides all that is necessary to run all modules, in a very short set of commands, from (almost) any starting condition. We tend to use this approach is many of our projects.
+The following example contains everything needed to run a set of modules, in a very short set of commands, from (almost) any starting condition. We use this approach in many of our projects.
 
 Key features:
 
-1. The project is fully self contained in a folder, with packages being installed to a unique library based on the `projectPath`.
-1. No use of `install.packages` without an `if`
-2. No `library` or `require` calls before any package installations.
-2. All functions are "rerun-capable", meaning they do not "redo" the action when rerun if the action is not necessary. e.g., `remotes::install_github` does not reinstall the package if the SHA has not changed.
-3. No assigning of objects into the `.GlobalEnv`. If projects are small/simple, using the `.GlobalEnv` is OK. As a project gets larger, unexpected behaviours arise because objects can be erroneaously found in the `.GlobalEnv` if they have a common name, like `out`, when functions should instead fail.
-4. Minimum packages installed prior to `setupProject`. After `SpaDES.project` and `Require` updates are on CRAN, this will be further simplified.
-5. Minimal use of `setwd`, to allow user's to easily change it (including comment it out) with simple search image.
-
-It is fully contained as a separate project, separate libraries, which means it doesn't do what it did for me at the start... package collisions.
-I used a setwd("~"), which is the bare minimum ... you can tell a user to change that to a place where this project will live.
+1. The project is fully self-contained in a folder, with packages installed to a unique library based on the `projectPath`. This isolation is deliberate: it is what stops the package collisions that derailed many of our early projects.
+2. No call to `install.packages` without an `if` guard, and no `library` or `require` calls before the package installations.
+3. Every function is "rerun-capable" (i.e., idempotent): rerunning a line does not redo work that is already done. For example, `remotes::install_github` does not reinstall a package whose SHA has not changed.
+4. No objects are assigned into the `.GlobalEnv`. For small, simple projects, using the `.GlobalEnv` is fine; as a project grows, an object with a common name like `out` can be picked up unexpectedly, hiding an error that should instead have caused the function to fail.
+5. The minimum number of packages are installed before `setupProject`. As `SpaDES.project` and `Require` updates reach CRAN, this will get simpler still.
+6. Minimal use of `setwd`. The example below uses `setwd("~")` only as a bare-minimum default; change it (or comment it out) to wherever you want this project to live.
 
 
-```
+```r
 getOrUpdatePkg <- function(p, minVer = "0") {
   if (!isFALSE(try(packageVersion(p) < minVer, silent = TRUE) )) {
     repo <- c("predictiveecology.r-universe.dev", getOption("repos"))
@@ -113,10 +111,10 @@ getOrUpdatePkg <- function(p, minVer = "0") {
 }
 
 getOrUpdatePkg("remotes")
-remotes::install_github("PredictiveEcology/Require", ref = "bda9fa50003981880c06287fea1db9272b62912c", upgrade = FALSE)# getOrUpdatePkg("reproducible", "2.0.9")
-getOrUpdatePkg("SpaDES.project", "0.0.8.9040")
+getOrUpdatePkg("Require", "1.0.0")
+getOrUpdatePkg("SpaDES.project", "1.0.1")
 
-setwd("~")
+setwd("~") # change this to wherever you want the project to live
 out <- SpaDES.project::setupProject(
   runName = "Example",
   paths = list(projectPath = "integratingSpaDESmodules",
