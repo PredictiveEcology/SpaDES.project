@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2026-05-22
-Version: 1.0.1.9335
+Version: 1.0.1.9336
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -76,7 +76,6 @@ Suggests:
     waldo,
     withr
 Remotes:
-    PredictiveEcology/SpaDES.config@development,
     PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
