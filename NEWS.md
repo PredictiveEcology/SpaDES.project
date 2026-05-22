@@ -5,6 +5,8 @@ version 1.0.1
 
 ## New features
 
+* `experiment()`, `experiment2()`, `factorialDesign()`, `simInitAndExperiment()` and the `simLists` class (with `as.data.table.simLists()`) moved here from the now-unmaintained `SpaDES.experiment`; `experiment()` is now a light wrapper that builds the factorial set of `simList`s and runs them via `experiment2()`.
+* `experiment2()` (and `experiment()`) forward named `...` such as `events` to `SpaDES.core::spades()`; the file-queue `experiment**` family supports per-scenario events via an `events` column in `df` (#20).
 * New `teardownProject(out)`: reverses a `setupProject()` call. Removes the project library, unlinks the project paths, and restores the prior `.libPaths()` that `setupProject()` now stores on its output as `out$paths$.previousLibPaths` (#31). The previous (dot-prefixed) `.teardownProject()` is kept as an alias.
 * New `re**` family — inverse of `out**` — for retrieving uploaded sims: `reGet()` (download from Google Drive), `reUntar()` (extract; optional `pathRemap` rewrites a path prefix via GNU `tar --transform`), `reLoad()` (`loadSimList()` / `readRDS()`), and the wrapper `reGetUntarLoad()` (also applies `pathRemap` to each sim's `outputs()$file` column). Vectorised over a batch (e.g. a `dribble` from `outList()`). See `?reGetUntarLoad`.
 * New `experimentMonitor()` unifies tmux + experimentFuture worker discovery; `stats = TRUE` adds CPU / RAM / state. `tmuxListPanes()` is now a thin alias.

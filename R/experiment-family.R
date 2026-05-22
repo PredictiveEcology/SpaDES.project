@@ -1,53 +1,77 @@
-#' Experiment functions: one queue model, multiple backends
+#' Experiment functions: five ways to run a SpaDES experiment
 #'
-#' A SpaDES "experiment" is a way of running a single "global" script,
-#' but with varying `inputs`, `parameters`, `paths` etc. This allows users to
-#' run, for example, replication of stochastic models, hypothesis testing with 
-#' different data inputs, scenarios of different human decisions, build
-#' large datasets of alternative mechanisms to enable ensemble modeling, 
-#' and other possibilities.  
-#' 
-#' The structure of an experiment is a `data.frame` (or `data.table`) where
-#' each row describes one set of values to be assigned to variables in 
-#' the `.GlobalEnv`. When an experiment is run using one of the `experimentXXX`
-#' family of functions,
-#' e.g., `experimentFuture`, `experimentTmux`, `experimentSBATCH`, this 
-#' data.frame is translated into a `queue` data.frame that has all the
-#' same columns and rows as the experiment, plus a few more, including `status`,
-#' `claimed_by` etc. to help run the experiment. 
-#' After creating the queue, the function will spawn a number of
-#' independent R "worker" sessions (according to `n_workers` or `cores`).
-#' Each of these workers will select a single row, assign the values 
-#' in each user-specified column to an object in the 
-#' `.GlobalEnv` whose name is the column name. 
-#' For example, if the `data.frame` has 2 rows and a column named
-#' `runName` where the row values are `"trial1"`` and `"trial2"`,
-#' then during the `experimentXXX` function
-#' call, the first R script will run: `runName <- "trial1"; source(global_path)`,
-#' and the second R script will run: `runName <- "trial2"; source(global_path)`. 
-#' The "status" column will have initial values of "PENDING" for all rows. 
-#' The workers will take the next row in the 
-#' queue that is "PENDING" (or "INTERRUPTED"), 
-#' skipping any rows that have "DONE" or any other value. When a
-#' worker is done, without error, the `status` column will be marked as
-#' DONE in that row in a shared queue, and moves on to the next PENDING row. 
-#' 
-#' Currently, there are 3 different ways of running an `experiment`. All
-#' share the queue and the run naming convention; however, 
-#' they differ only in *how* parallel workers are spawned. 
+#' A SpaDES "experiment" is a way of running a simulation many times with
+#' varying `inputs`, `parameters`, `paths`, scenarios, or replicates. This lets
+#' you run, for example, replication of stochastic models, hypothesis testing
+#' with different data inputs, scenario analysis of different human decisions,
+#' building large datasets of alternative mechanisms to enable ensemble
+#' modeling, and other possibilities.
+#'
+#' There are five functions to run one, in two groups. The first group
+#' ([experiment()] / [experiment2()]) is conceptually simpler: it works on
+#' in-memory `simList` objects and needs no project on disk. The second group
+#' ([experimentTmux()] / [experimentFuture()] / [experimentSBATCH()]) is built
+#' around a project `global.R` script (typically created by [setupProject()])
+#' and a shared job queue, and is what you reach for once runs are numerous,
+#' long, or spread across machines.
+#'
+#' @section Without `setupProject` (in-memory `simList`s):
+#'
+#' These take `simList` object(s) directly, run [SpaDES.core::spades()] on each
+#' via a `future` backend, and return the live results as a
+#' [simLists][simLists-class] object you can post-process with
+#' [as.data.table.simLists()]. Best when the run set is modest, fits in RAM, and
+#' you want the result objects back in your session. They are *not* built for
+#' resume-after-crash, cross-machine pulls, or HPC. (Moved here from the
+#' now-unmaintained `SpaDES.experiment` package.)
+#'
+#' \describe{
+#'   \item{[experiment2()]}{The core in-memory runner: give it one or more
+#'     `simList`s (and optionally `replicates`) and it runs them all and returns
+#'     a [simLists][simLists-class]. You build the variation yourself, e.g. with
+#'     several [SpaDES.core::simInit()] calls.}
+#'   \item{[experiment()]}{A light wrapper around [experiment2()] that *builds*
+#'     the variation for you: give it one base `simList` plus alternative
+#'     `params` / `modules` / `inputs` / `objects` and it constructs the
+#'     fully-factorial set of `simList`s (via [factorialDesign()]) and runs
+#'     them. [factorialDesign()] is exported separately, so the same design can
+#'     also seed the `df` of the second group below.}
+#' }
+#'
+#' @section With `setupProject` (file queue + `global.R`):
+#'
+#' Here the experiment is a `data.frame` (or `data.table`) where each row
+#' describes one set of values to be assigned to variables in the `.GlobalEnv`.
+#' When run via one of these functions, the data.frame is translated into a
+#' `queue` data.frame that has all the same columns and rows, plus a few more
+#' (`status`, `claimed_by`, etc.) to coordinate the run. After creating the
+#' queue, the function spawns a number of independent R "worker" sessions
+#' (according to `n_workers` or `cores`). Each worker selects a single row,
+#' assigns the values in each user-specified column to an object in the
+#' `.GlobalEnv` whose name is the column name, then `source()`s `global.R`. For
+#' example, if the `data.frame` has 2 rows and a column named `runName` with
+#' values `"trial1"` and `"trial2"`, the first worker runs
+#' `runName <- "trial1"; source(global_path)` and the second runs
+#' `runName <- "trial2"; source(global_path)`. The `status` column starts as
+#' "PENDING" for all rows; workers take the next "PENDING" (or "INTERRUPTED")
+#' row, skipping "DONE" rows, and mark a row "DONE" when it finishes without
+#' error before moving to the next.
+#'
+#' These three share the queue and the run-naming convention and differ only in
+#' *how* parallel workers are spawned:
 #'
 #' \describe{
 #'   \item{[experimentTmux()]}{Allows the most interactivity and so
-#'     is helpful when there is still debugging to perform. This will 
+#'     is helpful when there is still debugging to perform. This will
 #'     only work on a computer that has `tmux` installed. The function
 #'     spawns one tmux pane per worker, optionally across
 #'     ssh-reachable machines. Best for interactive use where you want to
 #'     watch workers live (`tmux attach`). Workers can be stopped with
 #'     [tmuxKillPanes()].}
 #'   \item{[experimentFuture()]}{When there is little to no debugging
-#'     necessary, this function will use background R processes using 
+#'     necessary, this function will use background R processes using
 #'     either `callr::r_bg()` if all workers are local,
-#'     or `future::cluster` if some of the workers are on different machines. 
+#'     or `future::cluster` if some of the workers are on different machines.
 #'     Best for stable scripts. Workers can be stopped with [killExperimentFuture()].}
 #'   \item{[experimentSBATCH()]}{One Slurm batch job per worker. Best for
 #'     HPC clusters with `sbatch` / `squeue` / `scancel`. Block with
@@ -57,7 +81,7 @@
 #'     `dry_run = TRUE`.}
 #' }
 #'
-#' All experimentXXX functions accept the same core arguments:
+#' All three of these accept the same core arguments:
 #'
 #' \describe{
 #'   \item{`df`}{The parameter grid; one row = one job. Column names become
@@ -418,6 +442,26 @@
 #'     remote batched per machine via SSH), then refreshes the queue
 #'     and demotes the matching Google-Sheet rows when an
 #'     \code{<queue_path>.ss_id} sidecar is present.
+#' }
+#'
+#' @section Controlling which events run:
+#'
+#' All of these honour `spades()`'s `events` argument, which restricts the
+#' events executed for each module (see [SpaDES.core::spades()]):
+#'
+#' \itemize{
+#'   \item [experiment()] / [experiment2()]: pass `events` as a named argument;
+#'     it is forwarded to every `spades()` call, e.g.
+#'     `experiment2(sim1, sim2, events = list(fireSpread = "init"))`. The
+#'     \emph{same} `events` apply to all simulations / replicates.
+#'   \item [experimentTmux()] / [experimentFuture()] / [experimentSBATCH()]:
+#'     there is no `events` argument because these functions do not call
+#'     `spades()` -- your `global.R` does. To control events, add an `events`
+#'     column to `df` (each cell is the `events` spec for that row) and, inside
+#'     `global.R`, call `spades(sim, events = events)`. Because each row carries
+#'     its own value, this gives \emph{per-scenario} control of which events run
+#'     for any particular module -- something the single shared `events` of the
+#'     in-memory family cannot do.
 #' }
 #'
 #' @name experiment_family

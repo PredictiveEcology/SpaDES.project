@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2026-05-14
-Version: 1.0.1.9328
+Date: 2026-05-22
+Version: 1.0.1.9332
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -41,6 +41,7 @@ Suggests:
     ellipsis,
     furrr,
     future,
+    future.apply,
     geodata,
     gert,
     ggplot2,
@@ -86,9 +87,13 @@ Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3
 Collate: 
     'SpaDES.projectOptions.R'
+    'simLists-class.R'
+    'as.data.table-simLists.R'
     'download.R'
     'environment.R'
     'experiment-family.R'
+    'experiment2.R'
+    'experiment-legacy.R'
     'experiment.R'
     'fileEdit.R'
     'future.R'
