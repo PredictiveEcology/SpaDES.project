@@ -2,36 +2,71 @@
 % Please edit documentation in R/experiment-family.R
 \name{experiment_family}
 \alias{experiment_family}
-\title{Experiment functions: one queue model, multiple backends}
+\title{Experiment functions: five ways to run a SpaDES experiment}
 \description{
-A SpaDES "experiment" is a way of running a single "global" script,
-but with varying \code{inputs}, \code{parameters}, \code{paths} etc. This allows users to
-run, for example, replication of stochastic models, hypothesis testing with
-different data inputs, scenarios of different human decisions, build
-large datasets of alternative mechanisms to enable ensemble modeling,
-and other possibilities.
+A SpaDES "experiment" is a way of running a simulation many times with
+varying \code{inputs}, \code{parameters}, \code{paths}, scenarios, or replicates. This lets
+you run, for example, replication of stochastic models, hypothesis testing
+with different data inputs, scenario analysis of different human decisions,
+building large datasets of alternative mechanisms to enable ensemble
+modeling, and other possibilities.
 }
 \details{
-The structure of an experiment is a \code{data.frame} (or \code{data.table}) where
-each row describes one set of values to be assigned to variables in
-the \code{.GlobalEnv}. When an experiment is run using one of the \code{experimentXXX}
-family of functions,
-e.g., \code{experimentFuture}, \code{experimentTmux}, \code{experimentSBATCH}, this
-data.frame is translated into a \code{queue} data.frame that has all the
-same columns and rows as the experiment, plus a few more, including \code{status},
-\code{claimed_by} etc. to help run the experiment.
-After creating the queue, the function will spawn a number of
-independent R "worker" sessions (according to \code{n_workers} or \code{cores}).
-Each of these workers will select a single row, assign the values
-in each user-specified column to an object in the
-\code{.GlobalEnv} whose name is the column name.
-For example, if the \code{data.frame} has 2 rows and a column named
-\code{runName} where the row values are \verb{"trial1"`` and }"trial2"\verb{, then during the }experimentXXX\verb{function call, the first R script will run:}runName <- "trial1"; source(global_path)\verb{, and the second R script will run: }runName <- "trial2"; source(global_path)\verb{.  The "status" column will have initial values of "PENDING" for all rows.  The workers will take the next row in the  queue that is "PENDING" (or "INTERRUPTED"),  skipping any rows that have "DONE" or any other value. When a worker is done, without error, the }status` column will be marked as
-DONE in that row in a shared queue, and moves on to the next PENDING row.
+There are five functions to run one, in two groups. The first group
+(\code{\link[=experiment]{experiment()}} / \code{\link[=experiment2]{experiment2()}}) is conceptually simpler: it works on
+in-memory \code{simList} objects and needs no project on disk. The second group
+(\code{\link[=experimentTmux]{experimentTmux()}} / \code{\link[=experimentFuture]{experimentFuture()}} / \code{\link[=experimentSBATCH]{experimentSBATCH()}}) is built
+around a project \code{global.R} script (typically created by \code{\link[=setupProject]{setupProject()}})
+and a shared job queue, and is what you reach for once runs are numerous,
+long, or spread across machines.
+}
+\section{Without \code{setupProject} (in-memory \code{simList}s)}{
 
-Currently, there are 3 different ways of running an \code{experiment}. All
-share the queue and the run naming convention; however,
-they differ only in \emph{how} parallel workers are spawned.
+
+These take \code{simList} object(s) directly, run \code{\link[SpaDES.core:spades]{SpaDES.core::spades()}} on each
+via a \code{future} backend, and return the live results as a
+\link[=simLists-class]{simLists} object you can post-process with
+\code{\link[=as.data.table.simLists]{as.data.table.simLists()}}. Best when the run set is modest, fits in RAM, and
+you want the result objects back in your session. They are \emph{not} built for
+resume-after-crash, cross-machine pulls, or HPC. (Moved here from the
+now-unmaintained \code{SpaDES.experiment} package.)
+
+\describe{
+\item{\code{\link[=experiment2]{experiment2()}}}{The core in-memory runner: give it one or more
+\code{simList}s (and optionally \code{replicates}) and it runs them all and returns
+a \link[=simLists-class]{simLists}. You build the variation yourself, e.g. with
+several \code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}} calls.}
+\item{\code{\link[=experiment]{experiment()}}}{A light wrapper around \code{\link[=experiment2]{experiment2()}} that \emph{builds}
+the variation for you: give it one base \code{simList} plus alternative
+\code{params} / \code{modules} / \code{inputs} / \code{objects} and it constructs the
+fully-factorial set of \code{simList}s (via \code{\link[=factorialDesign]{factorialDesign()}}) and runs
+them. \code{\link[=factorialDesign]{factorialDesign()}} is exported separately, so the same design can
+also seed the \code{df} of the second group below.}
+}
+}
+
+\section{With \code{setupProject} (file queue + \code{global.R})}{
+
+
+Here the experiment is a \code{data.frame} (or \code{data.table}) where each row
+describes one set of values to be assigned to variables in the \code{.GlobalEnv}.
+When run via one of these functions, the data.frame is translated into a
+\code{queue} data.frame that has all the same columns and rows, plus a few more
+(\code{status}, \code{claimed_by}, etc.) to coordinate the run. After creating the
+queue, the function spawns a number of independent R "worker" sessions
+(according to \code{n_workers} or \code{cores}). Each worker selects a single row,
+assigns the values in each user-specified column to an object in the
+\code{.GlobalEnv} whose name is the column name, then \code{source()}s \code{global.R}. For
+example, if the \code{data.frame} has 2 rows and a column named \code{runName} with
+values \code{"trial1"} and \code{"trial2"}, the first worker runs
+\verb{runName <- "trial1"; source(global_path)} and the second runs
+\verb{runName <- "trial2"; source(global_path)}. The \code{status} column starts as
+"PENDING" for all rows; workers take the next "PENDING" (or "INTERRUPTED")
+row, skipping "DONE" rows, and mark a row "DONE" when it finishes without
+error before moving to the next.
+
+These three share the queue and the run-naming convention and differ only in
+\emph{how} parallel workers are spawned:
 
 \describe{
 \item{\code{\link[=experimentTmux]{experimentTmux()}}}{Allows the most interactivity and so
@@ -54,7 +89,7 @@ issues \code{scancel}). Inspect generated job scripts with
 \code{dry_run = TRUE}.}
 }
 
-All experimentXXX functions accept the same core arguments:
+All three of these accept the same core arguments:
 
 \describe{
 \item{\code{df}}{The parameter grid; one row = one job. Column names become
@@ -92,6 +127,7 @@ Swap \code{experimentFuture()} for \code{experimentTmux()} or \code{experimentSB
 (adjusting \code{cores} / \code{n_workers} / \code{sbatch_opts}) and the rest of the
 driver script is unchanged.
 }
+
 \section{Why not just run \verb{Rscript -e ...} per row?}{
 
 
@@ -422,6 +458,28 @@ to all of them in one call (local via \code{tools::pskill()},
 remote batched per machine via SSH), then refreshes the queue
 and demotes the matching Google-Sheet rows when an
 \code{<queue_path>.ss_id} sidecar is present.
+}
+}
+
+\section{Controlling which events run}{
+
+
+All of these honour \code{spades()}'s \code{events} argument, which restricts the
+events executed for each module (see \code{\link[SpaDES.core:spades]{SpaDES.core::spades()}}):
+
+\itemize{
+\item \code{\link[=experiment]{experiment()}} / \code{\link[=experiment2]{experiment2()}}: pass \code{events} as a named argument;
+it is forwarded to every \code{spades()} call, e.g.
+\code{experiment2(sim1, sim2, events = list(fireSpread = "init"))}. The
+\emph{same} \code{events} apply to all simulations / replicates.
+\item \code{\link[=experimentTmux]{experimentTmux()}} / \code{\link[=experimentFuture]{experimentFuture()}} / \code{\link[=experimentSBATCH]{experimentSBATCH()}}:
+there is no \code{events} argument because these functions do not call
+\code{spades()} -- your \code{global.R} does. To control events, add an \code{events}
+column to \code{df} (each cell is the \code{events} spec for that row) and, inside
+\code{global.R}, call \code{spades(sim, events = events)}. Because each row carries
+its own value, this gives \emph{per-scenario} control of which events run
+for any particular module -- something the single shared \code{events} of the
+in-memory family cannot do.
 }
 }
 
