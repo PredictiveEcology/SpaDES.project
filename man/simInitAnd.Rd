@@ -25,6 +25,9 @@ simInitAndExperiment(
 )
 }
 \arguments{
+\item{times, paths, outputs, loadOrder}{Passed to \code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}};
+see there.}
+
 \item{params}{Like for \code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}}, but for each parameter, provide a list of
 alternative values.}
 

@@ -48,9 +48,10 @@ utils::globalVariables(c("..onlyInteger", "objectName", "saveTime", "file"))
 #' @importFrom tools file_ext
 #' @importFrom utils getFromNamespace
 #' @include simLists-class.R
-as.data.table.simLists <- function(x, vals,
+as.data.table.simLists <- function(x, keep.rownames = FALSE, ...,
+                                   vals,
                                    objectsFromSim = NULL,
-                                   objectsFromOutputs = NULL,  ...) {
+                                   objectsFromOutputs = NULL) {
   if (!requireNamespace("SpaDES.core", quietly = TRUE))
     stop("Package 'SpaDES.core' is required for as.data.table.simLists. ",
          "Install it with: install.packages('SpaDES.core')", call. = FALSE)

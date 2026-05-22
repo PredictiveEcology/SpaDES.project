@@ -4,10 +4,21 @@
 \alias{as.data.table.simLists}
 \title{Coerce elements of a \code{simLists} object to a \code{data.table}}
 \usage{
-\method{as.data.table}{simLists}(x, vals, objectsFromSim = NULL, objectsFromOutputs = NULL, ...)
+\method{as.data.table}{simLists}(
+  x,
+  keep.rownames = FALSE,
+  ...,
+  vals,
+  objectsFromSim = NULL,
+  objectsFromOutputs = NULL
+)
 }
 \arguments{
 \item{x}{An R object.}
+
+\item{keep.rownames}{Default is \code{FALSE}. If \code{TRUE}, adds the input object's names as a separate column named \code{"rn"}. \code{keep.rownames = "id"} names the column \code{"id"} instead. For lists and when calling \code{data.table()}, names from the first named vector are extracted and used as row names, similar to \code{data.frame()} behavior.}
+
+\item{...}{Additional arguments. Currently unused.}
 
 \item{vals}{A (named) list of object names to extract from each
 \code{simList}, or a named list of quoted expressions to calculate for each \code{simList},
@@ -30,8 +41,6 @@ A column, \code{saveTime}, will be part of the returned \code{data.table}.
 For cases where more than one object is required at a given
 \code{saveTime}, all should be identified here, without time specified.
 This function will take all identified objects from the same time period.}
-
-\item{...}{Additional arguments. Currently unused.}
 }
 \value{
 This returns a \code{data.table} class object.

@@ -409,6 +409,8 @@ experiment <- function(sim, replicates = 1, params, modules, objects = list(), i
 #' @aliases simInitAndExperiment
 #' @rdname simInitAnd
 #' @inheritParams experiment
+#' @param times,paths,outputs,loadOrder Passed to [SpaDES.core::simInit()];
+#'   see there.
 #' @importFrom utils getFromNamespace
 #' @details
 #' `simInitAndExperiment` cannot pass modules or params to `experiment` because
