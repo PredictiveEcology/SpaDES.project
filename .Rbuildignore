@@ -7,3 +7,7 @@
 ^docs$
 ^pkgdown$
 ^\.secrets$
+^\.claude$
+^\.vscode$
+^CLAUDE\.md$
+^Linux-X64-.*$

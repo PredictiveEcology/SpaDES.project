@@ -4,6 +4,40 @@ utils::globalVariables(c(
   "rasterToMatch"
 ))
 
+#' Overview: the `setup*` family
+#'
+#' [setupProject()] is the high-level entry point that calls each of the
+#' inner `setup*` helpers in order. The helpers are normally invoked
+#' indirectly via `setupProject()`, but each is exported so users can call
+#' it on its own (for diagnosis, partial setup, or post-hoc tweaks).
+#'
+#' Order in which `setupProject()` calls the helpers:
+#' \enumerate{
+#'   \item [setupOptions()] (first pass -- before paths)
+#'   \item [setupPaths()]
+#'   \item `setupRestart` (internal)
+#'   \item [setupFunctions()]
+#'   \item [setupModules()]
+#'   \item [setupPackages()]
+#'   \item [setupSideEffects()]
+#'   \item [setupOptions()] (second pass -- after packages)
+#'   \item [setupParams()]
+#'   \item [setupGitIgnore()]
+#' }
+#'
+#' Other companions used directly by user code or by `setupProject()`:
+#' [setupStudyArea()] (resolves a study-area polygon via `geodata::gadm()`)
+#' and [setupFiles()] (parses local / remote files into named lists).
+#'
+#' @seealso [setupProject()], [setupPaths()], [setupFunctions()],
+#'   [setupSideEffects()], [setupOptions()], [setupModules()],
+#'   [setupPackages()], [setupParams()], [setupGitIgnore()],
+#'   [setupStudyArea()], [setupFiles()].
+#' @name setup_family
+#' @aliases setup
+#' @keywords internal
+NULL
+
 #' Sets up a new or existing SpaDES project
 #'
 #' @description `setupProject` calls a sequence of functions in this order:
@@ -56,8 +90,8 @@ utils::globalVariables(c(
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
 #'   See help for `SpaDES.core::simInit`.
-#' @param config Still experimental linkage to the `SpaDES.config` package. Currently
-#'   not working.
+#' @param config Reserved for future use. Currently unimplemented; supplying
+#'   a value triggers an error.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
 #'   not attached to the search path. See also the `require` argument. To force skip
@@ -142,12 +176,12 @@ utils::globalVariables(c(
 #'        reproject the `studyArea`. See examples.
 #' @param overwrite Logical vector or character vector, however, only `getModule` will respond
 #'   to a vector of values. If length-one `TRUE`, then all files that were previously downloaded
-#'   will be overwritten throughout the sequence of `setupProject`. If a vector of
-#'   logical or character, these will be passed to `getModule`: only the named
+#'   will be overwritten throughout the sequence of `setupProject` -- including those downloaded via `sideEffects`.
+#'   If a length > 1 logical or character vector, these will be passed to `getModule`: only the named
 #'   modules will be overwritten or the logical vector of the modules.
-#'   NOTE: if a vector, no other file specified anywhere in `setupProject` will be
-#'   overwritten except a module that/those names, because
-#'   only `setupModules` is currently responsive to a vector. To have fine grained control,
+#'   NOTE: if length > 1, no other file specified anywhere in `setupProject` will be
+#'   overwritten except a module matching the vector `names()` (because
+#'   only `setupModules` is currently responsive to a vector). To have fine grained control,
 #'   a user can just manually delete a file, then rerun.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects.
@@ -287,7 +321,7 @@ utils::globalVariables(c(
 #' setupProject(
 #'    options = list(reproducible.useTerra = TRUE,
 #'                   "inst/options.R",
-#'                   "PredictiveEcology/SpaDES.project@transition/inst/options.R")
+#'                   "PredictiveEcology/SpaDES.project@development/inst/options.R")
 #'                  )
 #'    )
 #' ```
@@ -389,10 +423,20 @@ utils::globalVariables(c(
 #' @importFrom stats na.omit setNames
 #' @inheritParams Require::Require
 #' @inheritParams Require::setLibPaths
-#' @rdname setupProject
-#' @seealso [setupPaths()], [setupOptions()], [setupPackages()],
-#' [setupModules()], [setupGitIgnore()]. Also, helpful functions such as
-#' [user()], [machine()], [node()]
+#' @section Verbosity:
+#' `verbose` is passed through to the inner `setup*` helpers. Notably, `verbose >= 2`
+#' prints the modules' `reqdPkgs` grouped by module, and `verbose >= 3` additionally
+#' prints the `dput()` of the exact package vector passed to `Require::Require` (see
+#' [setupPackages()]).
+#' @seealso
+#' Inner `setup*` helpers (each has its own help page; see [setup_family]
+#' for a one-page overview):
+#' [setupPaths()], [setupFunctions()], [setupSideEffects()],
+#' [setupOptions()], [setupModules()], [setupPackages()],
+#' [setupParams()], [setupGitIgnore()], [setupStudyArea()], [setupFiles()].
+#' [teardownProject()] reverses `setupProject()` and restores the prior
+#' `.libPaths()` (kept on the output as `out$paths$.previousLibPaths`).
+#' Also, helpful functions such as [user()], [machine()], [node()].
 #' @seealso `vignette("i-getting-started", package = "SpaDES.project")`
 #'
 #' @examples
@@ -430,6 +474,30 @@ setupProject <- function(name, paths, modules, packages,
 
   # defaultDotsSUB <- substitute(defaultDots)
   failedBCMissingPackage <- FALSE
+
+  # RStudio's repos = "@CRAN@" overlay calls `.rs.downloadFile()` to refresh
+  # CRAN_mirrors.csv whenever something resolves a CRAN URL. On hosts with TLS
+  # interception this raises an "SSL connect error" that R defers via "In
+  # addition: Warning message:", so withCallingHandlers below can't muffle it.
+  # Setting a real CRAN URL up-front bypasses the overlay entirely.
+  reposNow <- getOption("repos")
+  # `reposNow` may be an unnamed character vector, or named without a "CRAN"
+  # entry; `[["CRAN"]]` errors with "subscript out of bounds" on atomic vectors
+  # in that case (lists would return NULL), so gate on names() first.
+  if (is.null(reposNow) || !"CRAN" %in% names(reposNow) ||
+      identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
+    # base::options(...) because setupProject's own `options` formal would
+    # otherwise shadow base::options here — R looks up the function name
+    # in the local frame first, finds the parameter promise, and (when
+    # the caller didn't supply `options=`) the promise is missing-without-
+    # default, so forcing it as a function blows up with
+    # "argument 'options' is missing, with no default". Same trick is
+    # already used at every other `base::options(...)` call site in this
+    # file (e.g. 564, 1307, 1341, 1355).
+    base::options(repos = c(CRAN = "https://cloud.r-project.org",
+                            reposNow[setdiff(names(reposNow), "CRAN")]))
+  }
+
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
 
@@ -447,8 +515,22 @@ setupProject <- function(name, paths, modules, packages,
     # caller <- parent.frame()     # calling env (preferred over .GlobalEnv in lookup)
 
     # Build the persistent proxy once
-    proxy <- build_proxy(envirCur, envir)
+    dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
+    dotsAll <- capture_dots(...)
+    # dotsSUB <- dotsAll$exprs
+    proxy <- build_proxy(
+      cur    = envirCur,
+      caller = parent.frame(),
+      dots   = dotsAll
+    )
+
+    # envir <- proxy$env
+
+    # proxy <- build_proxy(envirCur, parent.frame(), dot_exprs)
+    # proxy <- build_proxy(envirCur, envir)
     envir <- proxy$exec
+    expose_new_bindings(proxy)
+    # addNewObjsToProxy(proxy$cur, proxy$exec, proxy)
 
     # Expose small helpers inside fn so you don't pass `exec` around:
     #ensure <- function(name) ensure_binding(name, proxy)
@@ -464,7 +546,7 @@ setupProject <- function(name, paths, modules, packages,
       argsAreInFormals <- origArgOrder %in% setdiff(formalArgs(setupProject), argsCanGoAnywhere)
       firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
     }
-    dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
+    # dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
     if (any(nzchar(names(dotsSUB)) %in% FALSE)) {
       stop("Any non-formal arguments must be named, i.e., the ... must be named")
     }
@@ -477,7 +559,7 @@ setupProject <- function(name, paths, modules, packages,
     pathsSUB <- pathsSUBOrig <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
     sideEffectsSUB <- sideEffectsSUBOrig <- substitute(sideEffects)
     libPaths <- libPathsOrig <- substitute(libPaths)
-    
+
     for (fullAttempt in 1:2) {
       if (fullAttempt == 2) {
         messageVerbose("Starting setupProject again with new packages installed", verbose = verbose)
@@ -488,7 +570,8 @@ setupProject <- function(name, paths, modules, packages,
         keepers <- OrigsSansSUBOrig %in% passed
         Origs <- Origs[keepers]
         OrigsSansOrig <- OrigsSansOrig[keepers]
-        addNewObjsToProxy(envirCur, envir, proxy)
+        expose_new_bindings(proxy)
+        # addNewObjsToProxy(envirCur, envir, proxy)
         Map(objName = Origs, objNameSUB = OrigsSansOrig, function(objName, objNameSUB) {
           if (!missing(objName))
             assign(objNameSUB,
@@ -500,17 +583,18 @@ setupProject <- function(name, paths, modules, packages,
         firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
         dotsLater <- dotsSUB[-firstSet]
         dotsSUB <- dotsSUB[firstSet]
-        addNewObjsToProxy(envirCur, envir, proxy)
+        # addNewObjsToProxy(envirCur, envir, proxy)
         dotsSUB <- evalDotsOuter(dots, dotsSUB, defaultDotsSUB,
                                  envir = envirCur, callingEnv = envir)
         #envir = envir,
         #callingEnv = envir)
       }
-      
+
       if (missing(times))
         times <- list(start = 0, end = 1)
 
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
       if (missing(name)) {
         name <- basename(normPath(pathsSUB[["projectPath"]]))
@@ -521,7 +605,8 @@ setupProject <- function(name, paths, modules, packages,
       # inProject <- isInProject(name)
 
       # setupOptions is run twice -- because package startup often changes options
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
 
       # This needs to be set to default before running setupOptions as it will unset it there if needed
       base::options("spades.useRequireOverride" = FALSE)
@@ -557,10 +642,12 @@ setupProject <- function(name, paths, modules, packages,
       }
 
       # this next puts them in this environment, returns NULL
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
       functions <- setupFunctions(functionsSUB, paths = paths, envir = envirCur)
 
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,
                                      overwrite = overwrite, envir = envirCur, verbose = verbose)
@@ -576,7 +663,8 @@ setupProject <- function(name, paths, modules, packages,
         packages <- character()
 
       # if (getOption("spades.useRequire", TRUE)) {
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
       setupPackages(packages, modulePackages, require = require, paths = paths,
                     setLinuxBinaryRepo = setLinuxBinaryRepo,
                     standAlone = standAlone,
@@ -594,12 +682,14 @@ setupProject <- function(name, paths, modules, packages,
       if (any(grepl("\\<terra\\>", allPkgs)) && requireNamespace("terra", quietly = TRUE)) {
         terra::terraOptions(tempdir = paths$terraPath)
       }
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
       sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
                                          envir = envirCur, verbose = verbose)
 
       # 2nd time
-      addNewObjsToProxy(envirCur, envir, proxy)
+      expose_new_bindings(proxy)
+      # addNewObjsToProxy(envirCur, envir, proxy)
       opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
                            useGit = useGit, updateRprofile = updateRprofile, verbose = verbose - 1)
       if (!is.null(opts$newOptions))
@@ -609,7 +699,7 @@ setupProject <- function(name, paths, modules, packages,
         message("Using fast options:")
         df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
         df <- df[!sapply(df, is.null)]
-        if (requireNamespace("reproducible", quietly = TRUE) && 
+        if (requireNamespace("reproducible", quietly = TRUE) &&
             requireNamespace("qs2", quietly = TRUE))
           reproducible::messageDF(data.frame(option = names(df), val = unlist(df)))
         else
@@ -625,36 +715,27 @@ setupProject <- function(name, paths, modules, packages,
       #               libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
 
       if (!missing(config)) {
-        # messageVerbose("config is supplied; using `SpaDES.config` package internals", verbose = verbose)
-        # if (!requireNamespace("SpaDES.config", quietly = TRUE)) {
-        #   Require::Install("PredictiveEcology/SpaDES.config@development")
-        # }
-        messageWarnStop("config is not yet setup to run with SpaDES.project")
-        # if (FALSE)
-        #   out <- do.call(SpaDES.config::useConfig, append(
-        #     list(projectName = config,
-        #          projectPath = paths[["projectPath"]], paths = paths),
-        #     localVars))
-
+        messageWarnStop("`config` is not yet supported by setupProject().")
       }
       if (failedBCMissingPackage %in% FALSE)
         break
     }
-    # TODO from here to out <-  should be brought into the "else" block when `SpaDES.config is worked on`
     remainingArgs <- origArgOrder[!argsAreInFormals]
     remainingArgs <- remainingArgs[nzchar(remainingArgs)]
     # if (missing(paramsSUB))
     #   params <- list()
     for (ar in remainingArgs) {
       if (identical(ar, "params")) {
-        addNewObjsToProxy(envirCur, envir, proxy)
+        expose_new_bindings(proxy)
+        # addNewObjsToProxy(envirCur, envir, proxy)
         params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                               overwrite = isTRUE(overwrite), envir = envirCur,
                               callingEnv = envir, verbose = verbose)
       } else if (identical(ar, "studyArea")){
         studyAreaSUB <- substitute(studyArea)
         if (!is.null(studyAreaSUB)) {
-          addNewObjsToProxy(envirCur, envir, proxy)
+          expose_new_bindings(proxy)
+          # addNewObjsToProxy(envirCur, envir, proxy)
           dotsSUB$studyArea <- setupStudyArea(studyAreaSUB, paths, envir = envirCur,
                                               callingEnv = envir, verbose = verbose)
           studyArea <- dotsSUB$studyArea
@@ -662,13 +743,15 @@ setupProject <- function(name, paths, modules, packages,
       } else if (identical(ar, "times")) {
         timesSUB <- substitute(times) # must do this in case the user passes e.g., `list(fireStart = times$start)`
         if (!missing(timesSUB)) {
-          addNewObjsToProxy(envirCur, envir, proxy)
+          expose_new_bindings(proxy)
+          # addNewObjsToProxy(envirCur, envir, proxy)
           times <- evalSUB(val = timesSUB, envir = envirCur, valObjName = "times", envir2 = envir)
         }
       } else {
         if (length(dotsLater) && (ar %in% names(dotsLater))) {
           # THIS IS THE MAIN EVALUTION LINE FOR EACH OF THE DOTS
-          addNewObjsToProxy(envirCur, envir, proxy)
+          expose_new_bindings(proxy)
+          # addNewObjsToProxy(envirCur, envir, proxy)
           possToAdd <- evalDotsOuter(dots, dotsLater[ar], defaultDots,
                                      envir = envirCur, callingEnv = envir)
           if (length(possToAdd))
@@ -765,18 +848,24 @@ setupProject <- function(name, paths, modules, packages,
       messageVerbose("Missing package(s): ", pkgNotAvail, "; restarting setupProject after installing packages")
       invokeRestart("muffleWarning")
     }
+    # RStudio's repos = "@CRAN@" hook calls .rs.downloadFile() to refresh
+    # CRAN_mirrors.csv; on machines with TLS interception (corporate firewalls)
+    # this surfaces a "SSL connect error" warning that's unactionable for the
+    # user and unrelated to setupProject's work. Muffle only this exact URL.
+    if (grepl("CRAN_mirrors\\.csv", w$message, fixed = FALSE)) {
+      invokeRestart("muffleWarning")
+    }
   })
 
   return(out)
 }
 
-#' Individual `setup*` functions that are contained within `setupProject`
+#' Set up project, module, and scratch paths
 #'
-#' These functions will allow more user control, though in most circumstances,
-#' it should be unnecessary to call them directly.
+#' Resolve, default-fill, and apply the path list used by [setupProject()].
 #'
 #' @details
-#' `setPaths` will fill in any paths that are not explicitly supplied by the
+#' `setupPaths` will fill in any paths that are not explicitly supplied by the
 #' user as a named list. These paths that can be set are:
 #' `projectPath`, `packagePath`, `cachePath`, `inputPath`,
 #' `modulePath`, `outputPath`, `rasterPath`, `scratchPath`, `terraPath`.
@@ -801,6 +890,8 @@ setupProject <- function(name, paths, modules, packages,
 #' In addition, three paths will be added to this same attribute automatically:
 #' `projectPath`, `packagePath`, and `.prevLibPaths` which is the previous value for
 #' `.libPaths()` before changing to `packagePath`.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
 #' @section Paths:
 #'   \tabular{lll}{
@@ -842,7 +933,6 @@ setupProject <- function(name, paths, modules, packages,
 #' @param callingEnv The environment from which the function was called. Defaults to `sys.frame(-2)`
 #'   which represents the case where the inner `setup*` functions are called inside
 #'   `setupProject`, which was called by a user.
-#' @rdname setup
 #' @param envir An environment within which to look for objects. If called alone,
 #' the function should use its own internal environment. If called from another
 #' function, e.g., `setupProject`, then the `envir` should be the internal
@@ -965,6 +1055,42 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- lapply(paths, normPath)
 
+  ## Kick off the showCache async background scan against the *real*
+  ## cachePath as soon as we know it. On large caches this lets the fork
+  ## complete during the rest of setupProject + simInit, so the first
+  ## interactive showCache() call returns in ~1 s instead of 60+ s.
+  ## Idempotent and ~10us when a job already exists; silently no-ops on
+  ## Windows, when reproducible is not loaded, or when the running
+  ## reproducible doesn't yet export prepopulateCacheAsync.
+  if (!is.null(paths[["cachePath"]]) &&
+      requireNamespace("reproducible", quietly = TRUE) &&
+      exists("prepopulateCacheAsync",
+             envir = asNamespace("reproducible"),
+             inherits = FALSE)) {
+    ## Use getExportedValue so that R CMD check does not flag a static
+    ## reference to a symbol that older reproducible versions don't export.
+    fn <- getExportedValue("reproducible", "prepopulateCacheAsync")
+    try(fn(paths[["cachePath"]]), silent = TRUE)
+  }
+
+  # Detect an R version change since the last setupProject run. The stale
+  # .Rprofile re-pins .libPaths()[1] to the previous R version's package dir,
+  # and Require::setLibPaths(updateRprofile = TRUE) silently skips rewriting
+  # an already-present block -- so without this, the new version would never
+  # be persisted to .Rprofile. Clear the block via Require::setupOff() and let
+  # the regular setLibPaths call below write a fresh one for the running R.
+  libPathLeaf <- basename(.libPaths()[1])
+  currentRMajMin <- paste0(version$major, ".",
+                           strsplit(version$minor, "[.]")[[1]][1])
+  if (grepl("^[0-9]+\\.[0-9]+$", libPathLeaf) &&
+      !identical(libPathLeaf, currentRMajMin)) {
+    messageVerbose(
+      yellow("R version change detected (", libPathLeaf, " -> ", currentRMajMin,
+             "); resetting project library via Require::setupOff()"),
+      verbose = verbose, verboseLevel = 0)
+    Require::setupOff(verbose = verbose)
+  }
+
   changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
@@ -1010,10 +1136,16 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     # setLibPaths will post-pend the R version number
 
     if (needSetLibPathsNow %in% FALSE)
-      on.exit(Require::setLibPaths(prevLibPaths), add = TRUE)
+      # updateRprofile = FALSE: this is an in-session reset of .libPaths() ahead
+      # of the pending R restart; touching .Rprofile here would (a) re-fire the
+      # "There is already a setLibPaths..." message and (b) rewrite a block that
+      # the just-completed setLibPaths above already wrote correctly.
+      on.exit(Require::setLibPaths(prevLibPaths, updateRprofile = FALSE),
+              add = TRUE)
     paths[["packagePath"]] <- .libPaths()[1]
     if (isTRUE(needTryInstall))
-      setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
+      setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps,
+                              prevLibPaths = prevLibPaths)
 
   }
   if (any(lengths(paths) == 0)) {
@@ -1049,17 +1181,24 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 }
 
 
-#' @export
-#' @rdname setup
+#' Source user-supplied helper functions into the project environment
+#'
+#' Source the functions supplied to [setupProject()] so they are available
+#' to subsequent `setup*` steps and to the user's session.
 #'
 #' @details
 #' `setupFunctions` will source the functions supplied, with a parent environment being
 #' the internal temporary environment of the `setupProject`, i.e., they will have
 #' access to all the objects in the call.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupFunctions` returns NULL. All functions will be placed in `envir`.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 #' @importFrom data.table data.table
 #' @examples
 #'
@@ -1123,8 +1262,10 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 
 
 
-#' @export
-#' @rdname setup
+#' Run side-effect scripts (e.g., authentication, custom package options)
+#'
+#' Source the side-effect scripts or expressions supplied to [setupProject()];
+#' nothing is returned to the user.
 #'
 #' @details
 #' Most arguments in the family of `setup*` functions are run *sequentially*, even within
@@ -1137,6 +1278,8 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 #' may or may not replace individual values. This can create hierarchies, *based on
 #' order*.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupSideEffects` is run for its side effects (e.g., web authentication, custom package
 #' options that cannot use `base::options`), with deliberately nothing returned to user.
@@ -1144,7 +1287,9 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 #' that occur when a user uses e.g., `source` without being very careful about
 #' what and where the objects are sourced to.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
+#' @export
 #' @importFrom data.table data.table
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
                              envir = parent.frame(), callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L),
@@ -1157,7 +1302,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
   if (!missing(sideEffects)) {
     messageVerbose(yellow(paste0(.txtSettingUp, " sideEffects...")), verbose = verbose, verboseLevel = 0)
 
-    # 
+    #
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envirCur, envir2 = envir)
 
@@ -1166,13 +1311,13 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
     #   writeLines(format(sideEffects[-1]), con = tf)
     #   sideEffects <- tf
     # }
-    
+
     # parseFileLists needs paths, so must do this
     pathsSUB <- substitute(paths) # must do this in case the user passes e.g., `list(modulePath = paths$projectpath)`
     pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
     paths <- setupPaths(paths = pathsSUB, # defaultDots = defaultDots,
                         verbose = verbose - 2)
-    
+
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
                                   overwrite = isTRUE(overwrite), envir = envir, verbose = verbose - 1)
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
@@ -1181,8 +1326,10 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 }
 
 
-#' @export
-#' @rdname setup
+#' Apply (and stage) project options
+#'
+#' Set the `options()` supplied to [setupProject()] and record the prior values
+#' so they can be restored.
 #'
 #' @details
 #' `setupOptions` can handle sequentially specified values, meaning a user can
@@ -1190,12 +1337,16 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 #' may or may not replace individual values. Thus final values will be based on the
 #' order that they are provided.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupOptions` is run for its side effects, namely, changes to the `options()`. The
 #'   list of modified options will be added as an attribute (`attr(out, "projectOptions")`),
 #'   e.g., so they can be "unset" by user later.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
+#' @export
 #' @importFrom data.table data.table
 setupOptions <- function(name, options, paths, times, overwrite = FALSE,
                          envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -1325,9 +1476,12 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
     #   need reassess
     hasName <- lapply(llOuter, function(x) !is.null(names(x)))
     if (all(unlist(hasName))) namedList <- TRUE
-    if (isTRUE(namedList))
-      os <- Reduce(modifyList, llOuter)
-    else
+    if (isTRUE(namedList)) {
+      llOuter <- Filter(is.list, llOuter)
+      os <- if (length(llOuter) > 1) Reduce(modifyList, llOuter)
+            else if (length(llOuter) == 1) llOuter[[1]]
+            else list()
+    } else
       os <- tail(llOuter, 1)[[1]][[1]]
   }
 
@@ -1414,14 +1568,19 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   l
 }
 
-#' @export
-#' @rdname setup
+#' Download (or git clone) SpaDES modules into the project's `modulePath`
+#'
+#' Materialise the modules requested in [setupProject()] beneath
+#' `paths[["modulePath"]]`, optionally as git submodules.
+#'
 #' @details
 #' `setupModules` will download all modules do not yet exist locally. The current
 #' test for "exists locally" is simply whether the directory exists. If a user
 #' wants to update the module, `overwrite = TRUE` must be set, or else the user can
 #' remove the folder manually.
 #'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupModules` is run for its side effects, i.e., downloads modules and puts them
 #' into the `paths[["modulePath"]]`. It will return a named list, where the names are the
@@ -1429,6 +1588,10 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' depends on (`reqsPkgs`)
 #'
 #' @param gitUserName The GitHub account name. Used with git clone git@github.com:*gitHuserName*/name
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 #' @importFrom tools file_ext
 setupModules <- function(name, paths, modules, inProject, useGit = getOption("SpaDES.project.useGit", FALSE),
                          overwrite = FALSE, envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -1565,6 +1728,15 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       }
 
       gitSplit <- splitGitRepo(modules)
+      # `Require::invertList()` is first-wins for duplicate keys: when two
+      # `modules` entries share a repo name (e.g. one pulled in via a
+      # module's `.depend`, the other an explicit user override), the
+      # FIRST entry's `acct` / `br` / etc. silently overwrite both output
+      # slots and the override is lost.  Dedup BEFORE invertList, taking
+      # the LAST occurrence per repo name -- standard "later writes win"
+      # semantics so a user's explicit spec at the end of `modules`
+      # overrides an earlier dependency-driven default.
+      gitSplit <- .dedupGitSplitLastWins(gitSplit, modules, verbose)
       gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
       if (is(gitSplit, "try-error"))
         stop("Did you specify the modules correctly? Is this correct:\n",
@@ -1598,7 +1770,6 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
             out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
                                     path = localPathRelative))
             checkPath(localPath, create = TRUE)
-            aaaa <<- 1; on.exit(rm(aaaa, envir = .GlobalEnv))
             setwd(localPath)
             gert::git_branch_checkout(split$br)
             curBr <- gert::git_branch()
@@ -1744,19 +1915,33 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 }
 
 
-#' @export
-#' @rdname setup
+#' Install module + user-supplied R packages into the project library
+#'
+#' Combine the modules' `reqdPkgs` with the user-supplied `packages` and
+#' install all of them into `paths[["packagePath"]]` via `Require::Install()`.
+#'
 #' @details
 #' `setupPackages` will read the modules' metadata `reqdPkgs` element. It will combine
 #' these with any packages passed manually by the user to `packages`, and pass all
 #' these packages to `Require::Install(...)`.
+#'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @param modulePackages A named list, where names are the module names, and the elements
 #'   of the list are packages in a form that `Require::Require` accepts.
+#' @param verbose Numeric or logical indicating how verbose the function should be.
+#'   At `verbose >= 2`, the combined `reqdPkgs` are printed grouped by module. At
+#'   `verbose >= 3`, additionally the `dput()` of the exact package vector passed to
+#'   `Require::Require` is printed, which can be copy-pasted to reproduce the install
+#'   call. If not supplied, defaults to `getOption("Require.verbose")`.
 #'
 #' @return
 #' `setupPackages` is run for its side effects, i.e., installing packages to
 #' `paths[["packagePath"]]`.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 setupPackages <- function(packages, modulePackages = list(), require = list(), paths, libPaths,
                           setLinuxBinaryRepo = TRUE,
                           standAlone, envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -1768,7 +1953,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
   dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
   if (isTRUE(setLinuxBinaryRepo))
-    Require::setLinuxBinaryRepo()
+    tryCatch(Require::setLinuxBinaryRepo(), error = function(e) NULL)
 
   if (missing(packages))
     packages <- character()
@@ -1804,7 +1989,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
             remoteLocalFiles[[ii]] <- areFilesWithPackages & isGH %in% (ii %in% "remote")# the default isGitHub allows no branch
             # remoteFiles <- areFilesWithPackages & isGH # the default isGitHub allows no branch
             if (sum(remoteLocalFiles[[ii]])) {
-              pkgsInFiles[[ii]] <- parseFileLists(trimVersionNumber(packagesToTry[remoteLocalFiles[[ii]]]), 
+              pkgsInFiles[[ii]] <- parseFileLists(trimVersionNumber(packagesToTry[remoteLocalFiles[[ii]]]),
                                                   paths = paths,
                                                   envir = envir, namedList = FALSE)
               elementsToRm[[ii]] <- which(remoteLocalFiles[[ii]])
@@ -1826,23 +2011,35 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         needToAssessPoss <- c(needToAssessPoss, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
         ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
         needToAssess <- unique(c(needToAssessPoss, nonHEADs))
-        if (requireNamespace("reproducible", quietly = TRUE) && 
-             requireNamespace("qs2", quietly = TRUE)) {
-          # run annonymous function to see if it is new list; Cache needs a function
-          ll <- reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire")
-          if (!isTRUE(attr(ll, ".Cache")$newCache)) {
-            message("Package requirements are identical to previous")
-            haveHEAD <- grepl("HEAD", needToAssessPoss)
-            if (any(haveHEAD)) {
-              message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
-                      "checking/installing if needed ...")
-            } else {
-              message("...skipping Require...")
-            }
-            needToAssess <- needToAssessPoss # revert to using the smaller list
-          } 
-        } 
+        # if (requireNamespace("reproducible", quietly = TRUE) &&
+        #      requireNamespace("qs2", quietly = TRUE)) {
+        #   # run annonymous function to see if it is new list; Cache needs a function
+        #   llCached <- tryCatch(
+        #     reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire"),
+        #     error = function(e) NULL
+        #   )
+        #   if (!is.null(llCached)) {
+        #     ll <- llCached
+        #     if (!isTRUE(attr(ll, ".Cache")$newCache)) {
+        #       message("Package requirements are identical to previous")
+        #       haveHEAD <- grepl("HEAD", needToAssessPoss)
+        #       if (any(haveHEAD)) {
+        #         message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
+        #                 "checking/installing if needed ...")
+        #       } else {
+        #         message("...skipping Require...")
+        #       }
+        #       needToAssess <- needToAssessPoss # revert to using the smaller list
+        #     }
+        #   }
+        # }
         # needToAssess <- packagesToTry
+
+        if (verbose >= 3) {
+          messageVerbose("Packages passed to Require::Require:", verbose = verbose, verboseLevel = 3)
+          messageVerbose(paste(capture.output(dput(needToAssess)), collapse = "\n"),
+                         verbose = verbose, verboseLevel = 3)
+        }
 
         if (sum(nzchar(needToAssess))) {
           withCallingHandlers(
@@ -1939,14 +2136,20 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
   invisible(NULL)
 }
 
-#' @export
-#' @rdname setup
+#' Prepare module parameter lists for `simInit()`
 #'
+#' Build the nested `params` list that [SpaDES.core::simInit()] consumes from
+#' the user-supplied `params` argument to [setupProject()].
+#'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @return
 #' `setupParams` prepares a named list of named lists, suitable to be passed to
 #' the `params` argument of `simInit`.
 #'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
+#' @export
 #' @importFrom data.table data.table
 setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE,
                         envir = parent.frame(), callingEnv = sys.frame(-2),
@@ -2086,10 +2289,16 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
             objNew <- append(objNew, nextBit)
           }
           obj <- objNew
-          
+
         }
       } else {
-        obj <- Reduce(f = modifyList, obj)
+        obj <- Filter(is.list, obj)
+        if (length(obj) > 1)
+          obj <- Reduce(f = modifyList, obj)
+        else if (length(obj) == 1)
+          obj <- obj[[1]]
+        else
+          obj <- list()
       }
     }
   }
@@ -2395,14 +2604,19 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 }
 
 
-#' @export
-#' @rdname setup
+#' Add `packagePath` and/or `modulePath` to the project's `.gitignore`
+#'
+#' Helper that keeps the `.gitignore` of a project under git control in sync
+#' with the project's resolved paths.
+#'
+#' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @param gitignore Logical. Only has an effect if the `paths$projectPath`
 #'   is a git repositories without submodules. This case is ambiguous what a user
 #'   wants. If `TRUE`, the default, then `paths$modulePath` will be added to
 #'   the `.gitignore` file. Can be controled with `options(SpadES.project.gitignore = ...)`.
 #' @details
-#' `setupGitIgnore` will add.
+#' `setupGitIgnore` will add the relevant paths to `.gitignore`.
 #'
 #' @return
 #' `setupGitIgnore` is run for its side effects, i.e., adding either `paths$packagePath`
@@ -2413,6 +2627,10 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 #' If the project is a git repository without git submodules, then the `paths$modulePath`
 #' will be added to the `.gitignore` file. It is assumed that these modules are
 #' used in a `read only` manner.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignore", TRUE),
                            verbose) {
 
@@ -2707,7 +2925,9 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 
         # Add the default dots to the envir if they aren't there. If, later on, they
         #   are provided, then it will just be overwritten
-        if (!exists(dd, envir  = envir, inherits = FALSE) || is.call(get0(dd, envir = envir))) {
+        if (!exists(dd, envir = envir, inherits = FALSE) ||
+            is.call(get0(dd, envir = envir)) ||
+            dd %in% putInEnv) {
 
           possVal <- dotsSUB[[dd]]
           stStart <- Sys.time()
@@ -2723,8 +2943,19 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
             #if (difft > 1) {stop()}
             for (envs in c(envir, callingEnv)) {
               if (exists(dd, envir = envs, inherits = FALSE)) {
-                possVal <- get(dd, envir = envs, inherits = FALSE)
-                defaultDots[[dd]] <- possVal
+                candidateVal <- get(dd, envir = envs, inherits = FALSE)
+                if (is.name(candidateVal)) next
+                # If the value is a function from a package namespace (or a primitive),
+                # the symbol resolved via inheritance rather than a user-defined variable.
+                # When defaultDots has a fallback for this name, prefer it.
+                # Note: do NOT update possVal here so that the identical() check below
+                # still detects the unresolved symbol and falls through to defaultDots.
+                if (is.function(candidateVal) && isTRUE(haveDefaults) && !is.null(defaultDots[[dd]])) {
+                  fnEnv <- environment(candidateVal)
+                  if (is.primitive(candidateVal) || (!is.null(fnEnv) && isNamespace(fnEnv))) next
+                }
+                possVal <- candidateVal
+                dots[[dd]] <- candidateVal
                 break
               }
             }
@@ -2733,7 +2964,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
               possVal2 <- evalSUB(defaultDots[[dd]], envir2 = envir, envir = callingEnv,
                                   valObjName = "defaultDots")
               if (!is.null(possVal2))
-                defaultDots[[dd]] <- possVal2
+                dots[[dd]] <- possVal2
             }
           } else {
             dots[[dd]] <- possVal
@@ -2744,14 +2975,20 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
     }
   }
 
+  # This is for remaining dots that still have names i.e., unevaluated
+  #  e.g., (cores = .cores, defaultDots = list(.cores = c("birds", "coco")))
+  #  the object `cores` doesn't have a defaultDots, but the name `.cores` does
   dots <- Map(d = dots, nam = names(dots),
               function(d, nam) {
-                d1 <- evalSUB(d, valObjName = nam, envir2 = envir, envir = callingEnv)
-                if (is(d1, "try-error")) {
-                  if (isTRUE(haveDefaults))
-                    d1 <- defaultDots[[nam]]
-                  else
-                    d1 <- d
+                d1 <- d
+                if (is.name(d)) {
+                  d1 <- evalSUB(d, valObjName = nam, envir2 = envir, envir = callingEnv)
+                  if (is(d1, "try-error")) {
+                    if (isTRUE(haveDefaults))
+                      d1 <- defaultDots[[nam]]
+                    # else
+                    #   d1 <- d
+                  }
                 }
                 assign(nam, d1, envir = localEnv) # sequential
                 d1
@@ -2810,16 +3047,22 @@ stopMessForRequireFail <- function(pkg) {
          "for a manual install.packages ...")
 }
 
-#' @rdname setup
-#' @export
+#' Resolve a study area from a `studyArea` spec via `geodata::gadm()`
+#'
+#' Convenience wrapper that returns an `sf` polygon for the requested
+#' country / subregion using `geodata::gadm()`.
+#'
 #' @inheritParams setupProject
-#' @importFrom rstudioapi getActiveProject getSourceEditorContext
+#' @inheritParams setupPaths
 #'
 #' @details
+#' `setupStudyArea` calls `[geodata::gadm()]` to get an `sf` polygon or set of polygons
+#' of a country or a subdivision of a country. The user can pass a named `list` of character elements
+#' that match entries in the columns "NAME_1" and "NAME_2" of the `sf` object. If passing
+#' `NAME_2`, the user must pass `level = 2`. If passing `NAME_1` and `level = 2` all subdivision polygons under 
+#' `NAME_1` will be returned, which can be useful to explore subdivision names.                                     
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
-#' be passed to `path` argument of `gadm`. User can pass any named list element
-#' that matches the columns in the `sf` object, including e.g., `NAME_1` and, if `level = 2`,
-#' is specified, then `NAME_2`.
+#' be passed to `path` argument of `gadm`. 
 #'
 #' ```
 #' setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
@@ -2827,7 +3070,12 @@ stopMessForRequireFail <- function(pkg) {
 #'
 #' @return
 #' `setupStudyArea` will return an `sf` class object coming from `geodata::gadm`,
-#' with subregion specification as described in the `studyArea` argument.fsu
+#' with subregion specification as described in the `studyArea` argument.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
+#' @importFrom rstudioapi getActiveProject getSourceEditorContext
 setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
                            callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L)) {
 
@@ -2936,8 +3184,23 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           if (!is.character(Restart)) {
             rstudioUnsavedFile <- "~/.active-rstudio-document"
 
-            if (!nzchar(activeFile))
+            # getSourceEditorContext() distinguishes three cases:
+            #   * NULL          -- no source editor focused (console paste); we
+            #                      have to guess what goes in global.R, so warn.
+            #   * "" (length 1) -- editor open with an unsaved buffer (e.g. user
+            #                      Sourced an untitled script); the buffer's
+            #                      content lives in ~/.active-rstudio-document
+            #                      and IS the right thing to copy -- no warning.
+            #   * a real path   -- saved file; use it as-is.
+            if (is.null(activeFile)) {
               activeFile <- rstudioUnsavedFile
+              warning("It looks like the user has pasted this code into the console, ",
+                      "without having it in a script file; guessing what should be put ",
+                      "in the new global.R. If it is incorrect, it will need to be ",
+                      "manually corrected.", call. = FALSE)
+            } else if (!nzchar(activeFile)) {
+              activeFile <- rstudioUnsavedFile
+            }
             fe <- file.exists(activeFile)
             wasUnsaved <- identical(activeFile, rstudioUnsavedFile)
             if (isFALSE(fe) || wasUnsaved) {
@@ -3010,6 +3273,19 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           newRprofile <- paste0("source('", tempfileInOther, "')")
           if (file.exists(RprofileInOther)) {
             rl <- readLines(RprofileInOther)
+            # Strip stale `source('.Restart_*')` lines (and unlink the orphaned
+            # tempfiles) from prior aborted/repeated setupProject runs in this
+            # projectPath. Each leftover entry registers a sessionInit hook
+            # with action='append', so without this scrub the "This is now an
+            # RStudio project..." banner fires once per accumulated hook on the
+            # next R restart.
+            staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
+            if (length(staleIdx)) {
+              staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
+              try(unlink(file.path(paths[["projectPath"]], staleFiles)),
+                  silent = TRUE)
+              rl <- rl[-staleIdx]
+            }
             newRprofile <- c(rl, newRprofile)
             lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
             lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")
@@ -3155,14 +3431,28 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
 
 setupSpaDES.ProjectDeps <- function(paths,
                                     deps = c("SpaDES.project", "data.table", "Require", "rprojroot", "rstudioapi", "fs"),
+                                    prevLibPaths = NULL,
                                     verbose = getOption("Require.verbose")) {
 
   libs <- c(.libPaths()[1], paths[["packagePath"]])
+  # Use find.package() so we locate installed-but-not-loaded packages too
+  # (e.g., pak, withr — deps of Require/SpaDES.project that aren't attached).
+  # getNamespaceInfo() only works for loaded namespaces and returns "" otherwise,
+  # which caused copyPackages() to silently skip those packages.
+  # prevLibPaths is the caller's .libPaths() from before setLibPaths() moved
+  # the library to the isolated project lib; we need it to find packages that
+  # live in the user's default library.
+  searchLibs <- unique(c(.libPaths(), prevLibPaths))
   nsPaths <- vapply(deps, FUN.VALUE = character(1),
-                    function(pkg)
-                      dirname(
-                        tryCatch(
-                          getNamespaceInfo(pkg, "path"), error = function(err) "")))
+                    function(pkg) {
+                      path <- tryCatch(
+                        getNamespaceInfo(pkg, "path"),
+                        error = function(err) "")
+                      if (!length(path) || !nzchar(path))
+                        path <- tryCatch(find.package(pkg, lib.loc = searchLibs, quiet = TRUE),
+                                         error = function(err) "")
+                      if (length(path) && nzchar(path)) dirname(path) else ""
+                    })
   isLoadedLocally <- !names(nsPaths) %in% libs
   nsPaths <- nsPaths[!names(nsPaths) %in% .basePkgs]
 
@@ -3711,7 +4001,7 @@ extractModName <- function(modules) {
 
 #' @author Ceres Barros
 .extractModName <- function(modules) {
-  if (tools::file_ext(modules) != "") {
+  if (toupper(tools::file_ext(modules)) == "R") {
     stop("Expecting local or GitHub path to the module *folder* not .R file.")
   }
 
@@ -3764,9 +4054,14 @@ simplifyModuleName <- function(modules) {
   modulesSimple
 }
 
-#' @rdname setup
-#' @export
+#' Parse a list of (possibly remote) R / config files
+#'
+#' Convenience helper, intended primarily for interactive use, that parses
+#' each file (local path or `github.com` URL with `@branch` notation) into a
+#' named list.
+#'
 #' @inheritParams setupProject
+#' @inheritParams setupPaths
 #' @param files A vector or list of files to parse. These can be remote github.com files.
 #'
 #' @details
@@ -3781,6 +4076,10 @@ simplifyModuleName <- function(modules) {
 #'
 #' @return
 #' `setupFiles` a named list with each element that was parsed.
+#'
+#' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
+#'
+#' @export
 setupFiles <- function(files, paths, envir = parent.frame(), verbose = getOption("Require.verbose", 1L)) {
   messageVerbose(yellow(paste0(.txtSettingUp, " and parsing files ...")), verbose = verbose, verboseLevel = 0)
   envirCur = environment()
@@ -3970,6 +4269,59 @@ getGitUserName <- function() {
 }
 
 
+# TRUE iff `pp` is neither already an RStudio project nor already a git
+# working copy.  A `.git/` directory or an `.Rproj` file is sufficient
+# proof that the project is already laid out, so prompting "would you
+# like to clone it now to <pp>?" would be wrong (and will fail if the
+# user answers "no", since checkGithubComCreateOrClone() then stops
+# with "Can't proceed: ...").
+.shouldOfferClone <- function(pp) {
+  !rprojroot::is_rstudio_project$testfun[[1]](pp) &&
+    !rprojroot::is_git_root$testfun[[1]](pp)
+}
+
+# Build the canonical github HTTPS URL for an account / repo pair.
+# Factored out so tests can mock it with a local file:// path.
+.gh_url <- function(acct, repo) {
+  paste0("https://github.com/", acct, "/", repo)
+}
+
+# Dedup a `splitGitRepo()` output ($acct / $repo / $br / $versionSpec, each a
+# list keyed by repo name with possibly-duplicate keys) by taking the LAST
+# occurrence per repo name.  This makes a user's explicit module spec
+# override an earlier dependency-driven default with the same repo name.
+# Emits a single "overriding ..." message per repo when a real override
+# happens, so the user knows which acct/branch won.
+.dedupGitSplitLastWins <- function(gs, modules,
+                                    verbose = getOption("Require.verbose", 1)) {
+  if (is.null(gs) || !length(gs$acct)) return(gs)
+  keys <- names(gs$acct)
+  if (!anyDuplicated(keys)) return(gs)
+
+  keep <- !duplicated(keys, fromLast = TRUE)
+  losers <- which(!keep)
+  for (k in unique(keys[losers])) {
+    idxs <- which(keys == k)
+    last <- idxs[length(idxs)]
+    others <- setdiff(idxs, last)
+    chosen <- paste0(gs$acct[[last]], "/", gs$repo[[last]], "@", gs$br[[last]])
+    discarded <- vapply(others,
+      function(i) paste0(gs$acct[[i]], "/", gs$repo[[i]], "@", gs$br[[i]]),
+      character(1L))
+    messageVerbose(
+      "Module '", k, "' is specified ", length(idxs),
+      " times in `modules`; using the last one (", chosen,
+      ") and dropping: ", paste(discarded, collapse = ", "),
+      verbose = verbose
+    )
+  }
+
+  for (fld in names(gs)) {
+    gs[[fld]] <- gs[[fld]][keep]
+  }
+  gs
+}
+
 setupGitHub <- function(useGit, name, paths, verbose) {
   pp <- path.expand(paths[["projectPath"]])
 
@@ -3988,7 +4340,7 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     if (!nzchar(gitUserName)) needGitUserName <- FALSE
   }
 
-  if (!rprojroot::is_rstudio_project$testfun[[1]](pp)) {
+  if (.shouldOfferClone(pp)) {
     cloned <- checkGithubComCreateOrClone(gitUserName, name, paths, verbose)
   }
 
@@ -4017,6 +4369,15 @@ setupGitHub <- function(useGit, name, paths, verbose) {
       else
         stop("Please either remove modules from ", paths[["modulePath"]], " or set useGit = FALSE")
     }
+    # Pre-init the repo and point HEAD at refs/heads/main so the project doesn't
+    # inherit git's historical default of "master" (which then mismatches GitHub's
+    # default "main"). gert::git_init() doesn't expose a `branch` argument, but a
+    # fresh repo has no commits yet, so overwriting .git/HEAD is safe.
+    # usethis::use_git() below detects the existing repo and skips its own init.
+    try({
+      gert::git_init(path = pp)
+      writeLines("ref: refs/heads/main", file.path(pp, ".git", "HEAD"))
+    }, silent = TRUE)
     gitEvalWithGitConfigOnError(quote(usethis::use_git()))
     # for (iii in 1:2) {
     #   gitEvalWithGitConfigOnError <- function(expr, tryError)
@@ -4035,6 +4396,10 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     #     break
     #   }
     # }
+    # mess captures messages from gh::gh_whoami(); when gitUserNamePoss is
+    # already set by an earlier call (above), the capture is skipped, so the
+    # downstream grepl() needs a safe default to avoid "object 'mess' not found".
+    mess <- character()
     if (!(exists("gitUserNamePoss", inherits = FALSE)))
       mess <- capture.output(type = "message",
                      gitUserNamePoss <- gh::gh_whoami()$login)
@@ -4068,6 +4433,9 @@ setupGitHub <- function(useGit, name, paths, verbose) {
           break
       }
     }
+    if (identical(gert::git_branch(), "master")) {
+      try(gert::git_branch_move("master", "main"))
+    }
 
 
     githubRepoExists <- usethis::use_github(gitUserName)
@@ -4078,23 +4446,128 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 
 
 setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
-  # if (exists("aaaa", envir = .GlobalEnv)) browser()
   if (is.null(curBr))
     curBr <- gert::git_branch()
   for (trySetUpstream in 1:2) {
 
     if (!identical(split$br, curBr)) {
-      gert::git_fetch()
-      # prev <- setwd(file.path(paths[["modulePath"]], split$repo))
-      # gert::git_submodule_set_to(submod, ref = split$br)
-      gert::git_branch_checkout(split$br)
-      # cmd <- paste0("git checkout ", split$br)
-      # system(cmd)
+      try(gert::git_fetch(), silent = TRUE)
+      gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+      if (is(gbc, "try-error")) {
+        # Default fetch only hits the upstream of the current branch, so a
+        # branch that lives on a different remote, or one whose configured
+        # refspec is restricted (common for submodule-style clones that
+        # only track a single branch), won't be brought into the ref
+        # namespace.  For each configured remote, force a full-refspec
+        # fetch so every remote branch becomes a remote-tracking ref.
+        remotes <- tryCatch(gert::git_remote_list(),
+                            error = function(e) NULL)
+        if (!is.null(remotes) && nrow(remotes) > 0L) {
+          for (rm in remotes$name) {
+            full_rs <- paste0("+refs/heads/*:refs/remotes/", rm, "/*")
+            ok <- tryCatch({
+              gert::git_fetch(remote = rm, refspec = full_rs); TRUE
+            }, error = function(e) FALSE)
+            if (!ok)
+              try(gert::git_fetch(remote = rm), silent = TRUE)
+          }
+        }
+        gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+        # Last-resort fallback: if gert still can't find the branch, use
+        # the system `git` binary, which is more permissive about ref
+        # discovery (handles edge-case submodule configs gert / libgit2
+        # sometimes mishandle).
+        if (is(gbc, "try-error") && nzchar(Sys.which("git"))) {
+          if (!is.null(remotes) && nrow(remotes) > 0L) {
+            for (rm in remotes$name) {
+              try(system2("git",
+                          c("fetch", rm,
+                            paste0("+refs/heads/*:refs/remotes/", rm, "/*")),
+                          stdout = FALSE, stderr = FALSE),
+                  silent = TRUE)
+            }
+          }
+          sys_co <- suppressWarnings(
+            system2("git", c("checkout", split$br),
+                    stdout = FALSE, stderr = FALSE))
+          if (identical(sys_co, 0L)) gbc <- TRUE
+        }
+      }
+      if (is(gbc, "try-error") && !is.null(split$acct) && !is.null(split$repo)) {
+        # Still missing -- the branch may live on a github fork the working
+        # copy doesn't know about yet.  We have $acct/$repo from the modules
+        # spec, so build the canonical https URL, add it as a named remote
+        # (skipping if any existing remote already points at the same URL),
+        # fetch, and retry.  This is the "switch a submodule's origin to a
+        # fork on demand" path.
+        fork_url <- .gh_url(split$acct, split$repo)
+        existing <- tryCatch(gert::git_remote_list(),
+                             error = function(e) NULL)
+        already <- !is.null(existing) &&
+                   any(existing$url == fork_url |
+                       existing$url == paste0(fork_url, ".git"))
+        if (!already) {
+          # Pick a remote name that doesn't collide with an existing one.
+          # `<acct>` is the natural choice (e.g. "eliotmcintire"); fall back
+          # to "fork-<acct>" if that's already taken.
+          rname <- split$acct
+          if (!is.null(existing) && rname %in% existing$name)
+            rname <- paste0("fork-", split$acct)
+          add_ok <- tryCatch({
+            gert::git_remote_add(url = fork_url, name = rname); TRUE
+          }, error = function(e) FALSE)
+          if (add_ok) {
+            messageVerbose("Added remote '", rname, "' -> ", fork_url,
+                           " (looking for branch '", split$br, "')",
+                           verbose = verbose)
+            full_rs <- paste0("+refs/heads/*:refs/remotes/", rname, "/*")
+            try(gert::git_fetch(remote = rname, refspec = full_rs),
+                silent = TRUE)
+            gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+          }
+        } else {
+          # The fork URL was already configured under some name -- the
+          # earlier "fetch every remote with full refspec" loop should
+          # already have refreshed it; one last checkout attempt.
+          gbc <- try(gert::git_branch_checkout(split$br), silent = TRUE)
+        }
+      }
+      if (is(gbc, "try-error")) {
+        # Still missing -- emit an actionable message listing what IS
+        # available so the user knows whether to push from a fork, fix a
+        # typo, or pick an existing branch.  Then fall through with the
+        # current branch so the rest of setupProject can continue.
+        avail_local <- tryCatch(gert::git_branch_list(local = TRUE)$name,
+                                error = function(e) character(0))
+        avail_remote <- tryCatch({
+          all_br <- gert::git_branch_list()$name
+          unique(sub("^[^/]+/", "", grep("/", all_br, value = TRUE)))
+        }, error = function(e) character(0))
+        repo_loc <- tryCatch(getwd(), error = function(e) "<unknown>")
+        messageVerbose(
+          "Branch '", split$br, "' not found locally or on any remote of ",
+          repo_loc, ".",
+          "\n  Local branches : ", paste(avail_local,  collapse = ", "),
+          "\n  Remote branches: ", paste(avail_remote, collapse = ", "),
+          "\nFix: push the branch from your fork, correct the branch name in ",
+          "your `modules` spec, or pick an existing branch.",
+          verbose = verbose
+        )
+        split$br <- curBr   # carry on with whatever's currently checked out
+        return(split)
+      }
       reportBranch <- FALSE
+      # The checkout succeeded -- update curBr so the loop's pull/upstream
+      # logic doesn't try to "switch branches" again on iteration 2 (it
+      # would hit the same gpull/set_upstream errors a second time).
+      curBr <- split$br
     }
-    gpull <- try(gert::git_pull())
+    gpull <- try(gert::git_pull(), silent = TRUE)
     if (is(gpull, "try-error")) {
-      setUpstreamTry <- try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br))
+      setUpstreamTry <- try(
+        gert::git_branch_set_upstream(paste0("origin/", split$br),
+                                       branch = split$br),
+        silent = TRUE)
       masterMain <- c("master", "main")
       if (is(setUpstreamTry, "try-error"))
         if (split$br %in% masterMain) {
@@ -4305,8 +4778,9 @@ bind_forward <- function(sym, cur, exec) {
 }
 
 # Build a persistent proxy once, mirroring all current names + '...' + optional dot pronouns
-build_proxy <- function(cur, caller, expose_dot_pronouns = TRUE) {
-  exec <- new.env(parent = caller)
+build_proxy <- function(cur, caller, dots) {
+
+  exec  <- new.env(parent = caller)
 
   # 1) Mirror *all* current names in `cur` (arguments + locals)
   for (nm in ls(envir = cur, all.names = TRUE)) {
@@ -4328,41 +4802,62 @@ build_proxy <- function(cur, caller, expose_dot_pronouns = TRUE) {
   allObjs <- ls(envir = cur, all.names = TRUE)
   namedArgs <- intersect(names(mc), allObjs)
   haveDots <- !is.null(mc[["..."]])
-  
-  # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
-  if (isTRUE(haveDots)) {
-    makeActiveBinding(
-      "...",
-      local({
-        function(val) {
-          if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
-          get("...", envir = cur, inherits = FALSE)
-        }
-      }),
-      exec
-    )
+
+  # # 2) Forward '...' itself (read-only). It's the DOTS pairlist of promises.
+  # if (isTRUE(haveDots)) {
+  #   makeActiveBinding(
+  #     "...",
+  #     local({
+  #       function(val) {
+  #         if (!missing(val)) stop("Cannot assign to '...'.", call. = FALSE)
+  #         get("...", envir = cur, inherits = FALSE)
+  #       }
+  #     }),
+  #     exec
+  #   )
+  # }
+
+  # Promote named dot arguments into cur so they are real bindings
+
+  for (nm in names(dots$exprs)) {
+    local({
+      name <- nm
+      expr <- dots$exprs[[nm]]
+      val  <- dots$vals[[nm]]
+
+      makeActiveBinding(
+        name,
+        function(value) {
+          if (!missing(value))
+            stop(sprintf("Cannot assign to %s.", name), call. = FALSE)
+
+          if (!is.null(val)) val else expr
+        },
+        exec
+      )
+    })
   }
 
-  # 3) Optional: positional pronouns ..1, ..2, ... (read-only)
-  if (isTRUE(haveDots)) {
-    if (expose_dot_pronouns) {
-      dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
-      for (i in seq_along(dots)) {
-        pronoun <- paste0("..", i)
-        makeActiveBinding(
-          pronoun,
-          local({
-            idx <- i
-            function(val) {
-              if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
-              get("...", envir = cur, inherits = FALSE)[[idx]]
-            }
-          }),
-          exec
-        )
-      }
-    }
-  }
+  # # 3) Optional: positional pronouns ..1, ..2, ... (read-only)
+  # if (isTRUE(haveDots)) {
+  #   if (expose_dot_pronouns) {
+  #     dots <- get("...", envir = cur, inherits = FALSE)  # still unforced
+  #     for (i in seq_along(dots)) {
+  #       pronoun <- paste0("..", i)
+  #       makeActiveBinding(
+  #         pronoun,
+  #         local({
+  #           idx <- i
+  #           function(val) {
+  #             if (!missing(val)) stop(sprintf("Cannot assign to %s.", pronoun), call. = FALSE)
+  #             get("...", envir = cur, inherits = FALSE)[[idx]]
+  #           }
+  #         }),
+  #         exec
+  #       )
+  #     }
+  #   }
+  # }
 
   # Return both proxy and the original frame so we can extend later
   list(exec = exec, cur = cur)
@@ -4403,13 +4898,56 @@ let <- function(sym, value, proxy) {
 #   # Optionally return the helpers for later use (pattern: list of tools)
 #   invisible(list(result = res, ensure = ensure, let = let_, exec = proxy$exec))
 # }
+expose_new_bindings <- function(proxy) {
+  cur  <- proxy$cur
+  exec <- proxy$exec
 
+  newNames <- setdiff(
+    ls(cur,  all.names = TRUE),
+    ls(exec, all.names = TRUE)
+  )
 
+  newNames <- setdiff(newNames, "...")
 
-addNewObjsToProxy <- function(envirCur, envir, proxy) {
-  newNames <- setdiff(ls(envirCur, all.names = TRUE), ls(envir, all.names = TRUE))
-  Map(nn = newNames, function(nn) {
-    ensure_binding(nn, proxy)
-  })
-  return(invisible())
+  for (nm in newNames) {
+    bind_forward(nm, cur, exec)
+  }
+
+  invisible(NULL)
+}
+
+# addNewObjsToProxy <- function(envirCur, envir, proxy) {
+#
+#   # New symbols created in the execution frame
+#   newNames <- setdiff(
+#     ls(envirCur, all.names = TRUE),
+#     ls(envir, all.names = TRUE)
+#   )
+#
+#   # Exclude special symbols that should never be forwarded
+#   newNames <- setdiff(newNames, "...")
+#
+#   for (nm in newNames) {
+#     ensure_binding(nm, proxy)
+#   }
+#
+#   invisible(NULL)
+# }
+
+capture_dots <- function(...) {
+  exprs <- as.list(substitute(list(...)))[-1L]
+
+  vals <- vector("list", length(exprs))
+  names(vals) <- names(exprs)
+
+  for (i in seq_along(exprs)) {
+    # Need to keep vals[i] and use list( ... ) on RHS:
+    #   otherwise if first element is NULL, it causes it to disappear
+    vals[i] <- list(tryCatch(
+      ...elt(i),
+      error = function(e) NULL
+    ))
+  }
+
+  list(exprs = exprs, vals = vals)
 }

@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2026-03-15
-Version: 1.0.1
+Date: 2026-05-22
+Version: 1.0.1.9336
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -31,9 +31,9 @@ Imports:
     rstudioapi,
     stats,
     tools,
-    utils,
-    withr
+    utils
 Suggests:
+    callr,
     cli,
     covr,
     crayon,
@@ -41,6 +41,7 @@ Suggests:
     ellipsis,
     furrr,
     future,
+    future.apply,
     geodata,
     gert,
     ggplot2,
@@ -54,8 +55,10 @@ Suggests:
     knitr,
     leaflet,
     leafem,
+    parallelly,
     pkgload,
     processx,
+    purrr (>= 1.2.1),
     qs2,
     raster,
     RColorBrewer,
@@ -64,30 +67,36 @@ Suggests:
     reproducible,
     rmarkdown,
     sf,
-    SpaDES.config,
     SpaDES.core,
     terra,
     testthat (>= 3.0.0),
     tidyterra,
     usethis,
     visNetwork,
-    waldo
+    waldo,
+    withr
 Remotes:
-    PredictiveEcology/SpaDES.config@development
+    PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
 VignetteBuilder: knitr, rmarkdown
 BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
-RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3
 Collate: 
     'SpaDES.projectOptions.R'
+    'simLists-class.R'
+    'as.data.table-simLists.R'
+    'download.R'
     'environment.R'
+    'experiment-family.R'
+    'experiment2.R'
+    'experiment-legacy.R'
     'experiment.R'
     'fileEdit.R'
+    'future.R'
     'imports.R'
     'getModule.R'
     'googlesheets.R'
@@ -97,10 +106,16 @@ Collate:
     'packages.R'
     'paths2.R'
     'pkgload2.R'
+    'sbatch.R'
+    'scenario.R'
     'setupProject.R'
     'spades-project-package.R'
+    'status-calculators.R'
     'studyAreaPlotting.R'
     'tmux-queue.R'
     'tmux.R'
     'txt.R'
+    'upload.R'
     'zzz.R'
+Config/roxygen2/version: 8.0.0
+RoxygenNote: 7.3.3

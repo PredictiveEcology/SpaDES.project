@@ -18,3 +18,7 @@ outputs
 .Rdata
 .secret
 .secrets
+Linux*
+SpaDES.project.Rcheck
+*.tar.gz
+.claude

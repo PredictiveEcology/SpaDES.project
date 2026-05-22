@@ -101,8 +101,8 @@ packages, prefix the function call with the package e.g., \code{terra::rast}. Wh
 using \code{setupProject}, the \code{functions} argument is evaluated after \code{paths}, so
 it cannot be used to define functions that help specify \code{paths}.}
 
-\item{config}{Still experimental linkage to the \code{SpaDES.config} package. Currently
-not working.}
+\item{config}{Reserved for future use. Currently unimplemented; supplying
+a value triggers an error.}
 
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
@@ -165,12 +165,12 @@ be read upon restart.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
 to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
-will be overwritten throughout the sequence of \code{setupProject}. If a vector of
-logical or character, these will be passed to \code{getModule}: only the named
+will be overwritten throughout the sequence of \code{setupProject} -- including those downloaded via \code{sideEffects}.
+If a length > 1 logical or character vector, these will be passed to \code{getModule}: only the named
 modules will be overwritten or the logical vector of the modules.
-NOTE: if a vector, no other file specified anywhere in \code{setupProject} will be
-overwritten except a module that/those names, because
-only \code{setupModules} is currently responsive to a vector. To have fine grained control,
+NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
+overwritten except a module matching the vector \code{names()} (because
+only \code{setupModules} is currently responsive to a vector). To have fine grained control,
 a user can just manually delete a file, then rerun.}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
@@ -353,7 +353,7 @@ path), plus download and read the cloud-hosted file.
 \if{html}{\out{<div class="sourceCode">}}\preformatted{setupProject(
    options = list(reproducible.useTerra = TRUE,
                   "inst/options.R",
-                  "PredictiveEcology/SpaDES.project@transition/inst/options.R")
+                  "PredictiveEcology/SpaDES.project@development/inst/options.R")
                  )
    )
 }\if{html}{\out{</div>}}
@@ -438,6 +438,14 @@ out <- setupProject(.mode = .mode,
 }
 }
 
+\section{Verbosity}{
+
+\code{verbose} is passed through to the inner \verb{setup*} helpers. Notably, \code{verbose >= 2}
+prints the modules' \code{reqdPkgs} grouped by module, and \code{verbose >= 3} additionally
+prints the \code{dput()} of the exact package vector passed to \code{Require::Require} (see
+\code{\link[=setupPackages]{setupPackages()}}).
+}
+
 \examples{
 ## For more examples:
 vignette("i-getting-started", package = "SpaDES.project")
@@ -459,9 +467,14 @@ out <- setupProject(
 \dontshow{setwd(origDir)}
 }
 \seealso{
-\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupPackages]{setupPackages()}},
-\code{\link[=setupModules]{setupModules()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}. Also, helpful functions such as
-\code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}
+Inner \verb{setup*} helpers (each has its own help page; see \link{setup_family}
+for a one-page overview):
+\code{\link[=setupPaths]{setupPaths()}}, \code{\link[=setupFunctions]{setupFunctions()}}, \code{\link[=setupSideEffects]{setupSideEffects()}},
+\code{\link[=setupOptions]{setupOptions()}}, \code{\link[=setupModules]{setupModules()}}, \code{\link[=setupPackages]{setupPackages()}},
+\code{\link[=setupParams]{setupParams()}}, \code{\link[=setupGitIgnore]{setupGitIgnore()}}, \code{\link[=setupStudyArea]{setupStudyArea()}}, \code{\link[=setupFiles]{setupFiles()}}.
+\code{\link[=teardownProject]{teardownProject()}} reverses \code{setupProject()} and restores the prior
+\code{.libPaths()} (kept on the output as \code{out$paths$.previousLibPaths}).
+Also, helpful functions such as \code{\link[=user]{user()}}, \code{\link[=machine]{machine()}}, \code{\link[=node]{node()}}.
 
 \code{vignette("i-getting-started", package = "SpaDES.project")}
 }

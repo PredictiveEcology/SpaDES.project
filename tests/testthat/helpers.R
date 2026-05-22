@@ -42,7 +42,10 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
   if (isNamespaceLoaded("googledrive"))
     if ((!googledrive::drive_has_token())) {
       if (nzchar(Sys.getenv("GOOGLEDRIVE_AUTH"))) {
-        googledrive::drive_auth(path = Sys.getenv("GOOGLEDRIVE_AUTH"))
+        # Failure here would block tests that don't actually need Drive creds,
+        # so swallow it; tests that genuinely need a token will fail clearly.
+        try(googledrive::drive_auth(path = Sys.getenv("GOOGLEDRIVE_AUTH")),
+            silent = TRUE)
       }
     }
 
