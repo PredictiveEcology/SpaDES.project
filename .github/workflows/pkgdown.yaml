@@ -30,7 +30,6 @@ jobs:
         with:
           extra-repositories: 'https://PredictiveEcology.r-universe.dev/'
           Ncpus: 2
-          r-version: ${{ matrix.config.r }}
           use-public-rspm: false
 
       - uses: r-lib/actions/setup-r-dependencies@v2
