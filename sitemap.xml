@@ -1,60 +1,102 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>http://spades-project.predictiveecology.org/404.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/CONTRIBUTING.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/articles/i-getting-started.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/articles/ii-managing-large-SpaDES-projects.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/articles/iii-using-git-github.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/articles/index.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/articles/iv-LandR-fireSense.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/authors.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/index.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/news/index.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/SpaDES.project-package.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/fileEdit.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/index.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/newProject.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/newProjectCode.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/notify_slack.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/pkgEnv.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/splitGitRepo.html</loc>
-  </url>
-  <url>
-    <loc>http://spades-project.predictiveecology.org/reference/urlExists.html</loc>
-  </url>
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>http://spades-project.predictiveecology.org/404.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/CLAUDE.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/CONTRIBUTING.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/articles/i-getting-started.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/articles/iii-using-git-github.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/articles/index.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/articles/iv-Installing-R.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/articles/v-finding-other-modules.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/authors.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/index.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/news/index.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/SpaDES.project-package.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/as.data.table.simLists.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/as_path.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/as_scenario.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/as_tarname.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/assessDoneInFigure.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/awaitExperimentFuture.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/awaitExperimentSBATCH.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/dot-libPathDefault.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/dot-sync_loop_internal.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experiment.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experiment2.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experimentFuture.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experimentFutureList.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experimentMonitor.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experimentSBATCH.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experimentTmux.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/experiment_family.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/factorialDesign.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/fileEdit.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/findProject.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/getGithubFile.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/getModule.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/get_sim_year_heartbeat.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/helpers.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/imports.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/index.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/initialize-method.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/killExperimentFuture.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/killExperimentSBATCH.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/lastTraceback.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/listModules.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/localHostLabel.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/makeDESCRIPTION.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/metadata.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/outList.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/outSave.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/outSaveTarUpload.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/outScenarios.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/outTar.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/outUpload.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/pathBuild.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/pathParse.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/pkgEnv.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/pkgload2.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/plotSAs.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/preRunSetupProject.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/queueRead.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/queueUploadMissing.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/reGet.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/reGetUntarLoad.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/reLoad.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/reUntar.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/register_scenario_format.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/runWorkerLoopFuture.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/scenario.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/scenarioFields.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/scenario_family.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setProjPkgDir.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupFiles.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupFunctions.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupGitIgnore.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupModules.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupOptions.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupPackages.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupParams.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupPaths.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupProject.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupSideEffects.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setupStudyArea.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/setup_family.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/show-simLists-method.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/simInitAnd.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/simLists-class.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/spadesProjectOptions.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/statusCalculate_family.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/teardownProject.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxActiveRunningPath.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxFindDuplicates.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxKillPanes.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxListPanes.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxMirrorQueueToSheets.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxPrepareQueueFromDF.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxRefreshQueueStatus.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxRunNextWorker.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxRunWorkerLoop.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxSetMouse.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxSetPaneTitle.html</loc></url>
 </urlset>
+
