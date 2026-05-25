@@ -475,6 +475,15 @@ setupProject <- function(name, paths, modules, packages,
   # defaultDotsSUB <- substitute(defaultDots)
   failedBCMissingPackage <- FALSE
 
+  # Capture the caller's frame NOW, at top of body — before withCallingHandlers
+  # is on the call stack. Inside withCallingHandlers({...}) below, both an
+  # inline parent.frame() and forcing the `envir = parent.frame()` default
+  # would resolve to setupProject's own frame (because withCallingHandlers is
+  # itself a function call on the stack), not the user's frame. We need the
+  # user's frame because that's the env in which the `...` promises were
+  # originally created and must be evaluated.
+  callerEnv <- parent.frame()
+
   # RStudio's repos = "@CRAN@" overlay calls `.rs.downloadFile()` to refresh
   # CRAN_mirrors.csv whenever something resolves a CRAN URL. On hosts with TLS
   # interception this raises an "SSL connect error" that R defers via "In
@@ -518,10 +527,42 @@ setupProject <- function(name, paths, modules, packages,
     dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
     dotsAll <- capture_dots(...)
     # dotsSUB <- dotsAll$exprs
+
+    # Determine firstSet vs dotsLater BEFORE installing proxy bindings.
+    # Only firstSet names are safe to bind on proxy$exec now: dotsLater
+    # entries must remain unevaluated until the explicit per-entry eval pass
+    # below (the `dotsLater[ar]` branch). If we bound dotsLater names here,
+    # any evalDotsOuter call with callingEnv = proxy$exec (e.g. a few lines
+    # down, evaluating the firstSet) could lazy-force them via active-binding
+    # lookups inside evalSUB / evalDots — which the previous eager
+    # `capture_dots` masked by pre-evaluating everything. They get exposed
+    # later, as ordinary forward bindings, via expose_new_bindings(proxy)
+    # after evalDotsOuter assigns them into envirCur.
+    origArgOrder <- names(tail(sys.calls(), 1)[[1]])
+    argsAreInFormals <- logical()
+    if (is.null(origArgOrder)) {
+      firstNamedArg <- 0
+    } else {
+      argsAreInFormals <- origArgOrder %in% setdiff(formalArgs(setupProject), argsCanGoAnywhere)
+      firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
+    }
+    proxyDotNames <- character(0)
+    if (firstNamedArg > 2 && length(dotsAll$exprs)) {
+      firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
+      firstSet <- firstSet[firstSet <= length(dotsAll$exprs)]
+      proxyDotNames <- names(dotsAll$exprs)[firstSet]
+    }
+    dotsForProxy <- list(exprs = dotsAll$exprs[proxyDotNames])
+
+    # Use `callerEnv` captured at top of body — see comment there. Calling
+    # parent.frame() inline here, or relying on `envir`'s default, would both
+    # resolve to setupProject's own frame because withCallingHandlers sits on
+    # the call stack. The lazy active bindings need the actual user frame so
+    # `...` expressions evaluate where their promises were originally created.
     proxy <- build_proxy(
       cur    = envirCur,
-      caller = parent.frame(),
-      dots   = dotsAll
+      caller = callerEnv,
+      dots   = dotsForProxy
     )
 
     # envir <- proxy$env
@@ -537,15 +578,6 @@ setupProject <- function(name, paths, modules, packages,
     #let_   <- function(name, value) let(name, value, proxy)
 
     # You can now evaluate any expression using the proxy
-
-    origArgOrder <- names(tail(sys.calls(), 1)[[1]])
-    argsAreInFormals <- logical()
-    if (is.null(origArgOrder)) {
-      firstNamedArg <- 0
-    } else {
-      argsAreInFormals <- origArgOrder %in% setdiff(formalArgs(setupProject), argsCanGoAnywhere)
-      firstNamedArg <- if (isTRUE(any(argsAreInFormals))) min(which(argsAreInFormals)) else Inf
-    }
     # dotsSUB <- dotsSUBOrig <- as.list(substitute(list(...)))[-1]
     if (any(nzchar(names(dotsSUB)) %in% FALSE)) {
       stop("Any non-formal arguments must be named, i.e., the ... must be named")
@@ -4821,9 +4853,10 @@ build_proxy <- function(cur, caller, dots) {
 
   for (nm in names(dots$exprs)) {
     local({
-      name <- nm
-      expr <- dots$exprs[[nm]]
-      val  <- dots$vals[[nm]]
+      name   <- nm
+      expr   <- dots$exprs[[nm]]
+      forced <- FALSE
+      val    <- NULL
 
       makeActiveBinding(
         name,
@@ -4831,6 +4864,20 @@ build_proxy <- function(cur, caller, dots) {
           if (!missing(value))
             stop(sprintf("Cannot assign to %s.", name), call. = FALSE)
 
+          # Lazy: eval expr in caller on first read, then cache (matches the
+          # old semantics where downstream code looks up these bindings via
+          # evalSUB / evalDots). Fall back to returning the unevaluated `expr`
+          # when the lazy eval gave NULL or errored — this preserves the OLD
+          # behavior (`if (!is.null(val)) val else expr`) that downstream code
+          # depends on: e.g., evalSUB walks sys.frames() to find a binding
+          # that resolves to a real value, so returning the symbol back lets
+          # later eval attempts succeed in a different env rather than poison
+          # callers (such as setupParams's modifyList2) with a NULL where a
+          # named list was expected.
+          if (!forced) {
+            val    <<- tryCatch(eval(expr, envir = caller), error = function(e) NULL)
+            forced <<- TRUE
+          }
           if (!is.null(val)) val else expr
         },
         exec
@@ -4935,19 +4982,9 @@ expose_new_bindings <- function(proxy) {
 # }
 
 capture_dots <- function(...) {
+  # Capture `...` as unevaluated expressions. Do NOT force evaluation here:
+  # downstream (build_proxy) wires each name as an active binding that evals
+  # lazily in the caller env on first access.
   exprs <- as.list(substitute(list(...)))[-1L]
-
-  vals <- vector("list", length(exprs))
-  names(vals) <- names(exprs)
-
-  for (i in seq_along(exprs)) {
-    # Need to keep vals[i] and use list( ... ) on RHS:
-    #   otherwise if first element is NULL, it causes it to disappear
-    vals[i] <- list(tryCatch(
-      ...elt(i),
-      error = function(e) NULL
-    ))
-  }
-
-  list(exprs = exprs, vals = vals)
+  list(exprs = exprs)
 }

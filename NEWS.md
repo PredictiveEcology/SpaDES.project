@@ -90,6 +90,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject()`: `capture_dots()` no longer evaluates `...` at capture time; the proxy active bindings now lazy-eval each expression in the user's caller frame on first read (captured at top of body, before `withCallingHandlers`), fall back to the unevaluated expression when eval errors / yields `NULL`, and are installed only for the firstSet (pre-named-formal) dots so `dotsLater` entries stay untouched until their explicit per-entry eval pass.
 * `plotSAs()` (which plots study areas) no longer fails when the raster used for matching has categorical (factor) layers: those layers are now drawn with a discrete colour scale instead of erroring with "Discrete value supplied to a continuous scale". It also now handles plotting a study area on its own (with no matching raster), which previously failed.
 * `setupProject()`: CRAN placeholder guard no longer errors with `subscript out of bounds` when `getOption("repos")` is an unnamed character vector or lacks a `CRAN` entry.
 * `tmuxRunNextWorker()`: workers no longer need the `reproducible` package to start.
