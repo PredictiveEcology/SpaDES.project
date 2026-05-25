@@ -82,7 +82,7 @@ setupDiagRecord <- function(context = NA_character_, expr, error = NULL,
 
 ## Truncate a one-line string for the summary header.
 .diagTrunc <- function(s, n = 120L) {
-  if (!nzchar(s) || nchar(s) <= n) s else paste0(substr(s, 1L, n - 1L), "…")
+  if (!nzchar(s) || nchar(s) <= n) s else paste0(substr(s, 1L, n - 3L), "...")
 }
 
 ## Render and optionally escalate the diagnostic scope.
