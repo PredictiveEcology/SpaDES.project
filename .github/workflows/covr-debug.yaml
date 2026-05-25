@@ -1,0 +1,131 @@
+# Diagnostic-only: reproduces the covr "Error in readRDS(f) : error reading
+# from connection" failure and dumps which per-test trace file is corrupt.
+# DELETE this file (and the covr-debug branch) once the underlying cause is
+# identified.
+name: covr-debug
+
+on:
+  push:
+    branches: [covr-debug]
+  workflow_dispatch:
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      GOOGLEDRIVE_AUTH: ${{ secrets.GOOGLEDRIVE_AUTH }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      USING_COVR: true
+      NOT_CRAN: "true"
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Install spatial deps (Linux, stock Noble)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -f -y || true
+          sudo apt-get install -y --fix-missing \
+            libudunits2-dev libgdal-dev libgeos-dev libproj-dev libsqlite3-dev
+        shell: bash
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          extra-repositories: 'https://PredictiveEcology.r-universe.dev/'
+          Ncpus: 2
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::covr
+            fastshp=?ignore
+            NLMR=?ignore
+            PredictiveEcology/Require@development
+
+      - name: Install additional package dependencies
+        run: |
+          pak::pkg_install("ropensci/NLMR")
+          tryCatch(pak::pkg_install("s-u/fastshp"),
+                   error = function(e) message("fastshp install failed: ", conditionMessage(e)))
+        shell: Rscript {0}
+
+      - name: Test coverage with trace diagnostics
+        id: covr
+        run: |
+          ## Wrap covr::merge_coverage.character so that BEFORE the original
+          ## error fires, we print the path/size/readability of every per-test
+          ## trace file -- that's the smoking gun for "which test crashed and
+          ## left a truncated RDS behind".
+          ns <- asNamespace("covr")
+          orig_merge <- get("merge_coverage.character", envir = ns, inherits = FALSE)
+          wrapped <- function(x, ...) {
+            message("=== merge_coverage.character: ", length(x), " trace file(s) ===")
+            corrupt <- character()
+            for (f in x) {
+              ok  <- file.exists(f)
+              sz  <- if (ok) file.size(f) else NA_integer_
+              read_ok <- if (ok) {
+                tryCatch({ readRDS(f); "OK" },
+                         error = function(e) paste0("CORRUPT: ", conditionMessage(e)))
+              } else "NOT FOUND"
+              cat(sprintf("  [%10s bytes] %-60s -- %s\n",
+                          format(sz), basename(f), read_ok))
+              if (grepl("^CORRUPT", read_ok)) corrupt <- c(corrupt, f)
+            }
+            if (length(corrupt)) {
+              cat("=== corrupt file(s): ===\n")
+              for (f in corrupt) {
+                cat("--- ", f, " (", file.size(f), " bytes) ---\n", sep = "")
+                sz <- file.size(f)
+                if (!is.na(sz) && sz > 0 && sz < 1e5) {
+                  raw <- readBin(f, "raw", sz)
+                  cat("    First ", min(256L, length(raw)), " bytes:\n", sep = "")
+                  cat("    ", paste(format(raw[seq_len(min(256L, length(raw)))]),
+                                    collapse = " "), "\n", sep = "")
+                }
+              }
+              ## stash the trace dir(s) for artifact upload
+              dump <- file.path(Sys.getenv("GITHUB_WORKSPACE", getwd()),
+                                "covr-debug-dump")
+              dir.create(dump, recursive = TRUE, showWarnings = FALSE)
+              parents <- unique(dirname(x))
+              for (p in parents) {
+                target <- file.path(dump, gsub("[^A-Za-z0-9._-]", "_", p))
+                dir.create(target, recursive = TRUE, showWarnings = FALSE)
+                file.copy(list.files(p, full.names = TRUE), target, recursive = TRUE)
+              }
+              ## try to grab any testthat output too
+              for (root in c("tests", file.path(tempdir()))) {
+                rs <- list.files(root, pattern = "\\.Rout(\\.fail|\\.save)?$",
+                                 recursive = TRUE, full.names = TRUE)
+                for (f in rs) file.copy(f, file.path(dump, basename(f)),
+                                        overwrite = TRUE)
+              }
+            }
+            orig_merge(x, ...)
+          }
+          unlockBinding("merge_coverage.character", ns)
+          assign("merge_coverage.character", wrapped, envir = ns)
+          lockBinding("merge_coverage.character", ns)
+
+          ## clean = FALSE keeps the per-test trace files on disk so the wrapper
+          ## above can introspect them; quiet = FALSE so test output reaches the
+          ## log instead of being swallowed.
+          cov <- covr::package_coverage(quiet = FALSE, clean = FALSE)
+          print(cov)
+        shell: Rscript {0}
+
+      - name: Upload diagnostic dump
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: covr-debug-dump
+          path: |
+            covr-debug-dump/
+            tests/**/*.Rout*
+          if-no-files-found: warn
+          retention-days: 7
