@@ -498,6 +498,19 @@ setupProject <- function(name, paths, modules, packages,
                             reposNow[setdiff(names(reposNow), "CRAN")]))
   }
 
+  ## open a diagnostic scope for this setupProject invocation; the
+  ## evalSUB / evalListElems instrumentation will push records into it, and
+  ## `setupDiagReport()` (registered on.exit just below) renders a summary at
+  ## the end. See R/diagnostics.R. Strict mode escalates to a final stop().
+  .spadesProjectDiagScope <- setupDiagOpen()
+  on.exit({
+    tryCatch(setupDiagReport(.spadesProjectDiagScope,
+                             strict = getOption("SpaDES.project.strict", FALSE),
+                             verbose = verbose),
+             error = function(e) { setupDiagClose(); stop(e) })
+    setupDiagClose()
+  }, add = TRUE)
+
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
 
@@ -1497,7 +1510,12 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
                       warning = function(w) {
                         warns <<- w
                       })
+  ## stash the original so we can tell at the end whether the element-wise
+  ## fallback below actually recovered (changed `l`) or just gave up
+  setupDiagOrigL <- l
+  setupDiagInitialError <- NULL
   if (is(l2, "try-error")) {
+    setupDiagInitialError <- l2
     mess <- gsub("Error in eval\\(l, envir\\) : ", "", as.character(l2))
     mess <- gsub("\\n", "", as.character(mess))
     messageVerbose(mess, verbose = verbose)
@@ -1564,6 +1582,22 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 
   } else {
     l <- l2
+  }
+  ## Report the final outcome to the diagnostic scope (if one is open). We push
+  ## once -- after recovery has had its chance -- so an entry where eval failed
+  ## but the element-wise retry produced a usable value is recorded as
+  ## `recovered = TRUE` rather than as an ERROR. The most common "no recovery"
+  ## shape, which is what motivated this (a pkgload::load_all() call failing on
+  ## a parse error in the target package), leaves `l` identical to
+  ## `setupDiagOrigL` and falls through as `recovered = FALSE`.
+  if (!is.null(setupDiagInitialError)) {
+    recovered <- !identical(l, setupDiagOrigL)
+    setupDiagRecord(expr = setupDiagOrigL,
+                    error = setupDiagInitialError,
+                    warnings = warns,
+                    recovered = recovered)
+  } else if (length(warns)) {
+    setupDiagRecord(expr = setupDiagOrigL, warnings = warns, recovered = TRUE)
   }
   l
 }
@@ -2590,13 +2624,23 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 
   if (is(val2, "try-error")) {
     val2 <- errorMsgCleaning(val2, valOrig)
+    ## record once at the FINAL outcome so expected first-try failures that the
+    ## fallback ladder recovered from are not reported. See R/diagnostics.R.
+    setupDiagRecord(context = valObjName, expr = valOrig, error = val2,
+                    warnings = warns, recovered = FALSE)
     warning(val2, call. = FALSE)
     val2 <- valOrig
   } else {
     if (exists("val3", inherits = FALSE))
       if (is(val3, "try-error")) {
         val3 <- errorMsgCleaning(val3, valOrig)
+        setupDiagRecord(context = valObjName, expr = valOrig, error = val3,
+                        warnings = warns, recovered = TRUE)
         warning(val3)
+      } else if (length(warns)) {
+        ## eval succeeded but conditions fired along the way
+        setupDiagRecord(context = valObjName, expr = valOrig,
+                        warnings = warns, recovered = TRUE)
       }
   }
 

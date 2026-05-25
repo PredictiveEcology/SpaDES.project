@@ -85,10 +85,11 @@ BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
 Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3
-Collate: 
+Collate:
     'SpaDES.projectOptions.R'
     'simLists-class.R'
     'as.data.table-simLists.R'
+    'diagnostics.R'
     'download.R'
     'environment.R'
     'experiment-family.R'
