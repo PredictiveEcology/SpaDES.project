@@ -12,16 +12,15 @@
 ##
 ## This module adds a per-`setupProject()` diagnostic scope:
 ##   - `setupDiagOpen()` pushes a scope onto a stack
-##   - `evalSUB` / `evalListElems` push records onto the current scope, BUT
-##     only after they know the *final* outcome (so an expected first-try
-##     failure recovered by a fallback is not reported as an error)
-##   - `setupDiagReport()` summarises records at the end of setupProject
-##   - `options(SpaDES.project.strict = TRUE)` escalates the summary to a stop
-##
-## Recording the final outcome (rather than every internal try) is the trick
-## that avoids drowning the report in expected-fallback noise; the report still
-## dedupes by deparsed expression in case the same expression bubbles through
-## both evalSUB and evalListElems.
+##   - `evalSUB` / `evalListElems` push records onto the current scope when
+##     they end on a try-error -- and the *caller* deletes that record via
+##     `setupDiagClearMatching()` if it resolved the value via its own fallback
+##     (e.g. evalDots() substituting from defaultDots). What survives in the
+##     scope at the end is therefore exactly the failures the run continued
+##     past without resolving.
+##   - `setupDiagReport()` prints those as "tolerated errors" (plus any
+##     warnings collected along the way) at the end of setupProject.
+##   - `options(SpaDES.project.strict = TRUE)` escalates the summary to a stop.
 
 .spadesProjectDiag <- new.env(parent = emptyenv())
 .spadesProjectDiag$stack <- list()
@@ -49,19 +48,15 @@ setupDiagCurrent <- function() {
   if (length(s)) s[[length(s)]] else NULL
 }
 
-## Record one resolved attempt. Callers must only call this AFTER the final
-## outcome of their try-ladder is known -- so `recovered = TRUE` actually means
-## "the eval eventually succeeded" and `recovered = FALSE` means "all paths
-## failed; the value handed back was the unevaluated input."
+## Record one tolerated-error / warning attempt.
 ##
 ## - `context`   short tag (`"sideEffects"`, `"modules"`, ...); use NA if unknown
 ## - `expr`      the original (unevaluated) expression the caller was resolving
 ## - `error`     try-error or condition collected from the failing path; NULL if
 ##               the only thing of note was a warning
 ## - `warnings`  warning messages collected via withCallingHandlers
-## - `recovered` TRUE if a fallback path produced a usable value
 setupDiagRecord <- function(context = NA_character_, expr, error = NULL,
-                            warnings = NULL, recovered = FALSE) {
+                            warnings = NULL) {
   scope <- setupDiagCurrent()
   if (is.null(scope)) return(invisible())
   if (is.null(error) && !length(warnings)) return(invisible())  # nothing to report
@@ -74,10 +69,34 @@ setupDiagRecord <- function(context = NA_character_, expr, error = NULL,
     context = if (is.null(context)) NA_character_ else context,
     expr = exprStr,
     error = error,
-    warnings = if (length(warnings)) as.character(warnings) else NULL,
-    recovered = isTRUE(recovered)
+    warnings = if (length(warnings)) as.character(warnings) else NULL
   )
   invisible()
+}
+
+## Delete matching prior records. Use this from a caller that *did* eventually
+## resolve a value (e.g. evalDots() substituting a defaultDots fallback after
+## evalSUB failed): the prior record is removed entirely, so the run continues
+## without a spurious entry in the summary.
+##
+## Match by (context, expr-deparse). Returns invisibly the number of records
+## that were deleted.
+setupDiagClearMatching <- function(context, expr) {
+  scope <- setupDiagCurrent()
+  if (is.null(scope)) return(invisible(0L))
+  if (!length(scope$attempts)) return(invisible(0L))
+
+  exprStr <- tryCatch(paste(deparse(expr, width.cutoff = 500L), collapse = " "),
+                      error = function(e) "<unparseable>")
+  contextChr <- if (is.null(context) || is.na(context)) NA_character_ else context
+
+  keep <- vapply(scope$attempts, function(r) {
+    !(identical(r$expr, exprStr) &&
+        (is.na(contextChr) || identical(r$context, contextChr)))
+  }, logical(1))
+  n <- sum(!keep)
+  scope$attempts <- scope$attempts[keep]
+  invisible(n)
 }
 
 ## Truncate a one-line string for the summary header.
@@ -104,18 +123,17 @@ setupDiagReport <- function(scope = setupDiagCurrent(),
   keys <- vapply(atts, function(r)
     paste(r$context, r$expr,
           if (is.null(r$error)) "" else paste(r$error, collapse = "\n"),
-          sep = ""), character(1))
+          sep = ""), character(1))
   atts <- atts[!duplicated(keys)]
 
-  hard <- Filter(function(r) length(r$error) && !r$recovered, atts)
-  soft <- Filter(function(r) length(r$error) &&  r$recovered, atts)
+  errs  <- Filter(function(r) length(r$error), atts)
   wOnly <- Filter(function(r) is.null(r$error) && length(r$warnings), atts)
 
-  if (!length(hard) && !length(soft) && !length(wOnly)) return(invisible())
+  if (!length(errs) && !length(wOnly)) return(invisible())
 
-  header <- sprintf(
-    "setupProject diagnostics: %d unrecovered, %d recovered, %d warning-only",
-    length(hard), length(soft), length(wOnly))
+  header <- sprintf("setupProject diagnostics: %d tolerated error%s, %d warning-only",
+                    length(errs), if (length(errs) != 1L) "s" else "",
+                    length(wOnly))
   message(header)
 
   pretty <- function(rec, tag) {
@@ -129,15 +147,14 @@ setupDiagReport <- function(scope = setupDiagCurrent(),
         for (line in unlist(strsplit(w, "\n", fixed = TRUE)))
           if (nzchar(line)) message("      warning: ", line)
   }
-  for (r in hard)  pretty(r, "ERROR")
-  for (r in soft)  pretty(r, "recovered")
+  for (r in errs)  pretty(r, "tolerated error")
   for (r in wOnly) pretty(r, "warning")
 
-  if (length(hard))
-    message("  (run setupProject(...) with options(SpaDES.project.strict = TRUE) to stop on unrecovered errors)")
-  if (isTRUE(strict) && length(hard)) {
-    stop(sprintf("setupProject: %d unrecovered error(s) (see diagnostics above)",
-                 length(hard)),
+  if (length(errs))
+    message("  (run setupProject(...) with options(SpaDES.project.strict = TRUE) to stop on tolerated errors)")
+  if (isTRUE(strict) && length(errs)) {
+    stop(sprintf("setupProject: %d tolerated error%s (see diagnostics above)",
+                 length(errs), if (length(errs) != 1L) "s" else ""),
          call. = FALSE)
   }
   invisible()
