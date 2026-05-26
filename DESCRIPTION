@@ -96,6 +96,7 @@ Collate:
     'experiment2.R'
     'experiment-legacy.R'
     'experiment.R'
+    'fdDiagnostics.R'
     'fileEdit.R'
     'future.R'
     'imports.R'
