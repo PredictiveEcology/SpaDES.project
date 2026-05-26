@@ -112,11 +112,12 @@ jobs:
           assign("merge_coverage.character", wrapped, envir = ns)
           lockBinding("merge_coverage.character", ns)
 
-          ## clean = FALSE keeps the per-test trace files on disk so the wrapper
-          ## above can introspect them; quiet = FALSE so test output reaches the
-          ## log instead of being swallowed.
-          cov <- covr::package_coverage(quiet = FALSE, clean = FALSE)
-          print(cov)
+          ## Match the original failing call shape: covr::codecov(quiet = FALSE),
+          ## which internally calls package_coverage() with default clean = TRUE.
+          ## We rely on the merge_coverage.character wrapper above to readRDS()
+          ## each trace file before covr does -- and to copy them aside before
+          ## clean = TRUE removes them.
+          covr::codecov(quiet = FALSE)
         shell: Rscript {0}
 
       - name: Upload diagnostic dump
