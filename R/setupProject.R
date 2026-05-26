@@ -1583,21 +1583,17 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
   } else {
     l <- l2
   }
-  ## Report the final outcome to the diagnostic scope (if one is open). We push
-  ## once -- after recovery has had its chance -- so an entry where eval failed
-  ## but the element-wise retry produced a usable value is recorded as
-  ## `recovered = TRUE` rather than as an ERROR. The most common "no recovery"
-  ## shape, which is what motivated this (a pkgload::load_all() call failing on
-  ## a parse error in the target package), leaves `l` identical to
-  ## `setupDiagOrigL` and falls through as `recovered = FALSE`.
-  if (!is.null(setupDiagInitialError)) {
-    recovered <- !identical(l, setupDiagOrigL)
+  ## Report the final outcome to the diagnostic scope (if one is open). Only
+  ## push when the element-wise retry did NOT change `l` -- if it changed,
+  ## recovery resolved the value and there's nothing tolerated to surface.
+  ## The case that motivated this (pkgload::load_all() failing on a parse
+  ## error) leaves `l` identical to `setupDiagOrigL` and gets recorded.
+  if (!is.null(setupDiagInitialError) && identical(l, setupDiagOrigL)) {
     setupDiagRecord(expr = setupDiagOrigL,
                     error = setupDiagInitialError,
-                    warnings = warns,
-                    recovered = recovered)
-  } else if (length(warns)) {
-    setupDiagRecord(expr = setupDiagOrigL, warnings = warns, recovered = TRUE)
+                    warnings = warns)
+  } else if (length(warns) && is.null(setupDiagInitialError)) {
+    setupDiagRecord(expr = setupDiagOrigL, warnings = warns)
   }
   l
 }
@@ -2624,23 +2620,21 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 
   if (is(val2, "try-error")) {
     val2 <- errorMsgCleaning(val2, valOrig)
-    ## record once at the FINAL outcome so expected first-try failures that the
-    ## fallback ladder recovered from are not reported. See R/diagnostics.R.
+    ## record at the FINAL outcome. If the caller later resolves this via its
+    ## own fallback (e.g. evalDots substituting defaultDots), it should delete
+    ## this record via setupDiagClearMatching(). See R/diagnostics.R.
     setupDiagRecord(context = valObjName, expr = valOrig, error = val2,
-                    warnings = warns, recovered = FALSE)
+                    warnings = warns)
     warning(val2, call. = FALSE)
     val2 <- valOrig
   } else {
     if (exists("val3", inherits = FALSE))
       if (is(val3, "try-error")) {
         val3 <- errorMsgCleaning(val3, valOrig)
-        setupDiagRecord(context = valObjName, expr = valOrig, error = val3,
-                        warnings = warns, recovered = TRUE)
         warning(val3)
       } else if (length(warns)) {
         ## eval succeeded but conditions fired along the way
-        setupDiagRecord(context = valObjName, expr = valOrig,
-                        warnings = warns, recovered = TRUE)
+        setupDiagRecord(context = valObjName, expr = valOrig, warnings = warns)
       }
   }
 
@@ -3007,8 +3001,13 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
             if (identical(possVal, dotsSUB[[dd]])) {
               possVal2 <- evalSUB(defaultDots[[dd]], envir2 = envir, envir = callingEnv,
                                   valObjName = "defaultDots")
-              if (!is.null(possVal2))
+              if (!is.null(possVal2)) {
                 dots[[dd]] <- possVal2
+                ## defaultDots produced a usable value, so delete the earlier
+                ## evalSUB record -- the run continues with the right value and
+                ## there's nothing tolerated to surface. See R/diagnostics.R.
+                setupDiagClearMatching("defaultDots", dotsSUB[[dd]])
+              }
             }
           } else {
             dots[[dd]] <- possVal
@@ -3028,8 +3027,12 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
                 if (is.name(d)) {
                   d1 <- evalSUB(d, valObjName = nam, envir2 = envir, envir = callingEnv)
                   if (is(d1, "try-error")) {
-                    if (isTRUE(haveDefaults))
+                    if (isTRUE(haveDefaults)) {
                       d1 <- defaultDots[[nam]]
+                      ## defaultDots absorbed the failure; delete the evalSUB
+                      ## record so nothing tolerated lands in the summary.
+                      setupDiagClearMatching(nam, d)
+                    }
                     # else
                     #   d1 <- d
                   }

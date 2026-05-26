@@ -1,12 +1,10 @@
 ## Tests for the setupProject diagnostics infrastructure (R/diagnostics.R).
 ##
-## These exercise the recorder/reporter directly with synthetic records, plus
-## the evalListElems / evalSUB instrumentation against a controlled scope.
-## They deliberately avoid spinning up a real setupProject() call (which is
-## heavy and depends on the network); the goal here is to lock the contract:
-##
+## Contract:
 ##   * a single end-of-call record per (context, expr, error) triple
-##   * recovered = TRUE is reported but not counted as "unrecovered"
+##   * when a caller resolves the value via its own fallback, the record is
+##     DELETED via setupDiagClearMatching() -- nothing tolerated to surface
+##   * the report distinguishes "tolerated error" from "warning-only" only
 ##   * strict mode stops AFTER the summary is emitted (so the user keeps it)
 ##   * duplicates from the multi-layer try ladder collapse to one entry
 
@@ -30,16 +28,14 @@ test_that("setupDiagOpen / Close maintain a clean stack", {
   setupDiagClose()
   expect_null(setupDiagCurrent())
 
-  ## extra close is a no-op
-  expect_silent(setupDiagClose())
+  expect_silent(setupDiagClose())  # extra close is a no-op
   expect_null(setupDiagCurrent())
 })
 
 test_that("setupDiagRecord ignores calls when no scope is open", {
   closeAllScopes()
   expect_silent(setupDiagRecord(
-    context = "X", expr = quote(foo()), error = "bad", recovered = FALSE))
-  ## nothing was created
+    context = "X", expr = quote(foo()), error = "bad"))
   expect_null(setupDiagCurrent())
 })
 
@@ -56,35 +52,34 @@ test_that("setupDiagReport prints, dedupes, and respects strict mode", {
   scope <- setupDiagOpen()
   on.exit(closeAllScopes())
 
-  ## three records, the 1st and 3rd identical -> one dedup
+  ## two records identical -> one after dedup
   setupDiagRecord(context = "sideEffects",
                   expr = quote(pkgload::load_all("~/GitHub/fireSenseUtils")),
-                  error = "Failed to load R/ELFs.R", recovered = FALSE)
-  setupDiagRecord(context = "modules",
+                  error = "Failed to load R/ELFs.R")
+  setupDiagRecord(context = "options",
                   expr = quote(other()),
-                  error = "object x not found", recovered = TRUE)
+                  error = "boom")
   setupDiagRecord(context = "sideEffects",
                   expr = quote(pkgload::load_all("~/GitHub/fireSenseUtils")),
-                  error = "Failed to load R/ELFs.R", recovered = FALSE)
+                  error = "Failed to load R/ELFs.R")
 
   out <- capture.output(setupDiagReport(scope, strict = FALSE), type = "message")
   joined <- paste(out, collapse = "\n")
 
-  ## header reflects 1 unrecovered + 1 recovered after dedup
-  expect_match(joined, "1 unrecovered, 1 recovered", fixed = TRUE)
-  ## the unrecovered entry is tagged ERROR with its context
-  expect_match(joined, "ERROR \\[sideEffects\\]")
-  ## the recovered entry is tagged "recovered"
-  expect_match(joined, "recovered \\[modules\\]")
+  ## header uses the "tolerated error" language
+  expect_match(joined, "2 tolerated errors", fixed = TRUE)
+  ## bullets are tagged "tolerated error", not "ERROR"/"recovered"
+  expect_match(joined, "tolerated error [sideEffects]", fixed = TRUE)
+  expect_no_match(joined, "recovered")
   ## load_all line is printed exactly once (dedup)
   expect_equal(sum(grepl("pkgload::load_all", out, fixed = TRUE)), 1L)
-  ## the strict-mode hint is included
-  expect_match(joined, "SpaDES.project.strict", fixed = TRUE)
+  ## strict-mode hint includes the new phrasing
+  expect_match(joined, "stop on tolerated errors", fixed = TRUE)
 
-  ## strict mode escalates -- but only AFTER printing (the user keeps the summary)
+  ## strict mode escalates after printing
   err <- tryCatch(setupDiagReport(scope, strict = TRUE), error = identity)
   expect_s3_class(err, "simpleError")
-  expect_match(conditionMessage(err), "1 unrecovered error", fixed = TRUE)
+  expect_match(conditionMessage(err), "tolerated error", fixed = TRUE)
 })
 
 test_that("setupDiagReport is a no-op when no errors or warnings were recorded", {
@@ -94,24 +89,40 @@ test_that("setupDiagReport is a no-op when no errors or warnings were recorded",
   expect_silent(setupDiagReport(scope))
 })
 
-test_that("evalListElems pushes a recovered=FALSE record for an unrecovered failure", {
+test_that("setupDiagClearMatching deletes matching records, leaves others", {
   closeAllScopes()
   scope <- setupDiagOpen()
   on.exit(closeAllScopes())
 
-  ## bad-code shape mirrors the real swallow: a single call that errors and
-  ## that evalListElems cannot recover element-wise (not a list(...) call)
+  setupDiagRecord(context = "defaultDots",
+                  expr = quote(unlist(.samplingRange)),
+                  error = "object '.samplingRange' not found")
+  setupDiagRecord(context = "sideEffects",
+                  expr = quote(pkgload::load_all("X")),
+                  error = "boom")
+
+  n <- setupDiagClearMatching("defaultDots", quote(unlist(.samplingRange)))
+  expect_equal(n, 1L)
+  expect_length(scope$attempts, 1L)
+  expect_identical(scope$attempts[[1]]$context, "sideEffects")  # the other one stayed
+
+  ## no-op when there's no match
+  expect_equal(setupDiagClearMatching("defaultDots", quote(nothing_here())), 0L)
+  expect_length(scope$attempts, 1L)
+})
+
+test_that("evalListElems pushes a record for an unrecovered failure", {
+  closeAllScopes()
+  scope <- setupDiagOpen()
+  on.exit(closeAllScopes())
+
   env <- new.env()
   out <- suppressMessages(
     evalListElems(quote(stop("boom-from-evalListElems")), envir = env, verbose = 0)
   )
-  ## evalListElems returns the unevaluated input when nothing recovered
   expect_identical(out, quote(stop("boom-from-evalListElems")))
   expect_length(scope$attempts, 1L)
-  rec <- scope$attempts[[1]]
-  expect_false(rec$recovered)
-  expect_match(rec$expr, "boom-from-evalListElems", fixed = TRUE)
-  expect_match(paste(rec$error, collapse = "\n"), "boom-from-evalListElems")
+  expect_match(scope$attempts[[1]]$expr, "boom-from-evalListElems", fixed = TRUE)
 })
 
 test_that("evalListElems records nothing when eval succeeds quietly", {
@@ -125,14 +136,12 @@ test_that("evalListElems records nothing when eval succeeds quietly", {
   expect_length(scope$attempts, 0L)
 })
 
-test_that("evalSUB records the final-outcome failure (recovered = FALSE)", {
+test_that("evalSUB records a tolerated-error record (no recovered flag)", {
   closeAllScopes()
   scope <- setupDiagOpen()
   on.exit(closeAllScopes())
 
   env <- new.env()
-  ## evalSUB warns rather than stopping on full failure; suppressWarnings so the
-  ## test stays quiet. We just care that the diagnostic record landed.
   suppressWarnings(
     evalSUB(quote(stop("boom-from-evalSUB")),
             valObjName = "sideEffects",
@@ -140,9 +149,69 @@ test_that("evalSUB records the final-outcome failure (recovered = FALSE)", {
   )
   errRecs <- Filter(function(r) length(r$error), scope$attempts)
   expect_gte(length(errRecs), 1L)
-  expect_true(any(vapply(errRecs, function(r) !r$recovered, logical(1))))
   expect_true(any(vapply(errRecs, function(r)
     grepl("boom-from-evalSUB", paste(r$error, collapse = "\n")), logical(1))))
   expect_true(any(vapply(errRecs, function(r) identical(r$context, "sideEffects"),
                          logical(1))))
+  ## records no longer carry a `recovered` field
+  expect_true(all(vapply(scope$attempts, function(r) is.null(r$recovered),
+                         logical(1))))
+})
+
+test_that(paste("evalDots: when defaultDots absorbs a failure, no record",
+                "survives -- regression test for the .samplingRange case"), {
+  closeAllScopes()
+  scope <- setupDiagOpen()
+  on.exit(closeAllScopes())
+
+  callingEnv <- new.env(parent = globalenv())
+  envirCur   <- new.env(parent = callingEnv)
+  dots <- list(.samplingRange = quote(unlist(.samplingRange)))
+  defaultDots <- list(.samplingRange = 1990:2020)
+
+  out <- suppressWarnings(
+    evalDots(dots = dots, dotsSUB = dots, defaultDots = defaultDots,
+             envir = envirCur, callingEnv = callingEnv)
+  )
+  expect_equal(out$.samplingRange, 1990:2020)
+  ## no .samplingRange entry survives in the diagnostic scope
+  expect_false(
+    any(vapply(scope$attempts, function(r)
+      grepl("unlist(.samplingRange)", r$expr, fixed = TRUE), logical(1))),
+    info = "defaultDots resolved the value; the prior record should be deleted"
+  )
+})
+
+test_that(paste("evalDots: with the real build_proxy shape that surfaced",
+                "the bug, no .samplingRange record survives"), {
+  closeAllScopes()
+  scope <- setupDiagOpen()
+  on.exit(closeAllScopes())
+
+  ## set up exactly as setupProject does: pass through a function that calls
+  ## capture_dots() + build_proxy(). When the dot's expression cannot be
+  ## eagerly forced (.samplingRange not found in the caller env), build_proxy
+  ## installs an active binding that returns the unevaluated expression. This
+  ## is the shape that produced the user-visible "object '.samplingRange'
+  ## not found" before the recovery clear was wired in.
+  fnNm <- function(...) {
+    dotsSUB <- as.list(substitute(list(...)))[-1L]
+    dotsAll <- capture_dots(...)
+    proxy <- build_proxy(cur = environment(), caller = parent.frame(),
+                         dots = dotsAll)
+    list(proxyExec = proxy$exec, dotsSUB = dotsSUB)
+  }
+  got <- fnNm(.samplingRange = unlist(.samplingRange))
+  defaultDots <- list(.samplingRange = 1990:2020)
+
+  out <- suppressWarnings(
+    evalDots(dots = got$dotsSUB, dotsSUB = got$dotsSUB, defaultDots = defaultDots,
+             envir = environment(), callingEnv = got$proxyExec)
+  )
+  expect_equal(out$.samplingRange, 1990:2020)
+  expect_false(
+    any(vapply(scope$attempts, function(r)
+      grepl("unlist(.samplingRange)", r$expr, fixed = TRUE), logical(1))),
+    info = "defaultDots resolved the value; the prior record should be deleted"
+  )
 })
