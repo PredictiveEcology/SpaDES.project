@@ -12,21 +12,24 @@ building large datasets of alternative mechanisms to enable ensemble
 modeling, and other possibilities.
 }
 \details{
-There are five functions to run one, in two groups. The first group
+There are five functions to choose from; these can be classified into
+two groups. The first group
 (\code{\link[=experiment]{experiment()}} / \code{\link[=experiment2]{experiment2()}}) is conceptually simpler: it works on
-in-memory \code{simList} objects and needs no project on disk. The second group
+in-memory \code{simList} objects directly. The second group
 (\code{\link[=experimentTmux]{experimentTmux()}} / \code{\link[=experimentFuture]{experimentFuture()}} / \code{\link[=experimentSBATCH]{experimentSBATCH()}}) is built
-around a project \code{global.R} script (typically created by \code{\link[=setupProject]{setupProject()}})
-and a shared job queue, and is what you reach for once runs are numerous,
-long, or spread across machines.
+around a project \code{global.R} script (typically where \code{\link[=setupProject]{setupProject()}} is run)
+and a shared job queue. This second group becomes more useful as the number
+of runs (e.g., scenarios, replicates) become numerous, long, spread across machines,
+or being run from a High Performance Compute cluster.
 }
-\section{Without \code{setupProject} (in-memory \code{simList}s)}{
+\section{In-memory \code{simList}s}{
 
 
-These take \code{simList} object(s) directly, run \code{\link[SpaDES.core:spades]{SpaDES.core::spades()}} on each
-via a \code{future} backend, and return the live results as a
-\link[=simLists-class]{simLists} object you can post-process with
-\code{\link[=as.data.table.simLists]{as.data.table.simLists()}}. Best when the run set is modest, fits in RAM, and
+These take \code{simList} object(s) directly and are analogous to running
+\code{\link[SpaDES.core:spades]{SpaDES.core::spades()}}. They return results as a
+\link[=simLists-class]{simLists} ("plural") object you can post-process e.g., with
+\code{\link[=as.data.table.simLists]{as.data.table.simLists()}} or any other custom methods.
+These functions are best when the run set is modest, fits in RAM, and
 you want the result objects back in your session. They are \emph{not} built for
 resume-after-crash, cross-machine pulls, or HPC. (Moved here from the
 now-unmaintained \code{SpaDES.experiment} package.)
@@ -45,12 +48,13 @@ also seed the \code{df} of the second group below.}
 }
 }
 
-\section{With \code{setupProject} (file queue + \code{global.R})}{
+\section{With a source file (e.g., \code{global.R})}{
 
 
-Here the experiment is a \code{data.frame} (or \code{data.table}) where each row
-describes one set of values to be assigned to variables in the \code{.GlobalEnv}.
-When run via one of these functions, the data.frame is translated into a
+Here, the user describes the experiment using a \code{data.frame} (or \code{data.table})
+in which each column name and row value defines the set of object-value pairs
+that will be assigned to variables in the \code{.GlobalEnv}.
+When the user runs one of these functions, the data.frame is translated into a
 \code{queue} data.frame that has all the same columns and rows, plus a few more
 (\code{status}, \code{claimed_by}, etc.) to coordinate the run. After creating the
 queue, the function spawns a number of independent R "worker" sessions

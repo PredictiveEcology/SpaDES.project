@@ -7,20 +7,23 @@
 #' building large datasets of alternative mechanisms to enable ensemble
 #' modeling, and other possibilities.
 #'
-#' There are five functions to run one, in two groups. The first group
+#' There are five functions to choose from; these can be classified into
+#' two groups. The first group
 #' ([experiment()] / [experiment2()]) is conceptually simpler: it works on
-#' in-memory `simList` objects and needs no project on disk. The second group
+#' in-memory `simList` objects directly. The second group
 #' ([experimentTmux()] / [experimentFuture()] / [experimentSBATCH()]) is built
-#' around a project `global.R` script (typically created by [setupProject()])
-#' and a shared job queue, and is what you reach for once runs are numerous,
-#' long, or spread across machines.
+#' around a project `global.R` script (typically where [setupProject()] is run)
+#' and a shared job queue. This second group becomes more useful as the number
+#' of runs (e.g., scenarios, replicates) become numerous, long, spread across machines,
+#' or being run from a High Performance Compute cluster.
 #'
-#' @section Without `setupProject` (in-memory `simList`s):
+#' @section In-memory `simList`s:
 #'
-#' These take `simList` object(s) directly, run [SpaDES.core::spades()] on each
-#' via a `future` backend, and return the live results as a
-#' [simLists][simLists-class] object you can post-process with
-#' [as.data.table.simLists()]. Best when the run set is modest, fits in RAM, and
+#' These take `simList` object(s) directly and are analogous to running
+#' [SpaDES.core::spades()]. They return results as a
+#' [simLists][simLists-class] ("plural") object you can post-process e.g., with
+#' [as.data.table.simLists()] or any other custom methods.
+#' These functions are best when the run set is modest, fits in RAM, and
 #' you want the result objects back in your session. They are *not* built for
 #' resume-after-crash, cross-machine pulls, or HPC. (Moved here from the
 #' now-unmaintained `SpaDES.experiment` package.)
@@ -38,11 +41,12 @@
 #'     also seed the `df` of the second group below.}
 #' }
 #'
-#' @section With `setupProject` (file queue + `global.R`):
+#' @section With a source file (e.g., `global.R`):
 #'
-#' Here the experiment is a `data.frame` (or `data.table`) where each row
-#' describes one set of values to be assigned to variables in the `.GlobalEnv`.
-#' When run via one of these functions, the data.frame is translated into a
+#' Here, the user describes the experiment using a `data.frame` (or `data.table`)
+#' in which each column name and row value defines the set of object-value pairs
+#'  that will be assigned to variables in the `.GlobalEnv`.
+#' When the user runs one of these functions, the data.frame is translated into a
 #' `queue` data.frame that has all the same columns and rows, plus a few more
 #' (`status`, `claimed_by`, etc.) to coordinate the run. After creating the
 #' queue, the function spawns a number of independent R "worker" sessions
