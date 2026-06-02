@@ -76,6 +76,8 @@ Suggests:
     waldo,
     withr
 Remotes:
+    PredictiveEcology/Require@development,
+    PredictiveEcology/reproducible@development,
     PredictiveEcology/SpaDES.core@development
 Encoding: UTF-8
 Language: en-CA
