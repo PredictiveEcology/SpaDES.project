@@ -2970,8 +2970,16 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
           possVal <- dotsSUB[[dd]]
           stStart <- Sys.time()
           if (!is.name(dotsSUB[[dd]])) {
+            # Evaluate in `envir` (which already holds the resolved `defaultDots`)
+            #   FIRST, falling back to `callingEnv` only if needed. `envir` has the
+            #   defaults but NOT the self-referential proxy active-binding for `dd`
+            #   itself, so a `{ }` block such as
+            #     .studyAreaName = if (exists(".studyAreaName")) .studyAreaName else paste0("ELF", .ELFind)
+            #   resolves correctly on a single pass. Evaluating in `callingEnv`
+            #   first instead re-runs the (possibly side-effecting) block a second
+            #   time, because `exists(dd)` there is spuriously TRUE.
             possVal <- suppressWarnings(
-              evalSUB(dotsSUB[[dd]], envir = callingEnv, envir2 = envir, valObjName = "defaultDots")
+              evalSUB(dotsSUB[[dd]], envir = envir, envir2 = callingEnv, valObjName = "defaultDots")
             )
           }
           if (identical(possVal, dotsSUB[[dd]])) {
@@ -4990,10 +4998,22 @@ capture_dots <- function(...) {
   for (i in seq_along(exprs)) {
     # Need to keep vals[i] and use list( ... ) on RHS:
     #   otherwise if first element is NULL, it causes it to disappear
-    vals[i] <- list(tryCatch(
-      ...elt(i),
-      error = function(e) NULL
-    ))
+    # Only eagerly force *simple* dots (a bare symbol or a literal). A complex
+    #   expression -- e.g. a `{ ... }` block or a function call with side effects --
+    #   must NOT be forced here: this snapshot happens in the caller env (which lacks
+    #   `defaultDots` and sibling-dot bindings), so it would both evaluate in the
+    #   wrong scope and run side effects an extra time. Left as NULL, build_proxy()
+    #   falls back to the unevaluated `expr`, which is then evaluated exactly once,
+    #   later, in the correct environment via evalDots()/evalSUB().
+    ex <- exprs[[i]]
+    if (is.symbol(ex) || is.atomic(ex)) {
+      vals[i] <- list(tryCatch(
+        ...elt(i),
+        error = function(e) NULL
+      ))
+    } else {
+      vals[i] <- list(NULL)
+    }
   }
 
   list(exprs = exprs, vals = vals)
