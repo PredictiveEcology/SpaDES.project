@@ -294,15 +294,29 @@ NULL
 #' )
 #' ````
 #'
-#' \subsection{Argument order}{
-#' Arguments that are *not* the named arguments (i.e., the ones passed in `...`)
-#' are evaluated in the order they are written. Subsequent arguments can use the
-#' previous arguments. If "dot" arguments are declared before the first
-#' standard arguments (the "formals") of the function, then they will be evaluated
-#' prior to the `formals`. If they are after a single standard argument (i.e., not
-#' necessarily after *all* the named arguments), then they will be evaluated after
-#' all standard arguments. The exception to this is `params`, which will be evaluated
-#' like the `...` arguments, i.e., in order.
+#' \subsection{Argument order (evaluation sequence)}{
+#' The evaluation rules are:
+#'
+#' * **Each `...` argument is evaluated once, in the order it is written.** The
+#'   formal/named arguments (`paths`, `modules`, `options`, `params`, `times`, ...)
+#'   are each evaluated *in their entirety as a block*. So if a user needs an object
+#'   to exist before, e.g., `paths` is evaluated, they should declare that argument
+#'   *before* `paths`.
+#' * **Because of this sequential evaluation, any argument written *above* another
+#'   is available to it**, exactly like a normal series of statements. A later
+#'   argument can refer to the resolved value of an earlier one by name.
+#' * **If a name is undefined when an argument is evaluated, `setupProject()` inserts
+#'   the matching `defaultDots` value and re-evaluates.** A value the caller *does*
+#'   supply always takes precedence over the `defaultDots` fallback. This is what
+#'   makes a pattern such as
+#'   `.samplingRange = unlist(.samplingRange)` (with `defaultDots = list(.samplingRange = 1990:2020)`)
+#'   resolve to the caller's value when one is supplied (e.g. a batch run that sets
+#'   `.samplingRange` before calling), and to the default otherwise.
+#'
+#' If "dot" arguments are declared before the first formal argument, they are
+#' evaluated before the formals; otherwise they are evaluated after the formals.
+#' The exception is `params`, which is evaluated like the `...` arguments, i.e., in
+#' order.
 #'
 #' }
 #'
@@ -2931,7 +2945,7 @@ messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnSto
 
 
 evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
-                     callingEnv = sys.frame(-2)) {
+                     callingEnv = sys.frame(-2), dotsScope = FALSE) {
   if (missing(dots))
     dots <- dotsSUB
   else
@@ -2970,8 +2984,38 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
           possVal <- dotsSUB[[dd]]
           stStart <- Sys.time()
           if (!is.name(dotsSUB[[dd]])) {
+            # Sequential, single-pass evaluation of a `...` argument (dotsScope).
+            #   Evaluate the expression exactly once in `evalEnvDD`, which models the
+            #   intended scope:
+            #     * parent = the genuine caller (so caller-supplied values -- incl.
+            #       batch-spawn overrides like `.samplingRange = 2020:2030` -- win),
+            #     * overlaid with every already-resolved argument (`envir`), so
+            #       arguments declared *above* are available exactly like a normal
+            #       sequence of statements, EXCEPT the dot's own name,
+            #     * with the dot's own name bound to its `defaultDots` value only
+            #       when the caller did not supply it (undefined -> insert default).
+            #   This bypasses the proxy's self-referential active bindings (which
+            #   otherwise make `exists(<dot>)` spuriously TRUE and feed a call back
+            #   into itself). `envir2 = envir` remains a fallback for the rare
+            #   expression that references something reachable only there.
+            evalEnvDD <- callingEnv
+            if (isTRUE(dotsScope)) {
+              gcEnv <- parent.env(callingEnv)
+              evalEnvDD <- new.env(parent = gcEnv)
+              nmsCopy <- setdiff(ls(envir, all.names = TRUE), c(dd, "..."))
+              if (length(nmsCopy))
+                list2env(mget(nmsCopy, envir = envir, inherits = FALSE), envir = evalEnvDD)
+              if (dd %in% namsDD && !exists(dd, envir = gcEnv, inherits = TRUE)) {
+                ddDef <- tryCatch(
+                  evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+                          valObjName = "defaultDots"),
+                  error = function(e) NULL)
+                if (!is.null(ddDef) && !is.call(ddDef) && !is.name(ddDef))
+                  assign(dd, ddDef, envir = evalEnvDD)
+              }
+            }
             possVal <- suppressWarnings(
-              evalSUB(dotsSUB[[dd]], envir = callingEnv, envir2 = envir, valObjName = "defaultDots")
+              evalSUB(dotsSUB[[dd]], envir = evalEnvDD, envir2 = envir, valObjName = "defaultDots")
             )
           }
           if (identical(possVal, dotsSUB[[dd]])) {
@@ -3646,7 +3690,7 @@ basename2 <- function (x) {
 evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
                           callingEnv = sys.frame(-2)) {
   dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir,
-                      callingEnv = callingEnv)
+                      callingEnv = callingEnv, dotsScope = TRUE)
   dotsSUBreworked <- list()
   for (i in seq(dotsSUB)) {
     val <- try(eval(dotsSUB[[i]], envir = envir))
@@ -4997,10 +5041,22 @@ capture_dots <- function(...) {
   for (i in seq_along(exprs)) {
     # Need to keep vals[i] and use list( ... ) on RHS:
     #   otherwise if first element is NULL, it causes it to disappear
-    vals[i] <- list(tryCatch(
-      ...elt(i),
-      error = function(e) NULL
-    ))
+    # Only eagerly force *simple* dots (a bare symbol or a literal). Forcing a
+    #   complex expression here -- a `{ }` block or a function call -- evaluates it
+    #   eagerly in the caller env (lacking defaultDots / sibling-dot bindings),
+    #   which (a) runs side effects (downloads, browser, print) prematurely and in
+    #   the wrong scope and (b) is then redone in evalDots() anyway. Left lazy,
+    #   build_proxy() keeps the unevaluated `expr` and it is evaluated once, later,
+    #   in the correct environment.
+    ex <- exprs[[i]]
+    if (is.symbol(ex) || is.atomic(ex)) {
+      vals[i] <- list(tryCatch(
+        ...elt(i),
+        error = function(e) NULL
+      ))
+    } else {
+      vals[i] <- list(NULL)
+    }
   }
 
   list(exprs = exprs, vals = vals)
