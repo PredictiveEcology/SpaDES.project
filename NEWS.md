@@ -90,6 +90,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject()` no longer prints a misleading "Module 'x' is specified N times" message when several SpaDES child modules live in subfolders of one git repo (e.g. `PredictiveEcology/scfm@development/modules/scfmIgnition`); the repo is simply cloned once and the message is now only shown for genuine repo overrides.
 * `setupProject()` now evaluates each `...` argument exactly once, sequentially in declaration order. Previously a `{ }` block or self-referential dot (e.g. `.studyAreaName = { ... }`, `.samplingRange = unlist(.samplingRange)`) could be evaluated 2-3 times, and complex `...` expressions were force-evaluated prematurely in the caller scope (running side effects such as downloads early). Caller-supplied values still take precedence over `defaultDots`. See the "Argument order (evaluation sequence)" section of `?setupProject`.
 * `plotSAs()` (which plots study areas) no longer fails when the raster used for matching has categorical (factor) layers: those layers are now drawn with a discrete colour scale instead of erroring with "Discrete value supplied to a continuous scale". It also now handles plotting a study area on its own (with no matching raster), which previously failed.
 * `setupProject()`: CRAN placeholder guard no longer errors with `subscript out of bounds` when `getOption("repos")` is an unnamed character vector or lacks a `CRAN` entry.
