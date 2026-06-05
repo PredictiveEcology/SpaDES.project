@@ -3002,9 +3002,21 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
             if (isTRUE(dotsScope)) {
               gcEnv <- parent.env(callingEnv)
               evalEnvDD <- new.env(parent = gcEnv)
-              nmsCopy <- setdiff(ls(envir, all.names = TRUE), c(dd, "..."))
-              if (length(nmsCopy))
-                list2env(mget(nmsCopy, envir = envir, inherits = FALSE), envir = evalEnvDD)
+              # Copy already-resolved bindings so a dot can reference arguments
+              #   declared above it. EXCLUDE the formal arguments of setupProject():
+              #   those are still unevaluated promises (e.g. `modules = unlist(.modules)`,
+              #   `paths = list(...)`, `times = as.list(unlist(.times))`) that reference
+              #   dots not yet resolved -- forcing them here would error or run side
+              #   effects (pathBuild, downloads) prematurely. Guard each get() too, so
+              #   an unexpected unforced promise can never crash dot resolution.
+              nmsCopy <- setdiff(ls(envir, all.names = TRUE),
+                                 c(dd, "...", formalArgs(setupProject)))
+              for (nmCopy in nmsCopy) {
+                vCopy <- tryCatch(get(nmCopy, envir = envir, inherits = FALSE),
+                                  error = function(e) NULL)
+                if (!is.null(vCopy))
+                  assign(nmCopy, vCopy, envir = evalEnvDD)
+              }
               if (dd %in% namsDD && !exists(dd, envir = gcEnv, inherits = TRUE)) {
                 ddDef <- tryCatch(
                   evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
