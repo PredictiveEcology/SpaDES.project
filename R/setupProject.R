@@ -3186,8 +3186,20 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
     paths <- list(inputPaths = ".")
   # evalSUB(val = studyArea, valObjName = "paths", envir = envirCur, envir2 = envir)
   studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir2 = envir, envir = callingEnv)
-  if (is.call(studyArea))
-    stop("studyArea was not able to be evaluated; stopping")
+  if (is.call(studyArea)) {
+    # studyArea could not be evaluated (e.g. a not-yet-installed package or an
+    # unreachable file). evalSUB has already recorded this as a tolerated error
+    # in the diagnostic scope and returned the unevaluated expression. Mirror
+    # the `...`-argument behaviour: return that expression rather than aborting
+    # the whole setup here. The end-of-call diagnostic summary reports it, and
+    # `options(SpaDES.project.strict = TRUE)` escalates it to a stop -- keeping
+    # studyArea consistent with every other argument instead of hard-stopping.
+    messageVerbose("studyArea was not able to be evaluated; returning it ",
+                   "unevaluated -- see the setupProject diagnostics summary ",
+                   "(set options(SpaDES.project.strict = TRUE) to stop on it).",
+                   verbose = verbose)
+    return(studyArea)
+  }
 
   if (is(studyArea, "list")) {
     theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
