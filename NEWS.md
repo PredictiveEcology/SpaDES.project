@@ -5,6 +5,7 @@ version 1.0.1
 
 ## New features
 
+* `setupProject()` honours `options = list(Require.noRemotes = TRUE)`: GitHub-style package specs (`account/repo@branch`), including those declared in module `reqdPkgs` metadata, are resolved from `repos` (e.g., binaries on `predictiveecology.r-universe.dev`) instead of being built from GitHub source. This avoids git authentication and a source-build toolchain (e.g., Rtools) for end users such as workshop participants. The option is applied (first options pass) before any package install. Implemented in `Require` (see `Require::RequireOptions`); no SpaDES.project-specific configuration is needed beyond passing the option.
 * `experiment()`, `experiment2()`, `factorialDesign()`, `simInitAndExperiment()` and the `simLists` class (with `as.data.table.simLists()`) moved here from the now-unmaintained `SpaDES.experiment`; `experiment()` is now a light wrapper that builds the factorial set of `simList`s and runs them via `experiment2()`.
 * `experiment2()` (and `experiment()`) forward named `...` such as `events` to `SpaDES.core::spades()`; the file-queue `experiment**` family supports per-scenario events via an `events` column in `df` (#20).
 * New `teardownProject(out)`: reverses a `setupProject()` call. Removes the project library, unlinks the project paths, and restores the prior `.libPaths()` that `setupProject()` now stores on its output as `out$paths$.previousLibPaths` (#31). The previous (dot-prefixed) `.teardownProject()` is kept as an alias.

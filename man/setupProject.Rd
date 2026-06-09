@@ -64,7 +64,17 @@ See \link{setup}.
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
 not attached to the search path. See also the \code{require} argument. To force skip
-of package installation (without assessing modules), set \code{packages = NULL}}
+of package installation (without assessing modules), set \code{packages = NULL}.
+
+To install everything from \code{repos} (e.g., prebuilt binaries on
+\code{predictiveecology.r-universe.dev}) rather than from GitHub source -- thereby
+avoiding git authentication and a source-build toolchain such as Rtools --
+set \code{options = list(Require.noRemotes = TRUE)}. Any GitHub-style specs
+(\code{account/repo@branch}), including those declared in module metadata
+(\code{reqdPkgs}), are then rewritten to their bare package name (version
+constraints preserved) and resolved from \code{repos}. Ensure the relevant
+repository is in \code{getOption("repos")} and carries a version satisfying any
+constraint. See \code{Require::RequireOptions}.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
@@ -327,15 +337,30 @@ values, such as paths.
 )
 }\if{html}{\out{</div>}}
 
-\subsection{Argument order}{
-Arguments that are \emph{not} the named arguments (i.e., the ones passed in \code{...})
-are evaluated in the order they are written. Subsequent arguments can use the
-previous arguments. If "dot" arguments are declared before the first
-standard arguments (the "formals") of the function, then they will be evaluated
-prior to the \code{formals}. If they are after a single standard argument (i.e., not
-necessarily after \emph{all} the named arguments), then they will be evaluated after
-all standard arguments. The exception to this is \code{params}, which will be evaluated
-like the \code{...} arguments, i.e., in order.
+\subsection{Argument order (evaluation sequence)}{
+The evaluation rules are:
+\itemize{
+\item \strong{Each \code{...} argument is evaluated once, in the order it is written.} The
+formal/named arguments (\code{paths}, \code{modules}, \code{options}, \code{params}, \code{times}, ...)
+are each evaluated \emph{in their entirety as a block}. So if a user needs an object
+to exist before, e.g., \code{paths} is evaluated, they should declare that argument
+\emph{before} \code{paths}.
+\item \strong{Because of this sequential evaluation, any argument written \emph{above} another
+is available to it}, exactly like a normal series of statements. A later
+argument can refer to the resolved value of an earlier one by name.
+\item \strong{If a name is undefined when an argument is evaluated, \code{setupProject()} inserts
+the matching \code{defaultDots} value and re-evaluates.} A value the caller \emph{does}
+supply always takes precedence over the \code{defaultDots} fallback. This is what
+makes a pattern such as
+\code{.samplingRange = unlist(.samplingRange)} (with \code{defaultDots = list(.samplingRange = 1990:2020)})
+resolve to the caller's value when one is supplied (e.g. a batch run that sets
+\code{.samplingRange} before calling), and to the default otherwise.
+}
+
+If "dot" arguments are declared before the first formal argument, they are
+evaluated before the formals; otherwise they are evaluated after the formals.
+The exception is \code{params}, which is evaluated like the \code{...} arguments, i.e., in
+order.
 
 }
 

@@ -95,7 +95,17 @@ NULL
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
 #'   not attached to the search path. See also the `require` argument. To force skip
-#'   of package installation (without assessing modules), set `packages = NULL`
+#'   of package installation (without assessing modules), set `packages = NULL`.
+#'
+#'   To install everything from `repos` (e.g., prebuilt binaries on
+#'   `predictiveecology.r-universe.dev`) rather than from GitHub source -- thereby
+#'   avoiding git authentication and a source-build toolchain such as Rtools --
+#'   set `options = list(Require.noRemotes = TRUE)`. Any GitHub-style specs
+#'   (`account/repo@branch`), including those declared in module metadata
+#'   (`reqdPkgs`), are then rewritten to their bare package name (version
+#'   constraints preserved) and resolved from `repos`. Ensure the relevant
+#'   repository is in `getOption("repos")` and carries a version satisfying any
+#'   constraint. See `Require::RequireOptions`.
 #' @param require Optional. A character vector of packages to install *and* attach
 #'   (with `Require::Require`). These will be installed and attached at the start
 #'   of `setupProject` so that a user can use these during `setupProject`.
