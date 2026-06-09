@@ -24,7 +24,17 @@ setupPackages(
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
 not attached to the search path. See also the \code{require} argument. To force skip
-of package installation (without assessing modules), set \code{packages = NULL}}
+of package installation (without assessing modules), set \code{packages = NULL}.
+
+To install everything from \code{repos} (e.g., prebuilt binaries on
+\code{predictiveecology.r-universe.dev}) rather than from GitHub source -- thereby
+avoiding git authentication and a source-build toolchain such as Rtools --
+set \code{options = list(Require.noRemotes = TRUE)}. Any GitHub-style specs
+(\code{account/repo@branch}), including those declared in module metadata
+(\code{reqdPkgs}), are then rewritten to their bare package name (version
+constraints preserved) and resolved from \code{repos}. Ensure the relevant
+repository is in \code{getOption("repos")} and carries a version satisfying any
+constraint. See \code{Require::RequireOptions}.}
 
 \item{modulePackages}{A named list, where names are the module names, and the elements
 of the list are packages in a form that \code{Require::Require} accepts.}
