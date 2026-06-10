@@ -17,13 +17,13 @@ setupProject(
   config,
   require = NULL,
   studyArea = NULL,
-  Restart = getOption("SpaDES.project.Restart"),
-  useGit = getOption("SpaDES.project.useGit"),
-  setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
-  standAlone = getOption("SpaDES.project.standAlone"),
+  Restart = getOption("SpaDES.project.Restart", FALSE),
+  useGit = getOption("SpaDES.project.useGit", FALSE),
+  setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
+  standAlone = getOption("SpaDES.project.standAlone", TRUE),
   libPaths = NULL,
-  updateRprofile = getOption("SpaDES.project.updateRprofile"),
-  overwrite = getOption("SpaDES.project.overwrite"),
+  updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
+  overwrite = getOption("SpaDES.project.overwrite", FALSE),
   verbose = getOption("Require.verbose", 1L),
   defaultDots,
   envir = parent.frame(),
@@ -78,6 +78,7 @@ constraint. See \code{Require::RequireOptions}.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
+Default (when not supplied) is \code{list(start = 0, end = 1)}.
 See help for \code{SpaDES.core::simInit}.}
 
 \item{options}{Optional. Either a named list to be passed to \code{options}
@@ -117,6 +118,7 @@ a value triggers an error.}
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.
+Default is \code{NULL}, i.e., nothing additional installed/attached.
 See \link{setup}}
 
 \item{studyArea}{Optional. If a list, it will be passed to
@@ -125,7 +127,8 @@ the list must have a named element, \code{"country"}. All other named elements
 will be passed to \code{gadm}. 2 additional named elements can be passed for
 convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
-reproject the \code{studyArea}. See examples.}
+reproject the \code{studyArea}. Default is \code{NULL}, i.e., no study area is built.
+See examples.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
 and if the \code{projectPath} is not the current path, and the session is in
@@ -156,13 +159,18 @@ NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the \code{option(SpaDES.project.useGit = xxx)}.}
+be set with the \code{option(SpaDES.project.useGit = xxx)}. Default is
+\code{getOption("SpaDES.project.useGit", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
-on Linux (ignored if Windows)}
+on Linux (ignored if Windows). Default is
+\code{getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
-packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
+packages installed in a project-level library, if \code{TRUE}. Default is
+\code{getOption("SpaDES.project.standAlone", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
@@ -171,7 +179,8 @@ file for this project. Note: if \code{paths$packagePath} is within the \code{tem
 then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
-be read upon restart.}
+be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
+i.e., \code{TRUE} unless that option is set.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
 to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
@@ -181,7 +190,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
 overwritten except a module matching the vector \code{names()} (because
 only \code{setupModules} is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.}
+a user can just manually delete a file, then rerun. Default is
+\code{getOption("SpaDES.project.overwrite", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,

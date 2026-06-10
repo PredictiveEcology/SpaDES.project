@@ -45,6 +45,7 @@ See \link{setup}.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
+Default (when not supplied) is \code{list(start = 0, end = 1)}.
 See help for \code{SpaDES.core::simInit}.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
@@ -55,7 +56,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
 overwritten except a module matching the vector \code{names()} (because
 only \code{setupModules} is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.}
+a user can just manually delete a file, then rerun. Default is
+\code{getOption("SpaDES.project.overwrite", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{envir}{The environment where \code{setupProject} is called from. Defaults to
 \code{parent.frame()} which should be fine in most cases and user shouldn't need
@@ -98,14 +100,16 @@ NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the \code{option(SpaDES.project.useGit = xxx)}.}
+be set with the \code{option(SpaDES.project.useGit = xxx)}. Default is
+\code{getOption("SpaDES.project.useGit", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{updateRprofile}{Logical. Should the \code{paths$packagePath} be set in the \code{.Rprofile}
 file for this project. Note: if \code{paths$packagePath} is within the \code{tempdir()},
 then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
-be read upon restart.}
+be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
+i.e., \code{TRUE} unless that option is set.}
 
 \item{...}{further named arguments that acts like \code{objects}, but a different
 way to specify them. These can be anything. The general use case
