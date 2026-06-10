@@ -528,8 +528,19 @@ setupProject <- function(name, paths, modules, packages,
     # "argument 'options' is missing, with no default". Same trick is
     # already used at every other `base::options(...)` call site in this
     # file (e.g. 564, 1307, 1341, 1355).
-    base::options(repos = c(CRAN = "https://cloud.r-project.org",
-                            reposNow[setdiff(names(reposNow), "CRAN")]))
+    # Keep EVERY existing repo (named OR unnamed); only ensure a "CRAN"-named
+    # entry exists. The previous `reposNow[setdiff(names(reposNow), "CRAN")]`
+    # selected only NAMED non-CRAN entries, so an UNNAMED repo -- e.g. an
+    # r-universe added via `options(repos = unique(c(extraRepo,
+    # getOption("repos"))))`, where `unique()` strips the names -- was silently
+    # dropped here. That broke `Require.noRemotes` installs, which resolve the
+    # PE packages from that r-universe: with it gone, pak could not find the
+    # requested versions and fell back to slow per-ref source builds / failures.
+    nms <- names(reposNow)
+    if (is.null(nms)) nms <- character(length(reposNow))
+    keep <- reposNow[nms != "CRAN"]
+    newRepos <- c(CRAN = "https://cloud.r-project.org", keep)
+    base::options(repos = newRepos[!duplicated(unname(newRepos))])
   }
 
   ## open a diagnostic scope for this setupProject invocation; the
