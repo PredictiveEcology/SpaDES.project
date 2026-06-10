@@ -89,6 +89,7 @@ NULL
 #'   See [setup].
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
+#'   Default (when not supplied) is `list(start = 0, end = 1)`.
 #'   See help for `SpaDES.core::simInit`.
 #' @param config Reserved for future use. Currently unimplemented; supplying
 #'   a value triggers an error.
@@ -109,6 +110,7 @@ NULL
 #' @param require Optional. A character vector of packages to install *and* attach
 #'   (with `Require::Require`). These will be installed and attached at the start
 #'   of `setupProject` so that a user can use these during `setupProject`.
+#'   Default is `NULL`, i.e., nothing additional installed/attached.
 #'   See [setup]
 #' @param options Optional. Either a named list to be passed to `options`
 #'   or a character vector indicating one or more file(s) to source,
@@ -154,9 +156,12 @@ NULL
 #'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 #'   EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 #'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-#'   be set with the `option(SpaDES.project.useGit = xxx)`.
+#'   be set with the `option(SpaDES.project.useGit = xxx)`. Default is
+#'   `getOption("SpaDES.project.useGit", FALSE)`, i.e., `FALSE` unless that option is set.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
-#'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
+#'   packages installed in a project-level library, if `TRUE`. Default is
+#'   `getOption("SpaDES.project.standAlone", TRUE)`, i.e., `TRUE` unless that
+#'   option is set.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
 #' @param Restart Logical or character. If either `TRUE` or a character,
 #'   and if the `projectPath` is not the current path, and the session is in
@@ -174,16 +179,20 @@ NULL
 #'   then there will be a warning, indicating this won't persist. If the user is
 #'   using `Rstudio` and the `paths$projectPath` is not the root of the current
 #'   Rstudio project, then a warning will be given, indicating the .Rprofile may not
-#'   be read upon restart.
+#'   be read upon restart. Default is `getOption("SpaDES.project.updateRprofile", TRUE)`,
+#'   i.e., `TRUE` unless that option is set.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
-#'   on Linux (ignored if Windows)
+#'   on Linux (ignored if Windows). Default is
+#'   `getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)`, i.e., `TRUE` unless that
+#'   option is set.
 #' @param studyArea Optional. If a list, it will be passed to
 #'        `geodata::gadm`. To specify a country other than the default `"CAN"`,
 #'        the list must have a named element, `"country"`. All other named elements
 #'        will be passed to `gadm`. 2 additional named elements can be passed for
 #'        convenience, `subregion = "..."`, which will be grepped with the column
 #'        `NAME_1`, and `epsg = "..."`, so a user can pass an `epsg.io` code to
-#'        reproject the `studyArea`. See examples.
+#'        reproject the `studyArea`. Default is `NULL`, i.e., no study area is built.
+#'        See examples.
 #' @param overwrite Logical vector or character vector, however, only `getModule` will respond
 #'   to a vector of values. If length-one `TRUE`, then all files that were previously downloaded
 #'   will be overwritten throughout the sequence of `setupProject` -- including those downloaded via `sideEffects`.
@@ -192,7 +201,8 @@ NULL
 #'   NOTE: if length > 1, no other file specified anywhere in `setupProject` will be
 #'   overwritten except a module matching the vector `names()` (because
 #'   only `setupModules` is currently responsive to a vector). To have fine grained control,
-#'   a user can just manually delete a file, then rerun.
+#'   a user can just manually delete a file, then rerun. Default is
+#'   `getOption("SpaDES.project.overwrite", FALSE)`, i.e., `FALSE` unless that option is set.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects.
 #'   These can be supplied to give default values to objects that
@@ -485,13 +495,13 @@ NULL
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, functions, config,
                          require = NULL, studyArea = NULL,
-                         Restart = getOption("SpaDES.project.Restart"),
-                         useGit = getOption("SpaDES.project.useGit"),
-                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
-                         standAlone = getOption("SpaDES.project.standAlone"),
+                         Restart = getOption("SpaDES.project.Restart", FALSE),
+                         useGit = getOption("SpaDES.project.useGit", FALSE),
+                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
+                         standAlone = getOption("SpaDES.project.standAlone", TRUE),
                          libPaths = NULL,
-                         updateRprofile = getOption("SpaDES.project.updateRprofile"),
-                         overwrite = getOption("SpaDES.project.overwrite"), # envir = environment(),
+                         updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
+                         overwrite = getOption("SpaDES.project.overwrite", FALSE), # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
                          defaultDots, envir = parent.frame(),
                          dots, ...) {

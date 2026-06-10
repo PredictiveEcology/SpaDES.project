@@ -19,7 +19,8 @@ the list must have a named element, \code{"country"}. All other named elements
 will be passed to \code{gadm}. 2 additional named elements can be passed for
 convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
-reproject the \code{studyArea}. See examples.}
+reproject the \code{studyArea}. Default is \code{NULL}, i.e., no study area is built.
+See examples.}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
 \code{packagePath} and all others that are in \code{SpaDES.core::setPaths()}

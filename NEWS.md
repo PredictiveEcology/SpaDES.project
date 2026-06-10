@@ -92,6 +92,9 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject()`: the `useGit`, `standAlone`, `updateRprofile`, `setLinuxBinaryRepo`, and `overwrite` arguments now fall back to their documented `getOption("SpaDES.project.*", <default>)` value instead of `NULL` when the option is unset, matching the inner `setup*` functions and `spadesProjectOptions()` (`setLinuxBinaryRepo` now defaults to running on Linux).
+* `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns, and each `setupProject()` argument's `@param` states its default explicitly.
+
 * `setupProject()`: a `studyArea` that can't be evaluated (e.g. a not-yet-installed package or an unreachable file) is now a tolerated error returned unevaluated, like the `...` arguments, instead of hard-stopping the whole call. It is reported in the end-of-call diagnostics summary; set `options(SpaDES.project.strict = TRUE)` to stop on it.
 * `setupProject()` no longer prints a misleading "Module 'x' is specified N times" message when several SpaDES child modules live in subfolders of one git repo (e.g. `PredictiveEcology/scfm@development/modules/scfmIgnition`); the repo is simply cloned once and the message is now only shown for genuine repo overrides.
 * `setupProject()` now evaluates each `...` argument exactly once, sequentially in declaration order. Previously a `{ }` block or self-referential dot (e.g. `.studyAreaName = { ... }`, `.samplingRange = unlist(.samplingRange)`) could be evaluated 2-3 times, and complex `...` expressions were force-evaluated prematurely in the caller scope (running side effects such as downloads early). Caller-supplied values still take precedence over `defaultDots`. See the "Argument order (evaluation sequence)" section of `?setupProject`.
