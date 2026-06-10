@@ -16,41 +16,60 @@
 #' file so they persist between sessions.
 #'
 #' The following options are used, and can mostly be specified in the various `setup*`
-#' functions also.
-#' \tabular{lcl}{
+#' functions also. The *DEFAULT VALUE* column lists the value returned by
+#' `spadesProjectOptions()`, which is also the fallback used by `setupProject()`
+#' (and the inner `setup*` functions) when the option is not otherwise set.
+#' \tabular{lll}{
 #'   *OPTION* \tab *DEFAULT VALUE* \tab *DESCRIPTION* \cr
-#'   `reproducible.cachePath`
-#'      \tab NOTE: uses `reproducible`. Defaults is within projectPath, with subfolder "cache"  \cr
+#'   `reproducible.cachePath` \tab `<projectPath>/cache` \tab
+#'      NOTE: uses `reproducible`. Within `projectPath`, with subfolder "cache" \cr
 #'
-#'   `spades.inputPath`
-#'      \tab Default is within projectPath, with subfolder "inputs"  \cr
+#'   `spades.inputPath` \tab `<projectPath>/inputs` \tab
+#'      Within `projectPath`, with subfolder "inputs" \cr
 #'
-#'   `spades.modulePath`
-#'      \tab Default is within projectPath, with subfolder "modules"  \cr
+#'   `spades.modulePath` \tab `<projectPath>/modules` \tab
+#'      Within `projectPath`, with subfolder "modules" \cr
 #'
-#'   `spades.outputPath`
-#'      \tab Default is within projectPath, with subfolder "outputs"  \cr
+#'   `spades.outputPath` \tab `<projectPath>/outputs` \tab
+#'      Within `projectPath`, with subfolder "outputs" \cr
 #'
-#'   `spades.packagePath`
-#'      \tab Default to `.libPathDefault(<projectPath>)`  \cr
+#'   `spades.packagePath` \tab `.libPathDefault(<projectPath>)` \tab
+#'      The project-level package library \cr
 #'
-#'   `spades.projectPath`
-#'      \tab Default "."  \cr
+#'   `spades.projectPath` \tab `"."` \tab
+#'      The project root (current directory by default) \cr
 #'
-#'   `spades.scratchPath`
-#'      \tab Default is within `tempdir()`, with subfolder <projectPath>  \cr
+#'   `spades.scratchPath` \tab `<tempdir()>/<projectPath>` \tab
+#'      Within `tempdir()`, with subfolder `basename(projectPath)` \cr
 #'
-#'   `SpaDES.project.Restart`
-#'      \tab Default is FALSE. Passed to `Restart` argument in `setupProject`  \cr
+#'   `SpaDES.project.Restart` \tab `FALSE` \tab
+#'      Passed to the `Restart` argument in `setupProject` \cr
 #'
-#'   `SpaDES.project.useGit`
-#'      \tab Default is FALSE. Passed to `useGit` argument in `setupProject`  \cr
+#'   `SpaDES.project.useGit` \tab `FALSE` \tab
+#'      Passed to the `useGit` argument in `setupProject` \cr
 #'
+#'   `SpaDES.project.setLinuxBinaryRepo` \tab `TRUE` \tab
+#'      Passed to the `setLinuxBinaryRepo` argument in `setupProject` \cr
+#'
+#'   `SpaDES.project.standAlone` \tab `TRUE` \tab
+#'      Passed to the `standAlone` argument in `setupProject` \cr
+#'
+#'   `SpaDES.project.updateRprofile` \tab `TRUE` \tab
+#'      Passed to the `updateRprofile` argument in `setupProject` \cr
+#'
+#'   `SpaDES.project.overwrite` \tab `FALSE` \tab
+#'      Passed to the `overwrite` argument in `setupProject` \cr
+#'
+#'   `SpaDES.project.ask` \tab `TRUE` \tab
+#'      If `FALSE`, do not prompt before cloning a remote GitHub repository \cr
+#'
+#'   `SpaDES.project.gitignore` \tab `TRUE` \tab
+#'      Whether `setupProject` manages a `.gitignore` for the project \cr
+#'
+#'   `SpaDES.project.fast` \tab `FALSE` \tab
+#'      If `TRUE`, use `fastOptions()` and skip package/git checks (see `setupProject`) \cr
 #'
 #' }
-#'
-#' `SpaDES.project.ask` is currently only used when offering to clone a remote
-#' github repository. Setting this to `FALSE` will prevent asking and just "do it".
 #'
 spadesProjectOptions <- function() {
   pp <- getOption("spades.projectPath")

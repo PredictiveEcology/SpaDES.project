@@ -56,7 +56,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
 overwritten except a module matching the vector \code{names()} (because
 only \code{setupModules} is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.}
+a user can just manually delete a file, then rerun. Default is
+\code{getOption("SpaDES.project.overwrite", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{envir}{The environment where \code{setupProject} is called from. Defaults to
 \code{parent.frame()} which should be fine in most cases and user shouldn't need

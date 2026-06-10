@@ -22,38 +22,58 @@ give the option. Sometimes these options can be placed in the user's \code{.Rpro
 file so they persist between sessions.
 
 The following options are used, and can mostly be specified in the various \verb{setup*}
-functions also.
-\tabular{lcl}{
+functions also. The \emph{DEFAULT VALUE} column lists the value returned by
+\code{spadesProjectOptions()}, which is also the fallback used by \code{setupProject()}
+(and the inner \verb{setup*} functions) when the option is not otherwise set.
+\tabular{lll}{
 \emph{OPTION} \tab \emph{DEFAULT VALUE} \tab \emph{DESCRIPTION} \cr
-\code{reproducible.cachePath}
-\tab NOTE: uses \code{reproducible}. Defaults is within projectPath, with subfolder "cache"  \cr
+\code{reproducible.cachePath} \tab \verb{<projectPath>/cache} \tab
+NOTE: uses \code{reproducible}. Within \code{projectPath}, with subfolder "cache" \cr
 
-\code{spades.inputPath}
-\tab Default is within projectPath, with subfolder "inputs"  \cr
+\code{spades.inputPath} \tab \verb{<projectPath>/inputs} \tab
+Within \code{projectPath}, with subfolder "inputs" \cr
 
-\code{spades.modulePath}
-\tab Default is within projectPath, with subfolder "modules"  \cr
+\code{spades.modulePath} \tab \verb{<projectPath>/modules} \tab
+Within \code{projectPath}, with subfolder "modules" \cr
 
-\code{spades.outputPath}
-\tab Default is within projectPath, with subfolder "outputs"  \cr
+\code{spades.outputPath} \tab \verb{<projectPath>/outputs} \tab
+Within \code{projectPath}, with subfolder "outputs" \cr
 
-\code{spades.packagePath}
-\tab Default to \verb{.libPathDefault(<projectPath>)}  \cr
+\code{spades.packagePath} \tab \verb{.libPathDefault(<projectPath>)} \tab
+The project-level package library \cr
 
-\code{spades.projectPath}
-\tab Default "."  \cr
+\code{spades.projectPath} \tab \code{"."} \tab
+The project root (current directory by default) \cr
 
-\code{spades.scratchPath}
-\tab Default is within \code{tempdir()}, with subfolder \if{html}{\out{<projectPath>}}  \cr
+\code{spades.scratchPath} \tab \verb{<tempdir()>/<projectPath>} \tab
+Within \code{tempdir()}, with subfolder \code{basename(projectPath)} \cr
 
-\code{SpaDES.project.Restart}
-\tab Default is FALSE. Passed to \code{Restart} argument in \code{setupProject}  \cr
+\code{SpaDES.project.Restart} \tab \code{FALSE} \tab
+Passed to the \code{Restart} argument in \code{setupProject} \cr
 
-\code{SpaDES.project.useGit}
-\tab Default is FALSE. Passed to \code{useGit} argument in \code{setupProject}  \cr
+\code{SpaDES.project.useGit} \tab \code{FALSE} \tab
+Passed to the \code{useGit} argument in \code{setupProject} \cr
+
+\code{SpaDES.project.setLinuxBinaryRepo} \tab \code{TRUE} \tab
+Passed to the \code{setLinuxBinaryRepo} argument in \code{setupProject} \cr
+
+\code{SpaDES.project.standAlone} \tab \code{TRUE} \tab
+Passed to the \code{standAlone} argument in \code{setupProject} \cr
+
+\code{SpaDES.project.updateRprofile} \tab \code{TRUE} \tab
+Passed to the \code{updateRprofile} argument in \code{setupProject} \cr
+
+\code{SpaDES.project.overwrite} \tab \code{FALSE} \tab
+Passed to the \code{overwrite} argument in \code{setupProject} \cr
+
+\code{SpaDES.project.ask} \tab \code{TRUE} \tab
+If \code{FALSE}, do not prompt before cloning a remote GitHub repository \cr
+
+\code{SpaDES.project.gitignore} \tab \code{TRUE} \tab
+Whether \code{setupProject} manages a \code{.gitignore} for the project \cr
+
+\code{SpaDES.project.fast} \tab \code{FALSE} \tab
+If \code{TRUE}, use \code{fastOptions()} and skip package/git checks (see \code{setupProject}) \cr
 
 }
-
-\code{SpaDES.project.ask} is currently only used when offering to clone a remote
-github repository. Setting this to \code{FALSE} will prevent asking and just "do it".
 }

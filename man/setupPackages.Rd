@@ -42,6 +42,7 @@ of the list are packages in a form that \code{Require::Require} accepts.}
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.
+Default is \code{NULL}, i.e., nothing additional installed/attached.
 See \link{setup}}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
@@ -54,10 +55,14 @@ See \link{setup}.}
 \item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
-on Linux (ignored if Windows)}
+on Linux (ignored if Windows). Default is
+\code{getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
-packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
+packages installed in a project-level library, if \code{TRUE}. Default is
+\code{getOption("SpaDES.project.standAlone", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{envir}{The environment where \code{setupProject} is called from. Defaults to
 \code{parent.frame()} which should be fine in most cases and user shouldn't need
