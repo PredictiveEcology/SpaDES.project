@@ -92,6 +92,8 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject()` recovers from an interrupted repo creation: a `.git` with no commits yet (unborn branch) is no longer mistaken for a finished repo, so a re-run completes the first commit and push (previously `isProjectGitRepo()` skipped creation and `setUpstreamWithTry()` errored with `argument is of length zero`).
+* `setupProject()` only prompts to edit the global git config when `user.name`/`user.email` are unset, instead of on every new-repo setup; avoids hanging in no-terminal front-ends (e.g. RStudio Server) where the editor can't be answered.
 * `setupProject()`: the `useGit`, `standAlone`, `updateRprofile`, `setLinuxBinaryRepo`, and `overwrite` arguments now fall back to their documented `getOption("SpaDES.project.*", <default>)` value instead of `NULL` when the option is unset, matching the inner `setup*` functions and `spadesProjectOptions()` (`setLinuxBinaryRepo` now defaults to running on Linux).
 * `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns, and each `setupProject()` argument's `@param` states its default explicitly.
 
