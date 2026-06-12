@@ -2449,6 +2449,10 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 checkProjectPath <- function(paths, name, envir, envir2) {
 
   userProjectPath <- getOption("spades.projectPath", NULL) # capture before spadesProjectOptions() side effects
+  # spadesProjectOptions() sets options(spades.projectPath = ".") as a side effect when unset,
+  # so once it has run anywhere in the session the option reads as ".". Treat that sentinel as
+  # "not user-set" -- a user setting "." literally is behaviorally identical to the default anyway.
+  if (identical(userProjectPath, ".")) userProjectPath <- NULL
   defaults <- spadesProjectOptions()
   if (missing(paths)) {
     paths <- list()
