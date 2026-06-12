@@ -169,13 +169,14 @@ of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code
 \tabular{lll}{
 \strong{Path}     \tab \strong{Default if not supplied by user} \tab Effects \cr
 \tab \emph{Project Level Paths}   \tab \cr
-\code{projectPath}\tab if \code{getwd()} is \code{name}, then just \code{getwd}; if not
+\code{projectPath}\tab \code{getOption("spades.projectPath")} if set; otherwise,
+if \code{getwd()} is \code{name}, then just \code{getwd}; if not
 \code{file.path(getwd(), name)}  \tab If current project is not this project
 and using \code{Rstudio}, then the current
 project will close and a new project will
 open in the same Rstudio session, unless
 \code{Restart = FALSE}\cr
-\code{packagePath}\tab \code{file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))}
+\code{packagePath}\tab \code{getOption("spades.packagePath", file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3)))}
 \tab appends this path to \code{.libPaths(packagePath)},
 unless \code{standAlone = TRUE}, in which case,
 it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
