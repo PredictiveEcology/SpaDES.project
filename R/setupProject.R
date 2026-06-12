@@ -509,40 +509,6 @@ setupProject <- function(name, paths, modules, packages,
   # defaultDotsSUB <- substitute(defaultDots)
   failedBCMissingPackage <- FALSE
 
-  # RStudio's repos = "@CRAN@" overlay calls `.rs.downloadFile()` to refresh
-  # CRAN_mirrors.csv whenever something resolves a CRAN URL. On hosts with TLS
-  # interception this raises an "SSL connect error" that R defers via "In
-  # addition: Warning message:", so withCallingHandlers below can't muffle it.
-  # Setting a real CRAN URL up-front bypasses the overlay entirely.
-  reposNow <- getOption("repos")
-  # `reposNow` may be an unnamed character vector, or named without a "CRAN"
-  # entry; `[["CRAN"]]` errors with "subscript out of bounds" on atomic vectors
-  # in that case (lists would return NULL), so gate on names() first.
-  if (is.null(reposNow) || !"CRAN" %in% names(reposNow) ||
-      identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
-    # base::options(...) because setupProject's own `options` formal would
-    # otherwise shadow base::options here — R looks up the function name
-    # in the local frame first, finds the parameter promise, and (when
-    # the caller didn't supply `options=`) the promise is missing-without-
-    # default, so forcing it as a function blows up with
-    # "argument 'options' is missing, with no default". Same trick is
-    # already used at every other `base::options(...)` call site in this
-    # file (e.g. 564, 1307, 1341, 1355).
-    # Keep EVERY existing repo (named OR unnamed); only ensure a "CRAN"-named
-    # entry exists. The previous `reposNow[setdiff(names(reposNow), "CRAN")]`
-    # selected only NAMED non-CRAN entries, so an UNNAMED repo -- e.g. an
-    # r-universe added via `options(repos = unique(c(extraRepo,
-    # getOption("repos"))))`, where `unique()` strips the names -- was silently
-    # dropped here. That broke `Require.noRemotes` installs, which resolve the
-    # PE packages from that r-universe: with it gone, pak could not find the
-    # requested versions and fell back to slow per-ref source builds / failures.
-    nms <- names(reposNow)
-    if (is.null(nms)) nms <- character(length(reposNow))
-    keep <- reposNow[nms != "CRAN"]
-    newRepos <- c(CRAN = "https://cloud.r-project.org", keep)
-    base::options(repos = newRepos[!duplicated(unname(newRepos))])
-  }
-
   ## open a diagnostic scope for this setupProject invocation; the
   ## evalSUB / evalListElems instrumentation will push records into it, and
   ## `setupDiagReport()` (registered on.exit just below) renders a summary at
@@ -3204,10 +3170,10 @@ stopMessForRequireFail <- function(pkg) {
 #' `setupStudyArea` calls `[geodata::gadm()]` to get an `sf` polygon or set of polygons
 #' of a country or a subdivision of a country. The user can pass a named `list` of character elements
 #' that match entries in the columns "NAME_1" and "NAME_2" of the `sf` object. If passing
-#' `NAME_2`, the user must pass `level = 2`. If passing `NAME_1` and `level = 2` all subdivision polygons under 
-#' `NAME_1` will be returned, which can be useful to explore subdivision names.                                     
+#' `NAME_2`, the user must pass `level = 2`. If passing `NAME_1` and `level = 2` all subdivision polygons under
+#' `NAME_1` will be returned, which can be useful to explore subdivision names.
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
-#' be passed to `path` argument of `gadm`. 
+#' be passed to `path` argument of `gadm`.
 #'
 #' ```
 #' setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
