@@ -921,7 +921,8 @@ setupProject <- function(name, paths, modules, packages,
 #'   \tabular{lll}{
 #' **Path**     \tab **Default if not supplied by user** \tab Effects \cr
 #'                               \tab *Project Level Paths*   \tab \cr
-#' `projectPath`\tab if `getwd()` is `name`, then just `getwd`; if not
+#' `projectPath`\tab `getOption("spades.projectPath")` if set; otherwise,
+#'                            if `getwd()` is `name`, then just `getwd`; if not
 #'                            `file.path(getwd(), name)`  \tab If current project is not this project
 #'                                                             and using `Rstudio`, then the current
 #'                                                             project will close and a new project will
@@ -2447,6 +2448,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
 checkProjectPath <- function(paths, name, envir, envir2) {
 
+  userProjectPath <- getOption("spades.projectPath", NULL) # capture before spadesProjectOptions() side effects
   defaults <- spadesProjectOptions()
   if (missing(paths)) {
     paths <- list()
@@ -2455,7 +2457,9 @@ checkProjectPath <- function(paths, name, envir, envir2) {
     paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
   }
   if (is.null(paths[["projectPath"]])) {
-    prjPth <- if (missing(name)) {
+    prjPth <- if (!is.null(userProjectPath)) {
+      userProjectPath
+    } else if (missing(name)) {
       defaults$spades.projectPath
     } else {
       if (isInProject(name)) {
