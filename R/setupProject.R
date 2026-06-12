@@ -927,8 +927,9 @@ setupProject <- function(name, paths, modules, packages,
 #'                                                             project will close and a new project will
 #'                                                             open in the same Rstudio session, unless
 #'                                                             `Restart = FALSE`\cr
-#' `packagePath`\tab `file.path(tools::R_user_dir("data"), name, "packages",
-#'                               version$platform, substr(getRversion(), 1, 3))`
+#' `packagePath`\tab `getOption("spades.packagePath",
+#'                                file.path(tools::R_user_dir("data"), name, "packages",
+#'                                          version$platform, substr(getRversion(), 1, 3)))`
 #'                                                    \tab appends this path to `.libPaths(packagePath)`,
 #'                                                         unless `standAlone = TRUE`, in which case,
 #'                                                         it will set `.libPaths(packagePath,
@@ -1003,7 +1004,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
   #if (is.null(libPaths) || is.call(libPaths)) {
   if (is.null(paths[["packagePath"]])) {
-    paths[["packagePath"]] <- .libPathDefault(name)
+    paths[["packagePath"]] <- getOption("spades.packagePath", .libPathDefault(name))
   }
 
   defaultsSPO <- spadesProjectOptions() # uses projectPath

@@ -175,7 +175,7 @@ and using \code{Rstudio}, then the current
 project will close and a new project will
 open in the same Rstudio session, unless
 \code{Restart = FALSE}\cr
-\code{packagePath}\tab \code{file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))}
+\code{packagePath}\tab \code{getOption("spades.packagePath", file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3)))}
 \tab appends this path to \code{.libPaths(packagePath)},
 unless \code{standAlone = TRUE}, in which case,
 it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
