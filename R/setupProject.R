@@ -921,14 +921,16 @@ setupProject <- function(name, paths, modules, packages,
 #'   \tabular{lll}{
 #' **Path**     \tab **Default if not supplied by user** \tab Effects \cr
 #'                               \tab *Project Level Paths*   \tab \cr
-#' `projectPath`\tab if `getwd()` is `name`, then just `getwd`; if not
+#' `projectPath`\tab `getOption("spades.projectPath")` if set; otherwise,
+#'                            if `getwd()` is `name`, then just `getwd`; if not
 #'                            `file.path(getwd(), name)`  \tab If current project is not this project
 #'                                                             and using `Rstudio`, then the current
 #'                                                             project will close and a new project will
 #'                                                             open in the same Rstudio session, unless
 #'                                                             `Restart = FALSE`\cr
-#' `packagePath`\tab `file.path(tools::R_user_dir("data"), name, "packages",
-#'                               version$platform, substr(getRversion(), 1, 3))`
+#' `packagePath`\tab `getOption("spades.packagePath",
+#'                                file.path(tools::R_user_dir("data"), name, "packages",
+#'                                          version$platform, substr(getRversion(), 1, 3)))`
 #'                                                    \tab appends this path to `.libPaths(packagePath)`,
 #'                                                         unless `standAlone = TRUE`, in which case,
 #'                                                         it will set `.libPaths(packagePath,
@@ -1003,7 +1005,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
   #if (is.null(libPaths) || is.call(libPaths)) {
   if (is.null(paths[["packagePath"]])) {
-    paths[["packagePath"]] <- .libPathDefault(name)
+    paths[["packagePath"]] <- getOption("spades.packagePath", .libPathDefault(name))
   }
 
   defaultsSPO <- spadesProjectOptions() # uses projectPath
@@ -2457,6 +2459,11 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
 checkProjectPath <- function(paths, name, envir, envir2) {
 
+  userProjectPath <- getOption("spades.projectPath", NULL) # capture before spadesProjectOptions() side effects
+  # spadesProjectOptions() sets options(spades.projectPath = ".") as a side effect when unset,
+  # so once it has run anywhere in the session the option reads as ".". Treat that sentinel as
+  # "not user-set" -- a user setting "." literally is behaviorally identical to the default anyway.
+  if (identical(userProjectPath, ".")) userProjectPath <- NULL
   defaults <- spadesProjectOptions()
   if (missing(paths)) {
     paths <- list()
@@ -2465,7 +2472,9 @@ checkProjectPath <- function(paths, name, envir, envir2) {
     paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
   }
   if (is.null(paths[["projectPath"]])) {
-    prjPth <- if (missing(name)) {
+    prjPth <- if (!is.null(userProjectPath)) {
+      userProjectPath
+    } else if (missing(name)) {
       defaults$spades.projectPath
     } else {
       if (isInProject(name)) {
