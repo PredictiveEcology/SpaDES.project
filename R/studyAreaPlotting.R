@@ -259,7 +259,7 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
       rtmNam <- rtmsNames[rasFileIndex]
 
       geoTiffFile <- .leafletGeoTiffPath(rtmNam)
-      terra::writeRaster(ll[[rtmNam]], filename = geoTiffFile)
+      terra::writeRaster(ll[[rtmNam]], filename = geoTiffFile, overwrite = TRUE)
 
       if (!exists("a", inherits = FALSE)) {
         a <- terra::plet() |> leaflet::addTiles()
