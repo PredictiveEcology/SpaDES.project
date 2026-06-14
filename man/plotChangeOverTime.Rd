@@ -9,9 +9,10 @@ plotChangeOverTime(
   from = NULL,
   to = NULL,
   name = NULL,
-  palette = "RdBu",
+  palette = "differences",
   rev = TRUE,
-  layerName = "change"
+  layerName = "change",
+  legendPosition = "bottomright"
 )
 }
 \arguments{
@@ -26,10 +27,21 @@ plotChangeOverTime(
 base name of the output object whose GeoTIFFs should be loaded
 (e.g. \code{"simPred"}).}
 
-\item{palette, rev}{Diverging palette and direction. Defaults to \code{"RdBu"},
-reversed (red = positive change, blue = negative change).}
+\item{palette}{Palette name. Default \code{"differences"} -- the dedicated
+blue→white→red diverging palette from \code{\link[terra:map.pal]{terra::map.pal()}}, purpose-built
+for difference maps. Any other \code{\link[terra:map.pal]{terra::map.pal()}} name (e.g. \code{"viridis"})
+is also accepted; if \code{terra::map.pal()} doesn't recognise the name, we
+fall back to \code{\link[grDevices:hcl.colors]{grDevices::hcl.colors()}} (e.g. \code{"RdBu"}, \code{"Spectral"}).}
+
+\item{rev}{Reverse the palette? Default \code{TRUE} -- with the \code{"differences"}
+palette this gives red = negative, blue = positive. Set \code{FALSE} to flip
+(the \code{terra::map.pal("differences")} native orientation: red = positive,
+blue = negative).}
 
 \item{layerName}{Short prefix for the per-layer GeoTIFF filename.}
+
+\item{legendPosition}{Where to place the legend on the map.
+One of \code{"bottomright"} (default), \code{"bottomleft"}, \code{"topright"}, \code{"topleft"}.}
 }
 \value{
 A \code{leaflet} htmlwidget showing the difference layer with a

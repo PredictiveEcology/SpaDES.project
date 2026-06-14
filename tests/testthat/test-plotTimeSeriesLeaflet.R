@@ -88,7 +88,7 @@ test_that("plotChangeOverTime: errors on bogus from/to selectors", {
   })
 })
 
-test_that("plotChangeOverTime: returns leaflet widget; defaults to first/last", {
+test_that("plotChangeOverTime: returns leaflet widget; defaults to first/last; renders a legend", {
   withr::local_options(knitr.in.progress = TRUE)
   withr::with_tempdir({
     r <- mkSpatRaster(nlyr = 3)   # year2020, year2025, year2030
@@ -100,6 +100,9 @@ test_that("plotChangeOverTime: returns leaflet widget; defaults to first/last", 
     overlays <- ctrl[[1L]]$args[[2L]]   # overlayGroups arg
     expect_true(any(grepl("year2030", overlays)))
     expect_true(any(grepl("year2020", overlays)))
+    ## a continuous legend must be attached
+    legends <- m$x$calls[vapply(m$x$calls, function(c) c$method == "addLegend", logical(1))]
+    expect_true(length(legends) >= 1L)
   })
 })
 

@@ -676,9 +676,18 @@ plotTimeSeriesLeaflet <- function(x,
 #' @param name   Required when `x` is a `simList` or directory path: the
 #'   base name of the output object whose GeoTIFFs should be loaded
 #'   (e.g. `"simPred"`).
-#' @param palette,rev   Diverging palette and direction. Defaults to `"RdBu"`,
-#'   reversed (red = positive change, blue = negative change).
+#' @param palette   Palette name. Default `"differences"` -- the dedicated
+#'   blue→white→red diverging palette from [terra::map.pal()], purpose-built
+#'   for difference maps. Any other [terra::map.pal()] name (e.g. `"viridis"`)
+#'   is also accepted; if `terra::map.pal()` doesn't recognise the name, we
+#'   fall back to [grDevices::hcl.colors()] (e.g. `"RdBu"`, `"Spectral"`).
+#' @param rev   Reverse the palette? Default `TRUE` -- with the `"differences"`
+#'   palette this gives red = negative, blue = positive. Set `FALSE` to flip
+#'   (the `terra::map.pal("differences")` native orientation: red = positive,
+#'   blue = negative).
 #' @param layerName   Short prefix for the per-layer GeoTIFF filename.
+#' @param legendPosition   Where to place the legend on the map.
+#'   One of `"bottomright"` (default), `"bottomleft"`, `"topright"`, `"topleft"`.
 #'
 #' @return A `leaflet` htmlwidget showing the difference layer with a
 #'   symmetric (zero-centred) colour scale. Static-safe.
@@ -691,9 +700,10 @@ plotChangeOverTime <- function(x,
                                from = NULL,
                                to = NULL,
                                name = NULL,
-                               palette = "RdBu",
+                               palette = "differences",
                                rev = TRUE,
-                               layerName = "change") {
+                               layerName = "change",
+                               legendPosition = "bottomright") {
   pkgs <- c("leaflet", "leafem", "terra")
   requireNamespaces(pkgs)
 
@@ -721,7 +731,11 @@ plotChangeOverTime <- function(x,
   absmax  <- max(abs(vrange), na.rm = TRUE)
   if (!is.finite(absmax) || absmax == 0) absmax <- 1   # degenerate fallback
 
-  cols <- grDevices::hcl.colors(100, palette)
+  ## --- colors: prefer terra::map.pal (e.g. "differences"); fall back to hcl ---
+  cols <- tryCatch(
+    terra::map.pal(palette, n = 100),
+    error = function(e) grDevices::hcl.colors(100, palette)
+  )
   if (isTRUE(rev)) cols <- base::rev(cols)
 
   ## --- one-layer map ---
@@ -731,15 +745,28 @@ plotChangeOverTime <- function(x,
 
   groupName <- paste0(to, " − ", from)   # use proper minus sign (displayed in UI)
   layerId   <- paste0(make.names(to), "-minus-", make.names(from))   # no spaces
+  breaks    <- seq(-absmax, absmax, length.out = length(cols) + 1L)
   m <- leafem::addGeotiff(
     m, tif,
     group = groupName,
     layerId = layerId,
     colorOptions = leafem::colorOptions(
       palette = cols,
-      breaks = seq(-absmax, absmax, length.out = length(cols) + 1L),
+      breaks = breaks,
       na.color = "transparent"
     )
+  )
+
+  ## --- legend: continuous, symmetric around 0 (matches the raster styling) ---
+  leafletPal <- leaflet::colorNumeric(palette = cols,
+                                      domain   = c(-absmax, absmax),
+                                      na.color = "transparent")
+  m <- m |> leaflet::addLegend(
+    position = legendPosition,
+    pal      = leafletPal,
+    values   = c(-absmax, absmax),
+    title    = groupName,
+    opacity  = 1
   )
 
   m |> leaflet::addLayersControl(
