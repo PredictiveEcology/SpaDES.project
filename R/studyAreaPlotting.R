@@ -532,11 +532,22 @@ hasNames <- function(rasterToMatchPalette) {
 #' `.leafletGeoTiffPath()` internally so the per-layer GeoTIFFs are written
 #' into the qmd's `_files/figure-html/` folder rather than `tempfile()`.
 #'
-#' @param x   A multi-layer `SpatRaster`, or a list of single-layer
-#'   `SpatRaster`s. The order of layers becomes the order along the slider.
+#' @param x   One of:
+#'   * a multi-layer `SpatRaster`
+#'   * a list of single-layer `SpatRaster`s
+#'   * a `simList` -- reads `<name>*.tif` from `SpaDES.core::outputPath(x)`
+#'   * a length-1 character path to a directory of GeoTIFFs -- same scan
+#'
+#'   The order of layers becomes the order along the slider; for the
+#'   disk-scan cases, files are sorted by the numeric content of the
+#'   year-tag in the filename (e.g. "year2025").
 #' @param years   Character or numeric vector, length equal to the number of
-#'   layers. Defaults to `names(x)`. These labels appear on the slider and as
-#'   the radio-button group names.
+#'   layers. Defaults to `names(x)` (or the parsed year-tags for the
+#'   disk-scan cases). These labels appear on the slider and as the
+#'   radio-button group names.
+#' @param name   Required when `x` is a `simList` or a directory path:
+#'   the base name of the output object (e.g. `"simPred"`) used to filter
+#'   the GeoTIFF files to load. Ignored when `x` is a SpatRaster or list.
 #' @param palette   Name of an `hcl.colors()` palette (e.g. `"RdBu"`,
 #'   `"Spectral"`, `"viridis"`). Default `"RdBu"` -- a diverging palette
 #'   suited to difference / signed-magnitude maps.
@@ -554,6 +565,7 @@ hasNames <- function(rasterToMatchPalette) {
 #' @export
 plotTimeSeriesLeaflet <- function(x,
                                   years = NULL,
+                                  name = NULL,
                                   palette = "RdBu",
                                   rev = TRUE,
                                   layerName = "raster",
@@ -562,17 +574,8 @@ plotTimeSeriesLeaflet <- function(x,
   requireNamespaces(pkgs)
 
   ## --- coerce input to a list-of-single-layer-SpatRasters ---
-  if (inherits(x, "SpatRaster")) {
-    nlyr <- terra::nlyr(x)
-    layerList <- lapply(seq_len(nlyr), function(i) x[[i]])
-    if (is.null(years)) years <- names(x)
-  } else if (is.list(x) && all(vapply(x, inherits, logical(1), "SpatRaster"))) {
-    layerList <- x
-    if (is.null(years)) years <- names(x)
-  } else {
-    stop("`x` must be a multi-layer SpatRaster or a list of SpatRasters",
-         call. = FALSE)
-  }
+  layerList <- .coerceToLayerList(x, name = name)
+  if (is.null(years)) years <- names(layerList)
 
   if (length(layerList) < 2L) {
     stop("`plotTimeSeriesLeaflet()` requires at least 2 layers; ",
@@ -665,10 +668,14 @@ plotTimeSeriesLeaflet <- function(x,
 #' single-layer leaflet map with a diverging palette centred on zero. The
 #' "change from start to finish" view that pairs with [plotTimeSeriesLeaflet()].
 #'
-#' @param x   A multi-layer `SpatRaster` or a list of single-layer
-#'   `SpatRaster`s.
+#' @param x   One of: a multi-layer `SpatRaster`, a list of single-layer
+#'   `SpatRaster`s, a `simList` (reads `<name>*.tif` from
+#'   `SpaDES.core::outputPath(x)`), or a length-1 character directory path.
 #' @param from,to   Names (or, if missing, first/last) of the layers to subtract.
 #'   `result = x[[to]] - x[[from]]`.
+#' @param name   Required when `x` is a `simList` or directory path: the
+#'   base name of the output object whose GeoTIFFs should be loaded
+#'   (e.g. `"simPred"`).
 #' @param palette,rev   Diverging palette and direction. Defaults to `"RdBu"`,
 #'   reversed (red = positive change, blue = negative change).
 #' @param layerName   Short prefix for the per-layer GeoTIFF filename.
@@ -683,6 +690,7 @@ plotTimeSeriesLeaflet <- function(x,
 plotChangeOverTime <- function(x,
                                from = NULL,
                                to = NULL,
+                               name = NULL,
                                palette = "RdBu",
                                rev = TRUE,
                                layerName = "change") {
@@ -690,16 +698,7 @@ plotChangeOverTime <- function(x,
   requireNamespaces(pkgs)
 
   ## --- coerce input ---
-  if (inherits(x, "SpatRaster")) {
-    nlyr <- terra::nlyr(x)
-    layerList <- lapply(seq_len(nlyr), function(i) x[[i]])
-    names(layerList) <- names(x)
-  } else if (is.list(x) && all(vapply(x, inherits, logical(1), "SpatRaster"))) {
-    layerList <- x
-  } else {
-    stop("`x` must be a multi-layer SpatRaster or a list of SpatRasters",
-         call. = FALSE)
-  }
+  layerList <- .coerceToLayerList(x, name = name)
 
   ns <- names(layerList)
   if (is.null(ns) || any(!nzchar(ns))) {
@@ -747,6 +746,115 @@ plotChangeOverTime <- function(x,
     overlayGroups = groupName,
     options = leaflet::layersControlOptions(collapsed = FALSE)
   )
+}
+
+## Normalise the many shapes a user can pass into the leaflet-plotting
+## functions down to a single representation: a named list of single-layer
+## SpatRasters (the name labels the slider / from-to selection).
+##
+## Accepted inputs:
+##   * SpatRaster (multi-layer): split into per-layer list, names() preserved
+##   * list of single-layer SpatRaster: returned as-is
+##   * simList: reads GeoTIFFs from `SpaDES.core::outputPath(x)` (shine-style)
+##   * character of length 1, an existing directory: same as simList path
+##
+## For the simList / path cases, `name` is required -- it's the base name
+## prefix of the GeoTIFF files to pick up (e.g. "simPred" matches
+## "simPred_year2025.tif", "simPred_year2030.tif", ...).
+.coerceToLayerList <- function(x, name = NULL, timePattern = "[0-9]+") {
+  ## --- in-memory shapes ---
+  if (inherits(x, "SpatRaster")) {
+    nlyr <- terra::nlyr(x)
+    lst <- lapply(seq_len(nlyr), function(i) x[[i]])
+    names(lst) <- names(x)
+    return(lst)
+  }
+  if (is.list(x) && length(x) > 0L &&
+      all(vapply(x, inherits, logical(1), "SpatRaster"))) {
+    return(x)
+  }
+
+  ## --- disk shapes: simList outputPath or a literal directory path ---
+  outputDir <- if (inherits(x, "simList")) {
+    if (!requireNamespace("SpaDES.core", quietly = TRUE)) {
+      stop("`SpaDES.core` is required to read a simList's outputPath",
+           call. = FALSE)
+    }
+    SpaDES.core::outputPath(x)
+  } else if (is.character(x) && length(x) == 1L && dir.exists(x)) {
+    x
+  } else {
+    stop("`x` must be a multi-layer SpatRaster, list of SpatRasters, simList, ",
+         "or a path to a directory of GeoTIFFs", call. = FALSE)
+  }
+
+  if (is.null(name) || !nzchar(name)) {
+    stop("`name` is required when reading from a simList/directory; ",
+         "pass the base name of the output object (e.g., name = \"simPred\")",
+         call. = FALSE)
+  }
+
+  objs <- .scanOutputDirForTimeSeries(outputDir, timePattern = timePattern)
+  if (!name %in% names(objs)) {
+    stop("name = '", name, "' not found among discovered time-series ",
+         "(", paste(shQuote(names(objs)), collapse = ", "), ") under: ",
+         outputDir, call. = FALSE)
+  }
+
+  df <- objs[[name]]                              # data.frame(time, file), sorted
+  lst <- lapply(df$file, terra::rast)
+  names(lst) <- ifelse(is.na(df$time),
+                       tools::file_path_sans_ext(basename(df$file)),
+                       paste0("year", df$time))
+  lst
+}
+
+## Walk an output directory and group .tif files into time-series objects.
+##
+## Discovery/parsing logic ported from `SpaDES.shiny:::.shineScan()` so the two
+## packages stay consistent: list .tif files recursively, parse the LAST regex
+## match in each filename as the numeric time, treat the remainder (with
+## trailing "year" word stripped) as the object key, group by key, sort by time.
+##
+## Returns a named list, one entry per discovered object: data.frame with
+## columns `time` (numeric, sorted) and `file` (character, full path). Files
+## with no time match are kept with `time = NA` (rendered as static layers).
+.scanOutputDirForTimeSeries <- function(path, timePattern = "[0-9]+") {
+  files <- list.files(path, recursive = TRUE, full.names = TRUE,
+                      pattern = "\\.tif$", ignore.case = TRUE)
+  files <- files[!grepl("\\.aux\\.xml$", files, ignore.case = TRUE)]
+  if (!length(files)) return(list())
+
+  parsed <- lapply(files, function(f) {
+    stem <- tools::file_path_sans_ext(basename(f))
+    m <- gregexpr(timePattern, stem)[[1L]]
+    if (m[1L] == -1L) {
+      list(key = stem, time = NA_real_, file = f)
+    } else {
+      i <- length(m)                                      # last match = time tag
+      start <- m[i]; len <- attr(m, "match.length")[i]
+      time <- suppressWarnings(as.numeric(
+        substr(stem, start, start + len - 1L)))
+      key <- paste0(substr(stem, 1L, start - 1L),
+                    substr(stem, start + len, nchar(stem)))
+      key <- sub("(?i)[ _-]*year[ _-]*$", "", key, perl = TRUE)
+      key <- gsub("(^[ _-]+)|([ _-]+$)", "", key)
+      list(key = key, time = time, file = f)
+    }
+  })
+
+  keys <- vapply(parsed, `[[`, character(1), "key")
+  out <- list()
+  for (k in unique(keys)) {
+    members <- parsed[keys == k]
+    df <- data.frame(
+      time = vapply(members, `[[`, numeric(1), "time"),
+      file = vapply(members, `[[`, character(1), "file"),
+      stringsAsFactors = FALSE
+    )
+    out[[k]] <- df[order(df$time, na.last = TRUE), , drop = FALSE]
+  }
+  out
 }
 
 ## Resolve a GeoTIFF output path for a raster layer used by `plotSAsLeaflet`.

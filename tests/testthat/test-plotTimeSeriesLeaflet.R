@@ -115,3 +115,70 @@ test_that("plotChangeOverTime: explicit from/to overrides defaults", {
     expect_false(any(grepl("year2020", overlays)))
   })
 })
+
+## --- helper coverage: disk-scan branch (simList/path) ---
+
+stageOutputDir <- function(d) {
+  ## stage three single-layer GeoTIFFs that look like a SpaDES outputPath:
+  ## simPred_year2020.tif, simPred_year2025.tif, simPred_year2030.tif
+  for (yr in c(2020, 2025, 2030)) {
+    r <- terra::rast(nrows = 4, ncols = 4, vals = runif(16))
+    terra::writeRaster(r, file.path(d, paste0("simPred_year", yr, ".tif")))
+  }
+  ## red herring to confirm the name filter works
+  rr <- terra::rast(nrows = 4, ncols = 4, vals = runif(16))
+  terra::writeRaster(rr, file.path(d, "somethingElse_year2020.tif"))
+  d
+}
+
+test_that(".coerceToLayerList: reads + sorts GeoTIFFs by year from a directory", {
+  d <- withr::local_tempdir()
+  stageOutputDir(d)
+  lst <- SpaDES.project:::.coerceToLayerList(d, name = "simPred")
+  expect_length(lst, 3L)
+  expect_identical(names(lst), c("year2020", "year2025", "year2030"))
+  expect_true(all(vapply(lst, inherits, logical(1), "SpatRaster")))
+})
+
+test_that(".coerceToLayerList: directory branch requires `name`", {
+  d <- withr::local_tempdir()
+  stageOutputDir(d)
+  expect_error(SpaDES.project:::.coerceToLayerList(d, name = NULL),
+               "`name` is required")
+})
+
+test_that(".coerceToLayerList: helpful error when name doesn't match any discovered time-series", {
+  d <- withr::local_tempdir()
+  stageOutputDir(d)
+  ## new error lists the available object keys so the user can pick one
+  expect_error(SpaDES.project:::.coerceToLayerList(d, name = "doesNotExist"),
+               "not found among discovered time-series.*simPred.*somethingElse")
+})
+
+test_that(".coerceToLayerList: rejects nonsense input shapes", {
+  expect_error(SpaDES.project:::.coerceToLayerList(42),
+               "multi-layer SpatRaster")
+  expect_error(SpaDES.project:::.coerceToLayerList("/no/such/dir", name = "x"),
+               "multi-layer SpatRaster")
+})
+
+test_that("plotTimeSeriesLeaflet + plotChangeOverTime: accept a directory of GeoTIFFs", {
+  withr::local_options(knitr.in.progress = TRUE)
+  d <- withr::local_tempdir()
+  stageOutputDir(d)
+  withr::with_tempdir({
+    m1 <- plotTimeSeriesLeaflet(d, name = "simPred")
+    expect_s3_class(m1, "leaflet")
+    js <- paste(vapply(m1$jsHooks$render, function(h) h$code, character(1)),
+                collapse = "\n")
+    expect_match(js, "year2020")
+    expect_match(js, "year2030")
+
+    m2 <- plotChangeOverTime(d, name = "simPred")
+    expect_s3_class(m2, "leaflet")
+    ctrl <- m2$x$calls[vapply(m2$x$calls, function(c) c$method == "addLayersControl", logical(1))]
+    overlays <- ctrl[[1L]]$args[[2L]]
+    expect_true(any(grepl("year2020", overlays)))
+    expect_true(any(grepl("year2030", overlays)))
+  })
+})

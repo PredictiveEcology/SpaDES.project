@@ -8,17 +8,23 @@ plotChangeOverTime(
   x,
   from = NULL,
   to = NULL,
+  name = NULL,
   palette = "RdBu",
   rev = TRUE,
   layerName = "change"
 )
 }
 \arguments{
-\item{x}{A multi-layer \code{SpatRaster} or a list of single-layer
-\code{SpatRaster}s.}
+\item{x}{One of: a multi-layer \code{SpatRaster}, a list of single-layer
+\code{SpatRaster}s, a \code{simList} (reads \verb{<name>*.tif} from
+\code{SpaDES.core::outputPath(x)}), or a length-1 character directory path.}
 
 \item{from, to}{Names (or, if missing, first/last) of the layers to subtract.
 \code{result = x[[to]] - x[[from]]}.}
+
+\item{name}{Required when \code{x} is a \code{simList} or directory path: the
+base name of the output object whose GeoTIFFs should be loaded
+(e.g. \code{"simPred"}).}
 
 \item{palette, rev}{Diverging palette and direction. Defaults to \code{"RdBu"},
 reversed (red = positive change, blue = negative change).}

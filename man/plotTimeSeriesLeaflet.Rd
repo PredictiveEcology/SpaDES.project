@@ -7,6 +7,7 @@
 plotTimeSeriesLeaflet(
   x,
   years = NULL,
+  name = NULL,
   palette = "RdBu",
   rev = TRUE,
   layerName = "raster",
@@ -14,12 +15,26 @@ plotTimeSeriesLeaflet(
 )
 }
 \arguments{
-\item{x}{A multi-layer \code{SpatRaster}, or a list of single-layer
-\code{SpatRaster}s. The order of layers becomes the order along the slider.}
+\item{x}{One of:
+\itemize{
+\item a multi-layer \code{SpatRaster}
+\item a list of single-layer \code{SpatRaster}s
+\item a \code{simList} -- reads \verb{<name>*.tif} from \code{SpaDES.core::outputPath(x)}
+\item a length-1 character path to a directory of GeoTIFFs -- same scan
+}
+
+The order of layers becomes the order along the slider; for the
+disk-scan cases, files are sorted by the numeric content of the
+year-tag in the filename (e.g. "year2025").}
 
 \item{years}{Character or numeric vector, length equal to the number of
-layers. Defaults to \code{names(x)}. These labels appear on the slider and as
-the radio-button group names.}
+layers. Defaults to \code{names(x)} (or the parsed year-tags for the
+disk-scan cases). These labels appear on the slider and as the
+radio-button group names.}
+
+\item{name}{Required when \code{x} is a \code{simList} or a directory path:
+the base name of the output object (e.g. \code{"simPred"}) used to filter
+the GeoTIFF files to load. Ignored when \code{x} is a SpatRaster or list.}
 
 \item{palette}{Name of an \code{hcl.colors()} palette (e.g. \code{"RdBu"},
 \code{"Spectral"}, \code{"viridis"}). Default \code{"RdBu"} -- a diverging palette
