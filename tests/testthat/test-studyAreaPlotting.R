@@ -3,11 +3,12 @@ test_that(".leafletGeoTiffPath: tempfile when knitr is NOT in progress", {
   path <- SpaDES.project:::.leafletGeoTiffPath("myraster")
 
   expect_match(path, "\\.tif$")
-  ## must be inside the session tempdir -- the existing interactive behaviour
-  expect_true(startsWith(
-    normalizePath(path, mustWork = FALSE),
-    normalizePath(tempdir(), mustWork = FALSE)
-  ))
+  ## `tempfile()` puts files directly in `tempdir()` -- compare raw strings,
+  ## NOT `normalizePath()`, because on macOS/Windows the file doesn't exist
+  ## yet, so `normalizePath(path, mustWork = FALSE)` won't resolve symlinks
+  ## consistently with `normalizePath(tempdir())` (which does, because tempdir
+  ## exists). That mismatch was the prior CI failure.
+  expect_identical(dirname(path), tempdir())
 })
 
 test_that(".leafletGeoTiffPath: knitr::fig_path-based when knitr IS in progress", {
@@ -20,13 +21,8 @@ test_that(".leafletGeoTiffPath: knitr::fig_path-based when knitr IS in progress"
     expect_match(path, "\\.tif$")
     ## raster name embedded so multiple rasters in one chunk don't clobber
     expect_match(path, "myraster")
-    ## NOT a tempdir path -- the whole point of the change
-    expect_false(startsWith(
-      normalizePath(path, mustWork = FALSE),
-      normalizePath(tempdir(), mustWork = FALSE)
-    ))
-    ## fig_path returns a relative path -- the browser must be able to resolve
-    ## it against the rendered HTML page's URL
+    ## fig_path returns a path relative to the qmd source dir; the browser
+    ## must be able to resolve it against the rendered HTML page's URL
     expect_false(fs::is_absolute_path(path))
     ## the parent directory must exist by the time we return -- writeRaster()
     ## would otherwise fail on the very next line in plotSAsLeaflet()
