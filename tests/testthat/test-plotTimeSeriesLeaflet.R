@@ -72,19 +72,14 @@ test_that("plotTimeSeriesLeaflet: custom sliderPosition is honoured", {
   })
 })
 
-test_that("plotChangeOverTime: errors on bad input or unnamed layers", {
+test_that("plotChangeOverTime: errors on bad input or empty layer set", {
   expect_error(plotChangeOverTime("nope"), "multi-layer SpatRaster")
-  r <- mkSpatRaster(nlyr = 3)
-  names(r) <- NULL
-  expect_error(plotChangeOverTime(r), "must be named")
-})
-
-test_that("plotChangeOverTime: errors on bogus from/to selectors", {
+  ## bogus from/to: nothing differenced anywhere → diagnostic error
   withr::local_options(knitr.in.progress = TRUE)
   withr::with_tempdir({
     r <- mkSpatRaster(nlyr = 3)
-    expect_error(plotChangeOverTime(r, from = "ghost"), "not in layer names")
-    expect_error(plotChangeOverTime(r, to   = "ghost"), "not in layer names")
+    expect_error(plotChangeOverTime(r, from = "ghost"),
+                 "No object had at least 2 named layers")
   })
 })
 
@@ -94,15 +89,21 @@ test_that("plotChangeOverTime: returns leaflet widget; defaults to first/last; r
     r <- mkSpatRaster(nlyr = 3)   # year2020, year2025, year2030
     m <- plotChangeOverTime(r)
     expect_s3_class(m, "leaflet")
-    ## the layer group name we add should be "year2030 − year2020" (first→last)
+    ## one baseGroup, labelled with first→last
     ctrl <- m$x$calls[vapply(m$x$calls, function(c) c$method == "addLayersControl", logical(1))]
     expect_true(length(ctrl) >= 1L)
-    overlays <- ctrl[[1L]]$args[[2L]]   # overlayGroups arg
-    expect_true(any(grepl("year2030", overlays)))
-    expect_true(any(grepl("year2020", overlays)))
-    ## a continuous legend must be attached
+    base_groups <- ctrl[[1L]]$args[[1L]]   # baseGroups arg
+    expect_true(any(grepl("year2030", base_groups)))
+    expect_true(any(grepl("year2020", base_groups)))
+    ## continuous legend via addLegend (shine pattern: rev pal + reversed labFormat)
     legends <- m$x$calls[vapply(m$x$calls, function(c) c$method == "addLegend", logical(1))]
     expect_true(length(legends) >= 1L)
+    ## legend toggle JS is injected via htmlwidgets::onRender
+    expect_true(length(m$jsHooks$render) >= 1L)
+    js <- paste(vapply(m$jsHooks$render, function(h) h$code, character(1)),
+                collapse = "\n")
+    expect_match(js, "baselayerchange")
+    expect_match(js, "ts-legend-")
   })
 })
 
@@ -112,10 +113,10 @@ test_that("plotChangeOverTime: explicit from/to overrides defaults", {
     r <- mkSpatRaster(nlyr = 3)
     m <- plotChangeOverTime(r, from = "year2025", to = "year2030")
     ctrl <- m$x$calls[vapply(m$x$calls, function(c) c$method == "addLayersControl", logical(1))]
-    overlays <- ctrl[[1L]]$args[[2L]]
-    expect_true(any(grepl("year2025", overlays)))
-    expect_true(any(grepl("year2030", overlays)))
-    expect_false(any(grepl("year2020", overlays)))
+    base_groups <- ctrl[[1L]]$args[[1L]]
+    expect_true(any(grepl("year2025", base_groups)))
+    expect_true(any(grepl("year2030", base_groups)))
+    expect_false(any(grepl("year2020", base_groups)))
   })
 })
 
@@ -177,11 +178,13 @@ test_that("plotTimeSeriesLeaflet + plotChangeOverTime: accept a directory of Geo
     expect_match(js, "year2020")
     expect_match(js, "year2030")
 
-    m2 <- plotChangeOverTime(d, name = "simPred")
+    m2 <- plotChangeOverTime(d)
     expect_s3_class(m2, "leaflet")
     ctrl <- m2$x$calls[vapply(m2$x$calls, function(c) c$method == "addLayersControl", logical(1))]
-    overlays <- ctrl[[1L]]$args[[2L]]
-    expect_true(any(grepl("year2020", overlays)))
-    expect_true(any(grepl("year2030", overlays)))
+    base_groups <- ctrl[[1L]]$args[[1L]]   # baseGroups (radios)
+    ## simPred (3 years) shows up; somethingElse (1 file) is skipped silently
+    ## because plotChangeOverTime needs >= 2 layers per object
+    expect_true(any(grepl("simPred",       base_groups)))
+    expect_false(any(grepl("somethingElse", base_groups)))
   })
 })

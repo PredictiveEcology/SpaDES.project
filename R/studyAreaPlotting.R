@@ -699,7 +699,6 @@ plotTimeSeriesLeaflet <- function(x,
 plotChangeOverTime <- function(x,
                                from = NULL,
                                to = NULL,
-                               name = NULL,
                                palette = "differences",
                                rev = TRUE,
                                layerName = "change",
@@ -707,72 +706,118 @@ plotChangeOverTime <- function(x,
   pkgs <- c("leaflet", "leafem", "terra")
   requireNamespaces(pkgs)
 
-  ## --- coerce input ---
-  layerList <- .coerceToLayerList(x, name = name)
+  ## --- coerce input: get ALL discovered objects, one diff per object ---
+  objects <- .coerceToMultiObjects(x)
 
-  ns <- names(layerList)
-  if (is.null(ns) || any(!nzchar(ns))) {
-    stop("layers of `x` must be named (the names label the from/to selection)",
-         call. = FALSE)
-  }
-  if (length(layerList) < 2L) {
-    stop("`plotChangeOverTime()` needs at least 2 named layers", call. = FALSE)
-  }
-  if (is.null(from)) from <- ns[[1L]]
-  if (is.null(to))   to   <- ns[[length(ns)]]
-  if (!from %in% ns) stop("`from = \"", from, "\"` not in layer names: ",
-                          paste(ns, collapse = ", "), call. = FALSE)
-  if (!to   %in% ns) stop("`to = \"",   to,   "\"` not in layer names: ",
-                          paste(ns, collapse = ", "), call. = FALSE)
-
-  ## --- difference, symmetric breaks around 0 ---
-  diffRas <- layerList[[to]] - layerList[[from]]
-  vrange  <- terra::minmax(diffRas)
-  absmax  <- max(abs(vrange), na.rm = TRUE)
-  if (!is.finite(absmax) || absmax == 0) absmax <- 1   # degenerate fallback
-
-  ## --- colors: prefer terra::map.pal (e.g. "differences"); fall back to hcl ---
+  ## --- colour ramp (shared across all objects) ---
   cols <- tryCatch(
     terra::map.pal(palette, n = 100),
     error = function(e) grDevices::hcl.colors(100, palette)
   )
   if (isTRUE(rev)) cols <- base::rev(cols)
 
-  ## --- one-layer map ---
   m <- leaflet::leaflet() |> leaflet::addTiles()
-  tif <- .leafletGeoTiffPath(paste0(layerName, "-", to, "-minus-", from))
-  terra::writeRaster(diffRas, tif, overwrite = TRUE)
+  groupNames <- character()
 
-  groupName <- paste0(to, " − ", from)   # use proper minus sign (displayed in UI)
-  layerId   <- paste0(make.names(to), "-minus-", make.names(from))   # no spaces
-  breaks    <- seq(-absmax, absmax, length.out = length(cols) + 1L)
-  m <- leafem::addGeotiff(
-    m, tif,
-    group = groupName,
-    layerId = layerId,
-    colorOptions = leafem::colorOptions(
-      palette = cols,
-      breaks = breaks,
-      na.color = "transparent"
+  for (objName in names(objects)) {
+    layerList <- objects[[objName]]
+    ns <- names(layerList)
+    if (is.null(ns) || any(!nzchar(ns)) || length(layerList) < 2L) next
+
+    fromYr <- if (is.null(from)) ns[[1L]] else from
+    toYr   <- if (is.null(to))   ns[[length(ns)]] else to
+    if (!fromYr %in% ns || !toYr %in% ns) next
+
+    diffRas <- layerList[[toYr]] - layerList[[fromYr]]
+    vrange  <- terra::minmax(diffRas)
+    absmax  <- max(abs(vrange), na.rm = TRUE)
+    if (!is.finite(absmax) || absmax == 0) absmax <- 1
+
+    tif <- .leafletGeoTiffPath(paste0(layerName, "-", objName, "-",
+                                      toYr, "-minus-", fromYr))
+    terra::writeRaster(diffRas, tif, overwrite = TRUE)
+
+    groupName <- paste0(objName, ": ", toYr, " − ", fromYr)
+    groupNames <- c(groupNames, groupName)
+    layerId <- make.names(paste0(objName, "-", toYr, "-minus-", fromYr))
+    breaks <- seq(-absmax, absmax, length.out = length(cols) + 1L)
+
+    m <- leafem::addGeotiff(
+      m, tif,
+      group = groupName,
+      layerId = layerId,
+      colorOptions = leafem::colorOptions(
+        palette  = cols,
+        breaks   = breaks,
+        na.color = "transparent"
+      )
     )
+
+    ## per-object continuous legend, max-at-top. The trick is shine's
+    ## (see SpaDES.shiny:::.shineAddDiff): pass `rev(cols)` to colorNumeric AND
+    ## reverse the label order via labFormat -- both flips compose so the
+    ## gradient bar shows positive (blue) at top with correctly oriented labels.
+    ## Class tag drives the legend-toggle JS below.
+    dom <- c(-absmax, absmax)
+    m <- m |> leaflet::addLegend(
+      position  = legendPosition,
+      pal       = leaflet::colorNumeric(base::rev(cols), domain = dom,
+                                        na.color = "transparent"),
+      values    = dom,
+      title     = groupName,
+      opacity   = 1,
+      className = paste0("info legend ts-legend-", make.names(groupName)),
+      labFormat = leaflet::labelFormat(
+        transform = function(x) sort(x, decreasing = TRUE)
+      )
+    )
+  }
+
+  if (!length(groupNames)) {
+    stop("No object had at least 2 named layers to difference", call. = FALSE)
+  }
+
+  ## --- baseGroups give RADIO behaviour -- only one object visible at a time ---
+  m <- m |> leaflet::addLayersControl(
+    baseGroups = groupNames,
+    options    = leaflet::layersControlOptions(collapsed = FALSE)
   )
 
-  ## --- legend: continuous, symmetric around 0 (matches the raster styling) ---
-  leafletPal <- leaflet::colorNumeric(palette = cols,
-                                      domain   = c(-absmax, absmax),
-                                      na.color = "transparent")
-  m <- m |> leaflet::addLegend(
-    position = legendPosition,
-    pal      = leafletPal,
-    values   = c(-absmax, absmax),
-    title    = groupName,
-    opacity  = 1
+  ## leaflet's `group =` on addLegend ties to overlay groups, NOT baseGroups,
+  ## so per-object legends are all simultaneously visible unless we toggle
+  ## them ourselves. Listen for `baselayerchange` and show only the matching
+  ## legend (by the className we tagged it with).
+  safeNames <- vapply(groupNames, make.names, character(1))
+  legendToggleJS <- sprintf("
+    function(el, x) {
+      var map = this;
+      var safe = %s;
+      function show(name) {
+        var s = name.replace(/[^A-Za-z0-9]+/g, '.');
+        var nodes = el.querySelectorAll('.ts-legend-' + s);
+        var all = el.querySelectorAll('[class*=\"ts-legend-\"]');
+        all.forEach(function(n) { n.style.display = 'none'; });
+        nodes.forEach(function(n) { n.style.display = ''; });
+      }
+      setTimeout(function() {
+        map.on('baselayerchange', function(e) { show(e.name); });
+        // initial: leaflet auto-shows the first baseGroup
+        if (safe.length) show(safe[0].replace(/\\./g, ' ').replace(/\\s+(\\d)/, '$1'));
+        // simpler & robust: just trigger off the checked radio in the layers control
+        setTimeout(function() {
+          var checked = el.querySelector('.leaflet-control-layers-base input[type=\"radio\"]:checked');
+          if (checked) {
+            var label = checked.parentNode.textContent.trim();
+            show(label);
+          }
+        }, 50);
+      }, 100);
+    }",
+    jsonlite::toJSON(safeNames, auto_unbox = FALSE)
   )
+  m <- htmlwidgets::onRender(m, legendToggleJS)
 
-  m |> leaflet::addLayersControl(
-    overlayGroups = groupName,
-    options = leaflet::layersControlOptions(collapsed = FALSE)
-  )
+  m
 }
 
 ## Normalise the many shapes a user can pass into the leaflet-plotting
@@ -788,6 +833,54 @@ plotChangeOverTime <- function(x,
 ## For the simList / path cases, `name` is required -- it's the base name
 ## prefix of the GeoTIFF files to pick up (e.g. "simPred" matches
 ## "simPred_year2025.tif", "simPred_year2030.tif", ...).
+## Like `.coerceToLayerList()` but returns ALL discovered objects.
+##
+## SpatRaster / list-of-SpatRaster inputs wrap into a single-object list
+## keyed by "raster". simList / directory inputs return one entry per
+## time-series object discovered under outputPath, keyed by the object name
+## inferred from filenames (shine-style).
+##
+## Each value is a named list of single-layer SpatRasters; the names are
+## the year/timestamp labels.
+.coerceToMultiObjects <- function(x, timePattern = "[0-9]+") {
+  if (inherits(x, "SpatRaster")) {
+    nlyr <- terra::nlyr(x)
+    lst <- lapply(seq_len(nlyr), function(i) x[[i]])
+    names(lst) <- names(x)
+    return(list(raster = lst))
+  }
+  if (is.list(x) && length(x) > 0L &&
+      all(vapply(x, inherits, logical(1), "SpatRaster"))) {
+    return(list(raster = x))
+  }
+
+  outputDir <- if (inherits(x, "simList")) {
+    if (!requireNamespace("SpaDES.core", quietly = TRUE)) {
+      stop("`SpaDES.core` is required to read a simList's outputPath",
+           call. = FALSE)
+    }
+    SpaDES.core::outputPath(x)
+  } else if (is.character(x) && length(x) == 1L && dir.exists(x)) {
+    x
+  } else {
+    stop("`x` must be a multi-layer SpatRaster, list of SpatRasters, simList, ",
+         "or a path to a directory of GeoTIFFs", call. = FALSE)
+  }
+
+  objs <- .scanOutputDirForTimeSeries(outputDir, timePattern = timePattern)
+  if (!length(objs)) {
+    stop("No time-series objects discovered under: ", outputDir, call. = FALSE)
+  }
+  ## convert each scanned df → named list of SpatRasters
+  lapply(objs, function(df) {
+    lst <- lapply(df$file, terra::rast)
+    names(lst) <- ifelse(is.na(df$time),
+                         tools::file_path_sans_ext(basename(df$file)),
+                         paste0("year", df$time))
+    lst
+  })
+}
+
 .coerceToLayerList <- function(x, name = NULL, timePattern = "[0-9]+") {
   ## --- in-memory shapes ---
   if (inherits(x, "SpatRaster")) {

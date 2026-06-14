@@ -8,7 +8,6 @@ plotChangeOverTime(
   x,
   from = NULL,
   to = NULL,
-  name = NULL,
   palette = "differences",
   rev = TRUE,
   layerName = "change",
@@ -22,10 +21,6 @@ plotChangeOverTime(
 
 \item{from, to}{Names (or, if missing, first/last) of the layers to subtract.
 \code{result = x[[to]] - x[[from]]}.}
-
-\item{name}{Required when \code{x} is a \code{simList} or directory path: the
-base name of the output object whose GeoTIFFs should be loaded
-(e.g. \code{"simPred"}).}
 
 \item{palette}{Palette name. Default \code{"differences"} -- the dedicated
 blue→white→red diverging palette from \code{\link[terra:map.pal]{terra::map.pal()}}, purpose-built
@@ -42,6 +37,10 @@ blue = negative).}
 
 \item{legendPosition}{Where to place the legend on the map.
 One of \code{"bottomright"} (default), \code{"bottomleft"}, \code{"topright"}, \code{"topleft"}.}
+
+\item{name}{Required when \code{x} is a \code{simList} or directory path: the
+base name of the output object whose GeoTIFFs should be loaded
+(e.g. \code{"simPred"}).}
 }
 \value{
 A \code{leaflet} htmlwidget showing the difference layer with a
