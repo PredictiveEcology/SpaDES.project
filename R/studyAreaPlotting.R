@@ -521,6 +521,234 @@ hasNames <- function(rasterToMatchPalette) {
   hasName <- nzchar(namsRTMP)
 }
 
+#' Time-series of `SpatRaster` layers as an interactive leaflet map with a slider
+#'
+#' Takes a multi-layer `SpatRaster` (or a list of single-layer `SpatRaster`s)
+#' and produces a self-contained leaflet htmlwidget. Each layer becomes a
+#' radio-selected base group; a draggable range slider is added that drives
+#' the radio buttons, so the user steps through years by dragging.
+#'
+#' Designed to ship in a Quarto / `knitr` static render — uses
+#' `.leafletGeoTiffPath()` internally so the per-layer GeoTIFFs are written
+#' into the qmd's `_files/figure-html/` folder rather than `tempfile()`.
+#'
+#' @param x   A multi-layer `SpatRaster`, or a list of single-layer
+#'   `SpatRaster`s. The order of layers becomes the order along the slider.
+#' @param years   Character or numeric vector, length equal to the number of
+#'   layers. Defaults to `names(x)`. These labels appear on the slider and as
+#'   the radio-button group names.
+#' @param palette   Name of an `hcl.colors()` palette (e.g. `"RdBu"`,
+#'   `"Spectral"`, `"viridis"`). Default `"RdBu"` -- a diverging palette
+#'   suited to difference / signed-magnitude maps.
+#' @param rev   Reverse the palette? Default `TRUE` (puts red on positive).
+#' @param layerName   Short prefix used for each per-layer GeoTIFF filename
+#'   (avoids collisions when multiple time-series sit on the same page).
+#' @param sliderPosition   Leaflet control position for the slider:
+#'   `"bottomleft"` (default), `"bottomright"`, `"topleft"`, `"topright"`.
+#'
+#' @return A `leaflet` htmlwidget with the slider injected via
+#'   `htmlwidgets::onRender()`. Ships as static HTML -- no Shiny server needed.
+#'
+#' @seealso [plotSAsLeaflet()] for the single-snapshot case.
+#'
+#' @export
+plotTimeSeriesLeaflet <- function(x,
+                                  years = NULL,
+                                  palette = "RdBu",
+                                  rev = TRUE,
+                                  layerName = "raster",
+                                  sliderPosition = "bottomleft") {
+  pkgs <- c("leaflet", "leafem", "terra", "htmlwidgets", "jsonlite")
+  requireNamespaces(pkgs)
+
+  ## --- coerce input to a list-of-single-layer-SpatRasters ---
+  if (inherits(x, "SpatRaster")) {
+    nlyr <- terra::nlyr(x)
+    layerList <- lapply(seq_len(nlyr), function(i) x[[i]])
+    if (is.null(years)) years <- names(x)
+  } else if (is.list(x) && all(vapply(x, inherits, logical(1), "SpatRaster"))) {
+    layerList <- x
+    if (is.null(years)) years <- names(x)
+  } else {
+    stop("`x` must be a multi-layer SpatRaster or a list of SpatRasters",
+         call. = FALSE)
+  }
+
+  if (length(layerList) < 2L) {
+    stop("`plotTimeSeriesLeaflet()` requires at least 2 layers; ",
+         "use `plotSAsLeaflet()` for a single raster", call. = FALSE)
+  }
+  if (is.null(years) || !length(years)) {
+    years <- as.character(seq_along(layerList))
+  }
+  if (length(years) != length(layerList)) {
+    stop("`years` length (", length(years),
+         ") does not match number of layers (", length(layerList), ")",
+         call. = FALSE)
+  }
+  years <- as.character(years)
+
+  ## --- build the colour ramp once ---
+  cols <- grDevices::hcl.colors(100, palette)
+  if (isTRUE(rev)) cols <- base::rev(cols)
+
+  ## --- assemble the map: basemap + one group per year ---
+  m <- leaflet::leaflet() |> leaflet::addTiles()
+
+  for (i in seq_along(layerList)) {
+    yr <- years[[i]]
+    tif <- .leafletGeoTiffPath(paste0(layerName, "-", yr))
+    terra::writeRaster(layerList[[i]], tif, overwrite = TRUE)
+    m <- leafem::addGeotiff(
+      m, tif,
+      group = yr,
+      layerId = yr,
+      colorOptions = leafem::colorOptions(
+        palette = cols,
+        na.color = "transparent"
+      )
+    )
+  }
+
+  m <- m |> leaflet::addLayersControl(
+    baseGroups = years,
+    options = leaflet::layersControlOptions(collapsed = FALSE)
+  )
+
+  ## --- slider JS: finds the radio inputs leaflet just rendered and
+  ## .click()s them as the slider moves. No new R deps; pure DOM. ---
+  yearsJSON <- jsonlite::toJSON(years, auto_unbox = FALSE)
+  js <- sprintf(
+    "function(el, x) {
+       var map = this;
+       var years = %s;
+       var pos = '%s';
+       setTimeout(function() {
+         var radios = el.querySelectorAll('.leaflet-control-layers-base input[type=\"radio\"]');
+         if (!radios.length) return;
+         var sliderId = 'ts-slider-' + Math.random().toString(36).slice(2, 8);
+         var labelId  = 'ts-label-'  + Math.random().toString(36).slice(2, 8);
+         var html =
+           '<div style=\"background:white;padding:8px;border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,0.3);\">' +
+             '<input type=\"range\" min=\"0\" max=\"' + (radios.length - 1) + '\" value=\"0\" id=\"' + sliderId + '\" style=\"width:240px;display:block;\">' +
+             '<div style=\"text-align:center;margin-top:4px;font-family:sans-serif;\"><b id=\"' + labelId + '\">' + years[0] + '</b></div>' +
+           '</div>';
+         var SliderCtrl = L.Control.extend({
+           onAdd: function() {
+             var div = L.DomUtil.create('div');
+             div.innerHTML = html;
+             L.DomEvent.disableClickPropagation(div);
+             L.DomEvent.disableScrollPropagation(div);
+             return div;
+           }
+         });
+         map.addControl(new SliderCtrl({position: pos}));
+         var slider = document.getElementById(sliderId);
+         var label  = document.getElementById(labelId);
+         slider.addEventListener('input', function() {
+           var idx = parseInt(this.value);
+           label.textContent = years[idx];
+           radios[idx].click();
+         });
+         radios[0].click();
+       }, 150);
+     }",
+    yearsJSON, sliderPosition
+  )
+
+  htmlwidgets::onRender(m, js)
+}
+
+#' Difference between two layers of a time-series, as a leaflet map
+#'
+#' Subtracts the `from` layer from the `to` layer and plots the result on a
+#' single-layer leaflet map with a diverging palette centred on zero. The
+#' "change from start to finish" view that pairs with [plotTimeSeriesLeaflet()].
+#'
+#' @param x   A multi-layer `SpatRaster` or a list of single-layer
+#'   `SpatRaster`s.
+#' @param from,to   Names (or, if missing, first/last) of the layers to subtract.
+#'   `result = x[[to]] - x[[from]]`.
+#' @param palette,rev   Diverging palette and direction. Defaults to `"RdBu"`,
+#'   reversed (red = positive change, blue = negative change).
+#' @param layerName   Short prefix for the per-layer GeoTIFF filename.
+#'
+#' @return A `leaflet` htmlwidget showing the difference layer with a
+#'   symmetric (zero-centred) colour scale. Static-safe.
+#'
+#' @seealso [plotTimeSeriesLeaflet()] for the time-step viewer that
+#'   complements this difference view.
+#'
+#' @export
+plotChangeOverTime <- function(x,
+                               from = NULL,
+                               to = NULL,
+                               palette = "RdBu",
+                               rev = TRUE,
+                               layerName = "change") {
+  pkgs <- c("leaflet", "leafem", "terra")
+  requireNamespaces(pkgs)
+
+  ## --- coerce input ---
+  if (inherits(x, "SpatRaster")) {
+    nlyr <- terra::nlyr(x)
+    layerList <- lapply(seq_len(nlyr), function(i) x[[i]])
+    names(layerList) <- names(x)
+  } else if (is.list(x) && all(vapply(x, inherits, logical(1), "SpatRaster"))) {
+    layerList <- x
+  } else {
+    stop("`x` must be a multi-layer SpatRaster or a list of SpatRasters",
+         call. = FALSE)
+  }
+
+  ns <- names(layerList)
+  if (is.null(ns) || any(!nzchar(ns))) {
+    stop("layers of `x` must be named (the names label the from/to selection)",
+         call. = FALSE)
+  }
+  if (length(layerList) < 2L) {
+    stop("`plotChangeOverTime()` needs at least 2 named layers", call. = FALSE)
+  }
+  if (is.null(from)) from <- ns[[1L]]
+  if (is.null(to))   to   <- ns[[length(ns)]]
+  if (!from %in% ns) stop("`from = \"", from, "\"` not in layer names: ",
+                          paste(ns, collapse = ", "), call. = FALSE)
+  if (!to   %in% ns) stop("`to = \"",   to,   "\"` not in layer names: ",
+                          paste(ns, collapse = ", "), call. = FALSE)
+
+  ## --- difference, symmetric breaks around 0 ---
+  diffRas <- layerList[[to]] - layerList[[from]]
+  vrange  <- terra::minmax(diffRas)
+  absmax  <- max(abs(vrange), na.rm = TRUE)
+  if (!is.finite(absmax) || absmax == 0) absmax <- 1   # degenerate fallback
+
+  cols <- grDevices::hcl.colors(100, palette)
+  if (isTRUE(rev)) cols <- base::rev(cols)
+
+  ## --- one-layer map ---
+  m <- leaflet::leaflet() |> leaflet::addTiles()
+  tif <- .leafletGeoTiffPath(paste0(layerName, "-", to, "-minus-", from))
+  terra::writeRaster(diffRas, tif, overwrite = TRUE)
+
+  groupName <- paste0(to, " − ", from)   # use proper minus sign (displayed in UI)
+  layerId   <- paste0(make.names(to), "-minus-", make.names(from))   # no spaces
+  m <- leafem::addGeotiff(
+    m, tif,
+    group = groupName,
+    layerId = layerId,
+    colorOptions = leafem::colorOptions(
+      palette = cols,
+      breaks = seq(-absmax, absmax, length.out = length(cols) + 1L),
+      na.color = "transparent"
+    )
+  )
+
+  m |> leaflet::addLayersControl(
+    overlayGroups = groupName,
+    options = leaflet::layersControlOptions(collapsed = FALSE)
+  )
+}
+
 ## Resolve a GeoTIFF output path for a raster layer used by `plotSAsLeaflet`.
 ## Outside of a knitr render, returns a `tempfile()` (preserves existing
 ## interactive behaviour in RStudio's viewer). Inside knitr, returns a path
