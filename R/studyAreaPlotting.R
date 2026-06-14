@@ -718,6 +718,7 @@ plotChangeOverTime <- function(x,
 
   m <- leaflet::leaflet() |> leaflet::addTiles()
   groupNames <- character()
+  legendIdx  <- 0L     # integer suffix on the legend className → JS-friendly
 
   for (objName in names(objects)) {
     layerList <- objects[[objName]]
@@ -757,7 +758,8 @@ plotChangeOverTime <- function(x,
     ## (see SpaDES.shiny:::.shineAddDiff): pass `rev(cols)` to colorNumeric AND
     ## reverse the label order via labFormat -- both flips compose so the
     ## gradient bar shows positive (blue) at top with correctly oriented labels.
-    ## Class tag drives the legend-toggle JS below.
+    ## Integer suffix in className -> JS lookup is bulletproof regardless of
+    ## special chars in groupName.
     dom <- c(-absmax, absmax)
     m <- m |> leaflet::addLegend(
       position  = legendPosition,
@@ -766,11 +768,12 @@ plotChangeOverTime <- function(x,
       values    = dom,
       title     = groupName,
       opacity   = 1,
-      className = paste0("info legend ts-legend-", make.names(groupName)),
+      className = paste0("info legend ts-legend-", legendIdx),
       labFormat = leaflet::labelFormat(
         transform = function(x) sort(x, decreasing = TRUE)
       )
     )
+    legendIdx <- legendIdx + 1L
   }
 
   if (!length(groupNames)) {
@@ -786,34 +789,27 @@ plotChangeOverTime <- function(x,
   ## leaflet's `group =` on addLegend ties to overlay groups, NOT baseGroups,
   ## so per-object legends are all simultaneously visible unless we toggle
   ## them ourselves. Listen for `baselayerchange` and show only the matching
-  ## legend (by the className we tagged it with).
-  safeNames <- vapply(groupNames, make.names, character(1))
+  ## legend (by integer index encoded in its className).
+  groupsJSON <- jsonlite::toJSON(groupNames, auto_unbox = FALSE)
   legendToggleJS <- sprintf("
     function(el, x) {
       var map = this;
-      var safe = %s;
-      function show(name) {
-        var s = name.replace(/[^A-Za-z0-9]+/g, '.');
-        var nodes = el.querySelectorAll('.ts-legend-' + s);
-        var all = el.querySelectorAll('[class*=\"ts-legend-\"]');
-        all.forEach(function(n) { n.style.display = 'none'; });
-        nodes.forEach(function(n) { n.style.display = ''; });
+      var groups = %s;
+      function showByIdx(idx) {
+        for (var i = 0; i < groups.length; i++) {
+          var nodes = el.querySelectorAll('.ts-legend-' + i);
+          nodes.forEach(function(n) { n.style.display = (i === idx ? '' : 'none'); });
+        }
       }
       setTimeout(function() {
-        map.on('baselayerchange', function(e) { show(e.name); });
-        // initial: leaflet auto-shows the first baseGroup
-        if (safe.length) show(safe[0].replace(/\\./g, ' ').replace(/\\s+(\\d)/, '$1'));
-        // simpler & robust: just trigger off the checked radio in the layers control
-        setTimeout(function() {
-          var checked = el.querySelector('.leaflet-control-layers-base input[type=\"radio\"]:checked');
-          if (checked) {
-            var label = checked.parentNode.textContent.trim();
-            show(label);
-          }
-        }, 50);
+        map.on('baselayerchange', function(e) {
+          var idx = groups.indexOf(e.name);
+          if (idx >= 0) showByIdx(idx);
+        });
+        showByIdx(0);   // leaflet auto-shows the first baseGroup
       }, 100);
     }",
-    jsonlite::toJSON(safeNames, auto_unbox = FALSE)
+    groupsJSON
   )
   m <- htmlwidgets::onRender(m, legendToggleJS)
 
