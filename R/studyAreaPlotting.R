@@ -802,10 +802,12 @@ plotChangeOverTime <- function(x,
   ## first diff raster (all diffs share the same area). Padding is in pixels;
   ## ~220 leaves room for a typical legend, ~30 for a comfortable margin.
   if (!is.null(bounds)) {
-    ## Padding in pixels: small base margin everywhere, plus extra on the
-    ## legend's side to keep the raster from sliding underneath it.
-    base <- c(10L, 10L)
-    legendPad <- c(150L, 30L)            # ~legend width × ~legend height
+    ## Padding in pixels. Leaflet's fitBounds inset = corner-keep-out distance:
+    ## the data is fit into (width - leftPad - rightPad) x (height - topPad -
+    ## bottomPad) and centered within THAT, so generous padding on the legend
+    ## side both shrinks AND shifts the visible map away from the legend.
+    base <- c(20L, 20L)
+    legendPad <- c(260L, 100L)           # ~legend control width × height
     ptl <- base
     pbr <- base
     if (legendPosition == "topleft")     ptl <- pmax(ptl, legendPad)
