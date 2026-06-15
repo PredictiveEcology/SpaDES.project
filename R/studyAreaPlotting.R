@@ -906,7 +906,17 @@ plotChangeOverTime <- function(x,
   }
 
   if (!length(groupNames)) {
-    stop("No object had at least 2 named layers to difference", call. = FALSE)
+    discovered <- vapply(names(objects), function(o) {
+      yrs <- names(objects[[o]])
+      sprintf("%s (%d year%s%s)", o, length(yrs),
+              if (length(yrs) == 1L) "" else "s",
+              if (length(yrs)) paste0(": ", paste(yrs, collapse = ", ")) else "")
+    }, character(1))
+    stop("No object had at least 2 named layers to difference. Discovered:\n  - ",
+         paste(discovered, collapse = "\n  - "),
+         "\nEach object needs >= 2 entries with parseable year tags ",
+         "(default regex '[0-9]+' in the filename) for `from`/`to` to resolve.",
+         call. = FALSE)
   }
 
   ## --- fitBounds with padding that respects where the legend lives, so

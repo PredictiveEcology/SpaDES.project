@@ -3,12 +3,13 @@ test_that(".leafletGeoTiffPath: tempfile when knitr is NOT in progress", {
   path <- SpaDES.project:::.leafletGeoTiffPath("myraster")
 
   expect_match(path, "\\.tif$")
-  ## `tempfile()` puts files directly in `tempdir()` -- compare raw strings,
-  ## NOT `normalizePath()`, because on macOS/Windows the file doesn't exist
-  ## yet, so `normalizePath(path, mustWork = FALSE)` won't resolve symlinks
-  ## consistently with `normalizePath(tempdir())` (which does, because tempdir
-  ## exists). That mismatch was the prior CI failure.
-  expect_identical(dirname(path), tempdir())
+  ## `tempfile()` puts files directly in `tempdir()`. Compare with both
+  ## sides slash-normalised: on Windows R CMD check, `tempdir()` returns
+  ## mixed backslashes while `tempfile()` normalises to forward slashes
+  ## ("C:\\...\\RtmpXX/working_dir\\RtmpYY" vs "C:/.../RtmpXX/working_dir/RtmpYY")
+  ## -- same logical path, different separators, so raw `identical()` fails.
+  slashy <- function(p) gsub("[\\\\/]+", "/", p)
+  expect_identical(slashy(dirname(path)), slashy(tempdir()))
 })
 
 test_that(".leafletGeoTiffPath: knitr::fig_path-based when knitr IS in progress", {
