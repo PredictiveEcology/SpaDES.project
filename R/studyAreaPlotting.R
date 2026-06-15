@@ -716,9 +716,15 @@ plotChangeOverTime <- function(x,
   )
   if (isTRUE(rev)) cols <- base::rev(cols)
 
-  m <- leaflet::leaflet() |> leaflet::addTiles()
+  ## zoomSnap/zoomDelta = 0.25 (shine's pattern) lets fitBounds pick a
+  ## fractional zoom that hugs the data instead of snapping to the next
+  ## integer (= one step too far out, the "tiny map" complaint).
+  m <- leaflet::leaflet(options = leaflet::leafletOptions(
+         zoomSnap = 0.25, zoomDelta = 0.25)) |>
+    leaflet::addTiles()
   groupNames <- character()
   legendIdx  <- 0L     # integer suffix on the legend className → JS-friendly
+  bounds     <- NULL   # captured from first diff raster for fitBounds() later
 
   for (objName in names(objects)) {
     layerList <- objects[[objName]]
@@ -734,6 +740,13 @@ plotChangeOverTime <- function(x,
     absmax  <- max(abs(vrange), na.rm = TRUE)
     if (!is.finite(absmax) || absmax == 0) absmax <- 1
 
+    if (is.null(bounds)) {
+      bounds <- tryCatch({
+        e <- terra::ext(terra::project(diffRas, "EPSG:4326"))
+        as.numeric(c(e[1L], e[3L], e[2L], e[4L]))   # lng1, lat1, lng2, lat2
+      }, error = function(...) NULL)
+    }
+
     tif <- .leafletGeoTiffPath(paste0(layerName, "-", objName, "-",
                                       toYr, "-minus-", fromYr))
     terra::writeRaster(diffRas, tif, overwrite = TRUE)
@@ -747,6 +760,9 @@ plotChangeOverTime <- function(x,
       m, tif,
       group = groupName,
       layerId = layerId,
+      ## leave autozoom = default TRUE so we still get *some* fit even if
+      ## bounds capture fails downstream; our legend-aware fitBounds()
+      ## below will override when bounds are valid.
       colorOptions = leafem::colorOptions(
         palette  = cols,
         breaks   = breaks,
@@ -778,6 +794,28 @@ plotChangeOverTime <- function(x,
 
   if (!length(groupNames)) {
     stop("No object had at least 2 named layers to difference", call. = FALSE)
+  }
+
+  ## --- fitBounds with padding that respects where the legend lives, so
+  ## the raster isn't half-obscured on initial view. We disabled addGeotiff's
+  ## autozoom above; the captured `bounds` is the EPSG:4326 extent of the
+  ## first diff raster (all diffs share the same area). Padding is in pixels;
+  ## ~220 leaves room for a typical legend, ~30 for a comfortable margin.
+  if (!is.null(bounds)) {
+    ## Padding in pixels: small base margin everywhere, plus extra on the
+    ## legend's side to keep the raster from sliding underneath it.
+    base <- c(10L, 10L)
+    legendPad <- c(150L, 30L)            # ~legend width × ~legend height
+    ptl <- base
+    pbr <- base
+    if (legendPosition == "topleft")     ptl <- pmax(ptl, legendPad)
+    if (legendPosition == "bottomleft")  ptl <- pmax(ptl, c(legendPad[1L], base[2L]))
+    if (legendPosition == "topright")    pbr <- pmax(pbr, c(legendPad[1L], base[2L]))
+    if (legendPosition == "bottomright") pbr <- pmax(pbr, legendPad)
+    m <- m |> leaflet::fitBounds(
+      bounds[1L], bounds[2L], bounds[3L], bounds[4L],
+      options = list(paddingTopLeft = ptl, paddingBottomRight = pbr)
+    )
   }
 
   ## --- baseGroups give RADIO behaviour -- only one object visible at a time ---
