@@ -533,29 +533,25 @@ hasNames <- function(rasterToMatchPalette) {
 #' into the qmd's `_files/figure-html/` folder rather than `tempfile()`.
 #'
 #' @param x   One of:
-#'   * a multi-layer `SpatRaster`
-#'   * a list of single-layer `SpatRaster`s
-#'   * a `simList` -- reads `<name>*.tif` from `SpaDES.core::outputPath(x)`
+#'   * a multi-layer `SpatRaster` -- becomes one "object" named `"raster"`
+#'   * a list of single-layer `SpatRaster`s -- same
+#'   * a `simList` -- reads ALL `<obj>*.tif` time-series from
+#'     `SpaDES.core::outputPath(x)`
 #'   * a length-1 character path to a directory of GeoTIFFs -- same scan
 #'
-#'   The order of layers becomes the order along the slider; for the
-#'   disk-scan cases, files are sorted by the numeric content of the
-#'   year-tag in the filename (e.g. "year2025").
-#' @param years   Character or numeric vector, length equal to the number of
-#'   layers. Defaults to `names(x)` (or the parsed year-tags for the
-#'   disk-scan cases). These labels appear on the slider and as the
-#'   radio-button group names.
-#' @param name   Required when `x` is a `simList` or a directory path:
-#'   the base name of the output object (e.g. `"simPred"`) used to filter
-#'   the GeoTIFF files to load. Ignored when `x` is a SpatRaster or list.
-#' @param palette   Name of an `hcl.colors()` palette (e.g. `"RdBu"`,
-#'   `"Spectral"`, `"viridis"`). Default `"RdBu"` -- a diverging palette
-#'   suited to difference / signed-magnitude maps.
-#' @param rev   Reverse the palette? Default `TRUE` (puts red on positive).
+#'   For the disk-scan cases, files are grouped by base name (last regex
+#'   match = time tag) into separate "objects". Each object becomes a
+#'   radio-selectable layer in the UI.
+#' @param palette   Palette name. Default `"viridis"`. Tried first with
+#'   [terra::map.pal()], falling back to [grDevices::hcl.colors()].
+#' @param rev   Reverse the palette? Default `FALSE`.
 #' @param layerName   Short prefix used for each per-layer GeoTIFF filename
 #'   (avoids collisions when multiple time-series sit on the same page).
-#' @param sliderPosition   Leaflet control position for the slider:
-#'   `"bottomleft"` (default), `"bottomright"`, `"topleft"`, `"topright"`.
+#' @param sliderPosition   Leaflet control position for the object-radio +
+#'   year-slider UI: `"bottomleft"` (default), `"bottomright"`,
+#'   `"topleft"`, `"topright"`.
+#' @param legendPosition   Leaflet control position for the per-object
+#'   colour legend. Default `"bottomright"`.
 #'
 #' @return A `leaflet` htmlwidget with the slider injected via
 #'   `htmlwidgets::onRender()`. Ships as static HTML -- no Shiny server needed.
@@ -564,102 +560,219 @@ hasNames <- function(rasterToMatchPalette) {
 #'
 #' @export
 plotTimeSeriesLeaflet <- function(x,
-                                  years = NULL,
-                                  name = NULL,
-                                  palette = "RdBu",
-                                  rev = TRUE,
+                                  palette = "viridis",
+                                  rev = FALSE,
                                   layerName = "raster",
-                                  sliderPosition = "bottomleft") {
+                                  sliderPosition = "bottomleft",
+                                  legendPosition = "bottomright") {
   pkgs <- c("leaflet", "leafem", "terra", "htmlwidgets", "jsonlite")
   requireNamespaces(pkgs)
 
-  ## --- coerce input to a list-of-single-layer-SpatRasters ---
-  layerList <- .coerceToLayerList(x, name = name)
-  if (is.null(years)) years <- names(layerList)
+  ## --- coerce input: get ALL objects (one per discovered time-series) ---
+  objects <- .coerceToMultiObjects(x)
+  objects <- Filter(function(lst) length(lst) >= 1L, objects)
+  if (!length(objects)) stop("No usable objects to plot", call. = FALSE)
 
-  if (length(layerList) < 2L) {
-    stop("`plotTimeSeriesLeaflet()` requires at least 2 layers; ",
-         "use `plotSAsLeaflet()` for a single raster", call. = FALSE)
-  }
-  if (is.null(years) || !length(years)) {
-    years <- as.character(seq_along(layerList))
-  }
-  if (length(years) != length(layerList)) {
-    stop("`years` length (", length(years),
-         ") does not match number of layers (", length(layerList), ")",
-         call. = FALSE)
-  }
-  years <- as.character(years)
-
-  ## --- build the colour ramp once ---
-  cols <- grDevices::hcl.colors(100, palette)
+  ## --- shared colour ramp; per-object domain so palette stays meaningful ---
+  cols <- tryCatch(terra::map.pal(palette, n = 100),
+                   error = function(e) grDevices::hcl.colors(100, palette))
   if (isTRUE(rev)) cols <- base::rev(cols)
 
-  ## --- assemble the map: basemap + one group per year ---
-  m <- leaflet::leaflet() |> leaflet::addTiles()
+  m <- leaflet::leaflet(options = leaflet::leafletOptions(
+         zoomSnap = 0.25, zoomDelta = 0.25)) |>
+    leaflet::addTiles()
 
-  for (i in seq_along(layerList)) {
-    yr <- years[[i]]
-    tif <- .leafletGeoTiffPath(paste0(layerName, "-", yr))
-    terra::writeRaster(layerList[[i]], tif, overwrite = TRUE)
-    m <- leafem::addGeotiff(
-      m, tif,
-      group = yr,
-      layerId = yr,
-      colorOptions = leafem::colorOptions(
-        palette = cols,
-        na.color = "transparent"
+  bounds      <- NULL
+  objYears    <- list()       # objName -> character vector of year labels (ordered)
+  objDomains  <- list()       # objName -> c(min, max) used for both raster + legend
+  legendIdx   <- 0L
+
+  for (objName in names(objects)) {
+    layerList <- objects[[objName]]
+    yrs <- names(layerList)
+    if (is.null(yrs) || any(!nzchar(yrs))) next
+    objYears[[objName]] <- as.character(yrs)
+
+    ## per-object value range -- one palette domain for all years within an
+    ## object so the slider doesn't change the colour meaning as you scrub
+    allVals <- unlist(lapply(layerList, function(r) {
+      mm <- terra::minmax(r); mm[is.finite(mm)]
+    }))
+    if (length(allVals)) {
+      rng <- range(allVals)
+    } else {
+      rng <- c(0, 1)
+    }
+    if (diff(rng) == 0) rng <- rng + c(-1, 1) * (abs(rng[1L]) + 1) * 1e-6
+    objDomains[[objName]] <- rng
+
+    for (yr in yrs) {
+      ras <- layerList[[yr]]
+      tif <- .leafletGeoTiffPath(paste0(layerName, "-", objName, "-", yr))
+      terra::writeRaster(ras, tif, overwrite = TRUE)
+
+      if (is.null(bounds)) {
+        bounds <- tryCatch({
+          e <- terra::ext(terra::project(ras, "EPSG:4326"))
+          as.numeric(c(e[1L], e[3L], e[2L], e[4L]))
+        }, error = function(...) NULL)
+      }
+
+      groupName <- paste0(objName, "_", yr)
+      m <- leafem::addGeotiff(
+        m, tif,
+        group = groupName,
+        layerId = make.names(groupName),
+        colorOptions = leafem::colorOptions(
+          palette  = cols,
+          domain   = rng,
+          na.color = "transparent"
+        )
       )
+    }
+
+    ## one legend per object, toggle-tied by integer index in its className.
+    ## shine's rev-pal + reversed-labFormat trick: max value at TOP.
+    m <- m |> leaflet::addLegend(
+      position  = legendPosition,
+      pal       = leaflet::colorNumeric(base::rev(cols), domain = rng,
+                                        na.color = "transparent"),
+      values    = rng,
+      title     = objName,
+      opacity   = 1,
+      className = paste0("info legend ts-objlegend-", legendIdx),
+      labFormat = leaflet::labelFormat(
+        transform = function(x) sort(x, decreasing = TRUE)
+      )
+    )
+    legendIdx <- legendIdx + 1L
+  }
+
+  if (!length(objYears)) {
+    stop("No object had usable named years", call. = FALSE)
+  }
+
+  ## --- fitBounds with padding for slider + legend ---
+  if (!is.null(bounds)) {
+    base <- c(20L, 20L)
+    legPad   <- c(260L, 100L)
+    slidePad <- c(280L, 80L)
+    ptl <- base; pbr <- base
+    add <- function(side, p) switch(side,
+      topleft     = function(cur) pmax(cur, p),
+      bottomleft  = function(cur) pmax(cur, c(p[1L], base[2L])),
+      topright    = function(cur) pmax(cur, c(p[1L], base[2L])),
+      bottomright = function(cur) pmax(cur, p),
+      identity)
+    apply_to_TL <- function(side, p) if (side %in% c("topleft", "bottomleft")) add(side, p) else identity
+    apply_to_BR <- function(side, p) if (side %in% c("topright", "bottomright")) add(side, p) else identity
+    ptl <- apply_to_TL(legendPosition, legPad)(ptl)
+    pbr <- apply_to_BR(legendPosition, legPad)(pbr)
+    ptl <- apply_to_TL(sliderPosition, slidePad)(ptl)
+    pbr <- apply_to_BR(sliderPosition, slidePad)(pbr)
+    m <- m |> leaflet::fitBounds(
+      bounds[1L], bounds[2L], bounds[3L], bounds[4L],
+      options = list(paddingTopLeft = ptl, paddingBottomRight = pbr)
     )
   }
 
+  ## --- hidden layers control: gives us baseGroup radios that toggle
+  ## layer visibility for free; our custom UI just .click()s them ---
+  allGroups <- unlist(lapply(names(objYears), function(o) paste0(o, "_", objYears[[o]])))
   m <- m |> leaflet::addLayersControl(
-    baseGroups = years,
-    options = leaflet::layersControlOptions(collapsed = FALSE)
+    baseGroups = allGroups,
+    options    = leaflet::layersControlOptions(collapsed = TRUE)
   )
 
-  ## --- slider JS: finds the radio inputs leaflet just rendered and
-  ## .click()s them as the slider moves. No new R deps; pure DOM. ---
-  yearsJSON <- jsonlite::toJSON(years, auto_unbox = FALSE)
-  js <- sprintf(
+  ## --- inject custom UI: object radios + year slider + legend toggle ---
+  objYearsJSON <- jsonlite::toJSON(objYears, auto_unbox = FALSE)
+  uiJS <- sprintf(
     "function(el, x) {
-       var map = this;
-       var years = %s;
-       var pos = '%s';
-       setTimeout(function() {
-         var radios = el.querySelectorAll('.leaflet-control-layers-base input[type=\"radio\"]');
-         if (!radios.length) return;
-         var sliderId = 'ts-slider-' + Math.random().toString(36).slice(2, 8);
-         var labelId  = 'ts-label-'  + Math.random().toString(36).slice(2, 8);
-         var html =
-           '<div style=\"background:white;padding:8px;border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,0.3);\">' +
-             '<input type=\"range\" min=\"0\" max=\"' + (radios.length - 1) + '\" value=\"0\" id=\"' + sliderId + '\" style=\"width:240px;display:block;\">' +
-             '<div style=\"text-align:center;margin-top:4px;font-family:sans-serif;\"><b id=\"' + labelId + '\">' + years[0] + '</b></div>' +
-           '</div>';
-         var SliderCtrl = L.Control.extend({
-           onAdd: function() {
-             var div = L.DomUtil.create('div');
-             div.innerHTML = html;
-             L.DomEvent.disableClickPropagation(div);
-             L.DomEvent.disableScrollPropagation(div);
-             return div;
-           }
-         });
-         map.addControl(new SliderCtrl({position: pos}));
-         var slider = document.getElementById(sliderId);
-         var label  = document.getElementById(labelId);
-         slider.addEventListener('input', function() {
-           var idx = parseInt(this.value);
-           label.textContent = years[idx];
-           radios[idx].click();
-         });
-         radios[0].click();
-       }, 150);
-     }",
-    yearsJSON, sliderPosition
-  )
+      var map = this;
+      var objYears = %s;
+      var objNames = Object.keys(objYears);
+      var sliderPos = '%s';
+      var activeObj = objNames[0];
+      var activeYearIdx = 0;
 
-  htmlwidgets::onRender(m, js)
+      setTimeout(function() {
+        // Build the custom control HTML (object radios + year slider)
+        var html = '<div style=\"background:white;padding:8px 10px;border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,0.3);font-family:sans-serif;font-size:11px;line-height:1.3;\">';
+        if (objNames.length > 1) {
+          html += '<div style=\"font-weight:bold;margin-bottom:4px;\">Object</div>';
+          html += '<div style=\"display:flex;flex-direction:column;gap:2px;margin-bottom:8px;\">';
+          objNames.forEach(function(o, i) {
+            var checked = (i === 0) ? ' checked' : '';
+            html += '<label style=\"cursor:pointer;\"><input type=\"radio\" name=\"ts-obj\" value=\"' + o + '\"' + checked + '> <span>' + o + '</span></label>';
+          });
+          html += '</div>';
+        }
+        html += '<div style=\"margin-bottom:2px;\"><b>Year:</b> <span id=\"ts-year-label\"></span></div>';
+        html += '<input type=\"range\" id=\"ts-year-slider\" min=\"0\" max=\"0\" value=\"0\" style=\"width:240px;display:block;\">';
+        html += '</div>';
+
+        var Ctl = L.Control.extend({
+          onAdd: function() {
+            var d = L.DomUtil.create('div');
+            d.innerHTML = html;
+            L.DomEvent.disableClickPropagation(d);
+            L.DomEvent.disableScrollPropagation(d);
+            return d;
+          }
+        });
+        map.addControl(new Ctl({position: sliderPos}));
+
+        // Wire it up
+        var slider = el.querySelector('#ts-year-slider');
+        var label  = el.querySelector('#ts-year-label');
+        var radios = el.querySelectorAll('input[name=\"ts-obj\"]');
+        var baseRadios = el.querySelectorAll('.leaflet-control-layers-base input[type=\"radio\"]');
+
+        function clickBaseGroup(groupName) {
+          for (var i = 0; i < baseRadios.length; i++) {
+            var lbl = baseRadios[i].parentNode.textContent.trim();
+            if (lbl === groupName) { baseRadios[i].click(); return; }
+          }
+        }
+        function showLegendByIdx(idx) {
+          for (var i = 0; i < objNames.length; i++) {
+            var nodes = el.querySelectorAll('.ts-objlegend-' + i);
+            nodes.forEach(function(n) { n.style.display = (i === idx ? '' : 'none'); });
+          }
+        }
+        function refreshSlider() {
+          var yrs = objYears[activeObj];
+          slider.min = 0;
+          slider.max = yrs.length - 1;
+          if (activeYearIdx > yrs.length - 1) activeYearIdx = yrs.length - 1;
+          slider.value = activeYearIdx;
+          label.textContent = yrs[activeYearIdx];
+        }
+        function apply() {
+          var yrs = objYears[activeObj];
+          var yr = yrs[activeYearIdx];
+          label.textContent = yr;
+          clickBaseGroup(activeObj + '_' + yr);
+          showLegendByIdx(objNames.indexOf(activeObj));
+        }
+
+        radios.forEach(function(r) {
+          r.addEventListener('change', function() {
+            if (r.checked) { activeObj = r.value; refreshSlider(); apply(); }
+          });
+        });
+        slider.addEventListener('input', function() {
+          activeYearIdx = parseInt(this.value, 10);
+          apply();
+        });
+
+        refreshSlider();
+        apply();
+      }, 150);
+    }",
+    objYearsJSON, sliderPosition
+  )
+  htmlwidgets::onRender(m, uiJS)
 }
 
 #' Difference between two layers of a time-series, as a leaflet map

@@ -21,32 +21,23 @@ test_that("plotTimeSeriesLeaflet: errors on non-raster input", {
                "multi-layer SpatRaster")
 })
 
-test_that("plotTimeSeriesLeaflet: errors when fewer than 2 layers", {
-  r <- mkSpatRaster(nlyr = 1)
-  expect_error(plotTimeSeriesLeaflet(r), "at least 2 layers")
-})
-
-test_that("plotTimeSeriesLeaflet: errors when years length doesn't match layers", {
-  r <- mkSpatRaster(nlyr = 3)
-  expect_error(plotTimeSeriesLeaflet(r, years = c(2020, 2025)),
-               "does not match")
-})
-
-test_that("plotTimeSeriesLeaflet: returns leaflet widget; year labels reach the slider JS", {
+test_that("plotTimeSeriesLeaflet: returns leaflet widget; objYears JSON reaches the UI JS", {
   withr::local_options(knitr.in.progress = TRUE)
   withr::with_tempdir({
     r <- mkSpatRaster(nlyr = 3)
     m <- plotTimeSeriesLeaflet(r)
 
     expect_s3_class(m, "leaflet")
-    ## the layer control radios are wired by leaflet itself; the slider JS
-    ## is what we add via onRender -- the year strings must be in there
+    ## the onRender JS must carry the year labels in the objYears JSON
     js <- vapply(m$jsHooks$render, function(h) h$code, character(1))
     js_all <- paste(js, collapse = "\n")
     expect_match(js_all, "year2020")
     expect_match(js_all, "year2030")
-    ## the slider position arg should round-trip
-    expect_match(js_all, "bottomleft")
+    expect_match(js_all, "bottomleft")    # default sliderPosition
+    ## the wiring keywords -- proves the UI is hooked up rather than just
+    ## sitting as static markup
+    expect_match(js_all, "ts-year-slider")
+    expect_match(js_all, "addControl")
   })
 })
 
@@ -69,6 +60,27 @@ test_that("plotTimeSeriesLeaflet: custom sliderPosition is honoured", {
     js <- paste(vapply(m$jsHooks$render, function(h) h$code, character(1)),
                 collapse = "\n")
     expect_match(js, "topright")
+  })
+})
+
+test_that("plotTimeSeriesLeaflet: multi-object input renders an object radio in the UI", {
+  withr::local_options(knitr.in.progress = TRUE)
+  d <- withr::local_tempdir()
+  ## stage two objects, each with 3 years, in the same dir
+  for (yr in c(2020, 2025, 2030)) {
+    r <- terra::rast(nrows = 4, ncols = 4, vals = runif(16))
+    terra::writeRaster(r, file.path(d, paste0("simPred_year",  yr, ".tif")))
+    terra::writeRaster(r, file.path(d, paste0("simBinMap_year", yr, ".tif")))
+  }
+  withr::with_tempdir({
+    m <- plotTimeSeriesLeaflet(d)
+    expect_s3_class(m, "leaflet")
+    js <- paste(vapply(m$jsHooks$render, function(h) h$code, character(1)),
+                collapse = "\n")
+    ## both objects discovered AND object-radio markup present
+    expect_match(js, "simPred")
+    expect_match(js, "simBinMap")
+    expect_match(js, "ts-obj")     # object radio name (in injected UI HTML)
   })
 })
 
@@ -171,12 +183,13 @@ test_that("plotTimeSeriesLeaflet + plotChangeOverTime: accept a directory of Geo
   d <- withr::local_tempdir()
   stageOutputDir(d)
   withr::with_tempdir({
-    m1 <- plotTimeSeriesLeaflet(d, name = "simPred")
+    m1 <- plotTimeSeriesLeaflet(d)
     expect_s3_class(m1, "leaflet")
     js <- paste(vapply(m1$jsHooks$render, function(h) h$code, character(1)),
                 collapse = "\n")
     expect_match(js, "year2020")
     expect_match(js, "year2030")
+    expect_match(js, "simPred")     # multi-object discovery worked
 
     m2 <- plotChangeOverTime(d)
     expect_s3_class(m2, "leaflet")

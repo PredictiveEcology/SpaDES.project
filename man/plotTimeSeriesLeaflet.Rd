@@ -6,47 +6,41 @@
 \usage{
 plotTimeSeriesLeaflet(
   x,
-  years = NULL,
-  name = NULL,
-  palette = "RdBu",
-  rev = TRUE,
+  palette = "viridis",
+  rev = FALSE,
   layerName = "raster",
-  sliderPosition = "bottomleft"
+  sliderPosition = "bottomleft",
+  legendPosition = "bottomright"
 )
 }
 \arguments{
 \item{x}{One of:
 \itemize{
-\item a multi-layer \code{SpatRaster}
-\item a list of single-layer \code{SpatRaster}s
-\item a \code{simList} -- reads \verb{<name>*.tif} from \code{SpaDES.core::outputPath(x)}
+\item a multi-layer \code{SpatRaster} -- becomes one "object" named \code{"raster"}
+\item a list of single-layer \code{SpatRaster}s -- same
+\item a \code{simList} -- reads ALL \verb{<obj>*.tif} time-series from
+\code{SpaDES.core::outputPath(x)}
 \item a length-1 character path to a directory of GeoTIFFs -- same scan
 }
 
-The order of layers becomes the order along the slider; for the
-disk-scan cases, files are sorted by the numeric content of the
-year-tag in the filename (e.g. "year2025").}
+For the disk-scan cases, files are grouped by base name (last regex
+match = time tag) into separate "objects". Each object becomes a
+radio-selectable layer in the UI.}
 
-\item{years}{Character or numeric vector, length equal to the number of
-layers. Defaults to \code{names(x)} (or the parsed year-tags for the
-disk-scan cases). These labels appear on the slider and as the
-radio-button group names.}
+\item{palette}{Palette name. Default \code{"viridis"}. Tried first with
+\code{\link[terra:map.pal]{terra::map.pal()}}, falling back to \code{\link[grDevices:hcl.colors]{grDevices::hcl.colors()}}.}
 
-\item{name}{Required when \code{x} is a \code{simList} or a directory path:
-the base name of the output object (e.g. \code{"simPred"}) used to filter
-the GeoTIFF files to load. Ignored when \code{x} is a SpatRaster or list.}
-
-\item{palette}{Name of an \code{hcl.colors()} palette (e.g. \code{"RdBu"},
-\code{"Spectral"}, \code{"viridis"}). Default \code{"RdBu"} -- a diverging palette
-suited to difference / signed-magnitude maps.}
-
-\item{rev}{Reverse the palette? Default \code{TRUE} (puts red on positive).}
+\item{rev}{Reverse the palette? Default \code{FALSE}.}
 
 \item{layerName}{Short prefix used for each per-layer GeoTIFF filename
 (avoids collisions when multiple time-series sit on the same page).}
 
-\item{sliderPosition}{Leaflet control position for the slider:
-\code{"bottomleft"} (default), \code{"bottomright"}, \code{"topleft"}, \code{"topright"}.}
+\item{sliderPosition}{Leaflet control position for the object-radio +
+year-slider UI: \code{"bottomleft"} (default), \code{"bottomright"},
+\code{"topleft"}, \code{"topright"}.}
+
+\item{legendPosition}{Leaflet control position for the per-object
+colour legend. Default \code{"bottomright"}.}
 }
 \value{
 A \code{leaflet} htmlwidget with the slider injected via
