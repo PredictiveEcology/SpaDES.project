@@ -171,6 +171,42 @@ test_that(".coerceToLayerList: helpful error when name doesn't match any discove
                "not found among discovered time-series.*simPred.*somethingElse")
 })
 
+test_that(".scanOutputDirForTimeSeries: multi-band SpatRaster expands into per-band objects", {
+  d <- withr::local_tempdir()
+  ## stage 2 years of a 2-band raster simulating speciesLayers_xxx
+  for (yr in c(2020, 2025)) {
+    r <- terra::rast(nrows = 4, ncols = 4, nlyr = 2,
+                     vals = runif(32))
+    names(r) <- c("Picea_mar", "Pinus_sylv")
+    terra::writeRaster(r, file.path(d, paste0("speciesLayers_year", yr, ".tif")))
+  }
+  scan <- SpaDES.project:::.scanOutputDirForTimeSeries(d)
+  ## two objects, one per band, each with both years
+  expect_setequal(names(scan),
+                  c("speciesLayers_Picea_mar", "speciesLayers_Pinus_sylv"))
+  expect_identical(scan[["speciesLayers_Picea_mar"]]$band,  1L)
+  expect_identical(scan[["speciesLayers_Pinus_sylv"]]$band, 2L)
+  expect_equal(nrow(scan[["speciesLayers_Picea_mar"]]$times), 2L)
+})
+
+test_that("plotTimeSeriesLeaflet: multi-band raster gets a radio per band", {
+  d <- withr::local_tempdir()
+  for (yr in c(2020, 2025, 2030)) {
+    r <- terra::rast(nrows = 4, ncols = 4, nlyr = 2, vals = runif(32))
+    names(r) <- c("Picea_mar", "Pinus_sylv")
+    terra::writeRaster(r, file.path(d, paste0("speciesLayers_year", yr, ".tif")))
+  }
+  withr::local_options(knitr.in.progress = TRUE)
+  withr::with_tempdir({
+    m <- plotTimeSeriesLeaflet(d)
+    expect_s3_class(m, "leaflet")
+    js <- paste(vapply(m$jsHooks$render, function(h) h$code, character(1)),
+                collapse = "\n")
+    expect_match(js, "speciesLayers_Picea_mar")
+    expect_match(js, "speciesLayers_Pinus_sylv")
+  })
+})
+
 test_that(".coerceToLayerList: rejects nonsense input shapes", {
   expect_error(SpaDES.project:::.coerceToLayerList(42),
                "multi-layer SpatRaster")

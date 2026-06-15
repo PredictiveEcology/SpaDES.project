@@ -1020,9 +1020,10 @@ plotChangeOverTime <- function(x,
   if (!length(objs)) {
     stop("No time-series objects discovered under: ", outputDir, call. = FALSE)
   }
-  ## convert each scanned df → named list of SpatRasters
-  lapply(objs, function(df) {
-    lst <- lapply(df$file, terra::rast)
+  ## convert each scanned (times df + band index) → named list of SpatRasters
+  lapply(objs, function(o) {
+    df <- o$times
+    lst <- lapply(df$file, function(f) terra::rast(f, lyrs = o$band))
     names(lst) <- ifelse(is.na(df$time),
                          tools::file_path_sans_ext(basename(df$file)),
                          paste0("year", df$time))
@@ -1070,8 +1071,9 @@ plotChangeOverTime <- function(x,
          outputDir, call. = FALSE)
   }
 
-  df <- objs[[name]]                              # data.frame(time, file), sorted
-  lst <- lapply(df$file, terra::rast)
+  o <- objs[[name]]                               # list(times, band)
+  df <- o$times                                   # data.frame(time, file), sorted
+  lst <- lapply(df$file, function(f) terra::rast(f, lyrs = o$band))
   names(lst) <- ifelse(is.na(df$time),
                        tools::file_path_sans_ext(basename(df$file)),
                        paste0("year", df$time))
@@ -1081,13 +1083,19 @@ plotChangeOverTime <- function(x,
 ## Walk an output directory and group .tif files into time-series objects.
 ##
 ## Discovery/parsing logic ported from `SpaDES.shiny:::.shineScan()` so the two
-## packages stay consistent: list .tif files recursively, parse the LAST regex
-## match in each filename as the numeric time, treat the remainder (with
-## trailing "year" word stripped) as the object key, group by key, sort by time.
+## packages stay consistent:
+##   - list .tif files recursively, parse the LAST regex match in each filename
+##     as the numeric time, treat the remainder (with trailing "year" word
+##     stripped) as the object key, group by key, sort by time;
+##   - inspect the first raster of each group; for multi-band SpatRasters
+##     (e.g. `speciesLayers_xxx`), EXPAND into one object per band so each
+##     band gets its own slider/legend in the UI.
 ##
-## Returns a named list, one entry per discovered object: data.frame with
-## columns `time` (numeric, sorted) and `file` (character, full path). Files
-## with no time match are kept with `time = NA` (rendered as static layers).
+## Returns a named list. Each entry is a list with:
+##   * `times`: data.frame(time, file), sorted by time
+##   * `band` : integer band index inside `file` (1 for single-band rasters)
+##
+## Files with no time match are kept with `time = NA` (static layers).
 .scanOutputDirForTimeSeries <- function(path, timePattern = "[0-9]+") {
   files <- list.files(path, recursive = TRUE, full.names = TRUE,
                       pattern = "\\.tif$", ignore.case = TRUE)
@@ -1121,7 +1129,19 @@ plotChangeOverTime <- function(x,
       file = vapply(members, `[[`, character(1), "file"),
       stringsAsFactors = FALSE
     )
-    out[[k]] <- df[order(df$time, na.last = TRUE), , drop = FALSE]
+    df <- df[order(df$time, na.last = TRUE), , drop = FALSE]
+
+    ## inspect the first raster for band count -- shine pattern (.shineScan
+    ## L148-162). Multi-band → one object per band; single-band → one object.
+    r <- tryCatch(terra::rast(df$file[1L]), error = function(e) NULL)
+    if (is.null(r)) next
+    nb <- terra::nlyr(r)
+    bnames <- names(r)
+
+    for (b in seq_len(nb)) {
+      id <- if (nb > 1L) paste0(k, "_", bnames[b]) else k
+      out[[id]] <- list(times = df, band = b)
+    }
   }
   out
 }
