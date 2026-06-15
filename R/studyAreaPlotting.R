@@ -528,7 +528,7 @@ hasNames <- function(rasterToMatchPalette) {
 #' radio-selected base group; a draggable range slider is added that drives
 #' the radio buttons, so the user steps through years by dragging.
 #'
-#' Designed to ship in a Quarto / `knitr` static render — uses
+#' Designed to ship in a Quarto / `knitr` static render -- uses
 #' `.leafletGeoTiffPath()` internally so the per-layer GeoTIFFs are written
 #' into the qmd's `_files/figure-html/` folder rather than `tempfile()`.
 #'
@@ -786,11 +786,8 @@ plotTimeSeriesLeaflet <- function(x,
 #'   `SpaDES.core::outputPath(x)`), or a length-1 character directory path.
 #' @param from,to   Names (or, if missing, first/last) of the layers to subtract.
 #'   `result = x[[to]] - x[[from]]`.
-#' @param name   Required when `x` is a `simList` or directory path: the
-#'   base name of the output object whose GeoTIFFs should be loaded
-#'   (e.g. `"simPred"`).
 #' @param palette   Palette name. Default `"differences"` -- the dedicated
-#'   blue→white→red diverging palette from [terra::map.pal()], purpose-built
+#'   blue->white->red diverging palette from [terra::map.pal()], purpose-built
 #'   for difference maps. Any other [terra::map.pal()] name (e.g. `"viridis"`)
 #'   is also accepted; if `terra::map.pal()` doesn't recognise the name, we
 #'   fall back to [grDevices::hcl.colors()] (e.g. `"RdBu"`, `"Spectral"`).
@@ -836,7 +833,7 @@ plotChangeOverTime <- function(x,
          zoomSnap = 0.25, zoomDelta = 0.25)) |>
     leaflet::addTiles()
   groupNames <- character()
-  legendIdx  <- 0L     # integer suffix on the legend className → JS-friendly
+  legendIdx  <- 0L     # integer suffix on the legend className -> JS-friendly
   bounds     <- NULL   # captured from first diff raster for fitBounds() later
 
   for (objName in names(objects)) {
@@ -864,7 +861,9 @@ plotChangeOverTime <- function(x,
                                       toYr, "-minus-", fromYr))
     terra::writeRaster(diffRas, tif, overwrite = TRUE)
 
-    groupName <- paste0(objName, ": ", toYr, " − ", fromYr)
+    ## " \u2212 " is the typographic MINUS SIGN; use the \u escape so the
+    ## source file stays ASCII (R CMD check warns about non-ASCII in R code).
+    groupName <- paste0(objName, ": ", toYr, " \u2212 ", fromYr)
     groupNames <- c(groupNames, groupName)
     layerId <- make.names(paste0(objName, "-", toYr, "-minus-", fromYr))
     breaks <- seq(-absmax, absmax, length.out = length(cols) + 1L)
@@ -930,7 +929,7 @@ plotChangeOverTime <- function(x,
     ## bottomPad) and centered within THAT, so generous padding on the legend
     ## side both shrinks AND shifts the visible map away from the legend.
     base <- c(20L, 20L)
-    legendPad <- c(260L, 100L)           # ~legend control width × height
+    legendPad <- c(260L, 100L)           # ~legend control width x height
     ptl <- base
     pbr <- base
     if (legendPosition == "topleft")     ptl <- pmax(ptl, legendPad)
@@ -1030,7 +1029,7 @@ plotChangeOverTime <- function(x,
   if (!length(objs)) {
     stop("No time-series objects discovered under: ", outputDir, call. = FALSE)
   }
-  ## convert each scanned (times df + band index) → named list of SpatRasters
+  ## convert each scanned (times df + band index) -> named list of SpatRasters
   lapply(objs, function(o) {
     df <- o$times
     lst <- lapply(df$file, function(f) terra::rast(f, lyrs = o$band))
@@ -1142,7 +1141,7 @@ plotChangeOverTime <- function(x,
     df <- df[order(df$time, na.last = TRUE), , drop = FALSE]
 
     ## inspect the first raster for band count -- shine pattern (.shineScan
-    ## L148-162). Multi-band → one object per band; single-band → one object.
+    ## L148-162). Multi-band -> one object per band; single-band -> one object.
     r <- tryCatch(terra::rast(df$file[1L]), error = function(e) NULL)
     if (is.null(r)) next
     nb <- terra::nlyr(r)

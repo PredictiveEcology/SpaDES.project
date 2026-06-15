@@ -53,7 +53,7 @@ radio-selected base group; a draggable range slider is added that drives
 the radio buttons, so the user steps through years by dragging.
 }
 \details{
-Designed to ship in a Quarto / \code{knitr} static render — uses
+Designed to ship in a Quarto / \code{knitr} static render -- uses
 \code{.leafletGeoTiffPath()} internally so the per-layer GeoTIFFs are written
 into the qmd's \verb{_files/figure-html/} folder rather than \code{tempfile()}.
 }

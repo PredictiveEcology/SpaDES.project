@@ -23,7 +23,7 @@ plotChangeOverTime(
 \code{result = x[[to]] - x[[from]]}.}
 
 \item{palette}{Palette name. Default \code{"differences"} -- the dedicated
-blue→white→red diverging palette from \code{\link[terra:map.pal]{terra::map.pal()}}, purpose-built
+blue->white->red diverging palette from \code{\link[terra:map.pal]{terra::map.pal()}}, purpose-built
 for difference maps. Any other \code{\link[terra:map.pal]{terra::map.pal()}} name (e.g. \code{"viridis"})
 is also accepted; if \code{terra::map.pal()} doesn't recognise the name, we
 fall back to \code{\link[grDevices:hcl.colors]{grDevices::hcl.colors()}} (e.g. \code{"RdBu"}, \code{"Spectral"}).}
@@ -37,10 +37,6 @@ blue = negative).}
 
 \item{legendPosition}{Where to place the legend on the map.
 One of \code{"bottomright"} (default), \code{"bottomleft"}, \code{"topright"}, \code{"topleft"}.}
-
-\item{name}{Required when \code{x} is a \code{simList} or directory path: the
-base name of the output object whose GeoTIFFs should be loaded
-(e.g. \code{"simPred"}).}
 }
 \value{
 A \code{leaflet} htmlwidget showing the difference layer with a
