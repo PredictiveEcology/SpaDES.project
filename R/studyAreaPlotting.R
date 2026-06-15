@@ -258,8 +258,8 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
     for (rasFileIndex in seq_along(rtmsNames)) {
       rtmNam <- rtmsNames[rasFileIndex]
 
-      geoTiffFile <- tempfile(fileext = ".tif")
-      terra::writeRaster(ll[[rtmNam]], filename = geoTiffFile)
+      geoTiffFile <- .leafletGeoTiffPath(rtmNam)
+      terra::writeRaster(ll[[rtmNam]], filename = geoTiffFile, overwrite = TRUE)
 
       if (!exists("a", inherits = FALSE)) {
         a <- terra::plet() |> leaflet::addTiles()
@@ -519,4 +519,24 @@ rasterToMatchPaletteNamed <- function(rasterToMatchPalette) {
 hasNames <- function(rasterToMatchPalette) {
   namsRTMP <- names(rasterToMatchPalette)
   hasName <- nzchar(namsRTMP)
+}
+
+## Resolve a GeoTIFF output path for a raster layer used by `plotSAsLeaflet`.
+## Outside of a knitr render, returns a `tempfile()` (preserves existing
+## interactive behaviour in RStudio's viewer). Inside knitr, returns a path
+## under `knitr::fig_path()` so the GeoTIFF is written into the qmd's
+## `_files/figure-html/` folder -- which Quarto copies alongside the rendered
+## HTML, so the leaflet widget's relative URL resolves correctly when the page
+## is served from a static site (e.g., GitHub Pages). Absolute `tempfile()`
+## paths break in that context because (a) the path is filesystem-absolute and
+## not browser-fetchable, and (b) `tempdir()` is wiped when the render's R
+## session exits.
+.leafletGeoTiffPath <- function(rtmNam) {
+  if (isTRUE(getOption("knitr.in.progress"))) {
+    fp <- knitr::fig_path(paste0("-", make.names(rtmNam), ".tif"))
+    dir.create(dirname(fp), recursive = TRUE, showWarnings = FALSE)
+    fp
+  } else {
+    tempfile(fileext = ".tif")
+  }
 }
