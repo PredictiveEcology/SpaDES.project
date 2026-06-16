@@ -430,7 +430,7 @@ makeListToPlot <- function(ll, include, exclude, ...) {
   if (length(dots))
     ll <- appendDotsToLL(ll, dots)
 
-  sasNames <- grep(names(ll), pattern = "studyArea", value = TRUE)
+  sasNames <- grep(names(ll), pattern = "^[^.]*studyArea", value = TRUE)
   rtmsNames <- grep(names(ll), pattern = "rasterToMatch", value = TRUE)
 
   RastClasses <- "SpatRaster"

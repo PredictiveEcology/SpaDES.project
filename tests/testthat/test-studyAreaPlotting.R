@@ -39,3 +39,22 @@ test_that(".leafletGeoTiffPath: unique paths per raster name within one chunk", 
     expect_false(identical(p1, p2))
   })
 })
+
+test_that("makeListToPlot: studyArea selection excludes dot-prefixed names", {
+  skip_if_not_installed("sf")
+
+  mkPoly <- function() {
+    m <- matrix(c(0, 0, 1, 0, 1, 1, 0, 1, 0, 0), ncol = 2, byrow = TRUE)
+    sf::st_sfc(sf::st_polygon(list(m)), crs = 4326)
+  }
+
+  ## names with a `.` before "studyArea" (e.g. `sim.studyArea`) are the "dot"
+  ## versions that must NOT be picked up as study areas to plot
+  ll <- list(studyArea = mkPoly(), studyAreaLarge = mkPoly(),
+             sim.studyArea = mkPoly())
+
+  out <- SpaDES.project:::makeListToPlot(ll, include = FALSE)
+
+  expect_setequal(out$sasNames, c("studyArea", "studyAreaLarge"))
+  expect_false("sim.studyArea" %in% out$sasNames)
+})

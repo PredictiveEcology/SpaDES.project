@@ -102,6 +102,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `plotSAs()`/`plotSAsLeaflet()` no longer pick up dot-prefixed study-area objects (e.g. `sim.studyArea`) as layers to plot.
 * `setupProject()`: the `useGit`, `standAlone`, `updateRprofile`, `setLinuxBinaryRepo`, and `overwrite` arguments now fall back to their documented `getOption("SpaDES.project.*", <default>)` value instead of `NULL` when the option is unset, matching the inner `setup*` functions and `spadesProjectOptions()` (`setLinuxBinaryRepo` now defaults to running on Linux).
 * `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns, and each `setupProject()` argument's `@param` states its default explicitly.
 
