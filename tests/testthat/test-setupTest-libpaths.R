@@ -55,3 +55,27 @@ test_that("setupTest's library change is undone when the caller exits", {
   expect_true(startsWith(normalizePath(inside[1], mustWork = FALSE),
                          normalizePath(tempdir(), mustWork = FALSE)))
 })
+
+test_that("setupTest restores the real libraries even when they were already gone", {
+  # setupProject() narrows .libPaths() to the project library as part of its job,
+  # so a later test can inherit a path with the real libraries already missing.
+  # setupTest() must put them back, not preserve their absence -- otherwise
+  # packages that tests only ever LOAD (curl, s2, terra) become invisible for
+  # the rest of the run.
+  # same lookup setupTest() uses: setup.R's bindings live in testthat's env,
+  # reachable through the calling frame's parents, not in .GlobalEnv
+  realLib <- get0("origLibPaths", inherits = TRUE)
+  skip_if(is.null(realLib), "origLibPaths not set (setup.R did not run)")
+
+  narrowed <- withr::local_tempdir()
+  withr::local_libpaths(narrowed)          # simulate the post-setupProject state
+  expect_false(all(realLib %in% .libPaths()))
+
+  local({
+    setupTest()
+    expect_true(all(realLib %in% .libPaths()))
+    # and the temp library still leads, so installs stay isolated
+    expect_true(startsWith(normalizePath(.libPaths()[1], mustWork = FALSE),
+                           normalizePath(tempdir(), mustWork = FALSE)))
+  })
+})

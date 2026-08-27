@@ -75,12 +75,20 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
     dir.create(lib, recursive = TRUE, showWarnings = FALSE)
   }
 
-  # "prefix", not the default "replace". Installs must land in `lib` (hence
-  # first), but the session's real libraries have to stay visible or tests can
-  # no longer *load* what they need -- replacing outright takes s2, curl, terra
-  # and friends off the search path and breaks tests that never install
-  # anything. Isolating writes must not also hide reads.
-  withr::local_libpaths(lib, action = "prefix", .local_envir = envir)
+  # Set the caller's path explicitly to `lib` followed by the libraries this
+  # session started with:
+  #   * `lib` first, so anything a test installs lands in the temp library;
+  #   * origLibPaths after, so tests can still LOAD packages they did not
+  #     install (s2, curl, terra ...).
+  #
+  # Built from origLibPaths rather than with action = "prefix", which prepends
+  # to .libPaths() *as it currently stands*. That is not safe here: setupProject()
+  # narrows .libPaths() to the project library as part of what it does, so by the
+  # time a later test calls setupTest() the real libraries may already be gone,
+  # and prefixing would preserve their absence. The old scoping bug happened to
+  # paper over this by resetting the path on every setupTest() call; this does
+  # the reset deliberately instead of relying on ambient state.
+  withr::local_libpaths(unique(c(lib, origLibPaths)), .local_envir = envir)
 
   withr::local_dir(Require::tempdir2(.rndstr(1)), .local_envir = envir)
   withr::local_options(
