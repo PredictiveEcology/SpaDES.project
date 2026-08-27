@@ -67,13 +67,7 @@ test_that("outTar honours tarDir", {
 
 test_that("outSave writes an rds next to the simList outputPath", {
   skip_if_not_installed("SpaDES.core")
-  # reproducible.verbose must be set explicitly. SpaDES.core::saveSimList()
-  # resolves `verbose <- getOption("reproducible.verbose")` and hands the result
-  # to Require::messageVerbose(), whose `if (verbose >= verboseLevel)` errors
-  # with "argument is of length zero" when the option is absent. Something
-  # earlier in a full-suite run leaves it unset, so this file cannot rely on
-  # inheriting it; setting it here also keeps the test independent of run order.
-  withr::local_options(spades.moduleCodeChecks = FALSE, reproducible.verbose = 1)
+  withr::local_options(spades.moduleCodeChecks = FALSE)
 
   td <- withr::local_tempdir()
   sim <- suppressMessages(SpaDES.core::simInit(
@@ -90,13 +84,7 @@ test_that("outSave writes an rds next to the simList outputPath", {
 
 test_that("outSave honours an explicit simFilename and creates its directory", {
   skip_if_not_installed("SpaDES.core")
-  # reproducible.verbose must be set explicitly. SpaDES.core::saveSimList()
-  # resolves `verbose <- getOption("reproducible.verbose")` and hands the result
-  # to Require::messageVerbose(), whose `if (verbose >= verboseLevel)` errors
-  # with "argument is of length zero" when the option is absent. Something
-  # earlier in a full-suite run leaves it unset, so this file cannot rely on
-  # inheriting it; setting it here also keeps the test independent of run order.
-  withr::local_options(spades.moduleCodeChecks = FALSE, reproducible.verbose = 1)
+  withr::local_options(spades.moduleCodeChecks = FALSE)
 
   td <- withr::local_tempdir()
   sim <- suppressMessages(SpaDES.core::simInit(times = list(start = 0, end = 1)))
@@ -107,4 +95,54 @@ test_that("outSave honours an explicit simFilename and creates its directory", {
 
   expect_identical(f, target)
   expect_true(file.exists(target))
+})
+
+test_that("outSave survives an unset reproducible.verbose", {
+  skip_if_not_installed("SpaDES.core")
+  withr::local_options(spades.moduleCodeChecks = FALSE)
+
+  # SpaDES.core::saveSimList() resolves its own default as a bare
+  # getOption("reproducible.verbose") and hands the result to
+  # Require::messageVerbose(), whose `if (verbose >= verboseLevel)` fails with
+  # "argument is of length zero" when the option is absent -- which it is, at
+  # this point in a full-suite run. outSave()'s default supplies the fallback.
+  withr::local_options(reproducible.verbose = NULL)
+  expect_length(getOption("reproducible.verbose"), 0L)
+
+  td <- withr::local_tempdir()
+  sim <- suppressMessages(SpaDES.core::simInit(times = list(start = 0, end = 1),
+                                               paths = list(outputPath = td)))
+
+  f <- suppressMessages(outSave(sim, runName = "quiet", lazy = FALSE))
+  expect_true(file.exists(f))
+})
+
+test_that("outSave forwards verbose to saveSimList", {
+  skip_if_not_installed("SpaDES.core")
+  withr::local_options(spades.moduleCodeChecks = FALSE)
+
+  # saveSimList filters its own messages, so the argument cannot be observed
+  # from the output; capture it at the call boundary instead.
+  captured <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    saveSimList = function(...) {
+      captured$verbose <- list(...)$verbose
+      invisible(NULL)
+    },
+    .package = "SpaDES.core"
+  )
+
+  td <- withr::local_tempdir()
+  sim <- suppressMessages(SpaDES.core::simInit(times = list(start = 0, end = 1),
+                                               paths = list(outputPath = td)))
+  target <- file.path(td, "x.rds")
+
+  suppressMessages(outSave(sim, runName = "x", simFilename = target,
+                           lazy = FALSE, verbose = 3))
+  expect_identical(captured$verbose, 3)
+
+  # and the default fills in when the option is absent
+  withr::local_options(reproducible.verbose = NULL)
+  suppressMessages(outSave(sim, runName = "x", simFilename = target, lazy = FALSE))
+  expect_identical(captured$verbose, 1)
 })

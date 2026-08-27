@@ -5,6 +5,7 @@ version 1.0.1
 
 ## New features
 
+* `outSave()` gains `verbose`, defaulting to `getOption("reproducible.verbose", 1)`; it previously failed when that option was unset.
 * `plotChangeOverTime()` now iterates **all** time-series objects discovered under `simList`/directory inputs (no more `name` argument) and presents them as radio-selectable base layers — same UX as `SpaDES.shiny::shine()`'s "Change from start to end" tab. A per-object legend renders in `legendPosition` (max value at top, blue = positive; uses shine's `rev(pal) + labFormat transform` idiom), and a small `htmlwidgets::onRender()` shim listens for leaflet's `baselayerchange` event to show only the active layer's legend.
 * `plotChangeOverTime()` defaults to `terra::map.pal("differences")` (blue→white→red, purpose-built for difference maps) instead of `hcl.colors("RdBu", rev = TRUE)`. Falls back to `hcl.colors()` for any palette name `terra::map.pal()` doesn't recognise. Default `rev = TRUE` puts red = negative, blue = positive (override with `rev = FALSE`).
 * `.scanOutputDirForTimeSeries()` now inspects the first raster in each time-series group and, for multi-band SpatRasters (e.g. `speciesLayers_xxx`), expands into one object per band — the shine pattern (`.shineScan` L148-162). Each band becomes its own slider/legend in `plotTimeSeriesLeaflet()`. Internally, each scanned object now carries `band` + `times` (previously just a flat times data.frame), and the loaders pass `lyrs = band` to `terra::rast()` so the right band is read.
