@@ -23,6 +23,9 @@ jobs:
       GOOGLEDRIVE_AUTH: ${{ secrets.ELIOT_GOOGLE_AUTHENTICATION }}
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     with:
+      # experimentTmux() branches on Sys.getenv("TMUX"), so R/tmux.R is
+      # unreachable unless covr itself runs inside a tmux session.
+      run-in-tmux: true
       extra-packages: |
         fastshp=?ignore
         NLMR=?ignore
