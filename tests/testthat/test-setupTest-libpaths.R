@@ -14,10 +14,16 @@ test_that("setupTest leaves the caller pointed at a temp library", {
 
   setupTest()
 
-  expect_false(identical(.libPaths()[1], realLib[1]))
-  # tempdir() is the only place tests may write packages
+  # tempdir() is the only place tests may write packages. Asserted as a property
+  # rather than as `!= realLib[1]`, which depends on whatever an earlier test
+  # left on the path.
   expect_true(startsWith(normalizePath(.libPaths()[1], mustWork = FALSE),
                          normalizePath(tempdir(), mustWork = FALSE)))
+
+  # ... and the real libraries stay reachable behind it, so tests can still LOAD
+  # packages they did not install. Replacing the path outright took s2 / curl /
+  # terra off the search path and broke tests that install nothing.
+  expect_true(all(realLib %in% .libPaths()))
 })
 
 test_that("setupTest hands every test the same shared library", {

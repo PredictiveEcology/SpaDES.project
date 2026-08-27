@@ -75,7 +75,12 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
     dir.create(lib, recursive = TRUE, showWarnings = FALSE)
   }
 
-  withr::local_libpaths(lib, .local_envir = envir)
+  # "prefix", not the default "replace". Installs must land in `lib` (hence
+  # first), but the session's real libraries have to stay visible or tests can
+  # no longer *load* what they need -- replacing outright takes s2, curl, terra
+  # and friends off the search path and breaks tests that never install
+  # anything. Isolating writes must not also hide reads.
+  withr::local_libpaths(lib, action = "prefix", .local_envir = envir)
 
   withr::local_dir(Require::tempdir2(.rndstr(1)), .local_envir = envir)
   withr::local_options(
