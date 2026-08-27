@@ -67,13 +67,13 @@ test_that("outTar honours tarDir", {
 
 test_that("outSave writes an rds next to the simList outputPath", {
   skip_if_not_installed("SpaDES.core")
-  # Require.verbose must be set explicitly. saveSimList() passes it straight to
-  # Require::messageVerbose(), whose `if (verbose >= verboseLevel)` errors with
-  # "argument is of length zero" when the option is absent. It IS absent by the
-  # time this file runs in a full-suite run: setupTest() sets it via
-  # withr::local_options(), and withr restores a previously-unset option by
-  # setting it to NULL, which removes it outright.
-  withr::local_options(spades.moduleCodeChecks = FALSE, Require.verbose = 1)
+  # reproducible.verbose must be set explicitly. SpaDES.core::saveSimList()
+  # resolves `verbose <- getOption("reproducible.verbose")` and hands the result
+  # to Require::messageVerbose(), whose `if (verbose >= verboseLevel)` errors
+  # with "argument is of length zero" when the option is absent. Something
+  # earlier in a full-suite run leaves it unset, so this file cannot rely on
+  # inheriting it; setting it here also keeps the test independent of run order.
+  withr::local_options(spades.moduleCodeChecks = FALSE, reproducible.verbose = 1)
 
   td <- withr::local_tempdir()
   sim <- suppressMessages(SpaDES.core::simInit(
@@ -90,13 +90,13 @@ test_that("outSave writes an rds next to the simList outputPath", {
 
 test_that("outSave honours an explicit simFilename and creates its directory", {
   skip_if_not_installed("SpaDES.core")
-  # Require.verbose must be set explicitly. saveSimList() passes it straight to
-  # Require::messageVerbose(), whose `if (verbose >= verboseLevel)` errors with
-  # "argument is of length zero" when the option is absent. It IS absent by the
-  # time this file runs in a full-suite run: setupTest() sets it via
-  # withr::local_options(), and withr restores a previously-unset option by
-  # setting it to NULL, which removes it outright.
-  withr::local_options(spades.moduleCodeChecks = FALSE, Require.verbose = 1)
+  # reproducible.verbose must be set explicitly. SpaDES.core::saveSimList()
+  # resolves `verbose <- getOption("reproducible.verbose")` and hands the result
+  # to Require::messageVerbose(), whose `if (verbose >= verboseLevel)` errors
+  # with "argument is of length zero" when the option is absent. Something
+  # earlier in a full-suite run leaves it unset, so this file cannot rely on
+  # inheriting it; setting it here also keeps the test independent of run order.
+  withr::local_options(spades.moduleCodeChecks = FALSE, reproducible.verbose = 1)
 
   td <- withr::local_tempdir()
   sim <- suppressMessages(SpaDES.core::simInit(times = list(start = 0, end = 1)))
