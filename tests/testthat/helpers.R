@@ -20,8 +20,15 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
   # Also include covr's instrumented temp lib paths so coverage tracking is not lost
   covrPaths <- get0("covrLibPaths", .GlobalEnv, inherits = TRUE)
   origLibPaths <- unique(c(covrPaths, origLibPaths))
-  withr::local_libpaths(origLibPaths)
-  # Require::setLibPaths(origLibPaths, updateRprofile = FALSE)
+
+  # Packages below are *loaded* from the session's real libraries, so widen
+  # .libPaths() only for that. This deliberately uses with_libpaths(), not
+  # local_libpaths(): the latter is scoped to setupTest()'s own frame, so its
+  # restore ran when setupTest() RETURNED -- i.e. after the caller-scoped
+  # local_libpaths(lib) below -- handing every caller the real library back.
+  # setupProject(paths = list(packagePath = .libPaths()[1L])) then installed
+  # into the developer's real library instead of a temp one.
+  withr::with_libpaths(origLibPaths, {
   warns <- capture_warnings({
     # withr::local_package("googledrive", .local_envir = envir)
     # withr::local_package("curl", .local_envir = envir)
@@ -55,25 +62,40 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
       withr::local_package(pk, .local_envir = envir)
     })
   }
+  }) # end with_libpaths(origLibPaths)
 
-  # withr::local_libpaths(Require::tempdir2(.rndstr(1)), .local_envir = envir)
-
-  libStable <- .libPathDefault("test_SpaDES_project")
-  if (isTRUE(first)) {
-    lib <- checkPath(libStable, create = TRUE)
-  } else {
-    lib <- Require::tempdir2(.rndstr(1))
+  # The suite-wide temp library created in setup.R. Every test shares it, so a
+  # package installed by one test is available to the rest instead of being
+  # rebuilt per test. `first` is retained for call-site compatibility but no
+  # longer selects a different (persistent) library.
+  lib <- get0("testLib", .GlobalEnv, inherits = TRUE)
+  if (is.null(lib)) {
+    # test_file()/manual use, where setup.R has not run
+    lib <- file.path(tempdir(), "SpaDES.project-test-lib")
+    dir.create(lib, recursive = TRUE, showWarnings = FALSE)
   }
 
-
-  withr::local_libpaths(lib, .local_envir = envir)
+  # Set the caller's path explicitly to `lib` followed by the libraries this
+  # session started with:
+  #   * `lib` first, so anything a test installs lands in the temp library;
+  #   * origLibPaths after, so tests can still LOAD packages they did not
+  #     install (s2, curl, terra ...).
+  #
+  # Built from origLibPaths rather than with action = "prefix", which prepends
+  # to .libPaths() *as it currently stands*. That is not safe here: setupProject()
+  # narrows .libPaths() to the project library as part of what it does, so by the
+  # time a later test calls setupTest() the real libraries may already be gone,
+  # and prefixing would preserve their absence. The old scoping bug happened to
+  # paper over this by resetting the path on every setupTest() call; this does
+  # the reset deliberately instead of relying on ambient state.
+  withr::local_libpaths(unique(c(lib, origLibPaths)), .local_envir = envir)
 
   withr::local_dir(Require::tempdir2(.rndstr(1)), .local_envir = envir)
   withr::local_options(
     list(
       repos = c(CRAN = "https://cloud.r-project.org"),
       Require.verbose = 5,
-      Require.cloneFrom = libStable),
+      Require.cloneFrom = lib),
     .local_envir = envir)
   # withr::local_options(.local_envir = envir,
   #   list(repos = c(CRAN = "https://cloud.r-project.org"))
