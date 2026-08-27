@@ -38,7 +38,12 @@ test_that("setupTest hands every test the same shared library", {
 test_that("setupTest points Require.cloneFrom at the shared library", {
   setupTest()
 
-  expect_identical(getOption("Require.cloneFrom"), .libPaths()[1])
+  # Compare normalised paths, not raw strings: the option holds tempdir()'s
+  # value verbatim while .libPaths() normalises. On Windows that is the same
+  # directory spelled two ways -- "C:\\Users\\RUNNER~1\\...\\Rtmp.../x" vs
+  # "C:/Users/runneradmin/.../Rtmp.../x" (8.3 short name, mixed separators).
+  norm <- function(p) normalizePath(p, winslash = "/", mustWork = FALSE)
+  expect_identical(norm(getOption("Require.cloneFrom")), norm(.libPaths()[1]))
 })
 
 test_that("setupTest's library change is undone when the caller exits", {
