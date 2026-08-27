@@ -35,13 +35,17 @@ test_that("setupTest points Require.cloneFrom at the shared library", {
   expect_identical(getOption("Require.cloneFrom"), .libPaths()[1])
 })
 
-test_that("setupTest restores the real libraries when the caller exits", {
-  realLib <- .libPaths()
+test_that("setupTest's library change is undone when the caller exits", {
+  before  <- .libPaths()
+  inside  <- local({ setupTest(); .libPaths() })
 
-  local({
-    setupTest()
-    expect_false(identical(.libPaths(), realLib))
-  })
+  # the caller-scoped local_libpaths() is released with the calling frame
+  expect_identical(.libPaths(), before)
 
-  expect_identical(.libPaths(), realLib)
+  # ... and while it was in force, writes went to a temp library. Asserted as a
+  # property rather than as `inside != before`: whether those two differ depends
+  # on what state an earlier test happened to leave behind, which is not what
+  # this test is about.
+  expect_true(startsWith(normalizePath(inside[1], mustWork = FALSE),
+                         normalizePath(tempdir(), mustWork = FALSE)))
 })
