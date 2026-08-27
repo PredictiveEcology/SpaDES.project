@@ -64,6 +64,7 @@ toPkgDTFull <- getFromNamespace("toPkgDTFull", ns = "Require")
 
 #' @rdname imports
 #' @importFrom Require tempfile2 .downloadFileMasterMainAuth
+#' @importFrom Require trimRedundancies messageVerbose
 trimRedundancies <- getFromNamespace("trimRedundancies", ns = "Require")
 
 #' @rdname imports
