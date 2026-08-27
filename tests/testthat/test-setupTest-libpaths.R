@@ -72,9 +72,18 @@ test_that("setupTest restores the real libraries even when they were already gon
   realLib <- get0("origLibPaths", inherits = TRUE)
   skip_if(is.null(realLib), "origLibPaths not set (setup.R did not run)")
 
+  realLib <- Filter(dir.exists, realLib)
+  skip_if(length(realLib) == 0L, "no real libraries to check")
+
   narrowed <- withr::local_tempdir()
   withr::local_libpaths(narrowed)          # simulate the post-setupProject state
-  expect_false(all(realLib %in% .libPaths()))
+
+  # Precondition, not the thing under test: some environments (covr's
+  # instrumented run, R_LIBS settings) keep those paths on the search path no
+  # matter what we set, and then there is nothing here to restore. Skip rather
+  # than fail -- a precondition that cannot be established is not a defect.
+  skip_if(all(realLib %in% .libPaths()),
+          "could not narrow .libPaths() in this environment")
 
   local({
     setupTest()
