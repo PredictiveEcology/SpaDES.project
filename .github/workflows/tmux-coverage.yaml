@@ -1,0 +1,120 @@
+# tmux-backed coverage.
+#
+# The shared reusable test-coverage workflow runs covr outside any tmux session.
+# experimentTmux() branches on `Sys.getenv("TMUX") != ""` (R/tmux.R), so that
+# whole arm -- the bulk of R/tmux.R -- is unreachable there, and every test
+# gated on skip_if_no_tmux() skips. This job runs those tests from *inside* a
+# tmux session and uploads under the `tmux` flag, which codecov merges into the
+# report for the same commit.
+#
+# Only the tmux-dependent test files run here; the main workflow still covers
+# everything else.
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+
+name: tmux-coverage
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tmux-coverage:
+    if: "!contains(github.event.commits[0].message, '[skip-ci]')"
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      USING_COVR: true
+      NOT_CRAN: "true"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      # Stock Noble apt, matching the shared workflows (the ubuntugis PPA
+      # installs libgdal37, which is ABI-incompatible with Posit's noble cache).
+      - name: Install spatial deps and tmux
+        timeout-minutes: 15
+        run: |
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-timeouts > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --fix-missing \
+            tmux libudunits2-dev libgdal-dev libgeos-dev libproj-dev libsqlite3-dev
+          tmux -V
+        shell: bash
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          extra-repositories: 'https://PredictiveEcology.r-universe.dev/'
+          Ncpus: 2
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"all"'
+          extra-packages: |
+            any::covr
+            fastshp=?ignore
+            NLMR=?ignore
+            PredictiveEcology/Require@development
+
+      - name: Coverage from inside a tmux session
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          cat > /tmp/tmux-covr.R <<'RSCRIPT'
+          # Skip covr trace files a child process created but never flushed,
+          # rather than aborting the whole run. Same workaround as the shared
+          # test-coverage workflow; the tmux tests spawn panes and subprocesses,
+          # so this path is hit routinely.
+          ns <- asNamespace("covr")
+          orig <- get("merge_coverage.character", envir = ns, inherits = FALSE)
+          wrapped <- function(x, ...) {
+            readable <- vapply(x, function(f) {
+              if (!file.exists(f) || !isTRUE(file.size(f) > 0)) return(FALSE)
+              isTRUE(tryCatch({ readRDS(f); TRUE }, error = function(e) FALSE))
+            }, logical(1))
+            if (any(!readable))
+              message("skipping ", sum(!readable), " unreadable covr trace file(s)")
+            orig(x[readable], ...)
+          }
+          unlockBinding("merge_coverage.character", ns)
+          assign("merge_coverage.character", wrapped, envir = ns)
+          lockBinding("merge_coverage.character", ns)
+
+          stopifnot(nzchar(Sys.getenv("TMUX")))  # the entire point of this job
+
+          cov <- covr::package_coverage(
+            type = "none",
+            code = paste0(
+              'testthat::test_dir("tests/testthat", package = "SpaDES.project", ',
+              'load_package = "installed", stop_on_failure = FALSE, ',
+              'filter = "tmux|queue-mode|single-shot|pane-title")'
+            ),
+            quiet = FALSE
+          )
+          print(cov)
+          cat("\nTMUX-ONLY COVERAGE:", covr::percent_coverage(cov), "\n")
+          covr::codecov(coverage = cov, flags = "tmux", quiet = FALSE)
+          RSCRIPT
+
+          # `tmux new-session -d <cmd>` runs the command in a pane, so the R
+          # process inherits TMUX -- which is what makes the inTmux branch
+          # reachable. Poll for the session to end so the step's exit status
+          # reflects the R process, which a bare send-keys would discard.
+          tmux new-session -d -s cov \
+            "Rscript /tmp/tmux-covr.R > /tmp/tmux-covr.log 2>&1; echo \$? > /tmp/tmux-covr.rc"
+
+          while tmux has-session -t cov 2>/dev/null; do sleep 5; done
+
+          cat /tmp/tmux-covr.log
+          rc="$(cat /tmp/tmux-covr.rc 2>/dev/null || echo 1)"
+          echo "exit code: $rc"
+          exit "$rc"

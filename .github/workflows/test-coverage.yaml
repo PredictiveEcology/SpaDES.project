@@ -15,7 +15,13 @@ jobs:
   test-coverage:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
     uses: PredictiveEcology/actions/.github/workflows/test-coverage.yaml@main
-    secrets: inherit
+    # Named rather than `secrets: inherit`: inherit passes secrets by matching
+    # name, and this repo's Drive credential is called
+    # ELIOT_GOOGLE_AUTHENTICATION, so the shared workflow's GOOGLEDRIVE_AUTH
+    # arrived empty and every Drive-backed test skipped.
+    secrets:
+      GOOGLEDRIVE_AUTH: ${{ secrets.ELIOT_GOOGLE_AUTHENTICATION }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     with:
       extra-packages: |
         fastshp=?ignore
