@@ -63,8 +63,11 @@ test_that(".sbatch_write_script writes an executable script with the reserved di
   expect_true("#SBATCH --error=/tmp/w.log" %in% body)
   expect_true("set -euo pipefail" %in% body)
 
-  # 0755 -- the submit path execs this directly
-  expect_identical(substr(as.character(file.mode(f)), 1, 3), "755")
+  # 0755 -- the submit path execs this directly. Windows has no POSIX mode bits
+  # (Sys.chmod leaves 666 there) and SLURM submission is Unix-only, so assert
+  # the mode there only, without skipping the checks above.
+  if (.Platform$OS.type == "unix")
+    expect_identical(substr(as.character(file.mode(f)), 1, 3), "755")
 })
 
 test_that(".sbatch_write_script renders user options and normalises underscores", {
