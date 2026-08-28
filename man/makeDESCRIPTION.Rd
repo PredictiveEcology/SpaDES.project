@@ -73,6 +73,9 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 
 \item{...}{Currently not used.}
 }
+\value{
+Invisibly, the path(s) of the DESCRIPTION file(s) written.
+}
 \description{
 Make DESCRIPTION file(s) from SpaDES module metadata
 }

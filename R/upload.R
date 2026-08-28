@@ -17,10 +17,18 @@
 #'   `<simFilename>_xData/` directory and lazily restored on load via
 #'   `delayedAssign`. [outTar()] picks up that directory automatically.
 #'
+#' @param verbose Numeric message level, forwarded to
+#'   [SpaDES.core::saveSimList()]. Defaults to `getOption("reproducible.verbose", 1)`
+#'   -- note the fallback: `saveSimList()` resolves its own default as a bare
+#'   `getOption("reproducible.verbose")`, and passes the result to
+#'   `Require::messageVerbose()`, whose `if (verbose >= verboseLevel)` fails with
+#'   "argument is of length zero" whenever that option happens to be unset.
+#'
 #' @return Invisibly returns `simFilename`.
 #' @seealso [outTar()], [outUpload()], [outSaveTarUpload()]
 #' @export
-outSave <- function(sim, runName, simFilename = NULL, lazy = TRUE) {
+outSave <- function(sim, runName, simFilename = NULL, lazy = TRUE,
+                    verbose = getOption("reproducible.verbose", 1)) {
   if (is.null(simFilename))
     simFilename <- SpaDES.core::simFile(
       name = runName,
@@ -36,7 +44,8 @@ outSave <- function(sim, runName, simFilename = NULL, lazy = TRUE) {
     outputs  = FALSE,
     cache    = FALSE,
     files    = FALSE,
-    lazy     = lazy
+    lazy     = lazy,
+    verbose  = verbose
   ))
   message("Saved sim to ", simFilename,
           " (", round(elapsed[["elapsed"]], 1), " s)")
