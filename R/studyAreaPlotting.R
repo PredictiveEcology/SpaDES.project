@@ -423,6 +423,11 @@ toLatLong <- function(ll, rtmsNames, sasNames) {
       reproducible::postProcessTo(ll[[sa]], projectTo = projectTo) |>
         reproducible::Cache())
   }
+  # Return the whole list. Without this the value was whatever the last
+  # conditional sub-assignment yielded: NULL when sasNames was empty (both
+  # name vectors empty, or only rtmsNames supplied), and otherwise just the
+  # sasNames subset. Both callers assign the result back over `ll`.
+  ll
 }
 
 makeListToPlot <- function(ll, include, exclude, ...) {
@@ -508,12 +513,15 @@ rasterToMatchPaletteUpdate <- function(rasterToMatchPalette, rtmsNames) {
 
 rasterToMatchPaletteNamed <- function(rasterToMatchPalette) {
   hasName <- hasNames(rasterToMatchPalette)
-  # namsRTMP <- names(rasterToMatchPalette)
-  # hasName <- nzchar(namsRTMP)
-  if (any(hasName)) {
-    rasterToMatchPaletteNamed <- rasterToMatchPalette[hasName]
-  }
-  rasterToMatchPaletteNamed
+  # Subset unconditionally. The local was previously assigned only inside
+  # `if (any(hasName))`, so with nothing named the name resolved to this
+  # function itself by lexical scoping and the function was returned instead of
+  # a palette. Harmless at both call sites -- they only ask
+  # `rtmNam %in% names(result)`, and names(<a function>) is NULL -- but it is a
+  # trap for any other use. hasNames() gives logical(0) for a wholly unnamed
+  # vector, and x[logical(0)] is an empty vector with NULL names, so the else
+  # branch downstream is reached exactly as before.
+  rasterToMatchPalette[hasName]
 }
 
 hasNames <- function(rasterToMatchPalette) {
