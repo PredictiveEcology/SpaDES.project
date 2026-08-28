@@ -2708,7 +2708,10 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
                            verbose) {
 
   if (isTRUE(gitignore)) {
-    gitIgnoreFile <- ".gitignore"
+    # Resolved against projectPath, not the working directory: the .git test on
+    # the next line is projectPath-relative, so a bare ".gitignore" only agreed
+    # with it when the working directory happened to be projectPath.
+    gitIgnoreFile <- file.path(paths[["projectPath"]], ".gitignore")
     gitFile <- file.path(paths[["projectPath"]], ".git")
     if (dir.exists(gitFile)) { # this is a git repository
       if (file.exists(gitIgnoreFile))
@@ -2722,27 +2725,37 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
       updatedPP <- updatedMP <- FALSE
 
       # if the R package folder is inside
-      isPackagePathInside <- grepl(prjP, pkgP)
+      # fs::path_rel + startsWith("..") rather than grepl()/gsub() on the path:
+      # prjP is a filesystem path, and as a regex "." matches any character
+      # while + ( ) [ ] are metacharacters, so a sibling directory could match
+      # and gsub() could strip the wrong substring. This is the same idiom
+      # gitIgnoreInitials() already uses.
+      pkgPrel <- as.character(fs::path_rel(pkgP, prjP))
+      isPackagePathInside <- !startsWith(pkgPrel, "..")
       if (isTRUE(isPackagePathInside)) {
         updatedPP <- TRUE
-        pkgP <- gsub(prjP, "", pkgP)
-        if (startsWith(pkgP, "/"))
-          pkgP <- gsub("^/", "", pkgP)
-        lineWithPkgPath <- grep(paste0("^", pkgP,"$"), gif)
+        pkgP <- pkgPrel
+        lineWithPkgPath <- which(gif == pkgP)
         insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
         gif[insertLine] <- file.path(pkgP, "*")
       }
 
       if (!file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
         updatedMP <- TRUE
-        lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
+        lineWithModPath <- which(gif == basename(paths[["modulePath"]]))
         insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
         gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
 
       }
 
-      # ignore these folders/files
+      # ignore these folders/files. gitIgnoreInitials() re-reads
+      # getOption("SpaDES.project.gitignore") itself and returns that option's
+      # value -- not a character vector -- when it is not TRUE, which is
+      # reachable here because setupGitIgnore() gates on its `gitignore`
+      # argument instead. Hence the is.character() guard.
       igs <- gitIgnoreInitials(paths)
+      if (is.character(igs))
+        gif <- c(gif, setdiff(igs, gif))
 
       # Write the file
       if (length(setdiff(gif, gifOrig))) {
@@ -4317,9 +4330,6 @@ linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toF
 
     fromFilesList <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = TRUE))
     filesRel <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = FALSE))
-    dirsFrom <- Map(fls = filesRel, drs = fromDirs, function(fls, drs) {
-      file.path(drs, unique(dirname(fls)))})
-
     dirsToCreateRel <- Map(fls = filesRel, drs = fromDirsRel, function(fls, drs) {
       dtc <- file.path(drs, unique(dirname(fls)))
     })
