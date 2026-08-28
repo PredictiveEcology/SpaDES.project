@@ -87,3 +87,73 @@ test_that("linkOrCopyFiles honours explicit from/to file lists", {
   expect_identical(res$toFilesList, to)
   expect_identical(readLines(unlist(to)[[1]]), "x.R")
 })
+
+# --- destination sub-paths for colliding source basenames --------------------
+
+test_that(".uniqueTrailingPath keeps the fewest segments that disambiguate", {
+  f <- SpaDES.project:::.uniqueTrailingPath
+
+  expect_identical(f("/tmp/a/mod"), "mod")
+  expect_identical(f(c("/tmp/modD", "/tmp/modE")), c("modD", "modE"))
+  expect_identical(f(c("/tmp/a/mod", "/tmp/b/mod")), c("a/mod", "b/mod"))
+  expect_identical(f(c("/x/mod/sub", "/y/mod/sub")), c("x/mod/sub", "y/mod/sub"))
+})
+
+test_that(".uniqueTrailingPath terminates on indistinguishable paths", {
+  f <- SpaDES.project:::.uniqueTrailingPath
+
+  # identical inputs cannot be told apart; the contract is that it returns
+  # rather than searching forever
+  expect_identical(f(c("/same/p", "/same/p")), c("same/p", "same/p"))
+  expect_identical(f(character(0)), character(0))
+})
+
+test_that("linkOrCopyFiles disambiguates a one-level basename collision", {
+  base <- withr::local_tempdir()
+  s1 <- mkTree(file.path(base, "a", "mod"), "one.R")
+  s2 <- mkTree(file.path(base, "b", "mod"), "two.R")
+  dest <- withr::local_tempdir()
+
+  res <- SpaDES.project:::linkOrCopyFiles(fromDirs = c(s1, s2), toBaseDir = dest)
+
+  staged <- unlist(res$toFilesList)
+  expect_length(staged, 2L)
+  expect_true(all(file.exists(staged)))
+  # both sources keep their parent segment, so neither overwrites the other
+  expect_true(any(grepl("a/mod/one.R$", staged)))
+  expect_true(any(grepl("b/mod/two.R$", staged)))
+})
+
+test_that("linkOrCopyFiles disambiguates a two-level basename collision", {
+  base <- withr::local_tempdir()
+  s1 <- mkTree(file.path(base, "x", "mod", "sub"), "one.R")
+  s2 <- mkTree(file.path(base, "y", "mod", "sub"), "two.R")
+  dest <- withr::local_tempdir()
+
+  # this combination previously did not terminate: the loop re-derived from
+  # fromDirs each pass, so it never got past one level up
+  res <- SpaDES.project:::linkOrCopyFiles(fromDirs = c(s1, s2), toBaseDir = dest)
+
+  staged <- unlist(res$toFilesList)
+  expect_length(staged, 2L)
+  expect_true(all(file.exists(staged)))
+  expect_true(any(grepl("x/mod/sub/one.R$", staged)))
+  expect_true(any(grepl("y/mod/sub/two.R$", staged)))
+})
+
+test_that("linkOrCopyFiles keeps colliding sources' contents separate", {
+  base <- withr::local_tempdir()
+  # same file NAME in both, so a collapsed layout would clobber one
+  s1 <- file.path(base, "a", "mod"); mkTree(s1, "same.R")
+  s2 <- file.path(base, "b", "mod"); mkTree(s2, "same.R")
+  writeLines("from-a", file.path(s1, "same.R"))
+  writeLines("from-b", file.path(s2, "same.R"))
+  dest <- withr::local_tempdir()
+
+  res <- SpaDES.project:::linkOrCopyFiles(fromDirs = c(s1, s2), toBaseDir = dest)
+
+  staged <- unlist(res$toFilesList)
+  expect_length(staged, 2L)
+  expect_setequal(vapply(staged, function(f) readLines(f)[[1]], character(1)),
+                  c("from-a", "from-b"))
+})
