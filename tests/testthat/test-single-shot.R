@@ -2,14 +2,6 @@
 
 testthat::test_that("experimentTmux single-shot assigns all columns and sources once", {
   testthat::skip_on_cran()
-  # Skipped on CI, unlike the other two tmux tests, which do run there. This is
-  # the only one that starts TWO staggered workers, and on a GitHub runner its
-  # result files never appear within the 120s wait. Not a timeout: queue-mode
-  # completes four jobs inside the same budget with one worker. Something in the
-  # two-worker path -- pane contention, set_mouse on a headless runner, or a real
-  # bug in the staggered branch -- needs its own investigation with the worker
-  # logs surfaced, which this suite does not currently capture.
-  testthat::skip_on_ci()
   skip_if_no_tmux()
   td <- tempfile("tmux_single"); unlink(td, recursive = TRUE); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
@@ -42,6 +34,18 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
 
   ok <- wait_for(function() length(list.files(outdir, "^res_.*\\.rds$", full.names = TRUE)) == 2,
                  timeout_s = 120)
+  if (!ok) {
+    # Surface what the workers actually did; without this a CI failure here says
+    # only "expected TRUE". Two workers on a 2-core runner under covr is the
+    # slowest configuration this suite has.
+    message("--- worker logs (", file.path(td, "logs"), ") ---")
+    for (f in list.files(file.path(td, "logs"), recursive = TRUE, full.names = TRUE)) {
+      message("== ", f)
+      message(paste(utils::tail(readLines(f, warn = FALSE), 40), collapse = "\n"))
+    }
+    message("--- outdir contents: ",
+            paste(list.files(outdir), collapse = ", "), " ---")
+  }
   testthat::expect_true(ok)
   testthat::expect_equal(readRDS(file.path(outdir,"res_6.1.1.rds"))$.rep, 1)
   testthat::expect_equal(readRDS(file.path(outdir,"res_6.2.2.rds"))$.rep, 1)
