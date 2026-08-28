@@ -1,7 +1,12 @@
 ## Time-series discovery and coercion helpers behind plotTimeSeriesLeaflet() /
-## plotChangeOverTime(): .scanOutputDirForTimeSeries(), .coerceToMultiObjects()
-## and .leafletGeoTiffPath(). These run on real (tiny) GeoTIFFs; no plotting and
-## no leaflet widget is built.
+## plotChangeOverTime(). These run on real (tiny) GeoTIFFs; no plotting and no
+## leaflet widget is built.
+##
+## .leafletGeoTiffPath() and most of .coerceToLayerList() are covered in
+## test-studyAreaPlotting.R / test-plotTimeSeriesLeaflet.R already; what is here
+## is what those do not reach -- .coerceToMultiObjects() in full, the grouping
+## and NA-time paths of .scanOutputDirForTimeSeries(), and the two in-memory
+## shapes of .coerceToLayerList().
 
 mkRast <- function(nlyr = 1, vals = 1:4) {
   r <- terra::rast(nrows = 2, ncols = 2, nlyrs = nlyr,
@@ -15,27 +20,6 @@ writeTif <- function(dir, name, nlyr = 1) {
   suppressWarnings(terra::writeRaster(mkRast(nlyr), p, overwrite = TRUE))
   p
 }
-
-# --- .leafletGeoTiffPath ------------------------------------------------------
-
-test_that(".leafletGeoTiffPath returns a tempfile outside a knitr render", {
-  p <- SpaDES.project:::.leafletGeoTiffPath("rtm one")
-
-  expect_true(grepl("\\.tif$", p))
-  expect_identical(dirname(p), dirname(tempfile()))
-})
-
-test_that(".leafletGeoTiffPath writes under fig_path during a knitr render", {
-  skip_if_not_installed("knitr")
-  withr::local_options(knitr.in.progress = TRUE)
-
-  p <- SpaDES.project:::.leafletGeoTiffPath("rtm one")
-
-  expect_true(grepl("\\.tif$", p))
-  # name is sanitised, and the containing directory is created
-  expect_true(grepl("rtm.one", basename(p)))
-  expect_true(dir.exists(dirname(p)))
-})
 
 # --- .scanOutputDirForTimeSeries ----------------------------------------------
 
@@ -69,17 +53,6 @@ test_that(".scanOutputDirForTimeSeries keeps distinct objects apart", {
   objs <- SpaDES.project:::.scanOutputDirForTimeSeries(d)
 
   expect_setequal(names(objs), c("biomass", "burnMap"))
-})
-
-test_that(".scanOutputDirForTimeSeries emits one object per band for multi-band files", {
-  skip_if_not_installed("terra")
-  d <- withr::local_tempdir()
-  writeTif(d, "stack_year2010", nlyr = 2)
-
-  objs <- SpaDES.project:::.scanOutputDirForTimeSeries(d)
-
-  expect_length(objs, 2L)
-  expect_identical(unname(vapply(objs, `[[`, integer(1), "band")), 1:2)
 })
 
 test_that(".scanOutputDirForTimeSeries records NA time when no digits are present", {
@@ -163,38 +136,3 @@ test_that(".coerceToLayerList passes a list of SpatRasters through unchanged", {
   expect_identical(SpaDES.project:::.coerceToLayerList(ll), ll)
 })
 
-test_that(".coerceToLayerList rejects an unusable x", {
-  expect_error(SpaDES.project:::.coerceToLayerList(42),
-               "must be a multi-layer SpatRaster")
-})
-
-test_that(".coerceToLayerList requires a name when reading from a directory", {
-  d <- withr::local_tempdir()
-
-  expect_error(SpaDES.project:::.coerceToLayerList(d),
-               "`name` is required")
-})
-
-test_that(".coerceToLayerList reports the names it did find", {
-  skip_if_not_installed("terra")
-  d <- withr::local_tempdir()
-  writeTif(d, "biomass_year2010")
-
-  expect_error(
-    SpaDES.project:::.coerceToLayerList(d, name = "notThere"),
-    "not found among discovered time-series"
-  )
-})
-
-test_that(".coerceToLayerList reads the named object from a directory", {
-  skip_if_not_installed("terra")
-  d <- withr::local_tempdir()
-  writeTif(d, "biomass_year2010")
-  writeTif(d, "biomass_year2020")
-
-  out <- SpaDES.project:::.coerceToLayerList(d, name = "biomass")
-
-  expect_length(out, 2L)
-  expect_named(out, c("year2010", "year2020"))
-  expect_s4_class(out[[1]], "SpatRaster")
-})
