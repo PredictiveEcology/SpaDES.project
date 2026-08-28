@@ -142,3 +142,59 @@ test_that(".coerceToMultiObjects errors when a directory holds no time series", 
   expect_error(SpaDES.project:::.coerceToMultiObjects(d),
                "No time-series objects discovered")
 })
+
+# --- .coerceToLayerList -------------------------------------------------------
+
+test_that(".coerceToLayerList splits a multi-layer SpatRaster into named layers", {
+  skip_if_not_installed("terra")
+  r <- mkRast(nlyr = 2)
+  names(r) <- c("first", "second")
+
+  out <- SpaDES.project:::.coerceToLayerList(r)
+
+  expect_length(out, 2L)
+  expect_named(out, c("first", "second"))
+})
+
+test_that(".coerceToLayerList passes a list of SpatRasters through unchanged", {
+  skip_if_not_installed("terra")
+  ll <- list(a = mkRast(), b = mkRast())
+
+  expect_identical(SpaDES.project:::.coerceToLayerList(ll), ll)
+})
+
+test_that(".coerceToLayerList rejects an unusable x", {
+  expect_error(SpaDES.project:::.coerceToLayerList(42),
+               "must be a multi-layer SpatRaster")
+})
+
+test_that(".coerceToLayerList requires a name when reading from a directory", {
+  d <- withr::local_tempdir()
+
+  expect_error(SpaDES.project:::.coerceToLayerList(d),
+               "`name` is required")
+})
+
+test_that(".coerceToLayerList reports the names it did find", {
+  skip_if_not_installed("terra")
+  d <- withr::local_tempdir()
+  writeTif(d, "biomass_year2010")
+
+  expect_error(
+    SpaDES.project:::.coerceToLayerList(d, name = "notThere"),
+    "not found among discovered time-series"
+  )
+})
+
+test_that(".coerceToLayerList reads the named object from a directory", {
+  skip_if_not_installed("terra")
+  d <- withr::local_tempdir()
+  writeTif(d, "biomass_year2010")
+  writeTif(d, "biomass_year2020")
+
+  out <- SpaDES.project:::.coerceToLayerList(d, name = "biomass")
+
+  expect_length(out, 2L)
+  expect_named(out, c("year2010", "year2020"))
+  expect_s4_class(out[[1]], "SpatRaster")
+})
