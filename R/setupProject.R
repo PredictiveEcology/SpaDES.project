@@ -4314,19 +4314,36 @@ studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL,
 }
 
 
+## Fewest trailing path segments that make `paths` mutually distinct, returned
+## as relative paths. Terminates by construction: bounded by the longest path,
+## and a single path needs no disambiguation.
+.uniqueTrailingPath <- function(paths) {
+  segs <- strsplit(paths, .Platform$file.sep, fixed = TRUE)
+  segs <- lapply(segs, function(s) s[nzchar(s)])
+  joinLast <- function(n) {
+    vapply(segs, function(s) paste(utils::tail(s, n), collapse = "/"), character(1))
+  }
+  n <- 1L
+  maxN <- max(c(1L, lengths(segs)))
+  while (n < maxN && anyDuplicated(joinLast(n))) n <- n + 1L
+  joinLast(n)
+}
+
 linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toFilesList) {
 
   if (missing(fromFilesList)) {
     dirCreated <- dir.create(toBaseDir, showWarnings = FALSE, recursive = TRUE)
 
-    notDeepEnough <- TRUE
-    fromDirsAbs <- fromDirs
-    while (notDeepEnough) {
-      fromDirsRel <- basename(fromDirsAbs)
-      if (length(fromDirs) == length(unique(fromDirsRel)))
-        break
-      fromDirsAbs <- dirname(fromDirs)
-    }
+    # Destination sub-path for each source directory: the fewest trailing path
+    # segments that tell them apart. file.copy() semantics -- the destination
+    # has to preserve enough of the source path to stay distinct.
+    #
+    # The previous loop climbed to an ANCESTOR's basename instead, which both
+    # discards path information (/x/mod/sub and /y/mod/sub staged as x/ and y/,
+    # losing mod/sub) and could not terminate: it re-derived from `fromDirs`
+    # every pass, so it only ever reached one level up, and any collision that
+    # survived that level spun forever.
+    fromDirsRel <- .uniqueTrailingPath(fromDirs)
 
     fromFilesList <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = TRUE))
     filesRel <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = FALSE))
