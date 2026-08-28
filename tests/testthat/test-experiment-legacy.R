@@ -9,13 +9,40 @@ localExperimentSetup <- function(envir = parent.frame()) {
   skip_if_not_installed("reproducible")
   skip_if_not_installed("future")
   skip_if_not_installed("future.apply")
-  # spades.plots = "none": the sample modules plot, which otherwise drops an
-  # Rplots.pdf into whatever the working directory happens to be.
   withr::local_options(spades.moduleCodeChecks = FALSE, spades.plots = "none",
                        .local_envir = envir)
+  # The sample modules plot. spades.plots = "none" covers most of it, but a
+  # null device guarantees nothing reaches the working directory as a stray
+  # Rplots.pdf regardless of device state carried in from earlier tests.
+  grDevices::pdf(NULL)
+  withr::defer(try(grDevices::dev.off(), silent = TRUE), envir = envir)
   localSpadesOptions(envir)
   oplan <- future::plan("sequential")
   withr::defer(future::plan(oplan), envir = envir)
+
+  # experiment2() passes `future.packages` to future_mapply(), and under a
+  # sequential plan those packages are attached to THIS session's search path
+  # and never removed. Left in place they break later files: test-setupProject.R
+  # calls withr::local_package(), whose detach then fails with
+  # "package 'reproducible' is required by 'SpaDES.core' so will not be
+  # detached". Restore the search path on exit.
+  before <- search()
+  withr::defer({
+    # newest-attached first (search() order), and repeat: a package cannot be
+    # detached while another attached one still needs it, so one pass leaves
+    # dependencies like reproducible behind.
+    repeat {
+      added <- setdiff(search(), before)
+      if (length(added) == 0L) break
+      progress <- FALSE
+      for (p in added) {
+        ok <- tryCatch({ detach(p, character.only = TRUE); TRUE },
+                       error = function(e) FALSE, warning = function(w) FALSE)
+        if (ok) progress <- TRUE
+      }
+      if (!progress) break
+    }
+  }, envir = envir)
 }
 
 mkBase <- function(outputPath) {
@@ -125,6 +152,11 @@ sampleModulePath <- function() {
   p <- system.file("sampleModules", package = "SpaDES.core")
   skip_if(!nzchar(p) || !dir.exists(file.path(p, "randomLandscapes")),
           "SpaDES.core sample modules not available")
+  # randomLandscapes declares reqdPkgs = SpaDES.tools, which experiment2() feeds
+  # to future.packages; SpaDES.tools is archived on CRAN, so it is absent on a
+  # stock CI runner and the future fails to launch.
+  skip_if_not_installed("SpaDES.tools")
+  skip_if_not_installed("RColorBrewer")
   p
 }
 
