@@ -153,6 +153,10 @@ test_that(".paletteRampFun expands a whitebox name to colours", {
 })
 
 test_that(".paletteRampFun passes explicit colours through", {
+  # the pass-through branch is reached only after the Brewer test, which reads
+  # RColorBrewer::brewer.pal.info
+  skip_if_not_installed("RColorBrewer")
+
   expect_identical(SpaDES.project:::.paletteRampFun("#FF0000")(3),
                    rep("#FF0000", 3))
 })
