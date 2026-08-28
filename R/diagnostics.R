@@ -160,19 +160,3 @@ setupDiagReport <- function(scope = setupDiagCurrent(),
   invisible()
 }
 
-## Run `expr` with a fresh diagnostic scope, then report. Caller-friendly
-## wrapper used by setupProject().
-withSetupDiagnostics <- function(expr,
-                                 strict = getOption("SpaDES.project.strict", FALSE),
-                                 verbose = getOption("Require.verbose", 1L)) {
-  scope <- setupDiagOpen()
-  on.exit({
-    tryCatch(setupDiagReport(scope, strict = strict, verbose = verbose),
-             error = function(e) {
-               setupDiagClose()
-               stop(e)
-             })
-    setupDiagClose()
-  }, add = TRUE)
-  force(expr)
-}
