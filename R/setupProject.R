@@ -3135,54 +3135,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 }
 
 
-setupRequire <- function(allPkgs, packages, ...) {
 
-  # Without installing
-  requireNeeds <- unique(unname(unlist(Require::pkgDep(allPkgs, recursive = TRUE))))
-  packagesNeeds <- unique(unname(unlist(Require::pkgDep(packages, recursive = TRUE))))
-  requirePkgs <- unique(extractPkgName(requireNeeds))
-  packagesPkgs <- extractPkgName(packagesNeeds)
-  packagesPkgsMatched <- packagesNeeds[match(requirePkgs, packagesPkgs)]
-  require <- sort(unique(c(requireNeeds, packagesPkgsMatched)))
-
-  # alreadyLoadedMess <- c()
-  withCallingHandlers(
-    Require::Require(allPkgs, ...) # basically don't change anything
-    , message = function(m) {
-      if (any(grepl("Error: package or namespace", m$message))) {
-        pkg <- gsub("^.+namespace \u2018(.+)\u2019 .+ is already loaded.+$", "\\1", m$message)
-        message(m)
-        stop(stopMessForRequireFail(pkg))
-      }
-    }
-    , warning = function(w) {
-      warnMess <- "^.+ersion .+ of \u2018(.+)\u2019 masked by .+$"
-      if (any(grepl(warnMess, w$message))) {
-        pkg <- gsub(warnMess, "\\1", w$message)
-        warning(w)
-        stop(stopMessForRequireFail(pkg))
-      }
-    }
-  )
-}
-
-stopMessForRequireFail <- function(pkg) {
-  paste0("\nThe above error(s) likely mean(s) you must restart R and run again.",
-         "\nIf this/these occur(s) again, your session likely ",
-         "pre-loads old packages from e.g., your personal library. ",
-         "The best thing to do is try to\n",
-         yellow("restart R without loading any packages."),
-         "\n\nIf that is not easy to do, you can try to update it in that location with (for a CRAN package) e.g., :\n",
-         yellow("restart R "),
-         blue(paste0("\ninstall.packages(c('", pkg, "'))")),
-         yellow("\nrestart R"),
-         "\n\nIf that does not work (including non-CRAN packages), perhaps removing the old one...",
-         yellow("\nrestart R "),
-         blue(paste0("\nremove.packages(c('", pkg, "'))")),
-         yellow("\nrestart R"),
-         "\nThis should trigger a re-installation, or allow ",
-         "for a manual install.packages ...")
-}
 
 #' Resolve a study area from a `studyArea` spec via `geodata::gadm()`
 #'
@@ -4806,9 +4759,6 @@ convertHTTPsToGH <- function(url) {
 }
 
 
-isGitHubWAt <- function(txt) {
-  isGitHub(txt) & grepl("@", txt) & endsWith(tolower(txt), ".r")
-}
 
 githubDotCom <- "https://github.com"
 rawGithubDotCom <- "https://raw.githubusercontent.com"
