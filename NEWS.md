@@ -105,6 +105,9 @@ version 1.0.1
 
 ## Bug fixes
 
+* `plotSAs()` now uses each `rasterToMatch`'s own entry from `rasterToMatchPalette`; it previously used the first entry for every panel.
+* `plotSAsLeaflet()` now resolves RColorBrewer palette names to colours; `leafem::colorOptions()` silently stored the name itself, so Brewer palettes did not render.
+
 * `experimentMonitor()` no longer errors when no panes are running: `.tmux_attach_ps_stats()` checked for an empty table only after initialising its columns.
 * `plotSAs()` and `plotSAsLeaflet()` no longer lose their layer list when reprojecting to lat/long: `toLatLong()` now returns the full list rather than `NULL` or a subset.
 * `rasterToMatchPaletteNamed()` returns an empty palette, rather than the function itself, when no palette entry is named.

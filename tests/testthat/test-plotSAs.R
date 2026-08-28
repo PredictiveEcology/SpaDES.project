@@ -120,3 +120,66 @@ test_that("plotSAsLeaflet errors when there is nothing spatial to plot", {
   expect_error(plotSAsLeaflet(list(notSpatial = 1L), include = FALSE),
                "No spatial objects to plot")
 })
+
+# --- palette resolution -------------------------------------------------------
+## Both entry points accept the same palette names but previously consumed them
+## differently, which is where they had drifted apart. .paletteRampFun() is the
+## single resolver they now share.
+
+test_that(".paletteRampFun expands an RColorBrewer name to colours", {
+  skip_if_not_installed("RColorBrewer")
+
+  cols <- SpaDES.project:::.paletteRampFun("Set1")(12)
+
+  expect_length(cols, 12L)
+  expect_true(all(grepl("^#[0-9A-Fa-f]{6}$", cols)))
+})
+
+test_that(".paletteRampFun expands a whitebox name to colours", {
+  skip_if_not_installed("tidyterra")
+
+  cols <- SpaDES.project:::.paletteRampFun("muted")(12)
+
+  expect_length(cols, 12L)
+  expect_true(all(grepl("^#[0-9A-Fa-f]{6}", cols)))
+})
+
+test_that(".paletteRampFun passes explicit colours through", {
+  expect_identical(SpaDES.project:::.paletteRampFun("#FF0000")(3),
+                   rep("#FF0000", 3))
+})
+
+test_that("plotSAs gives each rasterToMatch its own palette", {
+  skip_if_no_plotting(c("ggplot2", "patchwork"))
+  useLocalCache()
+  testthat::local_mocked_bindings(setupStudyArea = localSetupStudyArea,
+                                  .package = "SpaDES.project")
+  sa <- mkSA()
+  r1 <- mkRTM(sa); r2 <- mkRTM(sa)
+  ll <- list(studyArea = sa, rasterToMatch1 = r1, rasterToMatch2 = r2)
+
+  gg <- suppressWarnings(plotSAs(ll, rasterToMatchPalette = c("Set1", "Greens")))
+
+  fills1 <- unique(ggplot2::ggplot_build(gg[[1]])$data[[1]]$fill)
+  fills2 <- unique(ggplot2::ggplot_build(gg[[2]])$data[[1]]$fill)
+  # taking rasterToMatchPalette[[1]] for every panel would make these identical
+  expect_false(identical(fills1, fills2))
+})
+
+test_that("plotSAsLeaflet sends literal colours to addGeotiff, not a palette name", {
+  skip_if_no_plotting(c("leaflet", "leafem"))
+  useLocalCache()
+  ll <- list(studyArea = mkSA(), rasterToMatch = mkRTM())
+
+  a <- suppressWarnings(plotSAsLeaflet(ll))
+
+  geo <- Filter(function(x) identical(x$method, "addGeotiff"), a$x$calls)
+  expect_length(geo, 1L)
+  args <- geo[[1]]$args
+  opts <- args[[which(vapply(args, function(z) is.list(z) && "palette" %in% names(z),
+                             logical(1)))]]
+  # leafem::colorOptions() accepts a bare name but stores the string itself,
+  # which reaches the widget as a one-element palette of the text "Set1"
+  expect_gt(length(opts$palette), 1L)
+  expect_true(all(grepl("^#[0-9A-Fa-f]{6}", opts$palette)))
+})
