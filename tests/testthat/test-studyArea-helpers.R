@@ -1,9 +1,8 @@
 ## Pure geometry / palette helpers from R/studyAreaPlotting.R.
 ## Synthetic terra objects only -- no downloads, no plotting.
 ##
-## Two helpers in this file are deliberately NOT covered here because they are
-## defective; see the note at the bottom rather than tests pinning their current
-## behaviour.
+## One helper here (toLatLong) is deliberately NOT covered: see the note at the
+## bottom rather than a test pinning behaviour that looks wrong.
 
 mkVect <- function(xmin = 0, xmax = 10, ymin = 0, ymax = 5, crs = "epsg:4326") {
   terra::vect(terra::ext(xmin, xmax, ymin, ymax), crs = crs)
@@ -158,6 +157,30 @@ test_that("rasterToMatchPaletteUpdate drops named entries before recycling", {
   expect_true(all(res == "Reds"))
 })
 
+test_that("rasterToMatchPaletteNamed keeps only the named entries", {
+  res <- SpaDES.project:::rasterToMatchPaletteNamed(c(r1 = "Blues", "Reds", r3 = "Greens"))
+
+  expect_identical(res, c(r1 = "Blues", r3 = "Greens"))
+})
+
+test_that("rasterToMatchPaletteNamed returns an empty palette when nothing is named", {
+  res <- SpaDES.project:::rasterToMatchPaletteNamed(c("Reds", "Blues"))
+
+  # it used to return the FUNCTION here: the local was assigned only inside
+  # `if (any(hasName))`, so the name resolved to the enclosing function
+  expect_false(is.function(res))
+  expect_identical(res, character(0))
+})
+
+test_that("rasterToMatchPaletteNamed leaves the downstream name lookup unchanged", {
+  # the only use at both call sites is `rtmNam %in% names(result)`; with nothing
+  # named that must stay FALSE so the caller falls back to the shared palette
+  res <- SpaDES.project:::rasterToMatchPaletteNamed(c("Reds", "Blues"))
+
+  expect_null(names(res))
+  expect_false("r1" %in% names(res))
+})
+
 ## NOT covered here, reported instead -- writing tests would pin behaviour that
 ## looks wrong rather than intended:
 ##
@@ -169,8 +192,3 @@ test_that("rasterToMatchPaletteUpdate drops named entries before recycling", {
 ##     both supplied            -> only the sasNames subset
 ## Both call sites do `ll <- toLatLong(ll, ...)` -- plotSAsLeaflet() line ~304
 ## unconditionally, plotSAs() line ~78 when latlong = TRUE.
-##
-## rasterToMatchPaletteNamed(x) returns the FUNCTION ITSELF when no element of
-## `x` is named: the local `rasterToMatchPaletteNamed` is only assigned inside
-## `if (any(hasName))`, so otherwise the name resolves to the enclosing function
-## by lexical scoping.

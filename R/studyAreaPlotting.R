@@ -508,12 +508,15 @@ rasterToMatchPaletteUpdate <- function(rasterToMatchPalette, rtmsNames) {
 
 rasterToMatchPaletteNamed <- function(rasterToMatchPalette) {
   hasName <- hasNames(rasterToMatchPalette)
-  # namsRTMP <- names(rasterToMatchPalette)
-  # hasName <- nzchar(namsRTMP)
-  if (any(hasName)) {
-    rasterToMatchPaletteNamed <- rasterToMatchPalette[hasName]
-  }
-  rasterToMatchPaletteNamed
+  # Subset unconditionally. The local was previously assigned only inside
+  # `if (any(hasName))`, so with nothing named the name resolved to this
+  # function itself by lexical scoping and the function was returned instead of
+  # a palette. Harmless at both call sites -- they only ask
+  # `rtmNam %in% names(result)`, and names(<a function>) is NULL -- but it is a
+  # trap for any other use. hasNames() gives logical(0) for a wholly unnamed
+  # vector, and x[logical(0)] is an empty vector with NULL names, so the else
+  # branch downstream is reached exactly as before.
+  rasterToMatchPalette[hasName]
 }
 
 hasNames <- function(rasterToMatchPalette) {
