@@ -105,6 +105,8 @@ version 1.0.1
 
 ## Bug fixes
 
+* `plotSAsLeaflet()` no longer fails on a study area with no attribute table; the polygon label was a formula, which made leaflet resolve it against the geometry's attributes.
+
 * `plotSAs()` now uses each `rasterToMatch`'s own entry from `rasterToMatchPalette`; it previously used the first entry for every panel.
 * `plotSAsLeaflet()` now resolves RColorBrewer palette names to colours; `leafem::colorOptions()` silently stored the name itself, so Brewer palettes did not render.
 
