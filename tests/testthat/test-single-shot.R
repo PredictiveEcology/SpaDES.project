@@ -2,6 +2,13 @@
 
 testthat::test_that("experimentTmux single-shot assigns all columns and sources once", {
   testthat::skip_on_cran()
+  # Skipped on CI, unlike the other two tmux tests, which do run there. This is
+  # the only one that starts TWO staggered workers, and on a GitHub runner its
+  # result files never appear within the 120s wait. Not a timeout: queue-mode
+  # completes four jobs inside the same budget with one worker. Something in the
+  # two-worker path -- pane contention, set_mouse on a headless runner, or a real
+  # bug in the staggered branch -- needs its own investigation with the worker
+  # logs surfaced, which this suite does not currently capture.
   testthat::skip_on_ci()
   skip_if_no_tmux()
   td <- tempfile("tmux_single"); unlink(td, recursive = TRUE); dir.create(td)

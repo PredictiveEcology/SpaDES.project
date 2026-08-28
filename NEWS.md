@@ -5,6 +5,7 @@ version 1.0.1
 
 ## New features
 
+* `outSave()` gains `verbose`, defaulting to `getOption("reproducible.verbose", 1)`; it previously failed when that option was unset.
 * `makeDESCRIPTION()` and `makeDESCRIPTIONproject()` are now exported, and work: build a DESCRIPTION from module metadata, or one project-level DESCRIPTION merging every module's `reqdPkgs`.
 
 * `plotChangeOverTime()` now iterates **all** time-series objects discovered under `simList`/directory inputs (no more `name` argument) and presents them as radio-selectable base layers — same UX as `SpaDES.shiny::shine()`'s "Change from start to end" tab. A per-object legend renders in `legendPosition` (max value at top, blue = positive; uses shine's `rev(pal) + labFormat transform` idiom), and a small `htmlwidgets::onRender()` shim listens for leaflet's `baselayerchange` event to show only the active layer's legend.
@@ -104,6 +105,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `experimentTmux()` no longer errors with "invalid 'path' argument" when `gargle_oauth_cache` is unset or `NA` (its default).
 * `plotSAs()`/`plotSAsLeaflet()` no longer pick up dot-prefixed study-area objects (e.g. `sim.studyArea`) as layers to plot.
 * `setupProject()`: the `useGit`, `standAlone`, `updateRprofile`, `setLinuxBinaryRepo`, and `overwrite` arguments now fall back to their documented `getOption("SpaDES.project.*", <default>)` value instead of `NULL` when the option is unset, matching the inner `setup*` functions and `spadesProjectOptions()` (`setLinuxBinaryRepo` now defaults to running on Linux).
 * `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns, and each `setupProject()` argument's `@param` states its default explicitly.
