@@ -105,6 +105,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `plotSAs()` and `plotSAsLeaflet()` no longer lose their layer list when reprojecting to lat/long: `toLatLong()` now returns the full list rather than `NULL` or a subset.
 * `rasterToMatchPaletteNamed()` returns an empty palette, rather than the function itself, when no palette entry is named.
 * `setupGitIgnore()` now writes the default ignore entries (they were computed and discarded), resolves `.gitignore` against `projectPath` rather than the working directory, and matches paths literally instead of as regular expressions.
 * `linkOrCopyFiles()` no longer hangs when two source directories share their last two path segments; destinations now keep the fewest path segments needed to stay distinct.

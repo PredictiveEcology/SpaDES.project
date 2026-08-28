@@ -423,6 +423,11 @@ toLatLong <- function(ll, rtmsNames, sasNames) {
       reproducible::postProcessTo(ll[[sa]], projectTo = projectTo) |>
         reproducible::Cache())
   }
+  # Return the whole list. Without this the value was whatever the last
+  # conditional sub-assignment yielded: NULL when sasNames was empty (both
+  # name vectors empty, or only rtmsNames supplied), and otherwise just the
+  # sasNames subset. Both callers assign the result back over `ll`.
+  ll
 }
 
 makeListToPlot <- function(ll, include, exclude, ...) {

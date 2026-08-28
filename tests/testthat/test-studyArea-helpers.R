@@ -1,8 +1,7 @@
 ## Pure geometry / palette helpers from R/studyAreaPlotting.R.
 ## Synthetic terra objects only -- no downloads, no plotting.
 ##
-## One helper here (toLatLong) is deliberately NOT covered: see the note at the
-## bottom rather than a test pinning behaviour that looks wrong.
+## Includes toLatLong and rasterToMatchPaletteNamed, both fixed in this branch.
 
 mkVect <- function(xmin = 0, xmax = 10, ymin = 0, ymax = 5, crs = "epsg:4326") {
   terra::vect(terra::ext(xmin, xmax, ymin, ymax), crs = crs)
@@ -181,14 +180,63 @@ test_that("rasterToMatchPaletteNamed leaves the downstream name lookup unchanged
   expect_false("r1" %in% names(res))
 })
 
-## NOT covered here, reported instead -- writing tests would pin behaviour that
-## looks wrong rather than intended:
-##
-## toLatLong(ll, rtmsNames, sasNames) never returns the whole `ll`. It has no
-## explicit return, so its value is whatever the last conditional
-## sub-assignment yields:
-##     both name vectors empty  -> NULL
-##     only rtmsNames supplied  -> NULL
-##     both supplied            -> only the sasNames subset
-## Both call sites do `ll <- toLatLong(ll, ...)` -- plotSAsLeaflet() line ~304
-## unconditionally, plotSAs() line ~78 when latlong = TRUE.
+# --- toLatLong ----------------------------------------------------------------
+#
+# reproducible::postProcessTo() and Cache() are mocked: what matters here is
+# that the whole `ll` comes back, since both callers assign the result over it.
+
+localToLatLongMocks <- function(envir = parent.frame()) {
+  skip_if_not_installed("reproducible")
+  testthat::local_mocked_bindings(
+    postProcessTo = function(x, projectTo, ...) paste0(x, "-proj"),
+    Cache = function(x, ...) x,
+    .package = "reproducible",
+    .env = envir
+  )
+}
+
+test_that("toLatLong returns the whole list when neither name vector is supplied", {
+  localToLatLongMocks()
+  ll <- list(rtm1 = "R", sa1 = "S", other = "O")
+
+  res <- SpaDES.project:::toLatLong(ll, character(0), character(0))
+
+  expect_identical(res, ll)
+})
+
+test_that("toLatLong reprojects only rtmsNames and keeps the rest", {
+  localToLatLongMocks()
+  ll <- list(rtm1 = "R", sa1 = "S", other = "O")
+
+  res <- SpaDES.project:::toLatLong(ll, "rtm1", character(0))
+
+  expect_named(res, c("rtm1", "sa1", "other"))
+  expect_identical(res$rtm1, "R-proj")
+  expect_identical(res$sa1, "S")
+  expect_identical(res$other, "O")
+})
+
+test_that("toLatLong reprojects only sasNames and keeps the rest", {
+  localToLatLongMocks()
+  ll <- list(rtm1 = "R", sa1 = "S", other = "O")
+
+  res <- SpaDES.project:::toLatLong(ll, character(0), "sa1")
+
+  expect_named(res, c("rtm1", "sa1", "other"))
+  expect_identical(res$sa1, "S-proj")
+  expect_identical(res$rtm1, "R")
+})
+
+test_that("toLatLong reprojects both sets and preserves every element", {
+  localToLatLongMocks()
+  ll <- list(rtm1 = "R", sa1 = "S", other = "O")
+
+  res <- SpaDES.project:::toLatLong(ll, "rtm1", "sa1")
+
+  # the caller does `ll <- toLatLong(ll, ...)`, so nothing may be dropped
+  expect_length(res, 3L)
+  expect_named(res, c("rtm1", "sa1", "other"))
+  expect_identical(res$rtm1, "R-proj")
+  expect_identical(res$sa1, "S-proj")
+  expect_identical(res$other, "O")
+})
