@@ -52,8 +52,11 @@ workers <- experimentTmux(
 cat("workers returned: ", paste(unlist(workers), collapse = ", "), "\n", sep = "")
 
 ## Poll, capturing pane state as we go so a pane that dies early is still seen.
-deadline <- as.numeric(Sys.getenv("DEBUG_TIMEOUT", "180"))
-t0 <- Sys.time(); n <- 0L
+## Sys.getenv() returns "" (not the default) when the var is set-but-empty,
+## which is what a push event gives for an unsupplied workflow input.
+deadline <- suppressWarnings(as.numeric(Sys.getenv("DEBUG_TIMEOUT")))
+if (!isTRUE(is.finite(deadline))) deadline <- 180
+t0 <- Sys.time(); n <- 0L; el <- 0
 repeat {
   n <- length(list.files(outdir, "^res_.*\\.rds$"))
   el <- as.numeric(difftime(Sys.time(), t0, units = "secs"))

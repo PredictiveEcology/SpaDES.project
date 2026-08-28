@@ -58,7 +58,7 @@ jobs:
 
       - name: Run two-worker reproduction inside tmux
         env:
-          DEBUG_TIMEOUT: ${{ github.event.inputs.timeout }}
+          DEBUG_TIMEOUT: ${{ github.event.inputs.timeout || '180' }}
         run: |
           set -uo pipefail
           export OUTDIR="${RUNNER_TEMP}/tmuxdbg"
