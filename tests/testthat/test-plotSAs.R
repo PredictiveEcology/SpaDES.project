@@ -18,7 +18,15 @@ skip_if_no_plotting <- function(extra = character()) {
 theCRS <- "epsg:3347"
 
 mkSA <- function(xmin = 5e6, xmax = 5.2e6, ymin = 2e6, ymax = 2.2e6) {
-  terra::vect(terra::ext(xmin, xmax, ymin, ymax), crs = theCRS)
+  v <- terra::vect(terra::ext(xmin, xmax, ymin, ymax), crs = theCRS)
+  ## Give it an attribute table. plotSAsLeaflet() passes label = ~paste0(sa) to
+  ## leaflet::addPolygons(), and a formula makes leaflet resolve it against
+  ## metaData(<SpatVector>); on a geometry with no attributes that is a 0-column
+  ## data.frame against 1 geometry, which newer terra rejects outright. Real
+  ## study areas always carry attributes, so a bare extent is an unrealistic
+  ## fixture rather than a case worth asserting on.
+  v$name <- "studyArea"
+  v
 }
 
 mkRTM <- function(sa = mkSA(), nrows = 8, ncols = 8) {
