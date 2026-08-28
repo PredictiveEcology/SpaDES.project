@@ -44,21 +44,37 @@ test_that("get_latest_heartbeat returns early when no file mentions iter", {
 })
 
 test_that("get_latest_heartbeat reports the newest iteration and timestamp", {
-  d <- mkHistDir(c("hist_iter001_2026-01-01 10:00:00.png",
-                   "hist_iter002_2026-01-01 10:05:00.png",
-                   "hist_iter003_2026-01-01 10:09:00.png"))
+  # date-only stamps: Windows forbids ":" in filenames, and real runs on the
+  # cluster embed a full "HH:MM:SS" time. The parse path is the same either way;
+  # the colon form is exercised separately below, skipped on Windows.
+  d <- mkHistDir(c("hist_iter001_2026-01-01.png",
+                   "hist_iter002_2026-01-02.png",
+                   "hist_iter003_2026-01-03.png"))
 
   res <- get_latest_heartbeat("run1", folderWithIterInFilename = d)
 
   expect_named(res, c("ts", "iter", "started", "elapsed"))
-  expect_identical(res$ts, "2026-01-01 10:09:00")
+  expect_identical(res$ts, "2026-01-03")
   expect_identical(res$iter, 3L)
   # `started` is the earliest timestamp seen
+  expect_identical(res$started, "2026-01-01")
+})
+
+test_that("get_latest_heartbeat parses a full HH:MM:SS stamp", {
+  # the shape real runs actually produce; ":" is illegal in a Windows filename
+  skip_on_os("windows")
+  d <- mkHistDir(c("hist_iter001_2026-01-01 10:00:00.png",
+                   "hist_iter002_2026-01-01 10:09:00.png"))
+
+  res <- get_latest_heartbeat("run1", folderWithIterInFilename = d)
+
+  expect_identical(res$ts, "2026-01-01 10:09:00")
+  expect_identical(res$iter, 2L)
   expect_identical(res$started, "2026-01-01 10:00:00")
 })
 
 test_that("get_latest_heartbeat accepts a quoted folder expression", {
-  d <- mkHistDir("hist_iter007_2026-02-02 08:00:00.png")
+  d <- mkHistDir("hist_iter007_2026-02-02.png")
 
   # the default is a call, so a call must be evaluated rather than used as-is
   res <- get_latest_heartbeat("run1", folderWithIterInFilename = bquote(.(d)))
