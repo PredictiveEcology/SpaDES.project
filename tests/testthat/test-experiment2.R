@@ -14,6 +14,7 @@ localExperimentSetup <- function(envir = parent.frame()) {
   skip_if_not_installed("future")
   skip_if_not_installed("future.apply")
   withr::local_options(spades.moduleCodeChecks = FALSE, .local_envir = envir)
+  localSpadesOptions(envir)
   oplan <- future::plan("sequential")
   withr::defer(future::plan(oplan), envir = envir)
 }

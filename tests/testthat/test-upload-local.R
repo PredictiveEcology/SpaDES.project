@@ -68,6 +68,7 @@ test_that("outTar honours tarDir", {
 test_that("outSave writes an rds next to the simList outputPath", {
   skip_if_not_installed("SpaDES.core")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   td <- withr::local_tempdir()
   sim <- suppressMessages(SpaDES.core::simInit(
@@ -85,6 +86,7 @@ test_that("outSave writes an rds next to the simList outputPath", {
 test_that("outSave honours an explicit simFilename and creates its directory", {
   skip_if_not_installed("SpaDES.core")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   td <- withr::local_tempdir()
   sim <- suppressMessages(SpaDES.core::simInit(times = list(start = 0, end = 1)))
@@ -100,6 +102,7 @@ test_that("outSave honours an explicit simFilename and creates its directory", {
 test_that("outSave survives an unset reproducible.verbose", {
   skip_if_not_installed("SpaDES.core")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   # SpaDES.core::saveSimList() resolves its own default as a bare
   # getOption("reproducible.verbose") and hands the result to
@@ -120,6 +123,7 @@ test_that("outSave survives an unset reproducible.verbose", {
 test_that("outSave forwards verbose to saveSimList", {
   skip_if_not_installed("SpaDES.core")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   # saveSimList filters its own messages, so the argument cannot be observed
   # from the output; capture it at the call boundary instead.

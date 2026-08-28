@@ -5,6 +5,7 @@
 
 mkBaseSim <- function() {
   withr::local_options(spades.moduleCodeChecks = FALSE, .local_envir = parent.frame())
+  localSpadesOptions(parent.frame())
   suppressMessages(SpaDES.core::simInit(times = list(start = 0, end = 1)))
 }
 

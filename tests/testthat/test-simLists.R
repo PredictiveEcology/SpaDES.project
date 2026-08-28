@@ -72,6 +72,7 @@ test_that("as.data.table.simLists extracts a named object from every simList", {
   skip_if_not_installed("SpaDES.core")
   skip_if_not_installed("purrr")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   dt <- data.table::as.data.table(mkSimLists(), vals = "val")
 
@@ -89,6 +90,7 @@ test_that("as.data.table.simLists evaluates quoted expressions and multiple vals
   skip_if_not_installed("SpaDES.core")
   skip_if_not_installed("purrr")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   dt <- data.table::as.data.table(mkSimLists(),
                                   vals = list(doubled = quote(val * 2)))
@@ -106,6 +108,7 @@ test_that("as.data.table.simLists honours objectsFromSim = NA", {
   skip_if_not_installed("SpaDES.core")
   skip_if_not_installed("purrr")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   # NA means "take nothing from the simList", so `val` is not in scope and the
   # expression must fail rather than silently returning a stale value.
@@ -118,6 +121,7 @@ test_that("as.data.table.simLists rejects a malformed objectsFromOutputs", {
   skip_if_not_installed("SpaDES.core")
   skip_if_not_installed("purrr")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   sl <- mkSimLists()
 
@@ -141,6 +145,7 @@ test_that("as.data.table.simLists rejects a malformed objectsFromOutputs", {
 test_that("show method summarises simLists and replicate counts", {
   skip_if_not_installed("SpaDES.core")
   withr::local_options(spades.moduleCodeChecks = FALSE)
+  localSpadesOptions()
 
   out <- capture.output(show(mkSimLists()))
 

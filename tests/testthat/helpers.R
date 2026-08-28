@@ -102,3 +102,18 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
   # )
 
 }
+
+# setupTest() clears the spades.* path options -- projectPath, packagePath,
+# inputPath, modulePath, outputPath, scratchPath -- with a bare options() call,
+# so they are gone for the rest of the run. SpaDES.core::simInit() reads them,
+# and without them fails with "The modules argument is specified incorrectly"
+# or "Invalid path: cannot be NA". Any test that builds a simList after
+# test-setupProject.R has run therefore has to put SpaDES.core's defaults back.
+# Call this rather than relying on test file ordering.
+localSpadesOptions <- function(envir = parent.frame()) {
+  if (!requireNamespace("SpaDES.core", quietly = TRUE)) return(invisible(NULL))
+  suppressMessages(
+    withr::local_options(SpaDES.core::spadesOptions(), .local_envir = envir)
+  )
+  invisible(NULL)
+}
