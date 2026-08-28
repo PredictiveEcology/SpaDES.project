@@ -66,8 +66,10 @@ repeat {
 cat("\nresult files after ", round(el), "s: ", n, " of 2\n", sep = "")
 
 hdr("tmux list-panes (all sessions)")
+## shQuote: system2() hands args to a shell, so an unquoted format string with
+## spaces is split and tmux reports "-F expects an argument".
 sh("tmux", c("list-panes", "-a", "-F",
-             "#{session_name}:#{window_index}.#{pane_index} id=#{pane_id} pid=#{pane_pid} dead=#{pane_dead} cmd=#{pane_current_command} title=#{pane_title}"))
+             shQuote("#{session_name}:#{window_index}.#{pane_index} id=#{pane_id} pid=#{pane_pid} dead=#{pane_dead} cmd=#{pane_current_command} title=#{pane_title}")))
 
 hdr("pane capture for each worker pane")
 for (w in unlist(workers)) {

@@ -41,6 +41,8 @@ jobs:
           extra-packages: |
             any::processx
             any::filelock
+            any::covr
+            any::testthat
             PredictiveEcology/Require@development
 
       # Workers start a *fresh* R and load the INSTALLED package, so it must be
@@ -82,10 +84,39 @@ jobs:
           echo "exit status: $(cat "$rc" 2>/dev/null || echo '<none>')"
         shell: bash
 
+      # The plain reproduction passes on CI and the test passes locally under
+      # covr, so the only untested combination left is CI + covr + testthat --
+      # exactly the failing coverage job.
+      - name: Run the same thing under covr
+        if: always()
+        run: |
+          set -uo pipefail
+          export OUTDIR="${RUNNER_TEMP}/tmuxdbg-covr"
+          mkdir -p "$OUTDIR"
+          rc="${RUNNER_TEMP}/covr.rc"; rm -f "$rc"
+          tmux new-session -d -s dbgcovr \
+            "Rscript .github/scripts/tmux-two-worker-under-covr.R > '$OUTDIR/outer.log' 2>&1; echo \$? > '$rc'"
+          deadline=$(( SECONDS + 1800 ))
+          while [ ! -f "$rc" ]; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error title=covr debug run timed out::no exit status"
+              break
+            fi
+            sleep 10
+          done
+          echo "=============== covr inner output ==============="
+          cat "$OUTDIR/covr-inner.txt" || echo "(no inner output)"
+          echo "=============== covr outer log ================="
+          tail -40 "$OUTDIR/outer.log" || echo "(no outer log)"
+          echo "exit status: $(cat "$rc" 2>/dev/null || echo '<none>')"
+        shell: bash
+
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tmux-two-worker-diagnostics
-          path: ${{ runner.temp }}/tmuxdbg
+          path: |
+            ${{ runner.temp }}/tmuxdbg
+            ${{ runner.temp }}/tmuxdbg-covr
           if-no-files-found: warn
