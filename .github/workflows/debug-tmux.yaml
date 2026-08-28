@@ -94,9 +94,13 @@ jobs:
           export OUTDIR="${RUNNER_TEMP}/tmuxdbg-covr"
           mkdir -p "$OUTDIR"
           rc="${RUNNER_TEMP}/covr.rc"; rm -f "$rc"
+          # `tmux new-session` attaches to the already-running server and the new
+          # session inherits that SERVER's environment, captured when it
+          # started -- not this shell's. So OUTDIR must be set inline on the
+          # command, or the previous step's value is used.
           tmux new-session -d -s dbgcovr \
-            "Rscript .github/scripts/tmux-two-worker-under-covr.R > '$OUTDIR/outer.log' 2>&1; echo \$? > '$rc'"
-          deadline=$(( SECONDS + 1800 ))
+            "OUTDIR='$OUTDIR' Rscript .github/scripts/tmux-two-worker-under-covr.R > '$OUTDIR/outer.log' 2>&1; echo \$? > '$rc'"
+          deadline=$(( SECONDS + 3000 ))
           while [ ! -f "$rc" ]; do
             if [ "$SECONDS" -ge "$deadline" ]; then
               echo "::error title=covr debug run timed out::no exit status"

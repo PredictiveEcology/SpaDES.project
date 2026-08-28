@@ -30,10 +30,19 @@ inner <- sprintf('
   ## (b) the real test, with skip_on_ci defeated so it actually runs
   cat("\\n### test-single-shot.R under covr ###\\n")
   ci <- Sys.getenv("CI"); Sys.setenv(CI = "")
+  ## FULL suite: single-shot on its own passes here, so the remaining variable
+  ## is what the rest of the suite leaves behind -- note that worker panes from
+  ## an earlier test stay alive and idling in the same tmux server.
   try(testthat::test_dir("tests/testthat", package = "SpaDES.project",
-                         load_package = "installed", filter = "single-shot",
+                         load_package = "installed", filter = NULL,
                          reporter = "summary", stop_on_failure = FALSE))
   Sys.setenv(CI = ci)
+
+  cat("\n### tmux panes after the full suite ###\n")
+  cat(paste(suppressWarnings(system2("tmux",
+      c("list-panes", "-a", "-F",
+        shQuote("#{session_name}:#{window_index}.#{pane_index} id=#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command} title=#{pane_title}")),
+      stdout = TRUE, stderr = TRUE)), collapse = "\n"), "\n")
 
   sink(type = "message"); sink(type = "output"); close(con)
 ', innerOut, repro)
