@@ -117,10 +117,14 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
     rasterToMatchPaletteNamed <- rasterToMatchPaletteNamed(rasterToMatchPalette)
     rasterToMatchPalette <- rasterToMatchPaletteUpdate(rasterToMatchPalette, rtmsNames)
 
-    for (rtmNam in rtmsNames) {
+    for (rasFileIndex in seq_along(rtmsNames)) {
+      rtmNam <- rtmsNames[rasFileIndex]
       g[[rtmNam]] <- g[[rtmNam]] + tidyterra::geom_spatvector(data = Canada, fill = "NA")
+      ## Index by raster: rasterToMatchPaletteUpdate() recycles the palette to
+      ## one entry per rasterToMatch, so taking [[1]] gave every panel the same
+      ## palette and made that recycling pointless.
       paletteThisRas <- if (rtmNam %in% names(rasterToMatchPaletteNamed))
-        rasterToMatchPaletteNamed[rtmNam] else rasterToMatchPalette[[1]]
+        rasterToMatchPaletteNamed[rtmNam] else rasterToMatchPalette[[rasFileIndex]]
 
 
       isWhitebox <- paletteThisRas %in% WhiteboxCols
@@ -133,8 +137,7 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
       isCategorical <- isTRUE(any(terra::is.factor(ll[[rtmNam]])))
 
       if (isRColBrew) {
-        theColFun <- RColorBrewer::brewer.pal(9, paletteThisRas) |>
-          colorRampPalette()
+        theColFun <- .paletteRampFun(paletteThisRas)
 
         if (isCategorical) {
           nLev <- nrow(terra::cats(ll[[rtmNam]])[[1]])
@@ -251,7 +254,6 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
     #   tf
     # })
 
-    namsRTMP <- names(rasterToMatchPalette)
     rasterToMatchPaletteNamed <- rasterToMatchPaletteNamed(rasterToMatchPalette)
     rasterToMatchPalette <- rasterToMatchPaletteUpdate(rasterToMatchPalette, rtmsNames)
 
@@ -264,16 +266,14 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
       if (!exists("a", inherits = FALSE)) {
         a <- terra::plet() |> leaflet::addTiles()
       }
-      paletteThisRas <- if (rtmNam %in% namsRTMP)
+      paletteThisRas <- if (rtmNam %in% names(rasterToMatchPaletteNamed))
         rasterToMatchPaletteNamed[rtmNam] else rasterToMatchPalette[[rasFileIndex]]
-      isWhitebox <- rasterToMatchPalette[[rasFileIndex]] %in% WhiteboxCols
-      isRColBrew <- rasterToMatchPalette[[rasFileIndex]] %in% rownames(RColorBrewer::brewer.pal.info)
-      if (isWhitebox) {
-        pal <- tidyterra::whitebox.colors(n = 37, palette = paletteThisRas,
-                                          alpha = 1, rev = FALSE)
-      } else {
-        pal <- paletteThisRas
-      }
+      ## Resolve to literal colours, for both Brewer and whitebox names.
+      ## leafem::colorOptions() accepts a bare palette name without complaint but
+      ## stores the string itself, so the widget received a one-element palette
+      ## of the text "Set1" -- which is why Brewer palettes did not work here
+      ## while whitebox ones (already expanded to colours) did.
+      pal <- .paletteRampFun(paletteThisRas)(37)
 
       a <- leafem::addGeotiff(a, geoTiffFile,
                               group = rtmNam,
@@ -475,6 +475,25 @@ makeListToPlot <- function(ll, include, exclude, ...) {
 
   list(ll = ll, sizes = sizes, sasNames = sasNames, rtmsNames = rtmsNames,
        ordRtms = ordRtms, ordSas = ordSas)
+}
+
+## Resolve a palette *name* to a colour-ramp function.
+##
+## plotSAs() and plotSAsLeaflet() accept the same palette names -- RColorBrewer
+## names (the default Set1/Set2/Set3) and tidyterra's whitebox names -- but the
+## two toolkits consume them differently, and that is where they had drifted
+## apart. Resolving names in one place keeps both on the same palettes.
+.paletteRampFun <- function(paletteName) {
+  paletteName <- unname(paletteName)
+  if (paletteName %in% WhiteboxCols) {
+    function(n) tidyterra::whitebox.colors(n = n, palette = paletteName,
+                                           alpha = 1, rev = FALSE)
+  } else if (paletteName %in% rownames(RColorBrewer::brewer.pal.info)) {
+    colorRampPalette(RColorBrewer::brewer.pal(9, paletteName))
+  } else {
+    ## already a colour, or a vector of colours: recycle as-is
+    function(n) rep_len(paletteName, n)
+  }
 }
 
 WhiteboxCols <- c("atlas", "high_relief", "arid", "soft", "muted", "purple", "viridi", "gn_yl", "pi_y_g", "bl_yl_rd", "deep")

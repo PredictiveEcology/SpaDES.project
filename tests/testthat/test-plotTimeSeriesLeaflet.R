@@ -237,3 +237,23 @@ test_that("plotTimeSeriesLeaflet + plotChangeOverTime: accept a directory of Geo
     expect_false(any(grepl("somethingElse", base_groups)))
   })
 })
+
+test_that("plotTimeSeriesLeaflet falls back to hcl.colors for an unknown palette", {
+  # terra::map.pal() errors on a name it does not know; the tryCatch fallback
+  # keeps a valid hcl.colors palette usable instead of failing the plot
+  m <- suppressWarnings(plotTimeSeriesLeaflet(mkSpatRaster(2), palette = "Zissou 1"))
+
+  expect_s3_class(m, "leaflet")
+})
+
+test_that("plotTimeSeriesLeaflet honours rev", {
+  m <- suppressWarnings(plotTimeSeriesLeaflet(mkSpatRaster(2), rev = TRUE))
+
+  expect_s3_class(m, "leaflet")
+})
+
+test_that("plotChangeOverTime falls back to hcl.colors for an unknown palette", {
+  m <- suppressWarnings(plotChangeOverTime(mkSpatRaster(2), palette = "Zissou 1"))
+
+  expect_s3_class(m, "leaflet")
+})
