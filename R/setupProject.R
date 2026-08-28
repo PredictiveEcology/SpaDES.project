@@ -3284,7 +3284,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     Restart <- FALSE
   }
 
-  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudioLocal ||
+  if ( (isInteractive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudioLocal ||
        !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
 
     # on.exit(setwd(origGetWd), add = TRUE)
@@ -4400,7 +4400,7 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
     messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
     # messageVerbose(paste0("The github repository already exists: ", repo),
     #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-    out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+    out <- if (isInteractive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
     if (grepl("y|yes", tolower(out))) {
       setwd(dirname(getwd()))
       unlink(basenameName, recursive = TRUE)
@@ -4430,8 +4430,8 @@ getGitUserName <- function() {
   if (is.null(gitUserNamePoss)) {
     stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
   }
-  messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-  gitUserName <- if (interactive()) readline() else gitUserNamePoss
+  messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = isInteractive() * 10)
+  gitUserName <- if (isInteractive()) readline() else gitUserNamePoss
   if (!nzchar(gitUserName)) {
     gitUserName <- gitUserNamePoss
     # needGitUserName <- FALSE

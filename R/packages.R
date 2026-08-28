@@ -90,6 +90,10 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
   vals
 }
 
+## Seam for interactive(): a function of our own can be mocked in tests, whereas
+## base::interactive() reports the session and cannot. Behaviour is identical.
+isInteractive <- function() interactive()
+
 isRstudio <- function() {
   Sys.getenv("RSTUDIO") == 1 || .Platform$GUI == "RStudio" ||
     if (requireNamespace("rstudioapi", quietly = TRUE)) {
