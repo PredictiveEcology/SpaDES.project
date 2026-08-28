@@ -9,7 +9,10 @@ localExperimentSetup <- function(envir = parent.frame()) {
   skip_if_not_installed("reproducible")
   skip_if_not_installed("future")
   skip_if_not_installed("future.apply")
-  withr::local_options(spades.moduleCodeChecks = FALSE, .local_envir = envir)
+  # spades.plots = "none": the sample modules plot, which otherwise drops an
+  # Rplots.pdf into whatever the working directory happens to be.
+  withr::local_options(spades.moduleCodeChecks = FALSE, spades.plots = "none",
+                       .local_envir = envir)
   localSpadesOptions(envir)
   oplan <- future::plan("sequential")
   withr::defer(future::plan(oplan), envir = envir)
@@ -108,4 +111,64 @@ test_that("simInitAndExperiment builds the simList and runs it", {
 
   expect_s4_class(out, "simLists")
   expect_length(ls(out), 1L)
+})
+
+# --- with a real module -------------------------------------------------------
+#
+# SpaDES.core ships sample modules (randomLandscapes, fireSpread,
+# caribouMovement). Referencing them via system.file() rather than vendoring a
+# copy here keeps the fixture in step with SpaDES.core and adds nothing to this
+# package. simInit + a two-level experiment over randomLandscapes runs offline
+# in ~2s.
+
+sampleModulePath <- function() {
+  p <- system.file("sampleModules", package = "SpaDES.core")
+  skip_if(!nzchar(p) || !dir.exists(file.path(p, "randomLandscapes")),
+          "SpaDES.core sample modules not available")
+  p
+}
+
+test_that("experiment crosses parameter alternatives into separate runs", {
+  localExperimentSetup()
+  mp <- sampleModulePath()
+  td <- withr::local_tempdir()
+
+  sim <- suppressMessages(SpaDES.core::simInit(
+    times   = list(start = 0, end = 1),
+    modules = list("randomLandscapes"),
+    paths   = list(modulePath = mp, outputPath = td, inputPath = td, cachePath = td)
+  ))
+
+  out <- suppressMessages(
+    experiment(sim,
+               params = list(randomLandscapes = list(nx = c(10L, 20L))),
+               saveExperiment = FALSE)
+  )
+
+  # two alternatives for one parameter -> two design rows and two runs
+  expect_identical(nrow(attr(out@.xData, "experiment")$expDesign), 2L)
+  expect_length(ls(out), 2L)
+  expect_true(all(vapply(ls(out), function(n) is(out[[n]], "simList"), logical(1))))
+})
+
+test_that("experiment records the varied parameter in expVals", {
+  localExperimentSetup()
+  mp <- sampleModulePath()
+  td <- withr::local_tempdir()
+
+  sim <- suppressMessages(SpaDES.core::simInit(
+    times   = list(start = 0, end = 1),
+    modules = list("randomLandscapes"),
+    paths   = list(modulePath = mp, outputPath = td, inputPath = td, cachePath = td)
+  ))
+
+  out <- suppressMessages(
+    experiment(sim,
+               params = list(randomLandscapes = list(nx = c(10L, 20L))),
+               saveExperiment = FALSE)
+  )
+  exp <- attr(out@.xData, "experiment")
+
+  expect_s3_class(exp$expVals, "data.frame")
+  expect_identical(nrow(exp$expVals), 2L)
 })
