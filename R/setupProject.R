@@ -1745,14 +1745,29 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         } else {
           gert::git_commit_all(message = "first commit")
         }
-        rl <- readline("Update git config --global --edit ? (Y or N): ")
         if (nzchar(Sys.which("git"))) {
-          if (startsWith(tolower(rl), "y") ) {
-            system(paste0("git config --global --edit "))
-
-            rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
+          # Only offer to edit the global git identity when it is actually
+          # missing. Prompting unconditionally is a footgun: in a no-terminal
+          # front-end (RStudio Server, embedded R) answering "Y" launches an
+          # editor via `git config --global --edit` that can never be answered
+          # and hangs the session, and there is nothing to edit once user.name /
+          # user.email are configured.
+          gitconf <- try(gert::git_config(), silent = TRUE)
+          needsGitIdentity <- is(gitconf, "try-error")
+          if (!needsGitIdentity) {
+            un <- gitconf$value[gitconf$name %in% "user.name"]
+            em <- gitconf$value[gitconf$name %in% "user.email"]
+            needsGitIdentity <- !any(nzchar(un)) || !any(nzchar(em))
+          }
+          if (needsGitIdentity) {
+            rl <- readline("Global git user.name/user.email not set. Edit ~/.gitconfig now ? (Y or N): ")
             if (startsWith(tolower(rl), "y") ) {
-              system(paste0("git commit --amend --reset-author"))
+              system(paste0("git config --global --edit "))
+
+              rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
+              if (startsWith(tolower(rl), "y") ) {
+                system(paste0("git commit --amend --reset-author"))
+              }
             }
           }
           system("git branch -M main")
@@ -3847,7 +3862,15 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
 isProjectGitRepo <- function(projectPath, inProject) {
   if (isTRUE(inProject))
     projectPath <- "."
-  length(dir(pattern = "^\\.git$", path = projectPath, all.files = TRUE)) == 1L
+  hasDotGit <- length(dir(pattern = "^\\.git$", path = projectPath, all.files = TRUE)) == 1L
+  if (!hasDotGit)
+    return(FALSE)
+  # A `.git` left by an interrupted `git init` sits on an unborn branch with no
+  # commit, so gert::git_branch() returns NULL (the same behaviour relied on in
+  # setUpstreamWithTry). Treat that as "not yet a repo" so the commit + push
+  # flow completes the creation instead of skipping it because a bare `.git`
+  # happens to exist.
+  !is.null(tryCatch(gert::git_branch(repo = projectPath), error = function(e) NULL))
 }
 
 ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
@@ -4576,6 +4599,12 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
   if (is.null(curBr))
     curBr <- gert::git_branch()
+  # A freshly initialised repo with no commits yet sits on an "unborn" branch:
+  # gert::git_branch() returns NULL, so there is no branch name and nothing to
+  # fetch, pull, or set an upstream for. Bail out cleanly rather than letting the
+  # length-0 branch name blow up the `split$br %in% masterMain` test below.
+  if (length(curBr) == 0L || isTRUE(is.na(curBr)) || !nzchar(curBr))
+    return(split)
   for (trySetUpstream in 1:2) {
 
     if (!identical(split$br, curBr)) {
@@ -4698,7 +4727,7 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
         silent = TRUE)
       masterMain <- c("master", "main")
       if (is(setUpstreamTry, "try-error"))
-        if (split$br %in% masterMain) {
+        if (length(split$br) && split$br %in% masterMain) {
           newBr <- setdiff(masterMain, split$br)
           messageVerbose("It looks like the repo: ", split$repo, " does not have a branch: ", split$br,
                          "\ntrying ", newBr, "\nTo remove this message, change the reqested branch.",
