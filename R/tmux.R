@@ -2489,12 +2489,22 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @keywords internal
 #' @noRd
 .tmux_attach_ps_stats <- function(panes) {
+  # Guard first: assigning a length-1 value into a zero-row data.frame is an
+  # error ("replacement has 1 row, data has 0"), so this has to precede the
+  # column initialisation it was written to protect.
+  if (!nrow(panes)) {
+    panes$state                <- character(0)
+    panes$cpuAvg               <- numeric(0)
+    panes[["RAM (GB)"]]        <- numeric(0)
+    panes$availableCores       <- integer(0)
+    panes[["total RAM (GB)"]]  <- numeric(0)
+    return(panes)
+  }
   panes$state                <- NA_character_
   panes$cpuAvg               <- NA_real_
   panes[["RAM (GB)"]]        <- NA_real_
   panes$availableCores       <- NA_integer_
   panes[["total RAM (GB)"]]  <- NA_real_
-  if (!nrow(panes)) return(panes)
 
   # Anchor the PID with (?:-|$) so titles lacking a trailing runName still
   # parse, e.g. "A159568-2418239" or "mega-A159568-2418239".
