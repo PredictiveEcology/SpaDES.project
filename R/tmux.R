@@ -1156,17 +1156,19 @@ experimentTmux <- function(df,
                     deparse1(dots_path), deparse1(dots_path))
           } else ""
 
+          cache_path_norm <- .normalizeCachePath(cache_path)
+
           sync_cmd <- sprintf(
             "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
             dots_preamble_sync,
             deparse1(email),
-            deparse1(normalizePath(cache_path)),
+            deparse1(cache_path_norm),
             deparse1(normalizePath(queue_path)),
             deparse1(as.character(ss_id)),
             deparse1(email),
             deparse1(runNameLabel),
             deparse1(statusCalculate, collapse = "\n"),
-            deparse1(normalizePath(cache_path))
+            deparse1(cache_path_norm)
           )
 
           # 3. Send keys to the specific ID
@@ -1251,7 +1253,7 @@ experimentTmux <- function(df,
         deparse1(normalizePath(queue_path,  mustWork = FALSE)),
         deparse1(if (!is.null(dots_path) && file.exists(dots_path))
                    normalizePath(dots_path) else NULL),
-        deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL),
+        deparse1(.normalizeCachePath(cache_path)),
         deparse1(.sp_dev_path),
         deparse1(.local_pat_file),
         deparse1(.module_path)
@@ -1303,7 +1305,7 @@ experimentTmux <- function(df,
         ss_id             = ss_id,
         pane_mode         = pane_mode,
         email             = email,
-        cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+        cache_path        = .normalizeCachePath(cache_path),
         dots_path         = if (file.exists(dots_path)) dp else NULL,
         lib_path          = .libPaths()[1L]
       )
@@ -1497,7 +1499,7 @@ experimentTmux <- function(df,
       on_interrupt = on_interrupt, runNameLabel = runNameLabel,
       activeRunningPath = activeRunningPath, ss_id = ss_id,
       pane_mode = pane_mode, email = email,
-      cache_path = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+      cache_path = .normalizeCachePath(cache_path),
       dots_path = if (file.exists(dots_path)) dots_path else NULL,
       lib_path = .libPaths()[1L]
     )
@@ -2191,6 +2193,16 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 # Returns a character(1) suitable for send-keys (interactive R) or
 # wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
 # No options() preamble  -- tmuxRunWorkerLoop() sets gargle options from its params.
+## gargle uses NA -- not NULL -- as its "no cache configured" sentinel, and
+## normalizePath() errors on both ("invalid 'path' argument"). cache_path
+## defaults to getOption("gargle_oauth_cache"), so every use below has to
+## tolerate either. Funnel them through one helper rather than repeating a
+## guard that was already wrong at five call sites.
+.normalizeCachePath <- function(p) {
+  if (is.null(p) || length(p) != 1L || is.na(p) || !nzchar(p)) return(NULL)
+  normalizePath(p, mustWork = FALSE)
+}
+
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths()[1L]) {
