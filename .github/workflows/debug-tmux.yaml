@@ -1,0 +1,91 @@
+# Manual-only diagnostic for the two-worker experimentTmux() case that passes
+# locally in ~2s but produces no result files on CI (see the skip_on_ci comment
+# in tests/testthat/test-single-shot.R).
+#
+# Deliberately standalone rather than a testthat test: the coverage job only
+# echoes the tail of testthat.Rout.fail, which truncated away the worker logs
+# last time. Here everything goes straight to the step log and to an artifact.
+on:
+  # Runs on push to the debug branch: workflow_dispatch only becomes available
+  # once a workflow file is on the default branch, and this one is not meant to
+  # live there.
+  push:
+    branches: [debug/tmux-two-worker]
+  workflow_dispatch:
+    inputs:
+      timeout:
+        description: "Seconds to wait for the two result files"
+        required: false
+        default: "180"
+
+name: debug-tmux
+
+jobs:
+  debug-tmux:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      NOT_CRAN: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+          extra-repositories: https://predictiveecology.r-universe.dev
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::processx
+            any::filelock
+            PredictiveEcology/Require@development
+
+      # Workers start a *fresh* R and load the INSTALLED package, so it must be
+      # installed -- an earlier local reproduction failed for exactly this reason.
+      - name: Install SpaDES.project
+        run: R CMD INSTALL --no-docs .
+        shell: bash
+
+      - name: Environment
+        run: |
+          echo "nproc: $(nproc)"
+          tmux -V
+          echo "TERM=${TERM:-<unset>}"
+        shell: bash
+
+      - name: Run two-worker reproduction inside tmux
+        env:
+          DEBUG_TIMEOUT: ${{ github.event.inputs.timeout }}
+        run: |
+          set -uo pipefail
+          export OUTDIR="${RUNNER_TEMP}/tmuxdbg"
+          mkdir -p "$OUTDIR"
+          rc="${RUNNER_TEMP}/dbg.rc"; rm -f "$rc"
+          # `tmux new-session -d <cmd>` runs the command in a pane; the pane can
+          # outlive R, so wait on the rc file rather than on `tmux has-session`.
+          tmux new-session -d -s dbg \
+            "Rscript .github/scripts/tmux-two-worker-debug.R > '$OUTDIR/debug.log' 2>&1; echo \$? > '$rc'"
+          deadline=$(( SECONDS + ${DEBUG_TIMEOUT:-180} + 240 ))
+          while [ ! -f "$rc" ]; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error title=Debug run timed out::no exit status"
+              break
+            fi
+            sleep 5
+          done
+          echo "=================== debug.log ==================="
+          cat "$OUTDIR/debug.log" || echo "(no log produced)"
+          echo "================================================="
+          echo "exit status: $(cat "$rc" 2>/dev/null || echo '<none>')"
+        shell: bash
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmux-two-worker-diagnostics
+          path: ${{ runner.temp }}/tmuxdbg
+          if-no-files-found: warn
