@@ -19,12 +19,8 @@ theCRS <- "epsg:3347"
 
 mkSA <- function(xmin = 5e6, xmax = 5.2e6, ymin = 2e6, ymax = 2.2e6) {
   v <- terra::vect(terra::ext(xmin, xmax, ymin, ymax), crs = theCRS)
-  ## Give it an attribute table. plotSAsLeaflet() passes label = ~paste0(sa) to
-  ## leaflet::addPolygons(), and a formula makes leaflet resolve it against
-  ## metaData(<SpatVector>); on a geometry with no attributes that is a 0-column
-  ## data.frame against 1 geometry, which newer terra rejects outright. Real
-  ## study areas always carry attributes, so a bare extent is an unrealistic
-  ## fixture rather than a case worth asserting on.
+  ## Realistic: real study areas carry an attribute table. The attribute-less
+  ## case is covered separately below -- it used to break plotSAsLeaflet().
   v$name <- "studyArea"
   v
 }
@@ -286,4 +282,33 @@ test_that("plotSAs handles a categorical raster in plotSAsLeaflet too", {
   a <- suppressWarnings(plotSAsLeaflet(ll))
 
   expect_s3_class(a, "leaflet")
+})
+test_that("plotSAsLeaflet works with a study area that has no attribute table", {
+  skip_if_no_plotting(c("leaflet", "leafem"))
+  useLocalCache()
+  # a bare extent -- 0 columns of attributes. The polygon label used to be a
+  # ~formula, which made leaflet resolve it against metaData(<SpatVector>) and
+  # fail here under newer terra ("differing number of rows: 0, 1").
+  bare <- terra::vect(terra::ext(5e6, 5.2e6, 2e6, 2.2e6), crs = theCRS)
+  expect_equal(ncol(bare), 0)   # SpatVector ncol() is a double
+
+  a <- suppressWarnings(plotSAsLeaflet(list(studyArea = bare,
+                                            rasterToMatch = mkRTM())))
+
+  expect_s3_class(a, "leaflet")
+})
+
+test_that("plotSAsLeaflet labels each study-area polygon with its layer name", {
+  skip_if_no_plotting(c("leaflet", "leafem"))
+  useLocalCache()
+
+  a <- suppressWarnings(plotSAsLeaflet(list(studyArea = mkSA(),
+                                            rasterToMatch = mkRTM())))
+
+  pg <- Filter(function(x) identical(x$method, "addPolygons"), a$x$calls)
+  expect_length(pg, 1L)
+  # the label survives as the layer name, formula or not
+  expect_true(any(vapply(pg[[1]]$args,
+                         function(z) isTRUE(any(unlist(z) == "studyArea")),
+                         logical(1))))
 })

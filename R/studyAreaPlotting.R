@@ -321,7 +321,13 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
         vv <- ll[[sa]]
       }
       a <- a |> leaflet::addPolygons(data=vv, weight = 3,
-                            label = ~paste0(sa),
+                            ## `sa` is the layer's name, a constant -- not a
+                            ## column of `vv`. As a ~formula leaflet resolves it
+                            ## against metaData(<SpatVector>), which calls
+                            ## data.frame() on the attribute table and errors on
+                            ## an attribute-less geometry under newer terra. A
+                            ## plain string recycles across features identically.
+                            label = sa,
                             fillColor = saCols[i], color = saCols[i],
                             fillOpacity = 0, group = sa,
                             highlight = leaflet::highlightOptions(weight = 10#,
