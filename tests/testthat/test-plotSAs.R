@@ -47,6 +47,29 @@ useLocalCache <- function(env = parent.frame()) {
                        .local_envir = env)
 }
 
+## A categorical (factor) rasterToMatch -- e.g. ELF classes. ggplot2 gives it a
+## discrete fill aesthetic, so plotSAs() must pick a discrete scale; a continuous
+## one fails with "Discrete value supplied to a continuous scale".
+mkCatRTM <- function(sa = mkSA(), nlev = 3) {
+  r <- terra::rast(terra::ext(sa), nrows = 6, ncols = 6, crs = theCRS)
+  terra::values(r) <- rep(seq_len(nlev), length.out = 36)
+  levels(r) <- data.frame(id = seq_len(nlev),
+                          cls = paste0("class", seq_len(nlev)))
+  names(r) <- "rasterToMatch"
+  r
+}
+
+## the fill scale ggplot2 actually resolved for the (single) panel
+fillScale <- function(gg) {
+  p <- if (inherits(gg, "patchwork")) gg[[1]] else gg
+  Filter(function(s) "fill" %in% s$aesthetics, p$scales$scales)[[1]]
+}
+
+fillValues <- function(gg) {
+  p <- if (inherits(gg, "patchwork")) gg[[1]] else gg
+  unique(ggplot2::ggplot_build(p)$data[[1]]$fill)
+}
+
 # --- plotSAs ------------------------------------------------------------------
 
 test_that("plotSAs returns a patchwork object for a studyArea + rasterToMatch", {
@@ -194,4 +217,73 @@ test_that("plotSAsLeaflet sends literal colours to addGeotiff, not a palette nam
   # which reaches the widget as a one-element palette of the text "Set1"
   expect_gt(length(opts$palette), 1L)
   expect_true(all(grepl("^#[0-9A-Fa-f]{6}", opts$palette)))
+})
+
+# --- categorical vs continuous rasterToMatch ---------------------------------
+## plotSAs() crosses two choices: Brewer vs whitebox palette, and categorical vs
+## continuous raster. Only Brewer + continuous was exercised before.
+
+test_that("plotSAs uses a discrete scale for a categorical raster with a Brewer palette", {
+  skip_if_no_plotting(c("ggplot2", "patchwork"))
+  useLocalCache()
+  testthat::local_mocked_bindings(setupStudyArea = localSetupStudyArea,
+                                  .package = "SpaDES.project")
+  ll <- list(studyArea = mkSA(), rasterToMatch = mkCatRTM(nlev = 3))
+
+  gg <- suppressWarnings(plotSAs(ll, rasterToMatchPalette = "Set1"))
+
+  # scale_fill_manual(), not scale_fill_gradientn()
+  expect_true(fillScale(gg)$is_discrete())
+  expect_length(fillValues(gg), 3L)
+})
+
+test_that("plotSAs uses a discrete scale for a categorical raster with a whitebox palette", {
+  skip_if_no_plotting(c("ggplot2", "patchwork", "tidyterra"))
+  useLocalCache()
+  testthat::local_mocked_bindings(setupStudyArea = localSetupStudyArea,
+                                  .package = "SpaDES.project")
+  ll <- list(studyArea = mkSA(), rasterToMatch = mkCatRTM(nlev = 3))
+
+  gg <- suppressWarnings(plotSAs(ll, rasterToMatchPalette = "muted"))
+
+  # scale_fill_whitebox_d(), not scale_fill_whitebox_c()
+  expect_true(fillScale(gg)$is_discrete())
+  expect_length(fillValues(gg), 3L)
+})
+
+test_that("plotSAs picks different colours for whitebox than for Brewer", {
+  skip_if_no_plotting(c("ggplot2", "patchwork", "tidyterra"))
+  useLocalCache()
+  testthat::local_mocked_bindings(setupStudyArea = localSetupStudyArea,
+                                  .package = "SpaDES.project")
+  ll <- list(studyArea = mkSA(), rasterToMatch = mkCatRTM(nlev = 3))
+
+  brew <- fillValues(suppressWarnings(plotSAs(ll, rasterToMatchPalette = "Set1")))
+  wbox <- fillValues(suppressWarnings(plotSAs(ll, rasterToMatchPalette = "muted")))
+
+  # proves the two categorical branches are genuinely distinct, not just both discrete
+  expect_false(identical(brew, wbox))
+})
+
+test_that("plotSAs uses a continuous scale for a continuous raster with a whitebox palette", {
+  skip_if_no_plotting(c("ggplot2", "patchwork", "tidyterra"))
+  useLocalCache()
+  testthat::local_mocked_bindings(setupStudyArea = localSetupStudyArea,
+                                  .package = "SpaDES.project")
+  ll <- list(studyArea = mkSA(), rasterToMatch = mkRTM())
+
+  gg <- suppressWarnings(plotSAs(ll, rasterToMatchPalette = "muted"))
+
+  # scale_fill_whitebox_c()
+  expect_false(fillScale(gg)$is_discrete())
+})
+
+test_that("plotSAs handles a categorical raster in plotSAsLeaflet too", {
+  skip_if_no_plotting(c("leaflet", "leafem"))
+  useLocalCache()
+  ll <- list(studyArea = mkSA(), rasterToMatch = mkCatRTM(nlev = 3))
+
+  a <- suppressWarnings(plotSAsLeaflet(ll))
+
+  expect_s3_class(a, "leaflet")
 })
