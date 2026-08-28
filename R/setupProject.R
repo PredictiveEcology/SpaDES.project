@@ -1753,9 +1753,13 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           # and hangs the session, and there is nothing to edit once user.name /
           # user.email are configured.
           gitconf <- try(gert::git_config(), silent = TRUE)
-          un <- gitconf$value[gitconf$name %in% "user.name"]
-          em <- gitconf$value[gitconf$name %in% "user.email"]
-          if (is(gitconf, "try-error") || !any(nzchar(un)) || !any(nzchar(em))) {
+          needsGitIdentity <- is(gitconf, "try-error")
+          if (!needsGitIdentity) {
+            un <- gitconf$value[gitconf$name %in% "user.name"]
+            em <- gitconf$value[gitconf$name %in% "user.email"]
+            needsGitIdentity <- !any(nzchar(un)) || !any(nzchar(em))
+          }
+          if (needsGitIdentity) {
             rl <- readline("Global git user.name/user.email not set. Edit ~/.gitconfig now ? (Y or N): ")
             if (startsWith(tolower(rl), "y") ) {
               system(paste0("git config --global --edit "))
