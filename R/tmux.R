@@ -2193,13 +2193,15 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 # Returns a character(1) suitable for send-keys (interactive R) or
 # wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
 # No options() preamble  -- tmuxRunWorkerLoop() sets gargle options from its params.
-## gargle uses NA -- not NULL -- as its "no cache configured" sentinel, and
-## normalizePath() errors on both ("invalid 'path' argument"). cache_path
-## defaults to getOption("gargle_oauth_cache"), so every use below has to
-## tolerate either. Funnel them through one helper rather than repeating a
-## guard that was already wrong at five call sites.
+## cache_path defaults to getOption("gargle_oauth_cache"), whose documented
+## values are a path, TRUE (use the default cache), FALSE (do not cache), or NA
+## (unconfigured, the default). Only the first is a path; normalizePath() errors
+## with "invalid 'path' argument" on every other one, NULL included. So the test
+## has to be on TYPE, not just on NULL/NA -- guarding those alone still let
+## TRUE/FALSE through. Funnel every use through here rather than repeating a
+## guard that was wrong at five separate call sites.
 .normalizeCachePath <- function(p) {
-  if (is.null(p) || length(p) != 1L || is.na(p) || !nzchar(p)) return(NULL)
+  if (!is.character(p) || length(p) != 1L || is.na(p) || !nzchar(p)) return(NULL)
   normalizePath(p, mustWork = FALSE)
 }
 
