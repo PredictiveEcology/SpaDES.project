@@ -2728,40 +2728,6 @@ tmuxFindDuplicates <- function(panes = NULL, runPattern = "outputs-") {
   sw
 }
 
-#' @keywords internal
-#' @noRd
-.make_assignment_code <- function(df, row_i, global_path, pre_sleep = 0) {
-  cols <- names(df)
-  vals <- df[row_i, , drop = FALSE]
-
-  assigns <- vapply(seq_along(cols), function(j) {
-    nm <- cols[j]
-    v  <- vals[[j]]
-    if (is.factor(v)) v <- as.character(v)
-
-    if (is.character(v)) {
-      sprintf('%s <- "%s"', nm, v)
-    } else if (is.logical(v)) {
-      sprintf('%s <- %s', nm, if (is.na(v)) "NA" else if (v) "TRUE" else "FALSE")
-    } else if (is.numeric(v) || is.integer(v)) {
-      sprintf('%s <- %s', nm, as.character(v))
-    } else if (is.na(v)) {
-      sprintf('%s <- NA', nm)
-    } else {
-      sprintf('%s <- %s', nm, deparse(v))
-    }
-  }, character(1))
-
-  # Prepend pane-internal sleep if requested (FIXED: correct sprintf + quoting)
-  sleep_code <- if (pre_sleep > 0) sprintf("Sys.sleep(%s); ", pre_sleep) else ""
-
-  paste0(
-    sleep_code,
-    paste(assigns, collapse = "; "),
-    "; ",
-    sprintf('source(%s)', deparse(global_path))
-  )
-}
 
 #' Initialize a file-backed queue from a data.frame (extended schema)
 #'
@@ -3537,36 +3503,6 @@ getRunName <- function(queue, i, runNameLabel) {
 
 
 
-statusCalculator <- function(type = "fireSense") {
-  
-  if (identical(type, "fireSense")) {
-    calc <- quote({
-      dirWithUpdatedElf <- gsub("4.3", strsplit(runName, "-")[[1]][[1]], outputPath)
-      dirWithUpdatedElf <- gsub("rep1", paste0("rep", strsplit(runName, "-")[[1]][[2]]), dirWithUpdatedElf)
-      dd <- dir(dirWithUpdatedElf, recursive = TRUE, full.names = TRUE)
-      ee <- grep(value = TRUE, pattern = "burnMap.*tif$", dd)
-      done <- grepl(paste0("year", endTime), ee)
-      if (done %in% FALSE) {
-        runningFile <- dir(tmuxActiveRunningPath(queue_path = queue_path), pattern = runName, full.names = TRUE)
-        fi <- file.info(runningFile)
-        started_at <- format(fi[, "mtime"])
-        ff <- grep(value = TRUE, pattern = "Annual Fire Maps", dd)
-        fi2 <- file.info(ff)
-        mostRecentFile <- tail(ff[fi2[, "mtime"] > fi[, "mtime"]], 1)
-        heartbeat_at <- if (length(mostRecentFile) > 0) format(file.info(mostRecentFile)[, "mtime"]) else NA
-        heartbeat_iter <- gsub(".+Maps ([[:digit:]]{4,4}).+", "\\1", mostRecentFile)
-      }
-      finishedFile <- ee[done]
-      if (length(finishedFile)) {
-        iterationsTotal <- gsub(".+year([[:digit:]]{4,4}).+", "\\1", finishedFile)
-        finished_at <- if (length(finishedFile) > 0) format(file.info(finishedFile)[, "mtime"]) else NA
-        done <- any(done)
-      }
-    })
-  }
- 
-  return(calc) 
-}
 
 revertDotNames <- function(q) {
   dotCols <- grep(dotTxt, names(q), value = TRUE)
