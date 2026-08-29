@@ -2525,6 +2525,28 @@ isInProject <- function(name, projectPath) {
   out
 }
 
+# TRUE when the front-end's currently-open project/workspace already IS `pp`,
+# i.e. no restart is needed.  The two front-ends answer this differently:
+#
+#   * RStudio  -- a project is a folder with an .Rproj file, and the open one
+#                 is reported by getActiveProject().
+#   * Positron -- workspace/folder based; it neither creates nor reads .Rproj
+#                 files, so `is_rstudio_project` is permanently FALSE there.
+#                 Testing it would ask for a restart on every call, including
+#                 in the window that was just restarted into projectPath.
+#                 getActiveProject() is NULL when no folder is open at all.
+#
+# `curProj` is the getActiveProject() result; `inPositron` is isPositron().
+.isCurrentIdeProject <- function(pp, curProj, inPositron) {
+  if (isTRUE(inPositron)) {
+    length(curProj) == 1L && !is.na(curProj) && nzchar(curProj) &&
+      identical(normPath(curProj), normPath(pp))
+  } else {
+    rprojroot::is_rstudio_project$testfun[[1]](pp) &&
+      isTRUE(basename2(curProj) %in% basename(pp))
+  }
+}
+
 isInRstudioProj <- function(name) {
   tryCatch(identical(name, basename(findProjectPath())),
            silent = TRUE, error = function(x) FALSE)
@@ -3212,7 +3234,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          origGetWd, verbose = getOption("Require.verbose")) {
 
-  isRstudioLocal <- isRstudio()
+  # hasRstudioApi(), not isRstudio(): Positron emulates the rstudioapi shims
+  # this function relies on, so the restart path is available there too.  The
+  # front-ends differ in what counts as "already in the project" -- see below.
+  isRstudioLocal <- hasRstudioApi()
+  inPositron <- isPositron()
   if (isTRUE(updateRprofile)) {
 
     inTmpProject <- inTempProject(paths)
@@ -3257,13 +3283,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     isRstudioProj <- FALSE
     if (isRstudioLocal) {
       # could be rstudio terminal --> which needs own test
-      isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
       curRstudioProj <- tryCatch(rstudioapi::getActiveProject(), error = function(e) FALSE)
       if (isFALSE(curRstudioProj)) {
         isRstudioLocal <- FALSE
         isRstudioProj <- FALSE
       } else {
-        isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+        isRstudioProj <- .isCurrentIdeProject(pp, curRstudioProj, inPositron)
       }
     }
     # inProject <- isInProject(name)

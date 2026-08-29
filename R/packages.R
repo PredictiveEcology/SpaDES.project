@@ -94,14 +94,32 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
 ## base::interactive() reports the session and cannot. Behaviour is identical.
 isInteractive <- function() interactive()
 
+# Positron's R kernel (ark) attaches a `tools:positron` environment and, on
+# `rstudioapi` load, rewrites the body of `rstudioapi::isAvailable()` to
+# `TRUE` so that rstudioapi-using packages keep working.  That means
+# `hasRstudioApi()` below is TRUE in Positron as well as in RStudio, and any
+# code that needs *RStudio specifically* (an .Rproj project, the
+# `rstudio.sessionInit` hook) must use `isRstudio()`, not `hasRstudioApi()`.
+#
+# Detection uses the POSITRON environment variable, which the supervisor sets
+# to "1" for every R session it starts.  `.Platform$GUI == "Positron"` and the
+# `positron.session_init` hook are only available in Positron >= 2026.04, so
+# they are not safe to detect with.
+isPositron <- function() {
+  Sys.getenv("POSITRON") == "1" || "tools:positron" %in% search()
+}
+
+# TRUE when the `rstudioapi` shims are usable, whichever front-end provides
+# them (RStudio itself, or Positron's emulation).
+hasRstudioApi <- function() {
+  isTRUE(Sys.getenv("RSTUDIO") == 1) || isTRUE(.Platform$GUI == "RStudio") ||
+    isTRUE(tryCatch(requireNamespace("rstudioapi", quietly = TRUE) &&
+                      rstudioapi::isAvailable(),
+                    error = function(e) FALSE))
+}
+
 isRstudio <- function() {
-  Sys.getenv("RSTUDIO") == 1 || .Platform$GUI == "RStudio" ||
-    if (requireNamespace("rstudioapi", quietly = TRUE)) {
-      rstudioapi::isAvailable()
-    }
-  else {
-    FALSE
-  }
+  hasRstudioApi() && !isPositron()
 }
 
 

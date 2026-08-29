@@ -105,6 +105,7 @@ version 1.0.1
 
 ## Bug fixes
 
+* `setupProject(Restart = TRUE)` no longer restarts endlessly in Positron: the "already in this project" test now compares the open workspace folder, instead of looking for an `.Rproj` file Positron never creates.
 * `plotSAsLeaflet()` no longer fails on a study area with no attribute table; the polygon label was a formula, which made leaflet resolve it against the geometry's attributes.
 
 * `plotSAs()` now uses each `rasterToMatch`'s own entry from `rasterToMatchPalette`; it previously used the first entry for every panel.
