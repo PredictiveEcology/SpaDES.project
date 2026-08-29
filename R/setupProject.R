@@ -164,16 +164,34 @@ NULL
 #'   option is set.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
 #' @param Restart Logical or character. If either `TRUE` or a character,
-#'   and if the `projectPath` is not the current path, and the session is in
-#'   RStudio and interactive, it will try to restart Rstudio in the projectPath with
-#'   a new Rstudio project. If character, it should represent the filename
+#'   and if the `projectPath` is not the current path, and the session is
+#'   interactive and in RStudio or Positron, it will try to restart the IDE in
+#'   the projectPath. If character, it should represent the filename
 #'   of the script that contains the `setupProject` call that should be copied to
 #'   the new folder and opened. If `TRUE`, it will use the active file as the one
-#'   that should be copied to the new projectPath and opened in the Rstudio project.
-#'   If successful, this will create an RStudio Project file (and .Rproj.user
-#'   folder), restart with a new Rstudio session with that new project and with a root
-#'   path (i.e. working directory) set to `projectPath`. Default is `FALSE`, and no
-#'   RStudio Project is created.
+#'   that should be copied to the new projectPath and opened there.
+#'   Default is `FALSE`, and no restart is attempted.
+#'
+#'   The two IDEs differ in what "the project" means, and `setupProject` follows
+#'   each one's own convention:
+#'
+#'   \describe{
+#'     \item{RStudio}{a project is a folder containing an `.Rproj` file. On a
+#'       successful restart this creates that file (and an `.Rproj.user` folder)
+#'       and opens a new RStudio session rooted at `projectPath`.}
+#'     \item{Positron}{a project is simply an open workspace folder --- Positron
+#'       neither creates nor reads `.Rproj` files, so none is written. A new
+#'       Positron window is opened on `projectPath`, which becomes the working
+#'       directory, and the project `.Rprofile` is read as usual.}
+#'   }
+#'
+#'   Two limitations apply to Positron only. Re-opening the script after the
+#'   restart uses the `positron.session_init` hook, which requires
+#'   **Positron 2026.04 or newer**; on older versions everything else works and
+#'   `setupProject` prints the path of the file to open by hand. And because
+#'   Positron has no equivalent of RStudio's `~/.active-rstudio-document`, an
+#'   *unsaved* editor buffer cannot be recovered --- save the script first, or
+#'   pass its path as `Restart = "myScript.R"`.
 #' @param updateRprofile Logical. Should the `paths$packagePath` be set in the `.Rprofile`
 #'   file for this project. Note: if `paths$packagePath` is within the `tempdir()`,
 #'   then there will be a warning, indicating this won't persist. If the user is
@@ -2525,6 +2543,29 @@ isInProject <- function(name, projectPath) {
   out
 }
 
+# Name of the session-init hook the front-end fires once its UI channel is up,
+# or NA_character_ when it has none.  That hook is the only safe place for the
+# "re-open the global script in the restarted session" code: a project
+# .Rprofile is sourced *before* the UI channel exists, so rstudioapi calls made
+# directly from it do not reliably reach the front-end.
+#
+#   * RStudio  -- `rstudio.sessionInit`, called with `newSession`.
+#   * Positron -- `positron.session_init`, called with `start_type` ("new",
+#                 "restart" or "reconnect").  Shipped in Positron 2026.04;
+#                 earlier builds have no equivalent, so NA is returned and the
+#                 caller tells the user which file to open instead of writing
+#                 machinery that nothing would ever run or clean up.
+.sessionInitHook <- function(inPositron = isPositron()) {
+  if (!isTRUE(inPositron))
+    return("rstudio.sessionInit")
+  posVersion <- tryCatch(package_version(Sys.getenv("POSITRON_VERSION")),
+                         error = function(e) NULL)
+  if (!is.null(posVersion) && posVersion >= package_version("2026.4.0"))
+    "positron.session_init"
+  else
+    NA_character_
+}
+
 # TRUE when the front-end's currently-open project/workspace already IS `pp`,
 # i.e. no restart is needed.  The two front-ends answer this differently:
 #
@@ -3239,6 +3280,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
   # front-ends differ in what counts as "already in the project" -- see below.
   isRstudioLocal <- hasRstudioApi()
   inPositron <- isPositron()
+  ideName <- if (isTRUE(inPositron)) "Positron" else "Rstudio"
   if (isTRUE(updateRprofile)) {
 
     inTmpProject <- inTempProject(paths)
@@ -3247,10 +3289,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     } else {
       if (isRstudioLocal) {
         inCorrectRstudioProj <- isInRstudioProj(name)
-        if (!inProject || !inCorrectRstudioProj) { # either wrong Rstudio or not in project
+        if (!inProject || !inCorrectRstudioProj) { # either wrong IDE project or not in project
           if (isFALSE(Restart)) {
-            warning("updateRprofile is TRUE, but the projectPath is not an Rstudio project; ",
-                    "thus the .Rprofile won't be read upon restart; ignoring updateRprofile = TRUE. ",
+            warning("updateRprofile is TRUE, but the projectPath is not ",
+                    if (isTRUE(inPositron)) "the open Positron workspace" else "an Rstudio project",
+                    "; thus the .Rprofile won't be read upon restart; ignoring updateRprofile = TRUE. ",
                     "Set `Restart = TRUE` to updateRprofile *and* restart R in that folder so ",
                     ".Rprofile will be read")
           }
@@ -3298,11 +3341,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
         if (!inProject || !isRstudioProj) {
-          messageVerbose("... restarting Rstudio inside the project",
+          messageVerbose("... restarting ", ideName, " inside the project",
                          verbose = verbose)
         } else {
           if ( ((!inProject || !isRstudioProj) || !isGitProject))  {
-            messageVerbose("... restarting Rstudio with git activated, inside the project",
+            messageVerbose("... restarting ", ideName, " with git activated, inside the project",
                            verbose = verbose)
           }
         }
@@ -3363,9 +3406,15 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             Restart <- file.path(origGetWd, Restart)
           newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
 
-          # Switch to file to save it
+          # Switch to file to save it.  Positron's shims are stricter than
+          # RStudio's: `documentSave(id)` is `stopifnot(is.null(id))` (it saves
+          # whatever editor is active, via a command) and its navigateToFile()
+          # returns no document id, so the id must not be passed on there.
           id <- rstudioapi::navigateToFile(activeFile)
-          rstudioapi::documentSave(id)
+          if (isTRUE(inPositron))
+            rstudioapi::documentSave()
+          else
+            rstudioapi::documentSave(id)
           copied <- file.copy(Restart, newRestart, overwrite = FALSE)
 
 
@@ -3382,55 +3431,84 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
           RestartTmpFileStart <- ".Restart_"
           tempfileInOther <- file.path(paste0(RestartTmpFileStart, basename(tempfile())))
-          addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
-                             "if (newSession) {",
-                             "# message('Welcome to RStudio ', rstudioapi::getVersion())",
-                             "}",
-                             "ap <- rstudioapi::getActiveProject()",
-                             "if (is.null(ap)) ap <- 'No active project'",
-                             "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
-                             paste0("message('attempting to re-open ", "last active"[wasLastActive],
-                                    " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
-                                    "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
-                             paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
-                             paste0("rstudioapi::navigateToFile('", newRestart, "')")
 
-          )
-
-          newRprofile <- paste0("source('", tempfileInOther, "')")
-          if (file.exists(RprofileInOther)) {
-            rl <- readLines(RprofileInOther)
-            # Strip stale `source('.Restart_*')` lines (and unlink the orphaned
-            # tempfiles) from prior aborted/repeated setupProject runs in this
-            # projectPath. Each leftover entry registers a sessionInit hook
-            # with action='append', so without this scrub the "This is now an
-            # RStudio project..." banner fires once per accumulated hook on the
-            # next R restart.
-            staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
-            if (length(staleIdx)) {
-              staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
-              try(unlink(file.path(paths[["projectPath"]], staleFiles)),
-                  silent = TRUE)
-              rl <- rl[-staleIdx]
-            }
-            newRprofile <- c(rl, newRprofile)
-            lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
-            lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")
-            nextLine <- paste0("readLns <- readLns[-lineToDel]") # remove source line
-            nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
-            addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
-
+          reopenHook <- .sessionInitHook(inPositron)
+          if (is.na(reopenHook)) {
+            # Positron before 2026.04 fires no session-init hook, and a project
+            # .Rprofile runs before the front-end's UI channel is up, so there
+            # is nowhere to put the re-open code. Writing it anyway would leave
+            # a `source('.Restart_*')` line and its tempfile in the project
+            # that nothing ever runs or cleans up; say what to open instead.
+            message(blue(
+              "This front-end provides no session-init hook (Positron >= 2026.04 ",
+              "is required), so ", basenameRestartFile, " cannot be re-opened ",
+              "automatically.\nOnce the new window is up, open:\n  ", newRestart))
           } else {
-            addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
+            isPositronHook <- identical(reopenHook, "positron.session_init")
+            # Positron's hook takes `start_type` ("new" / "restart" /
+            # "reconnect"); RStudio's takes a `newSession` flag.
+            hookArg <- if (isPositronHook) "start_type" else "newSession"
+            hookCond <- if (isPositronHook) "identical(start_type, 'new')" else "newSession"
+            ideNoun <- if (isPositronHook) "a Positron workspace" else "an RStudio project"
 
+            addToTempFile <- c(paste0("setHook('", reopenHook, "', function(", hookArg, ") {"),
+                               paste0("if (", hookCond, ") {"),
+                               "# message('Welcome to ', rstudioapi::getVersion())",
+                               "}",
+                               "ap <- rstudioapi::getActiveProject()",
+                               "if (is.null(ap)) ap <- 'No active project'",
+                               paste0("message('This is now ", ideNoun,
+                                      " and SpaDES.project projectPath: ', ap)"),
+                               paste0("message('attempting to re-open ", "last active"[wasLastActive],
+                                      " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
+                                      "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
+                               paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
+                               paste0("rstudioapi::navigateToFile('", newRestart, "')")
+
+            )
+
+            newRprofile <- paste0("source('", tempfileInOther, "')")
+            if (file.exists(RprofileInOther)) {
+              rl <- readLines(RprofileInOther)
+              # Strip stale `source('.Restart_*')` lines (and unlink the orphaned
+              # tempfiles) from prior aborted/repeated setupProject runs in this
+              # projectPath. Each leftover entry registers a sessionInit hook
+              # with action='append', so without this scrub the "This is now an
+              # RStudio project..." banner fires once per accumulated hook on the
+              # next R restart.
+              staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
+              if (length(staleIdx)) {
+                staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
+                try(unlink(file.path(paths[["projectPath"]], staleFiles)),
+                    silent = TRUE)
+                rl <- rl[-staleIdx]
+              }
+              newRprofile <- c(rl, newRprofile)
+              # Drop this run's own `source('.Restart_*')` line from the
+              # .Rprofile once the hook has fired. The pattern must match the
+              # whole `source('.Restart_...')` line: anchoring on "^.Restart_"
+              # never matched, which left lineToDel empty -- and
+              # `readLns[-integer(0)]` is character(0), i.e. it truncated the
+              # project .Rprofile (including the Require::setLibPaths block)
+              # instead of removing one line.
+              lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
+              lineToDel <- paste0("lineToDel <- grep(\"source\\\\('", RestartTmpFileStart, "\", readLns)")
+              nextLine <- paste0("if (length(lineToDel)) readLns <- readLns[-lineToDel]") # remove source line
+              nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
+              addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
+
+            } else {
+              addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
+
+            }
+            addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
+
+            addToTempFile <- c(addToTempFile,
+                               "}, action = 'append'",
+                               ")")
+            cat(addToTempFile, file = tempfileInOther, sep = "\n")
+            cat(newRprofile, file = RprofileInOther, sep = "\n")
           }
-          addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
-
-          addToTempFile <- c(addToTempFile,
-                             "}, action = 'append'",
-                             ")")
-          cat(addToTempFile, file = tempfileInOther, sep = "\n")
-          cat(newRprofile, file = RprofileInOther, sep = "\n")
         }
 
       }
@@ -3540,7 +3618,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       }
       if (isRstudioLocal) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
-        message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
+        message("Starting a new ", ideName, " session with projectPath (", green(paths[["projectPath"]]), ") as its root")
         stop_quietly(mess = "Restarting...")
       }
       #} else {

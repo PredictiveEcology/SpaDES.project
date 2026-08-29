@@ -1,8 +1,9 @@
 ## setupRestart(): decide whether to restart RStudio inside the project, and
 ## warn when updateRprofile cannot take effect.
 ##
-## Two seams make this testable without an RStudio session: isRstudio() (already
-## present) and isInteractive() (added alongside it). Everything past the guard
+## Two seams make this testable without an RStudio session: hasRstudioApi()
+## (TRUE in RStudio *and* in Positron, which emulates the rstudioapi shims) and
+## isInteractive() (added alongside it). Everything past the guard
 ## at the top of the restart block drives rstudioapi -- opening projects,
 ## navigating files, restarting the session -- so these tests stay on the
 ## decision logic and the early exits, and never let the function reach it.
@@ -14,7 +15,7 @@ mkPaths <- function(dir) {
 
 test_that("setupRestart does nothing when not in RStudio and not using git", {
   td <- withr::local_tempdir()
-  testthat::local_mocked_bindings(isRstudio = function() FALSE,
+  testthat::local_mocked_bindings(hasRstudioApi = function() FALSE,
                                   isInteractive = function() TRUE)
 
   # not RStudio -> Restart is forced FALSE; useGit FALSE -> guard is FALSE
@@ -28,7 +29,7 @@ test_that("setupRestart does nothing when not in RStudio and not using git", {
 
 test_that("setupRestart does nothing when non-interactive even if Restart is TRUE", {
   td <- withr::local_tempdir()
-  testthat::local_mocked_bindings(isRstudio = function() TRUE,
+  testthat::local_mocked_bindings(hasRstudioApi = function() TRUE,
                                   isInteractive = function() FALSE)
 
   # isInteractive() FALSE collapses the first half of the guard; useGit FALSE
@@ -44,7 +45,7 @@ test_that("setupRestart does nothing when non-interactive even if Restart is TRU
 test_that("setupRestart warns when updateRprofile cannot be honoured", {
   td <- withr::local_tempdir()
   testthat::local_mocked_bindings(
-    isRstudio = function() TRUE,
+    hasRstudioApi = function() TRUE,
     isInteractive = function() FALSE,
     inTempProject = function(...) FALSE,
     isInRstudioProj = function(...) FALSE
@@ -61,10 +62,31 @@ test_that("setupRestart warns when updateRprofile cannot be honoured", {
   )
 })
 
+test_that("setupRestart warns in Positron too, naming the workspace not an .Rproj", {
+  td <- withr::local_tempdir()
+  testthat::local_mocked_bindings(
+    hasRstudioApi = function() TRUE,
+    isPositron = function() TRUE,
+    isInteractive = function() FALSE,
+    inTempProject = function(...) FALSE,
+    isInRstudioProj = function(...) FALSE
+  )
+
+  # Positron emulates the rstudioapi shims, so it reaches the same branch --
+  # but it has no .Rproj concept, so the warning must not name one.
+  expect_warning(
+    SpaDES.project:::setupRestart(updateRprofile = TRUE, paths = mkPaths(td),
+                                  name = basename(td), inProject = FALSE,
+                                  Restart = FALSE, useGit = FALSE,
+                                  origGetWd = td, verbose = -1),
+    "not the open Positron workspace"
+  )
+})
+
 test_that("setupRestart does not warn when already in the right RStudio project", {
   td <- withr::local_tempdir()
   testthat::local_mocked_bindings(
-    isRstudio = function() TRUE,
+    hasRstudioApi = function() TRUE,
     isInteractive = function() FALSE,
     inTempProject = function(...) FALSE,
     isInRstudioProj = function(...) TRUE
@@ -81,7 +103,7 @@ test_that("setupRestart does not warn when already in the right RStudio project"
 test_that("setupRestart warns when updateRprofile is used in a temp project", {
   td <- withr::local_tempdir()
   testthat::local_mocked_bindings(
-    isRstudio = function() TRUE,
+    hasRstudioApi = function() TRUE,
     isInteractive = function() FALSE,
     inTempProject = function(...) TRUE
   )
@@ -98,7 +120,7 @@ test_that("setupRestart warns when updateRprofile is used in a temp project", {
 test_that("setupRestart leaves updateRprofile = FALSE alone entirely", {
   td <- withr::local_tempdir()
   testthat::local_mocked_bindings(
-    isRstudio = function() TRUE,
+    hasRstudioApi = function() TRUE,
     isInteractive = function() FALSE,
     inTempProject = function(...) stop("must not be consulted")
   )

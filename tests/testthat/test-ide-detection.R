@@ -69,3 +69,55 @@ testthat::test_that(".isCurrentIdeProject is FALSE, not NA, for an empty workspa
     )
   }
 })
+
+testthat::test_that(".sessionInitHook picks the front-end's hook, or NA when there is none", {
+  # RStudio always has one.
+  testthat::expect_identical(SpaDES.project:::.sessionInitHook(inPositron = FALSE),
+                             "rstudio.sessionInit")
+
+  # `positron.session_init` shipped in Positron 2026.04.
+  withr::with_envvar(c(POSITRON_VERSION = "2026.4.0"), {
+    testthat::expect_identical(SpaDES.project:::.sessionInitHook(inPositron = TRUE),
+                               "positron.session_init")
+  })
+  withr::with_envvar(c(POSITRON_VERSION = "2026.10.1"), {
+    testthat::expect_identical(SpaDES.project:::.sessionInitHook(inPositron = TRUE),
+                               "positron.session_init")
+  })
+
+  # Older Positron (and an unset/garbage version) has no hook at all.
+  for (v in c("2025.10.1", "2025.12.0", "", "not-a-version")) {
+    withr::with_envvar(c(POSITRON_VERSION = v), {
+      testthat::expect_identical(SpaDES.project:::.sessionInitHook(inPositron = TRUE),
+                                 NA_character_)
+    })
+  }
+})
+
+testthat::test_that("the generated .Rprofile cleanup removes exactly its own source() line", {
+  # The code setupRestart() writes into the .Restart_* tempfile has to delete
+  # the `source('.Restart_*')` line it added to the project .Rprofile once the
+  # session-init hook has run.  The old pattern ('^.Restart_') never matched
+  # that line, so lineToDel was integer(0) -- and `readLns[-integer(0)]` is
+  # character(0), truncating the whole .Rprofile rather than dropping a line.
+  RestartTmpFileStart <- ".Restart_"
+  # NB: the generated code assigns to `lineToDel` itself, so the code strings
+  # are held under different names here.
+  cleanupCode <- c(
+    paste0("lineToDel <- grep(\"source\\\\('", RestartTmpFileStart, "\", readLns)"),
+    "if (length(lineToDel)) readLns <- readLns[-lineToDel]"
+  )
+
+  readLns <- c("# a comment",
+               "source('.Restart_file1a2b')",
+               "options(keep.source = TRUE)")
+  eval(parse(text = cleanupCode))
+  testthat::expect_identical(readLns,
+                             c("# a comment", "options(keep.source = TRUE)"))
+
+  # And with no such line present, the .Rprofile must survive untouched.
+  readLns <- c("# a comment", "options(keep.source = TRUE)")
+  eval(parse(text = cleanupCode))
+  testthat::expect_identical(readLns,
+                             c("# a comment", "options(keep.source = TRUE)"))
+})

@@ -131,16 +131,34 @@ reproject the \code{studyArea}. Default is \code{NULL}, i.e., no study area is b
 See examples.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
-and if the \code{projectPath} is not the current path, and the session is in
-RStudio and interactive, it will try to restart Rstudio in the projectPath with
-a new Rstudio project. If character, it should represent the filename
+and if the \code{projectPath} is not the current path, and the session is
+interactive and in RStudio or Positron, it will try to restart the IDE in
+the projectPath. If character, it should represent the filename
 of the script that contains the \code{setupProject} call that should be copied to
 the new folder and opened. If \code{TRUE}, it will use the active file as the one
-that should be copied to the new projectPath and opened in the Rstudio project.
-If successful, this will create an RStudio Project file (and .Rproj.user
-folder), restart with a new Rstudio session with that new project and with a root
-path (i.e. working directory) set to \code{projectPath}. Default is \code{FALSE}, and no
-RStudio Project is created.}
+that should be copied to the new projectPath and opened there.
+Default is \code{FALSE}, and no restart is attempted.
+
+The two IDEs differ in what "the project" means, and \code{setupProject} follows
+each one's own convention:
+
+\describe{
+\item{RStudio}{a project is a folder containing an \code{.Rproj} file. On a
+successful restart this creates that file (and an \code{.Rproj.user} folder)
+and opens a new RStudio session rooted at \code{projectPath}.}
+\item{Positron}{a project is simply an open workspace folder --- Positron
+neither creates nor reads \code{.Rproj} files, so none is written. A new
+Positron window is opened on \code{projectPath}, which becomes the working
+directory, and the project \code{.Rprofile} is read as usual.}
+}
+
+Two limitations apply to Positron only. Re-opening the script after the
+restart uses the \code{positron.session_init} hook, which requires
+\strong{Positron 2026.04 or newer}; on older versions everything else works and
+\code{setupProject} prints the path of the file to open by hand. And because
+Positron has no equivalent of RStudio's \verb{~/.active-rstudio-document}, an
+\emph{unsaved} editor buffer cannot be recovered --- save the script first, or
+pass its path as \code{Restart = "myScript.R"}.}
 
 \item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
 can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
