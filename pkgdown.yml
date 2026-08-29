@@ -1,12 +1,12 @@
 pandoc: 3.8.3
-pkgdown: 2.2.0
+pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
   i-getting-started: i-getting-started.html
   iii-using-git-github: iii-using-git-github.html
   iv-Installing-R: iv-Installing-R.html
   v-finding-other-modules: v-finding-other-modules.html
-last_built: 2026-05-22T22:50Z
+last_built: 2026-08-29T22:25Z
 urls:
   reference: http://spades-project.predictiveecology.org/reference
   article: http://spades-project.predictiveecology.org/articles
