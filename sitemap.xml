@@ -29,6 +29,7 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/experimentTmux.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/experiment_family.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/factorialDesign.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/fdSelectLimit.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/fileEdit.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/findProject.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/getGithubFile.html</loc></url>
@@ -45,6 +46,8 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/localHostLabel.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/makeDESCRIPTION.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/metadata.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/openFds.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/openFdsReport.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/outList.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/outSave.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/outSaveTarUpload.html</loc></url>
@@ -55,7 +58,9 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/pathParse.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/pkgEnv.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/pkgload2.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/plotChangeOverTime.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/plotSAs.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/plotTimeSeriesLeaflet.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/preRunSetupProject.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/queueRead.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/queueUploadMissing.html</loc></url>

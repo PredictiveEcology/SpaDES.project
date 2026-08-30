@@ -28,7 +28,7 @@ modeling, and other possibilities.'><!-- mathjax --><script src="https://cdnjs.c
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -90,23 +90,26 @@ modeling, and other possibilities.</p>
 
     <div id="details">
     <h2>Details</h2>
-    <p>There are five functions to run one, in two groups. The first group
+    <p>There are five functions to choose from; these can be classified into
+two groups. The first group
 (<code><a href="experiment.html">experiment()</a></code> / <code><a href="experiment2.html">experiment2()</a></code>) is conceptually simpler: it works on
-in-memory <code>simList</code> objects and needs no project on disk. The second group
+in-memory <code>simList</code> objects directly. The second group
 (<code><a href="experimentTmux.html">experimentTmux()</a></code> / <code><a href="experimentFuture.html">experimentFuture()</a></code> / <code><a href="experimentSBATCH.html">experimentSBATCH()</a></code>) is built
-around a project <code>global.R</code> script (typically created by <code><a href="setupProject.html">setupProject()</a></code>)
-and a shared job queue, and is what you reach for once runs are numerous,
-long, or spread across machines.</p>
+around a project <code>global.R</code> script (typically where <code><a href="setupProject.html">setupProject()</a></code> is run)
+and a shared job queue. This second group becomes more useful as the number
+of runs (e.g., scenarios, replicates) become numerous, long, spread across machines,
+or being run from a High Performance Compute cluster.</p>
     </div>
-    <div id="without-setupproject-in-memory-simlists-">
-    <h2>Without <code>setupProject</code> (in-memory <code>simList</code>s)</h2>
+    <div id="in-memory-simlists">
+    <h2>In-memory <code>simList</code>s</h2>
 
 
 
-<p>These take <code>simList</code> object(s) directly, run <code><a href="https://spades-core.predictiveecology.org/reference/spades.html" class="external-link">SpaDES.core::spades()</a></code> on each
-via a <code>future</code> backend, and return the live results as a
-<a href="simLists-class.html">simLists</a> object you can post-process with
-<code><a href="as.data.table.simLists.html">as.data.table.simLists()</a></code>. Best when the run set is modest, fits in RAM, and
+<p>These take <code>simList</code> object(s) directly and are analogous to running
+<code><a href="https://spades-core.predictiveecology.org/reference/spades.html" class="external-link">SpaDES.core::spades()</a></code>. They return results as a
+<a href="simLists-class.html">simLists</a> ("plural") object you can post-process e.g., with
+<code><a href="as.data.table.simLists.html">as.data.table.simLists()</a></code> or any other custom methods.
+These functions are best when the run set is modest, fits in RAM, and
 you want the result objects back in your session. They are <em>not</em> built for
 resume-after-crash, cross-machine pulls, or HPC. (Moved here from the
 now-unmaintained <code>SpaDES.experiment</code> package.)</p>
@@ -126,14 +129,15 @@ also seed the <code>df</code> of the second group below.</p></dd>
 
 
 </dl></div>
-    <div id="with-setupproject-file-queue-global-r-">
-    <h2>With <code>setupProject</code> (file queue + <code>global.R</code>)</h2>
+    <div id="with-a-source-file-e-g-global-r-">
+    <h2>With a source file (e.g., <code>global.R</code>)</h2>
 
 
 
-<p>Here the experiment is a <code>data.frame</code> (or <code>data.table</code>) where each row
-describes one set of values to be assigned to variables in the <code>.GlobalEnv</code>.
-When run via one of these functions, the data.frame is translated into a
+<p>Here, the user describes the experiment using a <code>data.frame</code> (or <code>data.table</code>)
+in which each column name and row value defines the set of object-value pairs
+that will be assigned to variables in the <code>.GlobalEnv</code>.
+When the user runs one of these functions, the data.frame is translated into a
 <code>queue</code> data.frame that has all the same columns and rows, plus a few more
 (<code>status</code>, <code>claimed_by</code>, etc.) to coordinate the run. After creating the
 queue, the function spawns a number of independent R "worker" sessions

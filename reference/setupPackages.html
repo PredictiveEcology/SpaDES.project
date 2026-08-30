@@ -24,7 +24,7 @@ install all of them into paths[[&quot;packagePath&quot;]] via Require::Install()
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -105,7 +105,16 @@ install all of them into <code>paths[["packagePath"]]</code> via <code><a href="
 <dd><p>Optional. A vector of packages that must exist in the <code>libPaths</code>.
 This will be passed to <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Install</a></code>, i.e., these will be installed, but
 not attached to the search path. See also the <code>require</code> argument. To force skip
-of package installation (without assessing modules), set <code>packages = NULL</code></p></dd>
+of package installation (without assessing modules), set <code>packages = NULL</code>.</p>
+<p>To install everything from <code>repos</code> (e.g., prebuilt binaries on
+<code>predictiveecology.r-universe.dev</code>) rather than from GitHub source – thereby
+avoiding git authentication and a source-build toolchain such as Rtools –
+set <code>options = list(Require.noRemotes = TRUE)</code>. Any GitHub-style specs
+(<code>account/repo@branch</code>), including those declared in module metadata
+(<code>reqdPkgs</code>), are then rewritten to their bare package name (version
+constraints preserved) and resolved from <code>repos</code>. Ensure the relevant
+repository is in <code>getOption("repos")</code> and carries a version satisfying any
+constraint. See <code><a href="https://Require.predictiveecology.org/reference/RequireOptions.html" class="external-link">Require::RequireOptions</a></code>.</p></dd>
 
 
 <dt id="arg-modulepackages">modulePackages<a class="anchor" aria-label="anchor" href="#arg-modulepackages"></a></dt>
@@ -117,6 +126,7 @@ of the list are packages in a form that <code><a href="https://Require.predictiv
 <dd><p>Optional. A character vector of packages to install <em>and</em> attach
 (with <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Require</a></code>). These will be installed and attached at the start
 of <code>setupProject</code> so that a user can use these during <code>setupProject</code>.
+Default is <code>NULL</code>, i.e., nothing additional installed/attached.
 See <a href="setup_family.html">setup</a></p></dd>
 
 
@@ -135,12 +145,16 @@ See <a href="setup_family.html">setup</a>.</p></dd>
 
 <dt id="arg-setlinuxbinaryrepo">setLinuxBinaryRepo<a class="anchor" aria-label="anchor" href="#arg-setlinuxbinaryrepo"></a></dt>
 <dd><p>Logical. Should the binary RStudio Package Manager be used
-on Linux (ignored if Windows)</p></dd>
+on Linux (ignored if Windows). Default is
+<code>getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)</code>, i.e., <code>TRUE</code> unless that
+option is set.</p></dd>
 
 
 <dt id="arg-standalone">standAlone<a class="anchor" aria-label="anchor" href="#arg-standalone"></a></dt>
 <dd><p>A logical. Passed to <code>Require::standAlone</code>. This keeps all
-packages installed in a project-level library, if <code>TRUE</code>. Default is <code>TRUE</code>.</p></dd>
+packages installed in a project-level library, if <code>TRUE</code>. Default is
+<code>getOption("SpaDES.project.standAlone", TRUE)</code>, i.e., <code>TRUE</code> unless that
+option is set.</p></dd>
 
 
 <dt id="arg-envir">envir<a class="anchor" aria-label="anchor" href="#arg-envir"></a></dt>

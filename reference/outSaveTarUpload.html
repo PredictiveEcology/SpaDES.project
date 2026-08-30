@@ -26,7 +26,7 @@ Drive folder."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/li
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -142,8 +142,12 @@ Default <code>FALSE</code>.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
-<dd><p>Logical. Pass <code>-v</code> to <code>tar</code> for file-by-file progress.
-Default <code>TRUE</code>.</p></dd>
+<dd><p>Numeric message level, forwarded to
+<code><a href="https://spades-core.predictiveecology.org/reference/saveSimList.html" class="external-link">SpaDES.core::saveSimList()</a></code>. Defaults to <code>getOption("reproducible.verbose", 1)</code>
+– note the fallback: <code><a href="https://spades-core.predictiveecology.org/reference/saveSimList.html" class="external-link">saveSimList()</a></code> resolves its own default as a bare
+<code>getOption("reproducible.verbose")</code>, and passes the result to
+<code><a href="https://Require.predictiveecology.org/reference/messageVerbose.html" class="external-link">Require::messageVerbose()</a></code>, whose <code>if (verbose &gt;= verboseLevel)</code> fails with
+"argument is of length zero" whenever that option happens to be unset.</p></dd>
 
 
 <dt id="arg-lazy">lazy<a class="anchor" aria-label="anchor" href="#arg-lazy"></a></dt>

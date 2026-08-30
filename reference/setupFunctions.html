@@ -24,7 +24,7 @@ to subsequent setup* steps and to the user's session."><!-- mathjax --><script s
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -145,7 +145,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length &gt; 1, no other file specified anywhere in <code>setupProject</code> will be
 overwritten except a module matching the vector <code><a href="https://rdrr.io/r/base/names.html" class="external-link">names()</a></code> (because
 only <code>setupModules</code> is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.</p></dd>
+a user can just manually delete a file, then rerun. Default is
+<code>getOption("SpaDES.project.overwrite", FALSE)</code>, i.e., <code>FALSE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg-envir">envir<a class="anchor" aria-label="anchor" href="#arg-envir"></a></dt>

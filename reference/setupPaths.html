@@ -23,7 +23,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -124,7 +124,9 @@ inside the <code>paths[["projectPath"]]</code>.</p></dd>
 
 <dt id="arg-standalone">standAlone<a class="anchor" aria-label="anchor" href="#arg-standalone"></a></dt>
 <dd><p>A logical. Passed to <code>Require::standAlone</code>. This keeps all
-packages installed in a project-level library, if <code>TRUE</code>. Default is <code>TRUE</code>.</p></dd>
+packages installed in a project-level library, if <code>TRUE</code>. Default is
+<code>getOption("SpaDES.project.standAlone", TRUE)</code>, i.e., <code>TRUE</code> unless that
+option is set.</p></dd>
 
 
 <dt id="arg-libpaths">libPaths<a class="anchor" aria-label="anchor" href="#arg-libpaths"></a></dt>
@@ -137,21 +139,40 @@ file for this project. Note: if <code>paths$packagePath</code> is within the <co
 then there will be a warning, indicating this won't persist. If the user is
 using <code>Rstudio</code> and the <code>paths$projectPath</code> is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
-be read upon restart.</p></dd>
+be read upon restart. Default is <code>getOption("SpaDES.project.updateRprofile", TRUE)</code>,
+i.e., <code>TRUE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg-restart">Restart<a class="anchor" aria-label="anchor" href="#arg-restart"></a></dt>
 <dd><p>Logical or character. If either <code>TRUE</code> or a character,
-and if the <code>projectPath</code> is not the current path, and the session is in
-RStudio and interactive, it will try to restart Rstudio in the projectPath with
-a new Rstudio project. If character, it should represent the filename
+and if the <code>projectPath</code> is not the current path, and the session is
+interactive and in RStudio or Positron, it will try to restart the IDE in
+the projectPath. If character, it should represent the filename
 of the script that contains the <code>setupProject</code> call that should be copied to
 the new folder and opened. If <code>TRUE</code>, it will use the active file as the one
-that should be copied to the new projectPath and opened in the Rstudio project.
-If successful, this will create an RStudio Project file (and .Rproj.user
-folder), restart with a new Rstudio session with that new project and with a root
-path (i.e. working directory) set to <code>projectPath</code>. Default is <code>FALSE</code>, and no
-RStudio Project is created.</p></dd>
+that should be copied to the new projectPath and opened there.
+Default is <code>FALSE</code>, and no restart is attempted.</p>
+<p>The two IDEs differ in what "the project" means, and <code>setupProject</code> follows
+each one's own convention:</p>
+<dl><dt>RStudio</dt>
+<dd><p>a project is a folder containing an <code>.Rproj</code> file. On a
+successful restart this creates that file (and an <code>.Rproj.user</code> folder)
+and opens a new RStudio session rooted at <code>projectPath</code>.</p></dd>
+
+<dt>Positron</dt>
+<dd><p>a project is simply an open workspace folder — Positron
+neither creates nor reads <code>.Rproj</code> files, so none is written. A new
+Positron window is opened on <code>projectPath</code>, which becomes the working
+directory, and the project <code>.Rprofile</code> is read as usual.</p></dd>
+
+
+</dl><p>Two limitations apply to Positron only. Re-opening the script after the
+restart uses the <code>positron.session_init</code> hook, which requires
+<strong>Positron 2026.04 or newer</strong>; on older versions everything else works and
+<code>setupProject</code> prints the path of the file to open by hand. And because
+Positron has no equivalent of RStudio's <code>~/.active-rstudio-document</code>, an
+<em>unsaved</em> editor buffer cannot be recovered — save the script first, or
+pass its path as <code>Restart = "myScript.R"</code>.</p></dd>
 
 
 <dt id="arg-overwrite">overwrite<a class="anchor" aria-label="anchor" href="#arg-overwrite"></a></dt>
@@ -163,7 +184,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length &gt; 1, no other file specified anywhere in <code>setupProject</code> will be
 overwritten except a module matching the vector <code><a href="https://rdrr.io/r/base/names.html" class="external-link">names()</a></code> (because
 only <code>setupModules</code> is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.</p></dd>
+a user can just manually delete a file, then rerun. Default is
+<code>getOption("SpaDES.project.overwrite", FALSE)</code>, i.e., <code>FALSE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg-envir">envir<a class="anchor" aria-label="anchor" href="#arg-envir"></a></dt>
@@ -197,7 +219,8 @@ NOTE: <em>CREATING</em> A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the <code>option(SpaDES.project.useGit = xxx)</code>.</p></dd>
+be set with the <code>option(SpaDES.project.useGit = xxx)</code>. Default is
+<code>getOption("SpaDES.project.useGit", FALSE)</code>, i.e., <code>FALSE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
@@ -270,12 +293,13 @@ of whether a user uses SpaDES modules. <code>cachePath</code>, <code>inputPath</
     <h2>Paths</h2>
 
 
-<table class="table table"><tr><td><strong>Path</strong></td><td><strong>Default if not supplied by user</strong></td><td>Effects</td></tr><tr><td></td><td><em>Project Level Paths</em></td><td></td></tr><tr><td><code>projectPath</code></td><td>if <code><a href="https://rdrr.io/r/base/getwd.html" class="external-link">getwd()</a></code> is <code>name</code>, then just <code>getwd</code>; if not
+<table class="table table"><tr><td><strong>Path</strong></td><td><strong>Default if not supplied by user</strong></td><td>Effects</td></tr><tr><td></td><td><em>Project Level Paths</em></td><td></td></tr><tr><td><code>projectPath</code></td><td><code>getOption("spades.projectPath")</code> if set; otherwise,
+if <code><a href="https://rdrr.io/r/base/getwd.html" class="external-link">getwd()</a></code> is <code>name</code>, then just <code>getwd</code>; if not
 <code>file.path(getwd(), name)</code></td><td>If current project is not this project
 and using <code>Rstudio</code>, then the current
 project will close and a new project will
 open in the same Rstudio session, unless
-<code>Restart = FALSE</code></td></tr><tr><td><code>packagePath</code></td><td><code>file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))</code></td><td>appends this path to <code>.libPaths(packagePath)</code>,
+<code>Restart = FALSE</code></td></tr><tr><td><code>packagePath</code></td><td><code>getOption("spades.packagePath", file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3)))</code></td><td>appends this path to <code>.libPaths(packagePath)</code>,
 unless <code>standAlone = TRUE</code>, in which case,
 it will set <code>.libPaths(packagePath, include.site = FALSE)</code> to this path</td></tr><tr><td>——</td><td>———–</td><td>—–</td></tr><tr><td></td><td><em>Module Level Paths</em></td><td></td></tr><tr><td><code>cachePath</code></td><td><code>file.path(projectPath, "cache")</code></td><td><code>options(reproducible.cachePath = cachePath)</code></td></tr><tr><td><code>inputPath</code></td><td><code>file.path(projectPath, "inputs")</code></td><td><code>options(spades.inputPath = inputPath)</code></td></tr><tr><td><code>modulePath</code></td><td><code>file.path(projectPath, "modules")</code></td><td><code>options(spades.inputPath = outputPath)</code></td></tr><tr><td><code>outputPath</code></td><td><code>file.path(projectPath, "outputs")</code></td><td><code>options(spades.inputPath = modulePath)</code></td></tr><tr><td>——</td><td>———–</td><td>—–</td></tr><tr><td></td><td><em>Temporary Paths</em></td><td></td></tr><tr><td><code>scratchPath</code></td><td><code>file.path(tempdir(), name)</code></td><td></td></tr><tr><td><code>rasterPath</code></td><td><code>file.path(scratchPath, "raster")</code></td><td>sets (<code>rasterOptions(tmpdir = rasterPath)</code>)</td></tr><tr><td><code>terraPath</code></td><td><code>file.path(scratchPath, "terra")</code></td><td>sets (<code>terraOptions(tempdir = terraPath)</code>)</td></tr><tr><td>——</td><td>———–</td><td>—–</td></tr><tr><td></td><td><em>Other Paths</em></td><td></td></tr><tr><td><code>logPath</code></td><td><code>file.path(outputPath(sim), "log")</code></td><td>sets <code>options("spades.logPath")</code> accessible by <code>logPath(sim)</code></td></tr><tr><td><code>tilePath</code></td><td>Not implemented yet</td><td>Not implemented yet</td></tr></table></div>
     <div id="see-also">

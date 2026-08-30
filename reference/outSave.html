@@ -26,7 +26,7 @@ output files separately."><!-- mathjax --><script src="https://cdnjs.cloudflare.
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -84,7 +84,13 @@ output files separately.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">outSave</span><span class="op">(</span><span class="va">sim</span>, <span class="va">runName</span>, simFilename <span class="op">=</span> <span class="cn">NULL</span>, lazy <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">outSave</span><span class="op">(</span></span>
+<span>  <span class="va">sim</span>,</span>
+<span>  <span class="va">runName</span>,</span>
+<span>  simFilename <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  lazy <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"reproducible.verbose"</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -110,6 +116,15 @@ Defaults to <code>SpaDES.core::simFile(name = runName, path = outputPath(sim), t
 (default), each user object in <code>sim@.xData</code> is saved into a sibling
 <code>&lt;simFilename&gt;_xData/</code> directory and lazily restored on load via
 <code>delayedAssign</code>. <code><a href="outTar.html">outTar()</a></code> picks up that directory automatically.</p></dd>
+
+
+<dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
+<dd><p>Numeric message level, forwarded to
+<code><a href="https://spades-core.predictiveecology.org/reference/saveSimList.html" class="external-link">SpaDES.core::saveSimList()</a></code>. Defaults to <code>getOption("reproducible.verbose", 1)</code>
+– note the fallback: <code><a href="https://spades-core.predictiveecology.org/reference/saveSimList.html" class="external-link">saveSimList()</a></code> resolves its own default as a bare
+<code>getOption("reproducible.verbose")</code>, and passes the result to
+<code><a href="https://Require.predictiveecology.org/reference/messageVerbose.html" class="external-link">Require::messageVerbose()</a></code>, whose <code>if (verbose &gt;= verboseLevel)</code> fails with
+"argument is of length zero" whenever that option happens to be unset.</p></dd>
 
 </dl></div>
     <div id="value">

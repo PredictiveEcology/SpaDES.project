@@ -24,7 +24,7 @@ paths[["modulePath"]], optionally as git submodules.'><!-- mathjax --><script sr
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9342</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
       </span>
     </div>
 
@@ -158,7 +158,8 @@ NOTE: <em>CREATING</em> A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the <code>option(SpaDES.project.useGit = xxx)</code>.</p></dd>
+be set with the <code>option(SpaDES.project.useGit = xxx)</code>. Default is
+<code>getOption("SpaDES.project.useGit", FALSE)</code>, i.e., <code>FALSE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg-overwrite">overwrite<a class="anchor" aria-label="anchor" href="#arg-overwrite"></a></dt>
@@ -170,7 +171,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length &gt; 1, no other file specified anywhere in <code>setupProject</code> will be
 overwritten except a module matching the vector <code><a href="https://rdrr.io/r/base/names.html" class="external-link">names()</a></code> (because
 only <code>setupModules</code> is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.</p></dd>
+a user can just manually delete a file, then rerun. Default is
+<code>getOption("SpaDES.project.overwrite", FALSE)</code>, i.e., <code>FALSE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg-envir">envir<a class="anchor" aria-label="anchor" href="#arg-envir"></a></dt>
@@ -217,7 +219,8 @@ file for this project. Note: if <code>paths$packagePath</code> is within the <co
 then there will be a warning, indicating this won't persist. If the user is
 using <code>Rstudio</code> and the <code>paths$projectPath</code> is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
-be read upon restart.</p></dd>
+be read upon restart. Default is <code>getOption("SpaDES.project.updateRprofile", TRUE)</code>,
+i.e., <code>TRUE</code> unless that option is set.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
