@@ -70,6 +70,23 @@ testthat::test_that(".dedupGitSplitLastWins is a no-op when there are no duplica
   testthat::expect_setequal(names(out$acct), c("Biomass_core", "NRV_summary"))
 })
 
+testthat::test_that(".dedupGitSplitLastWins is quiet for several child modules in one repo", {
+  testthat::skip_if_not_installed("Require")
+  # `splitGitRepo()` keys these all by repo name `scfm`, so they look like
+  # duplicates -- but they resolve to the identical acct/repo@branch (the
+  # repo is just cloned once), so no "is specified N times" message.
+  mods <- file.path("PredictiveEcology/scfm@development/modules",
+                    c("scfmDataPrep", "scfmIgnition", "scfmEscape",
+                      "scfmSpread", "scfmDiagnostics"))
+  gs <- SpaDES.project:::splitGitRepo(mods)
+  testthat::expect_silent(
+    out <- SpaDES.project:::.dedupGitSplitLastWins(gs, mods, verbose = 1)
+  )
+  testthat::expect_length(out$acct, 1L)
+  testthat::expect_identical(out$acct[[1L]], "PredictiveEcology")
+  testthat::expect_identical(out$br[[1L]], "development")
+})
+
 testthat::test_that(".shouldOfferClone is FALSE when both .git and .Rproj exist", {
   testthat::skip_if_not_installed("gert")
   td <- tempfile("both"); dir.create(td)
@@ -233,4 +250,54 @@ testthat::test_that("setUpstreamWithTry returns gracefully (no stop) when branch
   )
   # No checkout happened, and the function did not abort.
   testthat::expect_identical(gert::git_branch(), start_br)
+})
+
+# --------------------------------------------------------------------------
+# 3. An interrupted `setupProject(useGit = ...)` can leave a `.git` with no
+#    commit at all (an "unborn" branch).  isProjectGitRepo() must not report
+#    that as a finished repo, and setUpstreamWithTry() must not choke on the
+#    NULL branch name that gert returns for it.
+# --------------------------------------------------------------------------
+
+testthat::test_that("isProjectGitRepo is FALSE for an unborn repo, TRUE once committed", {
+  testthat::skip_if_not_installed("gert")
+
+  td <- tempfile("unborn"); dir.create(td)
+  on.exit(unlink(td, recursive = TRUE), add = TRUE)
+
+  # No .git at all.
+  testthat::expect_false(SpaDES.project:::isProjectGitRepo(td, inProject = FALSE))
+
+  # `git init` ran but nothing was committed: .git exists, branch is unborn.
+  gert::git_init(td)
+  testthat::expect_true(file.exists(file.path(td, ".git")))
+  testthat::expect_null(gert::git_branch(repo = td))
+  testthat::expect_false(SpaDES.project:::isProjectGitRepo(td, inProject = FALSE))
+
+  # After the first commit it is a real repo.
+  gert::git_config_set("user.email", "t@e", repo = td)
+  gert::git_config_set("user.name",  "t",   repo = td)
+  writeLines("x", file.path(td, "x.txt"))
+  gert::git_add("x.txt", repo = td)
+  gert::git_commit("init", repo = td)
+  testthat::expect_true(SpaDES.project:::isProjectGitRepo(td, inProject = FALSE))
+})
+
+testthat::test_that("setUpstreamWithTry returns the split unchanged on an unborn branch", {
+  testthat::skip_if_not_installed("gert")
+
+  td <- tempfile("unbornupstream"); dir.create(td)
+  on.exit(unlink(td, recursive = TRUE), add = TRUE)
+  gert::git_init(td)
+
+  origDir <- getwd(); on.exit(setwd(origDir), add = TRUE)
+  setwd(td)
+
+  split <- list(br = "main", repo = basename(td))
+  # Pre-fix: gert::git_branch() returns NULL here, so `NULL %in% c(...)`
+  # gave logical(0) and `if (logical(0))` threw "argument is of length zero".
+  out <- testthat::expect_no_error(
+    SpaDES.project:::setUpstreamWithTry(split, verbose = -1)
+  )
+  testthat::expect_identical(out, split)
 })

@@ -1156,17 +1156,19 @@ experimentTmux <- function(df,
                     deparse1(dots_path), deparse1(dots_path))
           } else ""
 
+          cache_path_norm <- .normalizeCachePath(cache_path)
+
           sync_cmd <- sprintf(
             "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
             dots_preamble_sync,
             deparse1(email),
-            deparse1(normalizePath(cache_path)),
+            deparse1(cache_path_norm),
             deparse1(normalizePath(queue_path)),
             deparse1(as.character(ss_id)),
             deparse1(email),
             deparse1(runNameLabel),
             deparse1(statusCalculate, collapse = "\n"),
-            deparse1(normalizePath(cache_path))
+            deparse1(cache_path_norm)
           )
 
           # 3. Send keys to the specific ID
@@ -1251,7 +1253,7 @@ experimentTmux <- function(df,
         deparse1(normalizePath(queue_path,  mustWork = FALSE)),
         deparse1(if (!is.null(dots_path) && file.exists(dots_path))
                    normalizePath(dots_path) else NULL),
-        deparse1(if (!is.null(cache_path)) normalizePath(cache_path) else NULL),
+        deparse1(.normalizeCachePath(cache_path)),
         deparse1(.sp_dev_path),
         deparse1(.local_pat_file),
         deparse1(.module_path)
@@ -1303,7 +1305,7 @@ experimentTmux <- function(df,
         ss_id             = ss_id,
         pane_mode         = pane_mode,
         email             = email,
-        cache_path        = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+        cache_path        = .normalizeCachePath(cache_path),
         dots_path         = if (file.exists(dots_path)) dp else NULL,
         lib_path          = .libPaths()[1L]
       )
@@ -1497,7 +1499,7 @@ experimentTmux <- function(df,
       on_interrupt = on_interrupt, runNameLabel = runNameLabel,
       activeRunningPath = activeRunningPath, ss_id = ss_id,
       pane_mode = pane_mode, email = email,
-      cache_path = if (!is.null(cache_path)) normalizePath(cache_path) else NULL,
+      cache_path = .normalizeCachePath(cache_path),
       dots_path = if (file.exists(dots_path)) dots_path else NULL,
       lib_path = .libPaths()[1L]
     )
@@ -2191,6 +2193,18 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 # Returns a character(1) suitable for send-keys (interactive R) or
 # wrapping in `Rscript -e shQuote(.)` (non-interactive / respawn).
 # No options() preamble  -- tmuxRunWorkerLoop() sets gargle options from its params.
+## cache_path defaults to getOption("gargle_oauth_cache"), whose documented
+## values are a path, TRUE (use the default cache), FALSE (do not cache), or NA
+## (unconfigured, the default). Only the first is a path; normalizePath() errors
+## with "invalid 'path' argument" on every other one, NULL included. So the test
+## has to be on TYPE, not just on NULL/NA -- guarding those alone still let
+## TRUE/FALSE through. Funnel every use through here rather than repeating a
+## guard that was wrong at five separate call sites.
+.normalizeCachePath <- function(p) {
+  if (!is.character(p) || length(p) != 1L || is.na(p) || !nzchar(p)) return(NULL)
+  normalizePath(p, mustWork = FALSE)
+}
+
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths()[1L]) {
@@ -2475,12 +2489,22 @@ tmuxListPanes <- function(stats = FALSE) {
 #' @keywords internal
 #' @noRd
 .tmux_attach_ps_stats <- function(panes) {
+  # Guard first: assigning a length-1 value into a zero-row data.frame is an
+  # error ("replacement has 1 row, data has 0"), so this has to precede the
+  # column initialisation it was written to protect.
+  if (!nrow(panes)) {
+    panes$state                <- character(0)
+    panes$cpuAvg               <- numeric(0)
+    panes[["RAM (GB)"]]        <- numeric(0)
+    panes$availableCores       <- integer(0)
+    panes[["total RAM (GB)"]]  <- numeric(0)
+    return(panes)
+  }
   panes$state                <- NA_character_
   panes$cpuAvg               <- NA_real_
   panes[["RAM (GB)"]]        <- NA_real_
   panes$availableCores       <- NA_integer_
   panes[["total RAM (GB)"]]  <- NA_real_
-  if (!nrow(panes)) return(panes)
 
   # Anchor the PID with (?:-|$) so titles lacking a trailing runName still
   # parse, e.g. "A159568-2418239" or "mega-A159568-2418239".
@@ -2714,40 +2738,6 @@ tmuxFindDuplicates <- function(panes = NULL, runPattern = "outputs-") {
   sw
 }
 
-#' @keywords internal
-#' @noRd
-.make_assignment_code <- function(df, row_i, global_path, pre_sleep = 0) {
-  cols <- names(df)
-  vals <- df[row_i, , drop = FALSE]
-
-  assigns <- vapply(seq_along(cols), function(j) {
-    nm <- cols[j]
-    v  <- vals[[j]]
-    if (is.factor(v)) v <- as.character(v)
-
-    if (is.character(v)) {
-      sprintf('%s <- "%s"', nm, v)
-    } else if (is.logical(v)) {
-      sprintf('%s <- %s', nm, if (is.na(v)) "NA" else if (v) "TRUE" else "FALSE")
-    } else if (is.numeric(v) || is.integer(v)) {
-      sprintf('%s <- %s', nm, as.character(v))
-    } else if (is.na(v)) {
-      sprintf('%s <- NA', nm)
-    } else {
-      sprintf('%s <- %s', nm, deparse(v))
-    }
-  }, character(1))
-
-  # Prepend pane-internal sleep if requested (FIXED: correct sprintf + quoting)
-  sleep_code <- if (pre_sleep > 0) sprintf("Sys.sleep(%s); ", pre_sleep) else ""
-
-  paste0(
-    sleep_code,
-    paste(assigns, collapse = "; "),
-    "; ",
-    sprintf('source(%s)', deparse(global_path))
-  )
-}
 
 #' Initialize a file-backed queue from a data.frame (extended schema)
 #'
@@ -3523,36 +3513,6 @@ getRunName <- function(queue, i, runNameLabel) {
 
 
 
-statusCalculator <- function(type = "fireSense") {
-  
-  if (identical(type, "fireSense")) {
-    calc <- quote({
-      dirWithUpdatedElf <- gsub("4.3", strsplit(runName, "-")[[1]][[1]], outputPath)
-      dirWithUpdatedElf <- gsub("rep1", paste0("rep", strsplit(runName, "-")[[1]][[2]]), dirWithUpdatedElf)
-      dd <- dir(dirWithUpdatedElf, recursive = TRUE, full.names = TRUE)
-      ee <- grep(value = TRUE, pattern = "burnMap.*tif$", dd)
-      done <- grepl(paste0("year", endTime), ee)
-      if (done %in% FALSE) {
-        runningFile <- dir(tmuxActiveRunningPath(queue_path = queue_path), pattern = runName, full.names = TRUE)
-        fi <- file.info(runningFile)
-        started_at <- format(fi[, "mtime"])
-        ff <- grep(value = TRUE, pattern = "Annual Fire Maps", dd)
-        fi2 <- file.info(ff)
-        mostRecentFile <- tail(ff[fi2[, "mtime"] > fi[, "mtime"]], 1)
-        heartbeat_at <- if (length(mostRecentFile) > 0) format(file.info(mostRecentFile)[, "mtime"]) else NA
-        heartbeat_iter <- gsub(".+Maps ([[:digit:]]{4,4}).+", "\\1", mostRecentFile)
-      }
-      finishedFile <- ee[done]
-      if (length(finishedFile)) {
-        iterationsTotal <- gsub(".+year([[:digit:]]{4,4}).+", "\\1", finishedFile)
-        finished_at <- if (length(finishedFile) > 0) format(file.info(finishedFile)[, "mtime"]) else NA
-        done <- any(done)
-      }
-    })
-  }
- 
-  return(calc) 
-}
 
 revertDotNames <- function(q) {
   dotCols <- grep(dotTxt, names(q), value = TRUE)

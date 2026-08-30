@@ -89,16 +89,28 @@ NULL
 #'   See [setup].
 #' @param times Optional. This will be returned if supplied; if supplied, the values
 #'   can be used in e.g., `params`, e.g., `params = list(mod = list(startTime = times$start))`.
+#'   Default (when not supplied) is `list(start = 0, end = 1)`.
 #'   See help for `SpaDES.core::simInit`.
 #' @param config Reserved for future use. Currently unimplemented; supplying
 #'   a value triggers an error.
 #' @param packages Optional. A vector of packages that must exist in the `libPaths`.
 #'   This will be passed to `Require::Install`, i.e., these will be installed, but
 #'   not attached to the search path. See also the `require` argument. To force skip
-#'   of package installation (without assessing modules), set `packages = NULL`
+#'   of package installation (without assessing modules), set `packages = NULL`.
+#'
+#'   To install everything from `repos` (e.g., prebuilt binaries on
+#'   `predictiveecology.r-universe.dev`) rather than from GitHub source -- thereby
+#'   avoiding git authentication and a source-build toolchain such as Rtools --
+#'   set `options = list(Require.noRemotes = TRUE)`. Any GitHub-style specs
+#'   (`account/repo@branch`), including those declared in module metadata
+#'   (`reqdPkgs`), are then rewritten to their bare package name (version
+#'   constraints preserved) and resolved from `repos`. Ensure the relevant
+#'   repository is in `getOption("repos")` and carries a version satisfying any
+#'   constraint. See `Require::RequireOptions`.
 #' @param require Optional. A character vector of packages to install *and* attach
 #'   (with `Require::Require`). These will be installed and attached at the start
 #'   of `setupProject` so that a user can use these during `setupProject`.
+#'   Default is `NULL`, i.e., nothing additional installed/attached.
 #'   See [setup]
 #' @param options Optional. Either a named list to be passed to `options`
 #'   or a character vector indicating one or more file(s) to source,
@@ -144,36 +156,61 @@ NULL
 #'   GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 #'   EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 #'   A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-#'   be set with the `option(SpaDES.project.useGit = xxx)`.
+#'   be set with the `option(SpaDES.project.useGit = xxx)`. Default is
+#'   `getOption("SpaDES.project.useGit", FALSE)`, i.e., `FALSE` unless that option is set.
 #' @param standAlone A logical. Passed to `Require::standAlone`. This keeps all
-#'   packages installed in a project-level library, if `TRUE`. Default is `TRUE`.
+#'   packages installed in a project-level library, if `TRUE`. Default is
+#'   `getOption("SpaDES.project.standAlone", TRUE)`, i.e., `TRUE` unless that
+#'   option is set.
 #' @param libPaths Deprecated. Use `paths = list(packagePath = ...)`.
 #' @param Restart Logical or character. If either `TRUE` or a character,
-#'   and if the `projectPath` is not the current path, and the session is in
-#'   RStudio and interactive, it will try to restart Rstudio in the projectPath with
-#'   a new Rstudio project. If character, it should represent the filename
+#'   and if the `projectPath` is not the current path, and the session is
+#'   interactive and in RStudio or Positron, it will try to restart the IDE in
+#'   the projectPath. If character, it should represent the filename
 #'   of the script that contains the `setupProject` call that should be copied to
 #'   the new folder and opened. If `TRUE`, it will use the active file as the one
-#'   that should be copied to the new projectPath and opened in the Rstudio project.
-#'   If successful, this will create an RStudio Project file (and .Rproj.user
-#'   folder), restart with a new Rstudio session with that new project and with a root
-#'   path (i.e. working directory) set to `projectPath`. Default is `FALSE`, and no
-#'   RStudio Project is created.
+#'   that should be copied to the new projectPath and opened there.
+#'   Default is `FALSE`, and no restart is attempted.
+#'
+#'   The two IDEs differ in what "the project" means, and `setupProject` follows
+#'   each one's own convention:
+#'
+#'   \describe{
+#'     \item{RStudio}{a project is a folder containing an `.Rproj` file. On a
+#'       successful restart this creates that file (and an `.Rproj.user` folder)
+#'       and opens a new RStudio session rooted at `projectPath`.}
+#'     \item{Positron}{a project is simply an open workspace folder --- Positron
+#'       neither creates nor reads `.Rproj` files, so none is written. A new
+#'       Positron window is opened on `projectPath`, which becomes the working
+#'       directory, and the project `.Rprofile` is read as usual.}
+#'   }
+#'
+#'   Two limitations apply to Positron only. Re-opening the script after the
+#'   restart uses the `positron.session_init` hook, which requires
+#'   **Positron 2026.04 or newer**; on older versions everything else works and
+#'   `setupProject` prints the path of the file to open by hand. And because
+#'   Positron has no equivalent of RStudio's `~/.active-rstudio-document`, an
+#'   *unsaved* editor buffer cannot be recovered --- save the script first, or
+#'   pass its path as `Restart = "myScript.R"`.
 #' @param updateRprofile Logical. Should the `paths$packagePath` be set in the `.Rprofile`
 #'   file for this project. Note: if `paths$packagePath` is within the `tempdir()`,
 #'   then there will be a warning, indicating this won't persist. If the user is
 #'   using `Rstudio` and the `paths$projectPath` is not the root of the current
 #'   Rstudio project, then a warning will be given, indicating the .Rprofile may not
-#'   be read upon restart.
+#'   be read upon restart. Default is `getOption("SpaDES.project.updateRprofile", TRUE)`,
+#'   i.e., `TRUE` unless that option is set.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
-#'   on Linux (ignored if Windows)
+#'   on Linux (ignored if Windows). Default is
+#'   `getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)`, i.e., `TRUE` unless that
+#'   option is set.
 #' @param studyArea Optional. If a list, it will be passed to
 #'        `geodata::gadm`. To specify a country other than the default `"CAN"`,
 #'        the list must have a named element, `"country"`. All other named elements
 #'        will be passed to `gadm`. 2 additional named elements can be passed for
 #'        convenience, `subregion = "..."`, which will be grepped with the column
 #'        `NAME_1`, and `epsg = "..."`, so a user can pass an `epsg.io` code to
-#'        reproject the `studyArea`. See examples.
+#'        reproject the `studyArea`. Default is `NULL`, i.e., no study area is built.
+#'        See examples.
 #' @param overwrite Logical vector or character vector, however, only `getModule` will respond
 #'   to a vector of values. If length-one `TRUE`, then all files that were previously downloaded
 #'   will be overwritten throughout the sequence of `setupProject` -- including those downloaded via `sideEffects`.
@@ -182,7 +219,8 @@ NULL
 #'   NOTE: if length > 1, no other file specified anywhere in `setupProject` will be
 #'   overwritten except a module matching the vector `names()` (because
 #'   only `setupModules` is currently responsive to a vector). To have fine grained control,
-#'   a user can just manually delete a file, then rerun.
+#'   a user can just manually delete a file, then rerun. Default is
+#'   `getOption("SpaDES.project.overwrite", FALSE)`, i.e., `FALSE` unless that option is set.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects.
 #'   These can be supplied to give default values to objects that
@@ -294,15 +332,29 @@ NULL
 #' )
 #' ````
 #'
-#' \subsection{Argument order}{
-#' Arguments that are *not* the named arguments (i.e., the ones passed in `...`)
-#' are evaluated in the order they are written. Subsequent arguments can use the
-#' previous arguments. If "dot" arguments are declared before the first
-#' standard arguments (the "formals") of the function, then they will be evaluated
-#' prior to the `formals`. If they are after a single standard argument (i.e., not
-#' necessarily after *all* the named arguments), then they will be evaluated after
-#' all standard arguments. The exception to this is `params`, which will be evaluated
-#' like the `...` arguments, i.e., in order.
+#' \subsection{Argument order (evaluation sequence)}{
+#' The evaluation rules are:
+#'
+#' * **Each `...` argument is evaluated once, in the order it is written.** The
+#'   formal/named arguments (`paths`, `modules`, `options`, `params`, `times`, ...)
+#'   are each evaluated *in their entirety as a block*. So if a user needs an object
+#'   to exist before, e.g., `paths` is evaluated, they should declare that argument
+#'   *before* `paths`.
+#' * **Because of this sequential evaluation, any argument written *above* another
+#'   is available to it**, exactly like a normal series of statements. A later
+#'   argument can refer to the resolved value of an earlier one by name.
+#' * **If a name is undefined when an argument is evaluated, `setupProject()` inserts
+#'   the matching `defaultDots` value and re-evaluates.** A value the caller *does*
+#'   supply always takes precedence over the `defaultDots` fallback. This is what
+#'   makes a pattern such as
+#'   `.samplingRange = unlist(.samplingRange)` (with `defaultDots = list(.samplingRange = 1990:2020)`)
+#'   resolve to the caller's value when one is supplied (e.g. a batch run that sets
+#'   `.samplingRange` before calling), and to the default otherwise.
+#'
+#' If "dot" arguments are declared before the first formal argument, they are
+#' evaluated before the formals; otherwise they are evaluated after the formals.
+#' The exception is `params`, which is evaluated like the `...` arguments, i.e., in
+#' order.
 #'
 #' }
 #'
@@ -461,13 +513,13 @@ NULL
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, functions, config,
                          require = NULL, studyArea = NULL,
-                         Restart = getOption("SpaDES.project.Restart"),
-                         useGit = getOption("SpaDES.project.useGit"),
-                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
-                         standAlone = getOption("SpaDES.project.standAlone"),
+                         Restart = getOption("SpaDES.project.Restart", FALSE),
+                         useGit = getOption("SpaDES.project.useGit", FALSE),
+                         setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
+                         standAlone = getOption("SpaDES.project.standAlone", TRUE),
                          libPaths = NULL,
-                         updateRprofile = getOption("SpaDES.project.updateRprofile"),
-                         overwrite = getOption("SpaDES.project.overwrite"), # envir = environment(),
+                         updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
+                         overwrite = getOption("SpaDES.project.overwrite", FALSE), # envir = environment(),
                          verbose = getOption("Require.verbose", 1L),
                          defaultDots, envir = parent.frame(),
                          dots, ...) {
@@ -475,28 +527,18 @@ setupProject <- function(name, paths, modules, packages,
   # defaultDotsSUB <- substitute(defaultDots)
   failedBCMissingPackage <- FALSE
 
-  # RStudio's repos = "@CRAN@" overlay calls `.rs.downloadFile()` to refresh
-  # CRAN_mirrors.csv whenever something resolves a CRAN URL. On hosts with TLS
-  # interception this raises an "SSL connect error" that R defers via "In
-  # addition: Warning message:", so withCallingHandlers below can't muffle it.
-  # Setting a real CRAN URL up-front bypasses the overlay entirely.
-  reposNow <- getOption("repos")
-  # `reposNow` may be an unnamed character vector, or named without a "CRAN"
-  # entry; `[["CRAN"]]` errors with "subscript out of bounds" on atomic vectors
-  # in that case (lists would return NULL), so gate on names() first.
-  if (is.null(reposNow) || !"CRAN" %in% names(reposNow) ||
-      identical(unname(reposNow[["CRAN"]]), "@CRAN@")) {
-    # base::options(...) because setupProject's own `options` formal would
-    # otherwise shadow base::options here — R looks up the function name
-    # in the local frame first, finds the parameter promise, and (when
-    # the caller didn't supply `options=`) the promise is missing-without-
-    # default, so forcing it as a function blows up with
-    # "argument 'options' is missing, with no default". Same trick is
-    # already used at every other `base::options(...)` call site in this
-    # file (e.g. 564, 1307, 1341, 1355).
-    base::options(repos = c(CRAN = "https://cloud.r-project.org",
-                            reposNow[setdiff(names(reposNow), "CRAN")]))
-  }
+  ## open a diagnostic scope for this setupProject invocation; the
+  ## evalSUB / evalListElems instrumentation will push records into it, and
+  ## `setupDiagReport()` (registered on.exit just below) renders a summary at
+  ## the end. See R/diagnostics.R. Strict mode escalates to a final stop().
+  .spadesProjectDiagScope <- setupDiagOpen()
+  on.exit({
+    tryCatch(setupDiagReport(.spadesProjectDiagScope,
+                             strict = getOption("SpaDES.project.strict", FALSE),
+                             verbose = verbose),
+             error = function(e) { setupDiagClose(); stop(e) })
+    setupDiagClose()
+  }, add = TRUE)
 
   withCallingHandlers({
     makeUpdateRprofileSticky(updateRprofile)
@@ -897,14 +939,16 @@ setupProject <- function(name, paths, modules, packages,
 #'   \tabular{lll}{
 #' **Path**     \tab **Default if not supplied by user** \tab Effects \cr
 #'                               \tab *Project Level Paths*   \tab \cr
-#' `projectPath`\tab if `getwd()` is `name`, then just `getwd`; if not
+#' `projectPath`\tab `getOption("spades.projectPath")` if set; otherwise,
+#'                            if `getwd()` is `name`, then just `getwd`; if not
 #'                            `file.path(getwd(), name)`  \tab If current project is not this project
 #'                                                             and using `Rstudio`, then the current
 #'                                                             project will close and a new project will
 #'                                                             open in the same Rstudio session, unless
 #'                                                             `Restart = FALSE`\cr
-#' `packagePath`\tab `file.path(tools::R_user_dir("data"), name, "packages",
-#'                               version$platform, substr(getRversion(), 1, 3))`
+#' `packagePath`\tab `getOption("spades.packagePath",
+#'                                file.path(tools::R_user_dir("data"), name, "packages",
+#'                                          version$platform, substr(getRversion(), 1, 3)))`
 #'                                                    \tab appends this path to `.libPaths(packagePath)`,
 #'                                                         unless `standAlone = TRUE`, in which case,
 #'                                                         it will set `.libPaths(packagePath,
@@ -979,7 +1023,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
   #if (is.null(libPaths) || is.call(libPaths)) {
   if (is.null(paths[["packagePath"]])) {
-    paths[["packagePath"]] <- .libPathDefault(name)
+    paths[["packagePath"]] <- getOption("spades.packagePath", .libPathDefault(name))
   }
 
   defaultsSPO <- spadesProjectOptions() # uses projectPath
@@ -1497,7 +1541,12 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
                       warning = function(w) {
                         warns <<- w
                       })
+  ## stash the original so we can tell at the end whether the element-wise
+  ## fallback below actually recovered (changed `l`) or just gave up
+  setupDiagOrigL <- l
+  setupDiagInitialError <- NULL
   if (is(l2, "try-error")) {
+    setupDiagInitialError <- l2
     mess <- gsub("Error in eval\\(l, envir\\) : ", "", as.character(l2))
     mess <- gsub("\\n", "", as.character(mess))
     messageVerbose(mess, verbose = verbose)
@@ -1564,6 +1613,18 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 
   } else {
     l <- l2
+  }
+  ## Report the final outcome to the diagnostic scope (if one is open). Only
+  ## push when the element-wise retry did NOT change `l` -- if it changed,
+  ## recovery resolved the value and there's nothing tolerated to surface.
+  ## The case that motivated this (pkgload::load_all() failing on a parse
+  ## error) leaves `l` identical to `setupDiagOrigL` and gets recorded.
+  if (!is.null(setupDiagInitialError) && identical(l, setupDiagOrigL)) {
+    setupDiagRecord(expr = setupDiagOrigL,
+                    error = setupDiagInitialError,
+                    warnings = warns)
+  } else if (length(warns) && is.null(setupDiagInitialError)) {
+    setupDiagRecord(expr = setupDiagOrigL, warnings = warns)
   }
   l
 }
@@ -1702,14 +1763,29 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         } else {
           gert::git_commit_all(message = "first commit")
         }
-        rl <- readline("Update git config --global --edit ? (Y or N): ")
         if (nzchar(Sys.which("git"))) {
-          if (startsWith(tolower(rl), "y") ) {
-            system(paste0("git config --global --edit "))
-
-            rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
+          # Only offer to edit the global git identity when it is actually
+          # missing. Prompting unconditionally is a footgun: in a no-terminal
+          # front-end (RStudio Server, embedded R) answering "Y" launches an
+          # editor via `git config --global --edit` that can never be answered
+          # and hangs the session, and there is nothing to edit once user.name /
+          # user.email are configured.
+          gitconf <- try(gert::git_config(), silent = TRUE)
+          needsGitIdentity <- is(gitconf, "try-error")
+          if (!needsGitIdentity) {
+            un <- gitconf$value[gitconf$name %in% "user.name"]
+            em <- gitconf$value[gitconf$name %in% "user.email"]
+            needsGitIdentity <- !any(nzchar(un)) || !any(nzchar(em))
+          }
+          if (needsGitIdentity) {
+            rl <- readline("Global git user.name/user.email not set. Edit ~/.gitconfig now ? (Y or N): ")
             if (startsWith(tolower(rl), "y") ) {
-              system(paste0("git commit --amend --reset-author"))
+              system(paste0("git config --global --edit "))
+
+              rl <- readline("Need to amend this commit to use this new user ? (Y or N): ")
+              if (startsWith(tolower(rl), "y") ) {
+                system(paste0("git commit --amend --reset-author"))
+              }
             }
           }
           system("git branch -M main")
@@ -2405,6 +2481,11 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
 
 checkProjectPath <- function(paths, name, envir, envir2) {
 
+  userProjectPath <- getOption("spades.projectPath", NULL) # capture before spadesProjectOptions() side effects
+  # spadesProjectOptions() sets options(spades.projectPath = ".") as a side effect when unset,
+  # so once it has run anywhere in the session the option reads as ".". Treat that sentinel as
+  # "not user-set" -- a user setting "." literally is behaviorally identical to the default anyway.
+  if (identical(userProjectPath, ".")) userProjectPath <- NULL
   defaults <- spadesProjectOptions()
   if (missing(paths)) {
     paths <- list()
@@ -2413,7 +2494,9 @@ checkProjectPath <- function(paths, name, envir, envir2) {
     paths <- evalSUB(paths, valObjName = "paths", envir = envir, envir2 = envir2)
   }
   if (is.null(paths[["projectPath"]])) {
-    prjPth <- if (missing(name)) {
+    prjPth <- if (!is.null(userProjectPath)) {
+      userProjectPath
+    } else if (missing(name)) {
       defaults$spades.projectPath
     } else {
       if (isInProject(name)) {
@@ -2458,6 +2541,51 @@ isInProject <- function(name, projectPath) {
     out <- TRUE
   }
   out
+}
+
+# Name of the session-init hook the front-end fires once its UI channel is up,
+# or NA_character_ when it has none.  That hook is the only safe place for the
+# "re-open the global script in the restarted session" code: a project
+# .Rprofile is sourced *before* the UI channel exists, so rstudioapi calls made
+# directly from it do not reliably reach the front-end.
+#
+#   * RStudio  -- `rstudio.sessionInit`, called with `newSession`.
+#   * Positron -- `positron.session_init`, called with `start_type` ("new",
+#                 "restart" or "reconnect").  Shipped in Positron 2026.04;
+#                 earlier builds have no equivalent, so NA is returned and the
+#                 caller tells the user which file to open instead of writing
+#                 machinery that nothing would ever run or clean up.
+.sessionInitHook <- function(inPositron = isPositron()) {
+  if (!isTRUE(inPositron))
+    return("rstudio.sessionInit")
+  posVersion <- tryCatch(package_version(Sys.getenv("POSITRON_VERSION")),
+                         error = function(e) NULL)
+  if (!is.null(posVersion) && posVersion >= package_version("2026.4.0"))
+    "positron.session_init"
+  else
+    NA_character_
+}
+
+# TRUE when the front-end's currently-open project/workspace already IS `pp`,
+# i.e. no restart is needed.  The two front-ends answer this differently:
+#
+#   * RStudio  -- a project is a folder with an .Rproj file, and the open one
+#                 is reported by getActiveProject().
+#   * Positron -- workspace/folder based; it neither creates nor reads .Rproj
+#                 files, so `is_rstudio_project` is permanently FALSE there.
+#                 Testing it would ask for a restart on every call, including
+#                 in the window that was just restarted into projectPath.
+#                 getActiveProject() is NULL when no folder is open at all.
+#
+# `curProj` is the getActiveProject() result; `inPositron` is isPositron().
+.isCurrentIdeProject <- function(pp, curProj, inPositron) {
+  if (isTRUE(inPositron)) {
+    length(curProj) == 1L && !is.na(curProj) && nzchar(curProj) &&
+      identical(normPath(curProj), normPath(pp))
+  } else {
+    rprojroot::is_rstudio_project$testfun[[1]](pp) &&
+      isTRUE(basename2(curProj) %in% basename(pp))
+  }
 }
 
 isInRstudioProj <- function(name) {
@@ -2590,6 +2718,11 @@ evalSUB <- function(val, valObjName, envir, envir2) {
 
   if (is(val2, "try-error")) {
     val2 <- errorMsgCleaning(val2, valOrig)
+    ## record at the FINAL outcome. If the caller later resolves this via its
+    ## own fallback (e.g. evalDots substituting defaultDots), it should delete
+    ## this record via setupDiagClearMatching(). See R/diagnostics.R.
+    setupDiagRecord(context = valObjName, expr = valOrig, error = val2,
+                    warnings = warns)
     warning(val2, call. = FALSE)
     val2 <- valOrig
   } else {
@@ -2597,6 +2730,9 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       if (is(val3, "try-error")) {
         val3 <- errorMsgCleaning(val3, valOrig)
         warning(val3)
+      } else if (length(warns)) {
+        ## eval succeeded but conditions fired along the way
+        setupDiagRecord(context = valObjName, expr = valOrig, warnings = warns)
       }
   }
 
@@ -2635,7 +2771,10 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
                            verbose) {
 
   if (isTRUE(gitignore)) {
-    gitIgnoreFile <- ".gitignore"
+    # Resolved against projectPath, not the working directory: the .git test on
+    # the next line is projectPath-relative, so a bare ".gitignore" only agreed
+    # with it when the working directory happened to be projectPath.
+    gitIgnoreFile <- file.path(paths[["projectPath"]], ".gitignore")
     gitFile <- file.path(paths[["projectPath"]], ".git")
     if (dir.exists(gitFile)) { # this is a git repository
       if (file.exists(gitIgnoreFile))
@@ -2649,27 +2788,37 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
       updatedPP <- updatedMP <- FALSE
 
       # if the R package folder is inside
-      isPackagePathInside <- grepl(prjP, pkgP)
+      # fs::path_rel + startsWith("..") rather than grepl()/gsub() on the path:
+      # prjP is a filesystem path, and as a regex "." matches any character
+      # while + ( ) [ ] are metacharacters, so a sibling directory could match
+      # and gsub() could strip the wrong substring. This is the same idiom
+      # gitIgnoreInitials() already uses.
+      pkgPrel <- as.character(fs::path_rel(pkgP, prjP))
+      isPackagePathInside <- !startsWith(pkgPrel, "..")
       if (isTRUE(isPackagePathInside)) {
         updatedPP <- TRUE
-        pkgP <- gsub(prjP, "", pkgP)
-        if (startsWith(pkgP, "/"))
-          pkgP <- gsub("^/", "", pkgP)
-        lineWithPkgPath <- grep(paste0("^", pkgP,"$"), gif)
+        pkgP <- pkgPrel
+        lineWithPkgPath <- which(gif == pkgP)
         insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
         gif[insertLine] <- file.path(pkgP, "*")
       }
 
       if (!file.exists(".gitmodules")) { # This is NOT using submodules; so, "it is a git repo, used git
         updatedMP <- TRUE
-        lineWithModPath <- grep(paste0("^", basename(paths[["modulePath"]]),"$"), gif)
+        lineWithModPath <- which(gif == basename(paths[["modulePath"]]))
         insertLine <- if (length(lineWithModPath)) lineWithModPath[1] else length(gif) + 1
         gif[insertLine] <- file.path(basename(paths[["modulePath"]]), "*")
 
       }
 
-      # ignore these folders/files
+      # ignore these folders/files. gitIgnoreInitials() re-reads
+      # getOption("SpaDES.project.gitignore") itself and returns that option's
+      # value -- not a character vector -- when it is not TRUE, which is
+      # reachable here because setupGitIgnore() gates on its `gitignore`
+      # argument instead. Hence the is.character() guard.
       igs <- gitIgnoreInitials(paths)
+      if (is.character(igs))
+        gif <- c(gif, setdiff(igs, gif))
 
       # Write the file
       if (length(setdiff(gif, gifOrig))) {
@@ -2893,7 +3042,7 @@ messageWarnStop <- function(..., type = getOption("SpaDES.project.messageWarnSto
 
 
 evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
-                     callingEnv = sys.frame(-2)) {
+                     callingEnv = sys.frame(-2), dotsScope = FALSE) {
   if (missing(dots))
     dots <- dotsSUB
   else
@@ -2932,8 +3081,50 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
           possVal <- dotsSUB[[dd]]
           stStart <- Sys.time()
           if (!is.name(dotsSUB[[dd]])) {
+            # Sequential, single-pass evaluation of a `...` argument (dotsScope).
+            #   Evaluate the expression exactly once in `evalEnvDD`, which models the
+            #   intended scope:
+            #     * parent = the genuine caller (so caller-supplied values -- incl.
+            #       batch-spawn overrides like `.samplingRange = 2020:2030` -- win),
+            #     * overlaid with every already-resolved argument (`envir`), so
+            #       arguments declared *above* are available exactly like a normal
+            #       sequence of statements, EXCEPT the dot's own name,
+            #     * with the dot's own name bound to its `defaultDots` value only
+            #       when the caller did not supply it (undefined -> insert default).
+            #   This bypasses the proxy's self-referential active bindings (which
+            #   otherwise make `exists(<dot>)` spuriously TRUE and feed a call back
+            #   into itself). `envir2 = envir` remains a fallback for the rare
+            #   expression that references something reachable only there.
+            evalEnvDD <- callingEnv
+            if (isTRUE(dotsScope)) {
+              gcEnv <- parent.env(callingEnv)
+              evalEnvDD <- new.env(parent = gcEnv)
+              # Copy already-resolved bindings so a dot can reference arguments
+              #   declared above it. EXCLUDE the formal arguments of setupProject():
+              #   those are still unevaluated promises (e.g. `modules = unlist(.modules)`,
+              #   `paths = list(...)`, `times = as.list(unlist(.times))`) that reference
+              #   dots not yet resolved -- forcing them here would error or run side
+              #   effects (pathBuild, downloads) prematurely. Guard each get() too, so
+              #   an unexpected unforced promise can never crash dot resolution.
+              nmsCopy <- setdiff(ls(envir, all.names = TRUE),
+                                 c(dd, "...", formalArgs(setupProject)))
+              for (nmCopy in nmsCopy) {
+                vCopy <- tryCatch(get(nmCopy, envir = envir, inherits = FALSE),
+                                  error = function(e) NULL)
+                if (!is.null(vCopy))
+                  assign(nmCopy, vCopy, envir = evalEnvDD)
+              }
+              if (dd %in% namsDD && !exists(dd, envir = gcEnv, inherits = TRUE)) {
+                ddDef <- tryCatch(
+                  evalSUB(defaultDots[[dd]], envir = envir, envir2 = callingEnv,
+                          valObjName = "defaultDots"),
+                  error = function(e) NULL)
+                if (!is.null(ddDef) && !is.call(ddDef) && !is.name(ddDef))
+                  assign(dd, ddDef, envir = evalEnvDD)
+              }
+            }
             possVal <- suppressWarnings(
-              evalSUB(dotsSUB[[dd]], envir = callingEnv, envir2 = envir, valObjName = "defaultDots")
+              evalSUB(dotsSUB[[dd]], envir = evalEnvDD, envir2 = envir, valObjName = "defaultDots")
             )
           }
           if (identical(possVal, dotsSUB[[dd]])) {
@@ -2963,8 +3154,13 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
             if (identical(possVal, dotsSUB[[dd]])) {
               possVal2 <- evalSUB(defaultDots[[dd]], envir2 = envir, envir = callingEnv,
                                   valObjName = "defaultDots")
-              if (!is.null(possVal2))
+              if (!is.null(possVal2)) {
                 dots[[dd]] <- possVal2
+                ## defaultDots produced a usable value, so delete the earlier
+                ## evalSUB record -- the run continues with the right value and
+                ## there's nothing tolerated to surface. See R/diagnostics.R.
+                setupDiagClearMatching("defaultDots", dotsSUB[[dd]])
+              }
             }
           } else {
             dots[[dd]] <- possVal
@@ -2984,8 +3180,12 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
                 if (is.name(d)) {
                   d1 <- evalSUB(d, valObjName = nam, envir2 = envir, envir = callingEnv)
                   if (is(d1, "try-error")) {
-                    if (isTRUE(haveDefaults))
+                    if (isTRUE(haveDefaults)) {
                       d1 <- defaultDots[[nam]]
+                      ## defaultDots absorbed the failure; delete the evalSUB
+                      ## record so nothing tolerated lands in the summary.
+                      setupDiagClearMatching(nam, d)
+                    }
                     # else
                     #   d1 <- d
                   }
@@ -2998,54 +3198,7 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
 }
 
 
-setupRequire <- function(allPkgs, packages, ...) {
 
-  # Without installing
-  requireNeeds <- unique(unname(unlist(Require::pkgDep(allPkgs, recursive = TRUE))))
-  packagesNeeds <- unique(unname(unlist(Require::pkgDep(packages, recursive = TRUE))))
-  requirePkgs <- unique(extractPkgName(requireNeeds))
-  packagesPkgs <- extractPkgName(packagesNeeds)
-  packagesPkgsMatched <- packagesNeeds[match(requirePkgs, packagesPkgs)]
-  require <- sort(unique(c(requireNeeds, packagesPkgsMatched)))
-
-  # alreadyLoadedMess <- c()
-  withCallingHandlers(
-    Require::Require(allPkgs, ...) # basically don't change anything
-    , message = function(m) {
-      if (any(grepl("Error: package or namespace", m$message))) {
-        pkg <- gsub("^.+namespace \u2018(.+)\u2019 .+ is already loaded.+$", "\\1", m$message)
-        message(m)
-        stop(stopMessForRequireFail(pkg))
-      }
-    }
-    , warning = function(w) {
-      warnMess <- "^.+ersion .+ of \u2018(.+)\u2019 masked by .+$"
-      if (any(grepl(warnMess, w$message))) {
-        pkg <- gsub(warnMess, "\\1", w$message)
-        warning(w)
-        stop(stopMessForRequireFail(pkg))
-      }
-    }
-  )
-}
-
-stopMessForRequireFail <- function(pkg) {
-  paste0("\nThe above error(s) likely mean(s) you must restart R and run again.",
-         "\nIf this/these occur(s) again, your session likely ",
-         "pre-loads old packages from e.g., your personal library. ",
-         "The best thing to do is try to\n",
-         yellow("restart R without loading any packages."),
-         "\n\nIf that is not easy to do, you can try to update it in that location with (for a CRAN package) e.g., :\n",
-         yellow("restart R "),
-         blue(paste0("\ninstall.packages(c('", pkg, "'))")),
-         yellow("\nrestart R"),
-         "\n\nIf that does not work (including non-CRAN packages), perhaps removing the old one...",
-         yellow("\nrestart R "),
-         blue(paste0("\nremove.packages(c('", pkg, "'))")),
-         yellow("\nrestart R"),
-         "\nThis should trigger a re-installation, or allow ",
-         "for a manual install.packages ...")
-}
 
 #' Resolve a study area from a `studyArea` spec via `geodata::gadm()`
 #'
@@ -3059,10 +3212,10 @@ stopMessForRequireFail <- function(pkg) {
 #' `setupStudyArea` calls `[geodata::gadm()]` to get an `sf` polygon or set of polygons
 #' of a country or a subdivision of a country. The user can pass a named `list` of character elements
 #' that match entries in the columns "NAME_1" and "NAME_2" of the `sf` object. If passing
-#' `NAME_2`, the user must pass `level = 2`. If passing `NAME_1` and `level = 2` all subdivision polygons under 
-#' `NAME_1` will be returned, which can be useful to explore subdivision names.                                     
+#' `NAME_2`, the user must pass `level = 2`. If passing `NAME_1` and `level = 2` all subdivision polygons under
+#' `NAME_1` will be returned, which can be useful to explore subdivision names.
 #' `setupStudyArea` only uses `inputPath` within its `paths` argument, which will
-#' be passed to `path` argument of `gadm`. 
+#' be passed to `path` argument of `gadm`.
 #'
 #' ```
 #' setupStudyArea(list(NAME_1 = "Alberta", "NAME_2" = "Division No. 17", level = 2))
@@ -3083,8 +3236,20 @@ setupStudyArea <- function(studyArea, paths, envir = parent.frame(),
     paths <- list(inputPaths = ".")
   # evalSUB(val = studyArea, valObjName = "paths", envir = envirCur, envir2 = envir)
   studyArea <- evalSUB(studyArea, valObjName = "studyArea", envir2 = envir, envir = callingEnv)
-  if (is.call(studyArea))
-    stop("studyArea was not able to be evaluated; stopping")
+  if (is.call(studyArea)) {
+    # studyArea could not be evaluated (e.g. a not-yet-installed package or an
+    # unreachable file). evalSUB has already recorded this as a tolerated error
+    # in the diagnostic scope and returned the unevaluated expression. Mirror
+    # the `...`-argument behaviour: return that expression rather than aborting
+    # the whole setup here. The end-of-call diagnostic summary reports it, and
+    # `options(SpaDES.project.strict = TRUE)` escalates it to a stop -- keeping
+    # studyArea consistent with every other argument instead of hard-stopping.
+    messageVerbose("studyArea was not able to be evaluated; returning it ",
+                   "unevaluated -- see the setupProject diagnostics summary ",
+                   "(set options(SpaDES.project.strict = TRUE) to stop on it).",
+                   verbose = verbose)
+    return(studyArea)
+  }
 
   if (is(studyArea, "list")) {
     theCall <- quote(getStudyArea(studyArea, paths, verbose = verbose))
@@ -3110,7 +3275,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          origGetWd, verbose = getOption("Require.verbose")) {
 
-  isRstudioLocal <- isRstudio()
+  # hasRstudioApi(), not isRstudio(): Positron emulates the rstudioapi shims
+  # this function relies on, so the restart path is available there too.  The
+  # front-ends differ in what counts as "already in the project" -- see below.
+  isRstudioLocal <- hasRstudioApi()
+  inPositron <- isPositron()
+  ideName <- if (isTRUE(inPositron)) "Positron" else "Rstudio"
   if (isTRUE(updateRprofile)) {
 
     inTmpProject <- inTempProject(paths)
@@ -3119,10 +3289,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     } else {
       if (isRstudioLocal) {
         inCorrectRstudioProj <- isInRstudioProj(name)
-        if (!inProject || !inCorrectRstudioProj) { # either wrong Rstudio or not in project
+        if (!inProject || !inCorrectRstudioProj) { # either wrong IDE project or not in project
           if (isFALSE(Restart)) {
-            warning("updateRprofile is TRUE, but the projectPath is not an Rstudio project; ",
-                    "thus the .Rprofile won't be read upon restart; ignoring updateRprofile = TRUE. ",
+            warning("updateRprofile is TRUE, but the projectPath is not ",
+                    if (isTRUE(inPositron)) "the open Positron workspace" else "an Rstudio project",
+                    "; thus the .Rprofile won't be read upon restart; ignoring updateRprofile = TRUE. ",
                     "Set `Restart = TRUE` to updateRprofile *and* restart R in that folder so ",
                     ".Rprofile will be read")
           }
@@ -3135,7 +3306,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     Restart <- FALSE
   }
 
-  if ( (interactive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudioLocal ||
+  if ( (isInteractive() && (isTRUE(Restart) || is.character(Restart)) ) && isRstudioLocal ||
        !(useGit %in% FALSE)) {# getOption("SpaDES.project.Restart", TRUE))
 
     # on.exit(setwd(origGetWd), add = TRUE)
@@ -3155,13 +3326,12 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
     isRstudioProj <- FALSE
     if (isRstudioLocal) {
       # could be rstudio terminal --> which needs own test
-      isRstudioProj <- rprojroot::is_rstudio_project$testfun[[1]](pp)
       curRstudioProj <- tryCatch(rstudioapi::getActiveProject(), error = function(e) FALSE)
       if (isFALSE(curRstudioProj)) {
         isRstudioLocal <- FALSE
         isRstudioProj <- FALSE
       } else {
-        isRstudioProj <- isRstudioProj && isTRUE(basename2(curRstudioProj) %in% basename(pp))
+        isRstudioProj <- .isCurrentIdeProject(pp, curRstudioProj, inPositron)
       }
     }
     # inProject <- isInProject(name)
@@ -3171,11 +3341,11 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
         wasUnsaved <- FALSE
         wasLastActive <- FALSE
         if (!inProject || !isRstudioProj) {
-          messageVerbose("... restarting Rstudio inside the project",
+          messageVerbose("... restarting ", ideName, " inside the project",
                          verbose = verbose)
         } else {
           if ( ((!inProject || !isRstudioProj) || !isGitProject))  {
-            messageVerbose("... restarting Rstudio with git activated, inside the project",
+            messageVerbose("... restarting ", ideName, " with git activated, inside the project",
                            verbose = verbose)
           }
         }
@@ -3236,9 +3406,15 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
             Restart <- file.path(origGetWd, Restart)
           newRestart <-  file.path(paths[["projectPath"]], basenameRestartFile)
 
-          # Switch to file to save it
+          # Switch to file to save it.  Positron's shims are stricter than
+          # RStudio's: `documentSave(id)` is `stopifnot(is.null(id))` (it saves
+          # whatever editor is active, via a command) and its navigateToFile()
+          # returns no document id, so the id must not be passed on there.
           id <- rstudioapi::navigateToFile(activeFile)
-          rstudioapi::documentSave(id)
+          if (isTRUE(inPositron))
+            rstudioapi::documentSave()
+          else
+            rstudioapi::documentSave(id)
           copied <- file.copy(Restart, newRestart, overwrite = FALSE)
 
 
@@ -3255,55 +3431,84 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
           RprofileInOther <- file.path(paths[["projectPath"]], ".Rprofile")
           RestartTmpFileStart <- ".Restart_"
           tempfileInOther <- file.path(paste0(RestartTmpFileStart, basename(tempfile())))
-          addToTempFile <- c("setHook('rstudio.sessionInit', function(newSession) {",
-                             "if (newSession) {",
-                             "# message('Welcome to RStudio ', rstudioapi::getVersion())",
-                             "}",
-                             "ap <- rstudioapi::getActiveProject()",
-                             "if (is.null(ap)) ap <- 'No active project'",
-                             "message('This is now an RStudio project and SpaDES.project projectPath: ', ap)",
-                             paste0("message('attempting to re-open ", "last active"[wasLastActive],
-                                    " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
-                                    "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
-                             paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
-                             paste0("rstudioapi::navigateToFile('", newRestart, "')")
 
-          )
-
-          newRprofile <- paste0("source('", tempfileInOther, "')")
-          if (file.exists(RprofileInOther)) {
-            rl <- readLines(RprofileInOther)
-            # Strip stale `source('.Restart_*')` lines (and unlink the orphaned
-            # tempfiles) from prior aborted/repeated setupProject runs in this
-            # projectPath. Each leftover entry registers a sessionInit hook
-            # with action='append', so without this scrub the "This is now an
-            # RStudio project..." banner fires once per accumulated hook on the
-            # next R restart.
-            staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
-            if (length(staleIdx)) {
-              staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
-              try(unlink(file.path(paths[["projectPath"]], staleFiles)),
-                  silent = TRUE)
-              rl <- rl[-staleIdx]
-            }
-            newRprofile <- c(rl, newRprofile)
-            lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
-            lineToDel <- paste0("lineToDel <- grep('^", RestartTmpFileStart,"', readLns)") #paste(rl, collapse = "", ")")
-            nextLine <- paste0("readLns <- readLns[-lineToDel]") # remove source line
-            nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
-            addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
-
+          reopenHook <- .sessionInitHook(inPositron)
+          if (is.na(reopenHook)) {
+            # Positron before 2026.04 fires no session-init hook, and a project
+            # .Rprofile runs before the front-end's UI channel is up, so there
+            # is nowhere to put the re-open code. Writing it anyway would leave
+            # a `source('.Restart_*')` line and its tempfile in the project
+            # that nothing ever runs or cleans up; say what to open instead.
+            message(blue(
+              "This front-end provides no session-init hook (Positron >= 2026.04 ",
+              "is required), so ", basenameRestartFile, " cannot be re-opened ",
+              "automatically.\nOnce the new window is up, open:\n  ", newRestart))
           } else {
-            addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
+            isPositronHook <- identical(reopenHook, "positron.session_init")
+            # Positron's hook takes `start_type` ("new" / "restart" /
+            # "reconnect"); RStudio's takes a `newSession` flag.
+            hookArg <- if (isPositronHook) "start_type" else "newSession"
+            hookCond <- if (isPositronHook) "identical(start_type, 'new')" else "newSession"
+            ideNoun <- if (isPositronHook) "a Positron workspace" else "an RStudio project"
 
+            addToTempFile <- c(paste0("setHook('", reopenHook, "', function(", hookArg, ") {"),
+                               paste0("if (", hookCond, ") {"),
+                               "# message('Welcome to ', rstudioapi::getVersion())",
+                               "}",
+                               "ap <- rstudioapi::getActiveProject()",
+                               "if (is.null(ap)) ap <- 'No active project'",
+                               paste0("message('This is now ", ideNoun,
+                                      " and SpaDES.project projectPath: ', ap)"),
+                               paste0("message('attempting to re-open ", "last active"[wasLastActive],
+                                      " file " , paste0("(named ", basenameRestartFile, ") ")[!wasUnsaved],
+                                      "(and saved it as global.R as it was unsaved) "[wasUnsaved], "')"),
+                               paste0("try(file.edit('", newRestart, "'), silent = TRUE)"), # next line doesn't always work
+                               paste0("rstudioapi::navigateToFile('", newRestart, "')")
+
+            )
+
+            newRprofile <- paste0("source('", tempfileInOther, "')")
+            if (file.exists(RprofileInOther)) {
+              rl <- readLines(RprofileInOther)
+              # Strip stale `source('.Restart_*')` lines (and unlink the orphaned
+              # tempfiles) from prior aborted/repeated setupProject runs in this
+              # projectPath. Each leftover entry registers a sessionInit hook
+              # with action='append', so without this scrub the "This is now an
+              # RStudio project..." banner fires once per accumulated hook on the
+              # next R restart.
+              staleIdx <- grep(paste0("source\\('", RestartTmpFileStart), rl)
+              if (length(staleIdx)) {
+                staleFiles <- sub(".*source\\('([^']+)'\\).*", "\\1", rl[staleIdx])
+                try(unlink(file.path(paths[["projectPath"]], staleFiles)),
+                    silent = TRUE)
+                rl <- rl[-staleIdx]
+              }
+              newRprofile <- c(rl, newRprofile)
+              # Drop this run's own `source('.Restart_*')` line from the
+              # .Rprofile once the hook has fired. The pattern must match the
+              # whole `source('.Restart_...')` line: anchoring on "^.Restart_"
+              # never matched, which left lineToDel empty -- and
+              # `readLns[-integer(0)]` is character(0), i.e. it truncated the
+              # project .Rprofile (including the Require::setLibPaths block)
+              # instead of removing one line.
+              lineNext <- paste0("readLns <- readLines('", RprofileInOther, "')")
+              lineToDel <- paste0("lineToDel <- grep(\"source\\\\('", RestartTmpFileStart, "\", readLns)")
+              nextLine <- paste0("if (length(lineToDel)) readLns <- readLns[-lineToDel]") # remove source line
+              nextLine2 <- paste0("cat(readLns, file = '", RprofileInOther, "', sep = '\n')")
+              addToTempFile <- c(addToTempFile, lineNext, lineToDel, nextLine, nextLine2)
+
+            } else {
+              addToTempFile <- c(addToTempFile, paste0("unlink('", RprofileInOther, "') # delete this .Rprofile that was created"))
+
+            }
+            addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
+
+            addToTempFile <- c(addToTempFile,
+                               "}, action = 'append'",
+                               ")")
+            cat(addToTempFile, file = tempfileInOther, sep = "\n")
+            cat(newRprofile, file = RprofileInOther, sep = "\n")
           }
-          addToTempFile <- c(addToTempFile, paste0("unlink('", tempfileInOther, "') # delete this file"))
-
-          addToTempFile <- c(addToTempFile,
-                             "}, action = 'append'",
-                             ")")
-          cat(addToTempFile, file = tempfileInOther, sep = "\n")
-          cat(newRprofile, file = RprofileInOther, sep = "\n")
         }
 
       }
@@ -3413,7 +3618,7 @@ setupRestart <- function(updateRprofile, paths, name, inProject,
       }
       if (isRstudioLocal) {
         on.exit(rstudioapi::openProject(path = paths[["projectPath"]], newSession = TRUE))
-        message("Starting a new Rstudio session with projectPath (", green(paths[["projectPath"]]), ") as its root")
+        message("Starting a new ", ideName, " session with projectPath (", green(paths[["projectPath"]]), ") as its root")
         stop_quietly(mess = "Restarting...")
       }
       #} else {
@@ -3599,7 +3804,7 @@ basename2 <- function (x) {
 evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
                           callingEnv = sys.frame(-2)) {
   dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir,
-                      callingEnv = callingEnv)
+                      callingEnv = callingEnv, dotsScope = TRUE)
   dotsSUBreworked <- list()
   for (i in seq(dotsSUB)) {
     val <- try(eval(dotsSUB[[i]], envir = envir))
@@ -3726,7 +3931,15 @@ mergeOpts <- function(opts, optsFirst, verbose = getOption("Require.verbose", 1L
 isProjectGitRepo <- function(projectPath, inProject) {
   if (isTRUE(inProject))
     projectPath <- "."
-  length(dir(pattern = "^\\.git$", path = projectPath, all.files = TRUE)) == 1L
+  hasDotGit <- length(dir(pattern = "^\\.git$", path = projectPath, all.files = TRUE)) == 1L
+  if (!hasDotGit)
+    return(FALSE)
+  # A `.git` left by an interrupted `git init` sits on an unborn branch with no
+  # commit, so gert::git_branch() returns NULL (the same behaviour relied on in
+  # setUpstreamWithTry). Treat that as "not yet a repo" so the commit + push
+  # flow completes the creation instead of skipping it because a bare `.git`
+  # happens to exist.
+  !is.null(tryCatch(gert::git_branch(repo = projectPath), error = function(e) NULL))
 }
 
 ignoreAFolder <- function(gitIgnoreFile = ".gitIgnore", folder, projectPath) {
@@ -4157,25 +4370,39 @@ studyAreaName2 <- function(projectPath, studyArea = NULL, rasterToMatch = NULL,
 }
 
 
+## Fewest trailing path segments that make `paths` mutually distinct, returned
+## as relative paths. Terminates by construction: bounded by the longest path,
+## and a single path needs no disambiguation.
+.uniqueTrailingPath <- function(paths) {
+  segs <- strsplit(paths, .Platform$file.sep, fixed = TRUE)
+  segs <- lapply(segs, function(s) s[nzchar(s)])
+  joinLast <- function(n) {
+    vapply(segs, function(s) paste(utils::tail(s, n), collapse = "/"), character(1))
+  }
+  n <- 1L
+  maxN <- max(c(1L, lengths(segs)))
+  while (n < maxN && anyDuplicated(joinLast(n))) n <- n + 1L
+  joinLast(n)
+}
+
 linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toFilesList) {
 
   if (missing(fromFilesList)) {
     dirCreated <- dir.create(toBaseDir, showWarnings = FALSE, recursive = TRUE)
 
-    notDeepEnough <- TRUE
-    fromDirsAbs <- fromDirs
-    while (notDeepEnough) {
-      fromDirsRel <- basename(fromDirsAbs)
-      if (length(fromDirs) == length(unique(fromDirsRel)))
-        break
-      fromDirsAbs <- dirname(fromDirs)
-    }
+    # Destination sub-path for each source directory: the fewest trailing path
+    # segments that tell them apart. file.copy() semantics -- the destination
+    # has to preserve enough of the source path to stay distinct.
+    #
+    # The previous loop climbed to an ANCESTOR's basename instead, which both
+    # discards path information (/x/mod/sub and /y/mod/sub staged as x/ and y/,
+    # losing mod/sub) and could not terminate: it re-derived from `fromDirs`
+    # every pass, so it only ever reached one level up, and any collision that
+    # survived that level spun forever.
+    fromDirsRel <- .uniqueTrailingPath(fromDirs)
 
     fromFilesList <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = TRUE))
     filesRel <- lapply(fromDirs, function(path) dir(path, recursive = TRUE, full.names = FALSE))
-    dirsFrom <- Map(fls = filesRel, drs = fromDirs, function(fls, drs) {
-      file.path(drs, unique(dirname(fls)))})
-
     dirsToCreateRel <- Map(fls = filesRel, drs = fromDirsRel, function(fls, drs) {
       dtc <- file.path(drs, unique(dirname(fls)))
     })
@@ -4229,7 +4456,7 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
     messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
     # messageVerbose(paste0("The github repository already exists: ", repo),
     #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
-    out <- if (interactive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
+    out <- if (isInteractive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
     if (grepl("y|yes", tolower(out))) {
       setwd(dirname(getwd()))
       unlink(basenameName, recursive = TRUE)
@@ -4259,8 +4486,8 @@ getGitUserName <- function() {
   if (is.null(gitUserNamePoss)) {
     stop(paste(c(mess, "or try gitcreds::gitcreds_set()", "or see usethis::gh_token_help()"), collapse = "\n"))
   }
-  messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = interactive() * 10)
-  gitUserName <- if (interactive()) readline() else gitUserNamePoss
+  messageVerbose(msgNeedGitUserName(gitUserNamePoss), verbose = isInteractive() * 10)
+  gitUserName <- if (isInteractive()) readline() else gitUserNamePoss
   if (!nzchar(gitUserName)) {
     gitUserName <- gitUserNamePoss
     # needGitUserName <- FALSE
@@ -4308,10 +4535,17 @@ getGitUserName <- function() {
     discarded <- vapply(others,
       function(i) paste0(gs$acct[[i]], "/", gs$repo[[i]], "@", gs$br[[i]]),
       character(1L))
+    # `splitGitRepo()` keys by repo name only, so several distinct SpaDES
+    # modules living in subfolders of one repo (e.g.
+    # `PredictiveEcology/scfm@development/modules/scfmIgnition`) all share
+    # the key `scfm` and look like duplicates here, even though they
+    # resolve to the identical acct/repo@branch.  That isn't an override --
+    # the repo is just cloned once -- so don't warn about it.
+    if (all(discarded == chosen)) next
     messageVerbose(
-      "Module '", k, "' is specified ", length(idxs),
+      "Module '", k, "' is specified ", length(unique(c(chosen, discarded))),
       " times in `modules`; using the last one (", chosen,
-      ") and dropping: ", paste(discarded, collapse = ", "),
+      ") and dropping: ", paste(unique(discarded[discarded != chosen]), collapse = ", "),
       verbose = verbose
     )
   }
@@ -4448,6 +4682,12 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
   if (is.null(curBr))
     curBr <- gert::git_branch()
+  # A freshly initialised repo with no commits yet sits on an "unborn" branch:
+  # gert::git_branch() returns NULL, so there is no branch name and nothing to
+  # fetch, pull, or set an upstream for. Bail out cleanly rather than letting the
+  # length-0 branch name blow up the `split$br %in% masterMain` test below.
+  if (length(curBr) == 0L || isTRUE(is.na(curBr)) || !nzchar(curBr))
+    return(split)
   for (trySetUpstream in 1:2) {
 
     if (!identical(split$br, curBr)) {
@@ -4570,7 +4810,7 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
         silent = TRUE)
       masterMain <- c("master", "main")
       if (is(setUpstreamTry, "try-error"))
-        if (split$br %in% masterMain) {
+        if (length(split$br) && split$br %in% masterMain) {
           newBr <- setdiff(masterMain, split$br)
           messageVerbose("It looks like the repo: ", split$repo, " does not have a branch: ", split$br,
                          "\ntrying ", newBr, "\nTo remove this message, change the reqested branch.",
@@ -4622,9 +4862,6 @@ convertHTTPsToGH <- function(url) {
 }
 
 
-isGitHubWAt <- function(txt) {
-  isGitHub(txt) & grepl("@", txt) & endsWith(tolower(txt), ".r")
-}
 
 githubDotCom <- "https://github.com"
 rawGithubDotCom <- "https://raw.githubusercontent.com"
@@ -4943,10 +5180,22 @@ capture_dots <- function(...) {
   for (i in seq_along(exprs)) {
     # Need to keep vals[i] and use list( ... ) on RHS:
     #   otherwise if first element is NULL, it causes it to disappear
-    vals[i] <- list(tryCatch(
-      ...elt(i),
-      error = function(e) NULL
-    ))
+    # Only eagerly force *simple* dots (a bare symbol or a literal). Forcing a
+    #   complex expression here -- a `{ }` block or a function call -- evaluates it
+    #   eagerly in the caller env (lacking defaultDots / sibling-dot bindings),
+    #   which (a) runs side effects (downloads, browser, print) prematurely and in
+    #   the wrong scope and (b) is then redone in evalDots() anyway. Left lazy,
+    #   build_proxy() keeps the unevaluated `expr` and it is evaluated once, later,
+    #   in the correct environment.
+    ex <- exprs[[i]]
+    if (is.symbol(ex) || is.atomic(ex)) {
+      vals[i] <- list(tryCatch(
+        ...elt(i),
+        error = function(e) NULL
+      ))
+    } else {
+      vals[i] <- list(NULL)
+    }
   }
 
   list(exprs = exprs, vals = vals)

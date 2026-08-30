@@ -592,8 +592,41 @@ test_that("test setupProject - with multiple objects being passed in with defaul
     } else {
       expect_identical(out$.rep, secondRep)
       expect_identical(out$.ELF, secondELF)
-      
+
     }
   }
 
+})
+
+test_that("setupProject - formal-arg promise referencing a defaultDots dot is not forced early", {
+  setupTest() # setwd, sets .libPaths() to a temp
+  withr::local_options("SpaDES.project.updateRprofile" = FALSE)
+  libPathsOrig <- .libPaths()
+  on.exit(.libPaths(libPathsOrig), add = TRUE)
+
+  sanCount <- 0L
+  # `.ELFind` / `.samplingRange` are declared BEFORE `defaultDots`, which triggers
+  #   the "early-dots" evaluation path. `times` is a *formal* whose value is an
+  #   unevaluated expression referencing `.times` (supplied only via defaultDots).
+  #   This used to crash with "object '.times' not found" because building a dot's
+  #   evaluation scope force-copied the unevaluated `times` promise (and would also
+  #   prematurely run side effects for e.g. `modules = unlist(.modules)`).
+  out <- setupProject(
+    paths = list(packagePath = .libPaths()[1L]),
+    .ELFind = .ELFind,
+    .samplingRange = unlist(.samplingRange),
+    defaultDots = list(.ELFind = "4.3",
+                       .samplingRange = 1990:2020,
+                       .times = list(start = 1, end = 2)),
+    .studyAreaName = {
+      sanCount <<- sanCount + 1L
+      if (exists(".studyAreaName")) .studyAreaName else paste0("ELF", .ELFind)
+    },
+    times = as.list(unlist(.times, recursive = TRUE))
+  )
+
+  expect_identical(out$.studyAreaName, "ELF4.3")     # default .ELFind used
+  expect_identical(out$.samplingRange, 1990:2020)    # self-referential dot -> default
+  expect_identical(sanCount, 1L)                     # evaluated exactly once
+  expect_equal(out$times, list(start = 1, end = 2))  # formal promise resolved at its position
 })

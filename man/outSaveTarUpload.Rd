@@ -25,7 +25,7 @@ file and tarball.}
 
 \item{gFolder}{A Google Drive folder identifier accepted by
 \code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}  -- a \code{dribble}, a Drive URL, or a bare
-folder ID from \code{\link[googledrive:drive_id]{googledrive::as_id()}}.}
+folder ID from \code{\link[googledrive:as_id]{googledrive::as_id()}}.}
 
 \item{simFilename}{Character scalar. Full path for the \code{.rds} file.
 Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}
@@ -41,8 +41,12 @@ the Drive folder.  Default \code{TRUE}.}
 \item{cleanup}{Logical. Delete the local tarball after a successful upload.
 Default \code{FALSE}.}
 
-\item{verbose}{Logical. Pass \code{-v} to \code{tar} for file-by-file progress.
-Default \code{TRUE}.}
+\item{verbose}{Numeric message level, forwarded to
+\code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. Defaults to \code{getOption("reproducible.verbose", 1)}
+-- note the fallback: \code{saveSimList()} resolves its own default as a bare
+\code{getOption("reproducible.verbose")}, and passes the result to
+\code{Require::messageVerbose()}, whose \verb{if (verbose >= verboseLevel)} fails with
+"argument is of length zero" whenever that option happens to be unset.}
 
 \item{lazy}{Logical. Passed to \code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. When \code{TRUE}
 (default), each user object in \code{sim@.xData} is saved into a sibling

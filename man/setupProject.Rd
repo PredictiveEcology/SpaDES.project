@@ -17,13 +17,13 @@ setupProject(
   config,
   require = NULL,
   studyArea = NULL,
-  Restart = getOption("SpaDES.project.Restart"),
-  useGit = getOption("SpaDES.project.useGit"),
-  setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo"),
-  standAlone = getOption("SpaDES.project.standAlone"),
+  Restart = getOption("SpaDES.project.Restart", FALSE),
+  useGit = getOption("SpaDES.project.useGit", FALSE),
+  setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
+  standAlone = getOption("SpaDES.project.standAlone", TRUE),
   libPaths = NULL,
-  updateRprofile = getOption("SpaDES.project.updateRprofile"),
-  overwrite = getOption("SpaDES.project.overwrite"),
+  updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
+  overwrite = getOption("SpaDES.project.overwrite", FALSE),
   verbose = getOption("Require.verbose", 1L),
   defaultDots,
   envir = parent.frame(),
@@ -64,10 +64,21 @@ See \link{setup}.
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
 not attached to the search path. See also the \code{require} argument. To force skip
-of package installation (without assessing modules), set \code{packages = NULL}}
+of package installation (without assessing modules), set \code{packages = NULL}.
+
+To install everything from \code{repos} (e.g., prebuilt binaries on
+\code{predictiveecology.r-universe.dev}) rather than from GitHub source -- thereby
+avoiding git authentication and a source-build toolchain such as Rtools --
+set \code{options = list(Require.noRemotes = TRUE)}. Any GitHub-style specs
+(\code{account/repo@branch}), including those declared in module metadata
+(\code{reqdPkgs}), are then rewritten to their bare package name (version
+constraints preserved) and resolved from \code{repos}. Ensure the relevant
+repository is in \code{getOption("repos")} and carries a version satisfying any
+constraint. See \code{Require::RequireOptions}.}
 
 \item{times}{Optional. This will be returned if supplied; if supplied, the values
 can be used in e.g., \code{params}, e.g., \code{params = list(mod = list(startTime = times$start))}.
+Default (when not supplied) is \code{list(start = 0, end = 1)}.
 See help for \code{SpaDES.core::simInit}.}
 
 \item{options}{Optional. Either a named list to be passed to \code{options}
@@ -107,6 +118,7 @@ a value triggers an error.}
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.
+Default is \code{NULL}, i.e., nothing additional installed/attached.
 See \link{setup}}
 
 \item{studyArea}{Optional. If a list, it will be passed to
@@ -115,19 +127,38 @@ the list must have a named element, \code{"country"}. All other named elements
 will be passed to \code{gadm}. 2 additional named elements can be passed for
 convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
-reproject the \code{studyArea}. See examples.}
+reproject the \code{studyArea}. Default is \code{NULL}, i.e., no study area is built.
+See examples.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
-and if the \code{projectPath} is not the current path, and the session is in
-RStudio and interactive, it will try to restart Rstudio in the projectPath with
-a new Rstudio project. If character, it should represent the filename
+and if the \code{projectPath} is not the current path, and the session is
+interactive and in RStudio or Positron, it will try to restart the IDE in
+the projectPath. If character, it should represent the filename
 of the script that contains the \code{setupProject} call that should be copied to
 the new folder and opened. If \code{TRUE}, it will use the active file as the one
-that should be copied to the new projectPath and opened in the Rstudio project.
-If successful, this will create an RStudio Project file (and .Rproj.user
-folder), restart with a new Rstudio session with that new project and with a root
-path (i.e. working directory) set to \code{projectPath}. Default is \code{FALSE}, and no
-RStudio Project is created.}
+that should be copied to the new projectPath and opened there.
+Default is \code{FALSE}, and no restart is attempted.
+
+The two IDEs differ in what "the project" means, and \code{setupProject} follows
+each one's own convention:
+
+\describe{
+\item{RStudio}{a project is a folder containing an \code{.Rproj} file. On a
+successful restart this creates that file (and an \code{.Rproj.user} folder)
+and opens a new RStudio session rooted at \code{projectPath}.}
+\item{Positron}{a project is simply an open workspace folder --- Positron
+neither creates nor reads \code{.Rproj} files, so none is written. A new
+Positron window is opened on \code{projectPath}, which becomes the working
+directory, and the project \code{.Rprofile} is read as usual.}
+}
+
+Two limitations apply to Positron only. Re-opening the script after the
+restart uses the \code{positron.session_init} hook, which requires
+\strong{Positron 2026.04 or newer}; on older versions everything else works and
+\code{setupProject} prints the path of the file to open by hand. And because
+Positron has no equivalent of RStudio's \verb{~/.active-rstudio-document}, an
+\emph{unsaved} editor buffer cannot be recovered --- save the script first, or
+pass its path as \code{Restart = "myScript.R"}.}
 
 \item{useGit}{(if not FALSE, then experimental still). There are two levels at which a project
 can use GitHub, either the \code{projectPath} and/or the \code{modules}. Any given
@@ -146,13 +177,18 @@ NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the \code{option(SpaDES.project.useGit = xxx)}.}
+be set with the \code{option(SpaDES.project.useGit = xxx)}. Default is
+\code{getOption("SpaDES.project.useGit", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
-on Linux (ignored if Windows)}
+on Linux (ignored if Windows). Default is
+\code{getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
-packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
+packages installed in a project-level library, if \code{TRUE}. Default is
+\code{getOption("SpaDES.project.standAlone", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
@@ -161,7 +197,8 @@ file for this project. Note: if \code{paths$packagePath} is within the \code{tem
 then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
-be read upon restart.}
+be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
+i.e., \code{TRUE} unless that option is set.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
 to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
@@ -171,7 +208,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
 overwritten except a module matching the vector \code{names()} (because
 only \code{setupModules} is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.}
+a user can just manually delete a file, then rerun. Default is
+\code{getOption("SpaDES.project.overwrite", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
@@ -327,15 +365,30 @@ values, such as paths.
 )
 }\if{html}{\out{</div>}}
 
-\subsection{Argument order}{
-Arguments that are \emph{not} the named arguments (i.e., the ones passed in \code{...})
-are evaluated in the order they are written. Subsequent arguments can use the
-previous arguments. If "dot" arguments are declared before the first
-standard arguments (the "formals") of the function, then they will be evaluated
-prior to the \code{formals}. If they are after a single standard argument (i.e., not
-necessarily after \emph{all} the named arguments), then they will be evaluated after
-all standard arguments. The exception to this is \code{params}, which will be evaluated
-like the \code{...} arguments, i.e., in order.
+\subsection{Argument order (evaluation sequence)}{
+The evaluation rules are:
+\itemize{
+\item \strong{Each \code{...} argument is evaluated once, in the order it is written.} The
+formal/named arguments (\code{paths}, \code{modules}, \code{options}, \code{params}, \code{times}, ...)
+are each evaluated \emph{in their entirety as a block}. So if a user needs an object
+to exist before, e.g., \code{paths} is evaluated, they should declare that argument
+\emph{before} \code{paths}.
+\item \strong{Because of this sequential evaluation, any argument written \emph{above} another
+is available to it}, exactly like a normal series of statements. A later
+argument can refer to the resolved value of an earlier one by name.
+\item \strong{If a name is undefined when an argument is evaluated, \code{setupProject()} inserts
+the matching \code{defaultDots} value and re-evaluates.} A value the caller \emph{does}
+supply always takes precedence over the \code{defaultDots} fallback. This is what
+makes a pattern such as
+\code{.samplingRange = unlist(.samplingRange)} (with \code{defaultDots = list(.samplingRange = 1990:2020)})
+resolve to the caller's value when one is supplied (e.g. a batch run that sets
+\code{.samplingRange} before calling), and to the default otherwise.
+}
+
+If "dot" arguments are declared before the first formal argument, they are
+evaluated before the formals; otherwise they are evaluated after the formals.
+The exception is \code{params}, which is evaluated like the \code{...} arguments, i.e., in
+order.
 
 }
 

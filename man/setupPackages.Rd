@@ -24,7 +24,17 @@ setupPackages(
 \item{packages}{Optional. A vector of packages that must exist in the \code{libPaths}.
 This will be passed to \code{Require::Install}, i.e., these will be installed, but
 not attached to the search path. See also the \code{require} argument. To force skip
-of package installation (without assessing modules), set \code{packages = NULL}}
+of package installation (without assessing modules), set \code{packages = NULL}.
+
+To install everything from \code{repos} (e.g., prebuilt binaries on
+\code{predictiveecology.r-universe.dev}) rather than from GitHub source -- thereby
+avoiding git authentication and a source-build toolchain such as Rtools --
+set \code{options = list(Require.noRemotes = TRUE)}. Any GitHub-style specs
+(\code{account/repo@branch}), including those declared in module metadata
+(\code{reqdPkgs}), are then rewritten to their bare package name (version
+constraints preserved) and resolved from \code{repos}. Ensure the relevant
+repository is in \code{getOption("repos")} and carries a version satisfying any
+constraint. See \code{Require::RequireOptions}.}
 
 \item{modulePackages}{A named list, where names are the module names, and the elements
 of the list are packages in a form that \code{Require::Require} accepts.}
@@ -32,6 +42,7 @@ of the list are packages in a form that \code{Require::Require} accepts.}
 \item{require}{Optional. A character vector of packages to install \emph{and} attach
 (with \code{Require::Require}). These will be installed and attached at the start
 of \code{setupProject} so that a user can use these during \code{setupProject}.
+Default is \code{NULL}, i.e., nothing additional installed/attached.
 See \link{setup}}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
@@ -44,10 +55,14 @@ See \link{setup}.}
 \item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
 \item{setLinuxBinaryRepo}{Logical. Should the binary RStudio Package Manager be used
-on Linux (ignored if Windows)}
+on Linux (ignored if Windows). Default is
+\code{getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
-packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
+packages installed in a project-level library, if \code{TRUE}. Default is
+\code{getOption("SpaDES.project.standAlone", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{envir}{The environment where \code{setupProject} is called from. Defaults to
 \code{parent.frame()} which should be fine in most cases and user shouldn't need

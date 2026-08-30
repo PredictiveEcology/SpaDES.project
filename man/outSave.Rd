@@ -4,7 +4,13 @@
 \alias{outSave}
 \title{Save a SpaDES simulation to an RDS file}
 \usage{
-outSave(sim, runName, simFilename = NULL, lazy = TRUE)
+outSave(
+  sim,
+  runName,
+  simFilename = NULL,
+  lazy = TRUE,
+  verbose = getOption("reproducible.verbose", 1)
+)
 }
 \arguments{
 \item{sim}{A \code{simList} object.}
@@ -19,6 +25,13 @@ Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), t
 (default), each user object in \code{sim@.xData} is saved into a sibling
 \verb{<simFilename>_xData/} directory and lazily restored on load via
 \code{delayedAssign}. \code{\link[=outTar]{outTar()}} picks up that directory automatically.}
+
+\item{verbose}{Numeric message level, forwarded to
+\code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. Defaults to \code{getOption("reproducible.verbose", 1)}
+-- note the fallback: \code{saveSimList()} resolves its own default as a bare
+\code{getOption("reproducible.verbose")}, and passes the result to
+\code{Require::messageVerbose()}, whose \verb{if (verbose >= verboseLevel)} fails with
+"argument is of length zero" whenever that option happens to be unset.}
 }
 \value{
 Invisibly returns \code{simFilename}.

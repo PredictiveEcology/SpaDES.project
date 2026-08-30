@@ -39,7 +39,9 @@ See \link{setup}.}
 inside the \code{paths[["projectPath"]]}.}
 
 \item{standAlone}{A logical. Passed to \code{Require::standAlone}. This keeps all
-packages installed in a project-level library, if \code{TRUE}. Default is \code{TRUE}.}
+packages installed in a project-level library, if \code{TRUE}. Default is
+\code{getOption("SpaDES.project.standAlone", TRUE)}, i.e., \code{TRUE} unless that
+option is set.}
 
 \item{libPaths}{Deprecated. Use \code{paths = list(packagePath = ...)}.}
 
@@ -48,19 +50,38 @@ file for this project. Note: if \code{paths$packagePath} is within the \code{tem
 then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
-be read upon restart.}
+be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
+i.e., \code{TRUE} unless that option is set.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
-and if the \code{projectPath} is not the current path, and the session is in
-RStudio and interactive, it will try to restart Rstudio in the projectPath with
-a new Rstudio project. If character, it should represent the filename
+and if the \code{projectPath} is not the current path, and the session is
+interactive and in RStudio or Positron, it will try to restart the IDE in
+the projectPath. If character, it should represent the filename
 of the script that contains the \code{setupProject} call that should be copied to
 the new folder and opened. If \code{TRUE}, it will use the active file as the one
-that should be copied to the new projectPath and opened in the Rstudio project.
-If successful, this will create an RStudio Project file (and .Rproj.user
-folder), restart with a new Rstudio session with that new project and with a root
-path (i.e. working directory) set to \code{projectPath}. Default is \code{FALSE}, and no
-RStudio Project is created.}
+that should be copied to the new projectPath and opened there.
+Default is \code{FALSE}, and no restart is attempted.
+
+The two IDEs differ in what "the project" means, and \code{setupProject} follows
+each one's own convention:
+
+\describe{
+\item{RStudio}{a project is a folder containing an \code{.Rproj} file. On a
+successful restart this creates that file (and an \code{.Rproj.user} folder)
+and opens a new RStudio session rooted at \code{projectPath}.}
+\item{Positron}{a project is simply an open workspace folder --- Positron
+neither creates nor reads \code{.Rproj} files, so none is written. A new
+Positron window is opened on \code{projectPath}, which becomes the working
+directory, and the project \code{.Rprofile} is read as usual.}
+}
+
+Two limitations apply to Positron only. Re-opening the script after the
+restart uses the \code{positron.session_init} hook, which requires
+\strong{Positron 2026.04 or newer}; on older versions everything else works and
+\code{setupProject} prints the path of the file to open by hand. And because
+Positron has no equivalent of RStudio's \verb{~/.active-rstudio-document}, an
+\emph{unsaved} editor buffer cannot be recovered --- save the script first, or
+pass its path as \code{Restart = "myScript.R"}.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
 to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
@@ -70,7 +91,8 @@ modules will be overwritten or the logical vector of the modules.
 NOTE: if length > 1, no other file specified anywhere in \code{setupProject} will be
 overwritten except a module matching the vector \code{names()} (because
 only \code{setupModules} is currently responsive to a vector). To have fine grained control,
-a user can just manually delete a file, then rerun.}
+a user can just manually delete a file, then rerun. Default is
+\code{getOption("SpaDES.project.overwrite", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{envir}{An environment within which to look for objects. If called alone,
 the function should use its own internal environment. If called from another
@@ -98,7 +120,8 @@ NOTE: \emph{CREATING} A
 GIT REPOSITORY AT THE PROJECT LEVEL AND SETTING MODULES AS GIT SUBMODULES IS
 EXPERIMENTAL. IT IS FINE IF THE PROJECT HAS BEEN MANUALLY SET UP TO BE
 A GIT REPOSITORY WITH SUBMODULES: THIS FUNCTION WILL ONLY EVALUTE PATHS. This can
-be set with the \code{option(SpaDES.project.useGit = xxx)}.}
+be set with the \code{option(SpaDES.project.useGit = xxx)}. Default is
+\code{getOption("SpaDES.project.useGit", FALSE)}, i.e., \code{FALSE} unless that option is set.}
 
 \item{verbose}{Numeric or logical indicating how verbose should the function
 be. If -1 or -2, then as little verbosity as possible. If 0 or FALSE,
@@ -164,13 +187,14 @@ of whether a user uses SpaDES modules. \code{cachePath}, \code{inputPath}, \code
 \tabular{lll}{
 \strong{Path}     \tab \strong{Default if not supplied by user} \tab Effects \cr
 \tab \emph{Project Level Paths}   \tab \cr
-\code{projectPath}\tab if \code{getwd()} is \code{name}, then just \code{getwd}; if not
+\code{projectPath}\tab \code{getOption("spades.projectPath")} if set; otherwise,
+if \code{getwd()} is \code{name}, then just \code{getwd}; if not
 \code{file.path(getwd(), name)}  \tab If current project is not this project
 and using \code{Rstudio}, then the current
 project will close and a new project will
 open in the same Rstudio session, unless
 \code{Restart = FALSE}\cr
-\code{packagePath}\tab \code{file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3))}
+\code{packagePath}\tab \code{getOption("spades.packagePath", file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3)))}
 \tab appends this path to \code{.libPaths(packagePath)},
 unless \code{standAlone = TRUE}, in which case,
 it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr

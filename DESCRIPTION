@@ -5,8 +5,8 @@ Description: Quickly setup a 'SpaDES' project directories and add modules using 
 URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
-Date: 2026-05-22
-Version: 1.0.1.9342
+Date: 2026-06-14
+Version: 1.0.1.9416
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -50,8 +50,10 @@ Suggests:
     gitcreds,
     googledrive,
     googlesheets4,
+    htmlwidgets,
     httr,
     igraph,
+    jsonlite,
     knitr,
     leaflet,
     leafem,
@@ -68,6 +70,7 @@ Suggests:
     rmarkdown,
     sf,
     SpaDES.core,
+    SpaDES.tools,
     terra,
     testthat (>= 3.0.0),
     tidyterra,
@@ -76,7 +79,10 @@ Suggests:
     waldo,
     withr
 Remotes:
-    PredictiveEcology/SpaDES.core@development
+    PredictiveEcology/Require@development,
+    PredictiveEcology/reproducible@development,
+    PredictiveEcology/SpaDES.core@development,
+    PredictiveEcology/SpaDES.tools@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3
@@ -85,16 +91,18 @@ BugReports: https://github.com/PredictiveEcology/SpaDES.project/issues
 ByteCompile: yes
 Roxygen: list(markdown = TRUE)
 Config/testthat/edition: 3
-Collate: 
+Collate:
     'SpaDES.projectOptions.R'
     'simLists-class.R'
     'as.data.table-simLists.R'
+    'diagnostics.R'
     'download.R'
     'environment.R'
     'experiment-family.R'
     'experiment2.R'
     'experiment-legacy.R'
     'experiment.R'
+    'fdDiagnostics.R'
     'fileEdit.R'
     'future.R'
     'imports.R'
@@ -117,5 +125,4 @@ Collate:
     'txt.R'
     'upload.R'
     'zzz.R'
-Config/roxygen2/version: 8.0.0
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.1.0

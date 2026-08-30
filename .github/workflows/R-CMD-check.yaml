@@ -1,9 +1,9 @@
 # Thin caller — shared logic lives in PredictiveEcology/actions (reusable workflow).
 on:
   push:
-    branches: [main, master, development, transition]
+    branches: [main, master, development]
   pull_request:
-    branches: [main, master, development, transition]
+    branches: [main, master, development]
 
 name: R-CMD-check
 
@@ -15,7 +15,10 @@ jobs:
   R-CMD-check:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
     uses: PredictiveEcology/actions/.github/workflows/R-CMD-check.yaml@main
-    secrets: inherit
+    # See test-coverage.yaml: `secrets: inherit` matches on name, and this
+    # repo's Drive credential is ELIOT_GOOGLE_AUTHENTICATION.
+    secrets:
+      GOOGLEDRIVE_AUTH: ${{ secrets.ELIOT_GOOGLE_AUTHENTICATION }}
     with:
       extra-packages: |
         any::rematch2
