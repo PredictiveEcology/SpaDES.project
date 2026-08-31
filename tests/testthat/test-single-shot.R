@@ -75,23 +75,27 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
       bits <- c(bits, paste0(basename(f), ": ", paste(ln, collapse = " / ")))
     }
 
-    ## then what each worker pane last printed
+    bits <- c(bits,
+      paste("PANESTATE:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
+                                collapse = " | ")),
+      paste("MEM:", paste(tryCatch(readLines("/proc/meminfo", n = 1),
+                                   error = function(e) "n/a"), collapse = "; ")))
+
+    ## LAST and therefore most likely to survive: the panes showed the worker's
+    ## error handler ("q(status=1L) to restart loop"), so the workers are alive
+    ## and erroring rather than dying. The error text is what is actually needed,
+    ## so pull just those lines out of the capture instead of its raw tail.
     for (w in unlist(workers)) {
       cap <- tryCatch(system2("tmux", c("capture-pane", "-p", "-t", w),
                               stdout = TRUE, stderr = TRUE),
                       error = function(e) "capture failed")
       cap <- cap[nzchar(trimws(cap))]
-      bits <- c(bits, paste0("PANE ", w, ": ",
-                             paste(utils::tail(cap, 6), collapse = " / ")))
+      hit <- grep("rror|annot|not found|unable|failed|Warning", cap, value = TRUE)
+      if (!length(hit)) hit <- utils::tail(cap, 4)
+      bits <- c(bits, paste0("ERR ", w, ": ",
+                             paste(utils::tail(hit, 5), collapse = " ~ ")))
     }
-
-    ## most important last -- these are what distinguish the live hypotheses
-    bits <- c(bits,
-      paste("PANESTATE:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
-                                collapse = " | ")),
-      paste("MEM:", paste(tryCatch(readLines("/proc/meminfo", n = 3),
-                                   error = function(e) "n/a"), collapse = "; ")),
-      paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"))
+    bits <- c(bits, paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"))
     paste(bits, collapse = "\n")
   }
 
