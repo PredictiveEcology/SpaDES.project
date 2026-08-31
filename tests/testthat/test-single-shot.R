@@ -58,28 +58,40 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
     error = function(e) paste("tmux failed:", conditionMessage(e)))
 
   diagnose <- function() {
-    bits <- c(
-      paste("results:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"),
-      paste("meminfo:", paste(tryCatch(readLines("/proc/meminfo", n = 3),
-                                       error = function(e) "n/a"), collapse = "; ")),
-      paste("panes:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
-                            collapse = " | "))
-    )
+    ## ORDER MATTERS: the coverage job echoes only the TAIL of
+    ## testthat.Rout.fail, so the most diagnostic items go LAST. A first
+    ## attempt dumped every file in logs/ -- including the long generated
+    ## worker_startup_*.R scripts -- and pushed everything useful out of the
+    ## surviving window.
+    bits <- character()
+
+    ## least important first: the marker files, excluding the generated scripts
+    lf <- list.files(file.path(td, "logs"), recursive = TRUE, full.names = TRUE)
+    lf <- lf[!grepl("\\.R$", lf)]
+    bits <- c(bits, paste("logfiles:", paste(basename(lf), collapse = ", ")))
+    for (f in lf) {
+      ln <- tryCatch(utils::tail(readLines(f, warn = FALSE), 2),
+                     error = function(e) "unreadable")
+      bits <- c(bits, paste0(basename(f), ": ", paste(ln, collapse = " / ")))
+    }
+
+    ## then what each worker pane last printed
     for (w in unlist(workers)) {
       cap <- tryCatch(system2("tmux", c("capture-pane", "-p", "-t", w),
                               stdout = TRUE, stderr = TRUE),
                       error = function(e) "capture failed")
       cap <- cap[nzchar(trimws(cap))]
-      bits <- c(bits, paste0("pane ", w, " tail: ",
-                             paste(utils::tail(cap, 8), collapse = " / ")))
+      bits <- c(bits, paste0("PANE ", w, ": ",
+                             paste(utils::tail(cap, 6), collapse = " / ")))
     }
-    lf <- list.files(file.path(td, "logs"), recursive = TRUE, full.names = TRUE)
-    bits <- c(bits, paste("logfiles:", paste(basename(lf), collapse = ", ")))
-    for (f in lf) {
-      ln <- tryCatch(utils::tail(readLines(f, warn = FALSE), 4),
-                     error = function(e) "unreadable")
-      bits <- c(bits, paste0(basename(f), ": ", paste(ln, collapse = " / ")))
-    }
+
+    ## most important last -- these are what distinguish the live hypotheses
+    bits <- c(bits,
+      paste("PANESTATE:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
+                                collapse = " | ")),
+      paste("MEM:", paste(tryCatch(readLines("/proc/meminfo", n = 3),
+                                   error = function(e) "n/a"), collapse = "; ")),
+      paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"))
     paste(bits, collapse = "\n")
   }
 
