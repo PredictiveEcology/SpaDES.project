@@ -15,12 +15,9 @@ jobs:
   test-coverage:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
     uses: PredictiveEcology/actions/.github/workflows/test-coverage.yaml@main
-    # `secrets: inherit`, as reproducible does: it picks up the ORG-level
-    # GOOGLEDRIVE_AUTH, which holds a user OAuth token. Do not map the
-    # repo-level ELIOT_GOOGLE_AUTHENTICATION onto it -- that is a service
-    # account, and a service account has no Drive quota on user-owned
-    # folders, so it authenticates but cannot complete an upload round-trip,
-    # leaving those tests silently uncovered.
+    # `secrets: inherit`, as reproducible does: it picks up the org-level
+    # Drive credential (a user OAuth token). The shared workflow stages it and
+    # exports GDRIVE_OAUTH_TOKEN; tests/testthat/helpers.R reads that.
     secrets: inherit
     with:
       # experimentTmux() branches on Sys.getenv("TMUX"), so R/tmux.R is

@@ -48,11 +48,32 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
 
   if (isNamespaceLoaded("googledrive"))
     if ((!googledrive::drive_has_token())) {
-      if (nzchar(Sys.getenv("GOOGLEDRIVE_AUTH"))) {
-        # Failure here would block tests that don't actually need Drive creds,
-        # so swallow it; tests that genuinely need a token will fail clearly.
-        try(googledrive::drive_auth(path = Sys.getenv("GOOGLEDRIVE_AUTH")),
-            silent = TRUE)
+      # CI stages a serialized user OAuth token and exports its path as
+      # GDRIVE_OAUTH_TOKEN; it needs drive_auth(token=), not drive_auth(path=).
+      # Service accounts are not supported: they have no Drive quota on
+      # user-owned folders, so they authenticate but cannot complete an upload
+      # round-trip, which silently leaves the cloud paths uncovered.
+      tokenPath <- Sys.getenv("GDRIVE_OAUTH_TOKEN")
+      if (nzchar(tokenPath) && file.exists(tokenPath)) {
+        tok <- tryCatch(readRDS(tokenPath), error = function(e) NULL)
+        if (!is.null(tok)) {
+          ## Drop the token's own cache_path before using it, as
+          ## reproducible's tests/testthat/setup.R does. drive_auth() writes
+          ## the refreshed token back to that path, which is wherever the
+          ## token was MINTED (e.g. ~/.secret on a dev machine). On a runner
+          ## that directory does not exist, the write fails, and gargle
+          ## reports "Can't get Google credentials" -- indistinguishable from
+          ## having no credential at all. A runner should not persist a
+          ## credential to disk anyway.
+          tok$cache_path <- NULL
+          # Report rather than swallow: a failure here used to surface far
+          # downstream as an unrelated git error.
+          tryCatch(googledrive::drive_auth(token = tok),
+                   error = function(e)
+                     warning("Drive auth from GDRIVE_OAUTH_TOKEN failed; ",
+                             "Drive-backed tests will not be exercised: ",
+                             conditionMessage(e), call. = FALSE))
+        }
       }
     }
 
