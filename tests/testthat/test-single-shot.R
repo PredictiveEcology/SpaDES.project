@@ -83,7 +83,6 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
       ## the leading suspect: a worker's fresh R sees a different library set
       ## than the parent, because a tmux pane inherits the tmux SERVER's
       ## environment rather than the caller's.
-      paste("PARENT_LIBS:", paste(.libPaths(), collapse = " : ")),
       paste("R_LIBS_USER:", Sys.getenv("R_LIBS_USER")))
 
     ## LAST and therefore most likely to survive: the panes showed the worker's
@@ -104,6 +103,22 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
       hit <- if (length(idx)) cap[idx] else utils::tail(cap, 4)
       bits <- c(bits, paste0("ERR ", w, ": ",
                              paste(utils::tail(hit, 6), collapse = " ~ ")))
+    }
+    ## The workers report "there is no package called 'SpaDES.project'", so what
+    ## matters is the library the generated startup script actually hands them,
+    ## and whether the package is really there. lib_path comes from the parent's
+    ## .libPaths()[1L], which under covr / R CMD check is a temp library.
+    lp <- .libPaths()
+    bits <- c(bits,
+      paste("LIB1:", lp[1], "| dir?", dir.exists(lp[1]),
+            "| haspkg?", dir.exists(file.path(lp[1], "SpaDES.project"))),
+      paste("NLIBS:", length(lp)))
+    sf <- list.files(file.path(td, "logs"), pattern = "worker_startup.*\\.R$",
+                     full.names = TRUE)
+    if (length(sf)) {
+      l1 <- tryCatch(grep("libPaths", readLines(sf[[1]], warn = FALSE), value = TRUE)[1],
+                     error = function(e) "unreadable")
+      bits <- c(bits, paste("STARTUP_LIBPATHS:", substr(l1, 1, 300)))
     }
     bits <- c(bits, paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"))
     paste(bits, collapse = "\n")
