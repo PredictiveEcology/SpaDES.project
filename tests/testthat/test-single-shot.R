@@ -104,23 +104,21 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
       bits <- c(bits, paste0("ERR ", w, ": ",
                              paste(utils::tail(hit, 6), collapse = " ~ ")))
     }
-    ## The workers report "there is no package called 'SpaDES.project'", so what
-    ## matters is the library the generated startup script actually hands them,
-    ## and whether the package is really there. lib_path comes from the parent's
-    ## .libPaths()[1L], which under covr / R CMD check is a temp library.
+    ## The startup script hands the worker .libPaths()[1L]. The job log shows
+    ## that is a "...st-lib" directory while the package is installed in a
+    ## different temp library, so the worker gets a library without
+    ## SpaDES.project in it. These two lines are short and LAST because the
+    ## coverage job truncates from the front.
     lp <- .libPaths()
+    pkgAt <- tryCatch(dirname(find.package("SpaDES.project")),
+                      error = function(e) "not found")
     bits <- c(bits,
-      paste("LIB1:", lp[1], "| dir?", dir.exists(lp[1]),
-            "| haspkg?", dir.exists(file.path(lp[1], "SpaDES.project"))),
-      paste("NLIBS:", length(lp)))
-    sf <- list.files(file.path(td, "logs"), pattern = "worker_startup.*\\.R$",
-                     full.names = TRUE)
-    if (length(sf)) {
-      l1 <- tryCatch(grep("libPaths", readLines(sf[[1]], warn = FALSE), value = TRUE)[1],
-                     error = function(e) "unreadable")
-      bits <- c(bits, paste("STARTUP_LIBPATHS:", substr(l1, 1, 300)))
-    }
-    bits <- c(bits, paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"))
+      paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"),
+      paste("LIB1HAS:", dir.exists(file.path(lp[1], "SpaDES.project")),
+            "NLIBS:", length(lp)),
+      paste("LIB1:", basename(lp[1]), "PKGAT:", basename(pkgAt),
+            "SAME:", identical(normalizePath(lp[1], mustWork = FALSE),
+                               normalizePath(pkgAt, mustWork = FALSE))))
     paste(bits, collapse = "\n")
   }
 
