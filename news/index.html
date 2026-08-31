@@ -23,7 +23,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9416</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0.1</span>
       </span>
     </div>
 
@@ -73,9 +73,9 @@
     </div>
 
     <div class="section level2">
-<h2 class="page-header" data-toc-text="1.0.1" id="version-101">version 1.0.1<a class="anchor" aria-label="anchor" href="#version-101"></a></h2>
+<h2 class="page-header" data-toc-text="1.1.0" id="version-110">version 1.1.0<a class="anchor" aria-label="anchor" href="#version-110"></a></h2>
 <div class="section level3">
-<h3 id="new-features-1-0-1">New features<a class="anchor" aria-label="anchor" href="#new-features-1-0-1"></a></h3>
+<h3 id="new-features-1-1-0">New features<a class="anchor" aria-label="anchor" href="#new-features-1-1-0"></a></h3>
 <ul><li><p><code><a href="../reference/outSave.html">outSave()</a></code> gains <code>verbose</code>, defaulting to <code>getOption("reproducible.verbose", 1)</code>; it previously failed when that option was unset.</p></li>
 <li><p><code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTION()</a></code> and <code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTIONproject()</a></code> are now exported, and work: build a DESCRIPTION from module metadata, or one project-level DESCRIPTION merging every module’s <code>reqdPkgs</code>.</p></li>
 <li><p><code><a href="../reference/plotChangeOverTime.html">plotChangeOverTime()</a></code> now iterates <strong>all</strong> time-series objects discovered under <code>simList</code>/directory inputs (no more <code>name</code> argument) and presents them as radio-selectable base layers — same UX as <code>SpaDES.shiny::shine()</code>’s “Change from start to end” tab. A per-object legend renders in <code>legendPosition</code> (max value at top, blue = positive; uses shine’s <code>rev(pal) + labFormat transform</code> idiom), and a small <code><a href="https://rdrr.io/pkg/htmlwidgets/man/onRender.html" class="external-link">htmlwidgets::onRender()</a></code> shim listens for leaflet’s <code>baselayerchange</code> event to show only the active layer’s legend.</p></li>
@@ -100,7 +100,7 @@
 <li><p>Cluster <code><a href="../reference/runWorkerLoopFuture.html">runWorkerLoopFuture()</a></code> now uses <code>callr::r_bg(stdout = log_file)</code> instead of <code><a href="https://rdrr.io/r/base/sink.html" class="external-link">sink()</a></code> — log files flush in real time and remote workers show up under <code>/proc/&lt;pid&gt;/fd/1</code>.</p></li>
 </ul></div>
 <div class="section level3">
-<h3 id="enhancements-1-0-1">Enhancements<a class="anchor" aria-label="anchor" href="#enhancements-1-0-1"></a></h3>
+<h3 id="enhancements-1-1-0">Enhancements<a class="anchor" aria-label="anchor" href="#enhancements-1-1-0"></a></h3>
 <ul><li><p><code><a href="../reference/setupProject.html">setupProject()</a></code> / <code><a href="../reference/setupPackages.html">setupPackages()</a></code> print the <code><a href="https://rdrr.io/r/base/dput.html" class="external-link">dput()</a></code> of the exact package vector passed to <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Require</a></code> at <code>verbose &gt;= 3</code>.</p></li>
 <li><p>When a worker claims a job, any leftover status from a previous attempt (finish time, elapsed time, heartbeat, iteration count, interruption time) is cleared first. This applies to both the Google Sheet and the file-based job queues.</p></li>
 <li><p>When a job is marked finished, its “claimed by” marker is cleared, while the process ID and machine name are kept as a record of what ran it.</p></li>
@@ -117,14 +117,14 @@
 <li><p><code><a href="../reference/outSaveTarUpload.html">outSaveTarUpload()</a></code> now accepts a pre-built <code>tarball</code> argument and skips the tar-build step when one is supplied. Useful when an earlier stage already produced the tarball and only the upload remains.</p></li>
 </ul></div>
 <div class="section level3">
-<h3 id="removed-1-0-1">Removed<a class="anchor" aria-label="anchor" href="#removed-1-0-1"></a></h3>
+<h3 id="removed-1-1-0">Removed<a class="anchor" aria-label="anchor" href="#removed-1-1-0"></a></h3>
 <ul><li>
 <code>experiment3()</code> (and its <code>tmux_tail_command</code> helper) have been removed. Use <code><a href="../reference/experimentFuture.html">experimentFuture()</a></code> for non-tmux parallel runs, or the 10-line <code><a href="https://furrr.futureverse.org/reference/future_map2.html" class="external-link">furrr::future_pmap()</a></code> kernel inline if you want a queue-less micro-runner. The conceptual differences are documented in the “Experiments” chapter of the SpaDES4Modellers book.</li>
 <li>
 <code>SpaDES.config</code> is no longer a dependency. The <code>config</code> argument of <code><a href="../reference/setupProject.html">setupProject()</a></code> is still reserved but currently does nothing except give a clearer error (<a href="https://github.com/PredictiveEcology/SpaDES.project/issues/78" class="external-link">#78</a>).</li>
 </ul></div>
 <div class="section level3">
-<h3 id="documentation-1-0-1">Documentation<a class="anchor" aria-label="anchor" href="#documentation-1-0-1"></a></h3>
+<h3 id="documentation-1-1-0">Documentation<a class="anchor" aria-label="anchor" href="#documentation-1-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/setupPaths.html">setupPaths()</a></code>, <code><a href="../reference/setupModules.html">setupModules()</a></code>, <code><a href="../reference/setupPackages.html">setupPackages()</a></code>, and the other inner <code>setup*</code> helpers each have their own help page now; <code><a href="../reference/setup_family.html">?setup_family</a></code> is a new one-page overview showing how they fit together (<a href="https://github.com/PredictiveEcology/SpaDES.project/issues/44" class="external-link">#44</a>).</li>
 <li>
@@ -133,7 +133,7 @@
 <code><a href="../reference/spadesProjectOptions.html">spadesProjectOptions()</a></code>: help page now documents the default and meaning of every option it returns.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="bug-fixes-1-0-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-1"></a></h3>
+<h3 id="bug-fixes-1-1-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0"></a></h3>
 <ul><li><p><code>setupProject(Restart = TRUE)</code> re-opens the global script after restarting Positron, via the <code>positron.session_init</code> hook (Positron &gt;= 2026.04); on older Positron it prints the path to open instead of writing a hook that would never fire.</p></li>
 <li><p><code>setupProject(Restart = TRUE)</code>: the generated <code>.Rprofile</code> cleanup no longer truncates the project <code>.Rprofile</code> (its <code><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep()</a></code> pattern never matched, and <code>readLns[-integer(0)]</code> returns nothing).</p></li>
 <li><p><code>setupProject(Restart = TRUE)</code> no longer restarts endlessly in Positron: the “already in this project” test now compares the open workspace folder, instead of looking for an <code>.Rproj</code> file Positron never creates.</p></li>
@@ -163,13 +163,19 @@
 <li><p><code><a href="../reference/experimentTmux.html">experimentTmux()</a></code>, <code><a href="../reference/tmuxRefreshQueueStatus.html">tmuxRefreshQueueStatus()</a></code>, and the worker loops (<code><a href="../reference/runWorkerLoopFuture.html">runWorkerLoopFuture()</a></code>, <code><a href="../reference/dot-sync_loop_internal.html">.sync_loop_internal()</a></code>) now call <code><a href="../reference/scenarioFields.html">scenarioFieldsSet()</a></code> on the queue’s data columns before evaluating <code>runNameLabel</code> / <code>statusCalculate</code>. This restores positional <code>pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep)</code> calls (used by <code>statusCalculate_LandR</code>, <code>statusCalculate_FireSenseFit</code>, and many user <code>runNameLabel</code> quotes) when the queue comes from a programmatic <code>df</code> rather than from <code><a href="../reference/queueRead.html">queueRead()</a></code> (which sets the field cache on its own).</p></li>
 <li><p><code><a href="../reference/outUpload.html">outUpload()</a></code> now calls <code>tempdir(check = TRUE)</code> before invoking <code><a href="https://googledrive.tidyverse.org/reference/drive_upload.html" class="external-link">googledrive::drive_upload()</a></code> so the session tempdir is recreated if it has been deleted out from under R (intermittent NFS/cleanup issue).</p></li>
 <li><p><code><a href="../reference/setupProject.html">setupProject()</a></code> now copies all required dependency packages (e.g., <code>pak</code>, <code>withr</code>) to the isolated project library, not just those whose namespaces happen to be loaded at call time. Previously, <code>setupSpaDES.ProjectDeps()</code> used <code>getNamespaceInfo(pkg, "path")</code> to locate packages, which returned <code>""</code> for unloaded namespaces; the subsequent <code>file.exists(.../INDEX)</code> check failed silently and the “Copying X packages” message was misleading. Now falls back to <code><a href="https://rdrr.io/r/base/find.package.html" class="external-link">find.package()</a></code> with <code>lib.loc</code> pointing to the caller’s pre-switch <code><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths()</a></code> (plumbed in via a new <code>prevLibPaths</code> arg).</p></li>
-<li><p>Fixed code coverage reporting: <code>NOT_CRAN=true</code> is now set in the test-coverage workflow so that <code>skip_on_cran()</code> tests run under <code>covr</code>.</p></li>
-<li><p>Fixed Windows path comparison in <code>scratchPath</code> test.</p></li>
 <li><p><code><a href="../reference/setupProject.html">setupProject()</a></code> with <code>useGit = TRUE</code> now initializes the project git repository on branch <code>main</code> instead of <code>master</code>.</p></li>
 <li><p>Removed <code>mockery</code> dependency from tests.</p></li>
 <li><p>Fixed test warnings about non-portable paths (&gt; 100 bytes) on macOS/Windows by suppressing in <code>pkgload2</code> test.</p></li>
 <li><p>Skipped <code>setupProject</code> package-installation test on Windows/macOS due to upstream <code>Require@development</code>/<code>data.table</code> incompatibility.</p></li>
-<li><p>Expanded test suite with utility-function tests (<code>spadesProjectOptions</code>, <code>setProjPkgDir</code>, <code>pkgload2</code>, <code>getModule</code>, <code>listModules</code>, etc.) and added <code>packagePath = .libPaths()[1L]</code> to <code>setupProject</code> test calls to prevent lib-path clobbering during testing.</p></li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.0.1" id="version-101">version 1.0.1<a class="anchor" aria-label="anchor" href="#version-101"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-0-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-1"></a></h3>
+<ul><li>Fixed code coverage reporting: <code>NOT_CRAN=true</code> is now set in the test-coverage workflow so that <code>skip_on_cran()</code> tests run under <code>covr</code>.</li>
+<li>Fixed Windows path comparison in <code>scratchPath</code> test.</li>
+<li>Expanded test suite with utility-function tests (<code>spadesProjectOptions</code>, <code>setProjPkgDir</code>, <code>pkgload2</code>, <code>getModule</code>, <code>listModules</code>, etc.) and added <code>packagePath = .libPaths()[1L]</code> to <code>setupProject</code> test calls to prevent lib-path clobbering during testing.</li>
 </ul></div>
 </div>
     <div class="section level2">
