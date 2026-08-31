@@ -55,13 +55,25 @@ setupTest <- function(pkgs, envir = parent.frame(), name = .rndstr(1), first = F
       # round-trip, which silently leaves the cloud paths uncovered.
       tokenPath <- Sys.getenv("GDRIVE_OAUTH_TOKEN")
       if (nzchar(tokenPath) && file.exists(tokenPath)) {
-        # Report rather than swallow: a failure here used to surface far
-        # downstream as an unrelated git error.
-        tryCatch(googledrive::drive_auth(token = readRDS(tokenPath)),
-                 error = function(e)
-                   warning("Drive auth from GDRIVE_OAUTH_TOKEN failed; ",
-                           "Drive-backed tests will not be exercised: ",
-                           conditionMessage(e), call. = FALSE))
+        tok <- tryCatch(readRDS(tokenPath), error = function(e) NULL)
+        if (!is.null(tok)) {
+          ## Drop the token's own cache_path before using it, as
+          ## reproducible's tests/testthat/setup.R does. drive_auth() writes
+          ## the refreshed token back to that path, which is wherever the
+          ## token was MINTED (e.g. ~/.secret on a dev machine). On a runner
+          ## that directory does not exist, the write fails, and gargle
+          ## reports "Can't get Google credentials" -- indistinguishable from
+          ## having no credential at all. A runner should not persist a
+          ## credential to disk anyway.
+          tok$cache_path <- NULL
+          # Report rather than swallow: a failure here used to surface far
+          # downstream as an unrelated git error.
+          tryCatch(googledrive::drive_auth(token = tok),
+                   error = function(e)
+                     warning("Drive auth from GDRIVE_OAUTH_TOKEN failed; ",
+                             "Drive-backed tests will not be exercised: ",
+                             conditionMessage(e), call. = FALSE))
+        }
       }
     }
 
