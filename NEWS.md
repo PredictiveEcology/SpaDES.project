@@ -107,6 +107,8 @@ version 1.1.0
 
 ## Bug fixes
 
+* `experimentTmux()` workers now receive the full library search path; they previously got only `.libPaths()[1]`, so under `R CMD check` / `covr` they could not load `SpaDES.project` itself and exited with "there is no package called".
+
 * `setupProject(Restart = TRUE)` re-opens the global script after restarting Positron, via the `positron.session_init` hook (Positron >= 2026.04); on older Positron it prints the path to open instead of writing a hook that would never fire.
 * `setupProject(Restart = TRUE)`: the generated `.Rprofile` cleanup no longer truncates the project `.Rprofile` (its `grep()` pattern never matched, and `readLns[-integer(0)]` returns nothing).
 * `setupProject(Restart = TRUE)` no longer restarts endlessly in Positron: the "already in this project" test now compares the open workspace folder, instead of looking for an `.Rproj` file Positron never creates.

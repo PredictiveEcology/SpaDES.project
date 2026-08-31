@@ -1307,7 +1307,7 @@ experimentTmux <- function(df,
         email             = email,
         cache_path        = .normalizeCachePath(cache_path),
         dots_path         = if (file.exists(dots_path)) dp else NULL,
-        lib_path          = .libPaths()[1L]
+        lib_path          = .libPaths()
       )
 
       # 3. Send startup command immediately to the freshly created pane
@@ -1501,7 +1501,7 @@ experimentTmux <- function(df,
       pane_mode = pane_mode, email = email,
       cache_path = .normalizeCachePath(cache_path),
       dots_path = if (file.exists(dots_path)) dots_path else NULL,
-      lib_path = .libPaths()[1L]
+      lib_path = .libPaths()
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     message("running:\n")
@@ -1977,7 +1977,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    email             = email,
                    cache_path        = cache_path,
                    dots_path         = dots_path,
-                   lib_path          = .libPaths()[1L]
+                   lib_path          = .libPaths()
                  ), .respawn_script)
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
       # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
@@ -2207,8 +2207,17 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
-                                  dots_path, lib_path = .libPaths()[1L]) {
+                                  dots_path, lib_path = .libPaths()) {
   # Ensure project lib is first so correct package versions are loaded
+  ## The worker starts a fresh R and must be able to load SpaDES.project, so it
+  ## needs the whole library search path, not just its first entry. Under covr /
+  ## R CMD check .libPaths()[1] is the check's own test library
+  ## (SpaDES.project-test-lib) while the package is installed in a separate temp
+  ## library further down the path, so passing only [1] handed the worker a
+  ## library without the package and it died with
+  ## "there is no package called 'SpaDES.project'". On a workstation [1] happens
+  ## to be the user library that does hold it, which is why this only ever
+  ## failed under coverage.
   lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
