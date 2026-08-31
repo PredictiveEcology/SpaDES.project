@@ -48,77 +48,37 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
 
   ok <- wait_for(function() length(list.files(outdir, "^res_.*\\.rds$", full.names = TRUE)) == 2,
                  timeout_s = 120)
-  ## Compact enough to survive the coverage job's log truncation, and aimed at
-  ## the one hypothesis still standing: that the two worker R sessions are
-  ## killed (memory) rather than never starting. `pane_dead` and the pane's
-  ## last lines distinguish "never got going" from "died partway".
-  tmuxF <- function(fmt) tryCatch(
-    system2("tmux", c("list-panes", "-a", "-F", shQuote(fmt)),
-            stdout = TRUE, stderr = TRUE),
-    error = function(e) paste("tmux failed:", conditionMessage(e)))
-
+  ## Kept deliberately: this test failed on CI for weeks with nothing but
+  ## "expected TRUE" to go on. The cause was the workers being handed only
+  ## .libPaths()[1] -- under R CMD check that is the test library, not the one
+  ## holding SpaDES.project -- so they died with "there is no package called".
+  ## Diagnostics go in expect_true()'s `info`, not message(): the coverage job
+  ## echoes only the tail of testthat.Rout.fail, and truncates from the front,
+  ## so the most useful lines go LAST.
   diagnose <- function() {
-    ## ORDER MATTERS: the coverage job echoes only the TAIL of
-    ## testthat.Rout.fail, so the most diagnostic items go LAST. A first
-    ## attempt dumped every file in logs/ -- including the long generated
-    ## worker_startup_*.R scripts -- and pushed everything useful out of the
-    ## surviving window.
-    bits <- character()
-
-    ## least important first: the marker files, excluding the generated scripts
-    lf <- list.files(file.path(td, "logs"), recursive = TRUE, full.names = TRUE)
-    lf <- lf[!grepl("\\.R$", lf)]
-    bits <- c(bits, paste("logfiles:", paste(basename(lf), collapse = ", ")))
-    for (f in lf) {
-      ln <- tryCatch(utils::tail(readLines(f, warn = FALSE), 2),
-                     error = function(e) "unreadable")
-      bits <- c(bits, paste0(basename(f), ": ", paste(ln, collapse = " / ")))
-    }
-
-    bits <- c(bits,
-      paste("PANESTATE:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
-                                collapse = " | ")),
-      paste("MEM:", paste(tryCatch(readLines("/proc/meminfo", n = 1),
-                                   error = function(e) "n/a"), collapse = "; ")),
-      ## the leading suspect: a worker's fresh R sees a different library set
-      ## than the parent, because a tmux pane inherits the tmux SERVER's
-      ## environment rather than the caller's.
-      paste("R_LIBS_USER:", Sys.getenv("R_LIBS_USER")))
-
-    ## LAST and therefore most likely to survive: the panes showed the worker's
-    ## error handler ("q(status=1L) to restart loop"), so the workers are alive
-    ## and erroring rather than dying. The error text is what is actually needed,
-    ## so pull just those lines out of the capture instead of its raw tail.
+    panes <- tryCatch(
+      system2("tmux", c("list-panes", "-a", "-F",
+                        shQuote("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}")),
+              stdout = TRUE, stderr = TRUE),
+      error = function(e) "tmux list-panes failed")
+    bits <- paste("PANES:", paste(panes, collapse = " | "))
     for (w in unlist(workers)) {
       cap <- tryCatch(system2("tmux", c("capture-pane", "-p", "-t", w),
                               stdout = TRUE, stderr = TRUE),
                       error = function(e) "capture failed")
       cap <- cap[nzchar(trimws(cap))]
-      ## R wraps the message, so the useful half ("there is no package called
-      ## 'x'") lands on the line AFTER "Error in loadNamespace(x) :". Take the
-      ## match plus the two lines following it.
       idx <- grep("rror|annot|not found|unable|failed", cap)
-      idx <- sort(unique(c(idx, idx + 1L, idx + 2L)))
+      idx <- sort(unique(c(idx, idx + 1L)))
       idx <- idx[idx >= 1L & idx <= length(cap)]
-      hit <- if (length(idx)) cap[idx] else utils::tail(cap, 4)
+      hit <- if (length(idx)) cap[idx] else utils::tail(cap, 3)
       bits <- c(bits, paste0("ERR ", w, ": ",
-                             paste(utils::tail(hit, 6), collapse = " ~ ")))
+                             paste(utils::tail(hit, 4), collapse = " ~ ")))
     }
-    ## The startup script hands the worker .libPaths()[1L]. The job log shows
-    ## that is a "...st-lib" directory while the package is installed in a
-    ## different temp library, so the worker gets a library without
-    ## SpaDES.project in it. These two lines are short and LAST because the
-    ## coverage job truncates from the front.
     lp <- .libPaths()
-    pkgAt <- tryCatch(dirname(find.package("SpaDES.project")),
-                      error = function(e) "not found")
     bits <- c(bits,
       paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"),
       paste("LIB1HAS:", dir.exists(file.path(lp[1], "SpaDES.project")),
-            "NLIBS:", length(lp)),
-      paste("LIB1:", basename(lp[1]), "PKGAT:", basename(pkgAt),
-            "SAME:", identical(normalizePath(lp[1], mustWork = FALSE),
-                               normalizePath(pkgAt, mustWork = FALSE))))
+            "NLIBS:", length(lp)))
     paste(bits, collapse = "\n")
   }
 
