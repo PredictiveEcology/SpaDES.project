@@ -1,16 +1,19 @@
 # tests/testthat/test-single-shot.R
 
 testthat::test_that("experimentTmux single-shot assigns all columns and sources once", {
-  # Skipped on CI, unlike the other two tmux tests, which do run there. This is
-  # the only one that starts TWO staggered workers. Investigated 2026-08-28:
-  #   * it is NOT a defect in the staggered two-worker path -- run locally under
-  #     a real tmux, both workers write their result files in ~2 seconds;
-  #   * it is NOT a timeout -- it still produced no result files on CI with
-  #     wait_for() scaled 5x (600s) and the job's own limit at 3600s.
-  # So something about the runner environment stops the second worker's R from
-  # reaching the queue. Diagnosing it needs the activeRunningPath worker logs
-  # off the runner, which the coverage job truncates (see below).
-  testthat::skip_on_ci()
+  # This is the only tmux test that starts TWO staggered workers, and the only
+  # one that fails on CI. Ruled out with evidence: a defect in the staggered
+  # path (both workers finish in ~2s locally), a timeout (600s changed nothing),
+  # the runner itself (a standalone reproduction passes on CI in 5s), covr
+  # instrumentation (passes locally and on CI under covr), the worker inheriting
+  # covr's temp .libPaths()[1] (it does, and copes), and leftover idle panes
+  # from an earlier test (disproved directly).
+  #
+  # What has never been captured is what the workers do inside the real
+  # coverage job. Earlier attempts printed it with message(), but that job
+  # echoes only the tail of testthat.Rout.fail and truncated it away. testthat
+  # prints a failing expectation's `info` in the final summary, which is the
+  # part that does survive -- so the diagnosis rides on the assertion instead.
 
   testthat::skip_on_cran()
   skip_if_no_tmux()
@@ -45,20 +48,46 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
 
   ok <- wait_for(function() length(list.files(outdir, "^res_.*\\.rds$", full.names = TRUE)) == 2,
                  timeout_s = 120)
-  if (!ok) {
-    # Surface what the workers actually did. Note the coverage job only echoes
-    # the tail of testthat.Rout.fail, so this dump is visible when running
-    # locally but was truncated away on CI -- getting it off a runner needs an
-    # artifact upload, not more message()s.
-    message("--- worker logs (", file.path(td, "logs"), ") ---")
-    for (f in list.files(file.path(td, "logs"), recursive = TRUE, full.names = TRUE)) {
-      message("== ", f)
-      message(paste(utils::tail(readLines(f, warn = FALSE), 40), collapse = "\n"))
+  ## Compact enough to survive the coverage job's log truncation, and aimed at
+  ## the one hypothesis still standing: that the two worker R sessions are
+  ## killed (memory) rather than never starting. `pane_dead` and the pane's
+  ## last lines distinguish "never got going" from "died partway".
+  tmuxF <- function(fmt) tryCatch(
+    system2("tmux", c("list-panes", "-a", "-F", shQuote(fmt)),
+            stdout = TRUE, stderr = TRUE),
+    error = function(e) paste("tmux failed:", conditionMessage(e)))
+
+  diagnose <- function() {
+    bits <- c(
+      paste("results:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"),
+      paste("meminfo:", paste(tryCatch(readLines("/proc/meminfo", n = 3),
+                                       error = function(e) "n/a"), collapse = "; ")),
+      paste("panes:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
+                            collapse = " | "))
+    )
+    for (w in unlist(workers)) {
+      cap <- tryCatch(system2("tmux", c("capture-pane", "-p", "-t", w),
+                              stdout = TRUE, stderr = TRUE),
+                      error = function(e) "capture failed")
+      cap <- cap[nzchar(trimws(cap))]
+      bits <- c(bits, paste0("pane ", w, " tail: ",
+                             paste(utils::tail(cap, 8), collapse = " / ")))
     }
-    message("--- outdir contents: ",
-            paste(list.files(outdir), collapse = ", "), " ---")
+    lf <- list.files(file.path(td, "logs"), recursive = TRUE, full.names = TRUE)
+    bits <- c(bits, paste("logfiles:", paste(basename(lf), collapse = ", ")))
+    for (f in lf) {
+      ln <- tryCatch(utils::tail(readLines(f, warn = FALSE), 4),
+                     error = function(e) "unreadable")
+      bits <- c(bits, paste0(basename(f), ": ", paste(ln, collapse = " / ")))
+    }
+    paste(bits, collapse = "\n")
   }
-  testthat::expect_true(ok)
-  testthat::expect_equal(readRDS(file.path(outdir,"res_6.1.1.rds"))$.rep, 1)
-  testthat::expect_equal(readRDS(file.path(outdir,"res_6.2.2.rds"))$.rep, 1)
+
+  testthat::expect_true(ok, info = if (!ok) diagnose())
+  # only meaningful once the files exist; otherwise readRDS errors and hides
+  # the diagnosis above
+  if (ok) {
+    testthat::expect_equal(readRDS(file.path(outdir,"res_6.1.1.rds"))$.rep, 1)
+    testthat::expect_equal(readRDS(file.path(outdir,"res_6.2.2.rds"))$.rep, 1)
+  }
 })
