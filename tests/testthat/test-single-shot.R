@@ -79,7 +79,12 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
       paste("PANESTATE:", paste(tmuxF("#{pane_id} dead=#{pane_dead} cmd=#{pane_current_command}"),
                                 collapse = " | ")),
       paste("MEM:", paste(tryCatch(readLines("/proc/meminfo", n = 1),
-                                   error = function(e) "n/a"), collapse = "; ")))
+                                   error = function(e) "n/a"), collapse = "; ")),
+      ## the leading suspect: a worker's fresh R sees a different library set
+      ## than the parent, because a tmux pane inherits the tmux SERVER's
+      ## environment rather than the caller's.
+      paste("PARENT_LIBS:", paste(.libPaths(), collapse = " : ")),
+      paste("R_LIBS_USER:", Sys.getenv("R_LIBS_USER")))
 
     ## LAST and therefore most likely to survive: the panes showed the worker's
     ## error handler ("q(status=1L) to restart loop"), so the workers are alive
@@ -90,10 +95,15 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
                               stdout = TRUE, stderr = TRUE),
                       error = function(e) "capture failed")
       cap <- cap[nzchar(trimws(cap))]
-      hit <- grep("rror|annot|not found|unable|failed|Warning", cap, value = TRUE)
-      if (!length(hit)) hit <- utils::tail(cap, 4)
+      ## R wraps the message, so the useful half ("there is no package called
+      ## 'x'") lands on the line AFTER "Error in loadNamespace(x) :". Take the
+      ## match plus the two lines following it.
+      idx <- grep("rror|annot|not found|unable|failed", cap)
+      idx <- sort(unique(c(idx, idx + 1L, idx + 2L)))
+      idx <- idx[idx >= 1L & idx <= length(cap)]
+      hit <- if (length(idx)) cap[idx] else utils::tail(cap, 4)
       bits <- c(bits, paste0("ERR ", w, ": ",
-                             paste(utils::tail(hit, 5), collapse = " ~ ")))
+                             paste(utils::tail(hit, 6), collapse = " ~ ")))
     }
     bits <- c(bits, paste("RESULTS:", length(list.files(outdir, "^res_.*\\.rds$")), "of 2"))
     paste(bits, collapse = "\n")
