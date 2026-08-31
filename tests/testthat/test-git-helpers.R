@@ -49,37 +49,39 @@ test_that("getGitUserName errors when GitHub returns no login", {
                "gitcreds_set|gh_token_help")
 })
 
-## Note: gitEvalWithGitConfigOnError() does `try(eval(expr))`, so expr is
-## evaluated in the function's OWN frame -- eval()'s parent.frame() there is
-## gitEvalWithGitConfigOnError, not its caller. Expressions must therefore be
-## self-contained; these use bquote() to inline paths as literals. Real call
-## sites pass fully-qualified calls such as quote(usethis::use_git()), which is
-## why this has not bitten in practice.
+## gitEvalWithGitConfigOnError() evaluates `expr` in the CALLER's frame, so
+## these use ordinary local functions as counters.
 
 test_that("gitEvalWithGitConfigOnError evaluates the expression once on success", {
-  tf <- withr::local_tempfile()
+  hits <- 0L
+  f <- function() { hits <<- hits + 1L; "ok" }
 
-  SpaDES.project:::gitEvalWithGitConfigOnError(
-    bquote(cat("x\n", file = .(tf), append = TRUE))
-  )
+  SpaDES.project:::gitEvalWithGitConfigOnError(quote(f()))
 
-  expect_identical(length(readLines(tf)), 1L)
+  expect_identical(hits, 1L)
 })
 
 test_that("gitEvalWithGitConfigOnError retries then gives up without erroring", {
-  tf <- withr::local_tempfile()
-  expr <- bquote({
-    cat("x\n", file = .(tf), append = TRUE)
-    stop("something unrelated to credentials")
-  })
+  hits <- 0L
+  f <- function() { hits <<- hits + 1L; stop("something unrelated to credentials") }
 
   expect_no_error(
     suppressMessages(capture.output(
-      SpaDES.project:::gitEvalWithGitConfigOnError(expr), type = "message"
+      SpaDES.project:::gitEvalWithGitConfigOnError(quote(f())), type = "message"
     ))
   )
   # two attempts, and the failure is swallowed rather than propagated
-  expect_identical(length(readLines(tf)), 2L)
+  expect_identical(hits, 2L)
+})
+
+test_that("gitEvalWithGitConfigOnError honours an explicit envir", {
+  e <- new.env(parent = baseenv())
+  e$hits <- 0L
+  e$f <- function() { e$hits <- e$hits + 1L; "ok" }
+
+  SpaDES.project:::gitEvalWithGitConfigOnError(quote(f()), envir = e)
+
+  expect_identical(e$hits, 1L)
 })
 
 test_that("gitEvalWithGitConfigOnError sets git config when user.name is missing", {

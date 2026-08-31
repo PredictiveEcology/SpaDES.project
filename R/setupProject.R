@@ -4916,9 +4916,16 @@ dirExistsButNotAGitFolder <- function(projectPath, modPath, localPath, localPath
   }
 }
 
-gitEvalWithGitConfigOnError <- function(expr, tryError) {
+gitEvalWithGitConfigOnError <- function(expr, tryError, envir = parent.frame()) {
+  # `expr` is evaluated in the CALLER's frame. Without this it went to
+  # try(eval(expr)), whose parent.frame() is this function's own frame, so an
+  # expression referring to anything caller-local was invisible to it. Both
+  # existing call sites pass fully-qualified calls -- quote(usethis::use_git()),
+  # quote(gert::git_commit_all(...)) -- which resolve the same either way, so
+  # this changes nothing for them and removes the trap for future ones.
+  force(envir)
   for (iii in 1:2) {
-    bbb <- try(eval(expr))
+    bbb <- try(eval(expr, envir))
     # gitConfigOnError(tryError)
     if (is(bbb, "try-error")) {
       if (any(grepl("user.name", bbb))) {

@@ -102,6 +102,8 @@ version 1.0.1
 ## Documentation
 
 * `setupPaths()`, `setupModules()`, `setupPackages()`, and the other inner `setup*` helpers each have their own help page now; `?setup_family` is a new one-page overview showing how they fit together (#44).
+* `setupProject()`: each argument's `@param` now states its default explicitly; the `getOption("SpaDES.project.*")` signature defaults also carry their fallback inline (e.g. `, TRUE`) so the source is self-documenting (behaviour is unchanged — these were already backfilled from `spadesProjectOptions()` at runtime via `assignDefaults()`).
+* `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns.
 
 ## Bug fixes
 
@@ -122,8 +124,6 @@ version 1.0.1
 * `setupProject()` only prompts to edit the global git config when `user.name`/`user.email` are unset, instead of on every new-repo setup; avoids hanging in no-terminal front-ends (e.g. RStudio Server) where the editor can't be answered.
 * `experimentTmux()` no longer errors with "invalid 'path' argument" when `gargle_oauth_cache` is unset or `NA` (its default).
 * `plotSAs()`/`plotSAsLeaflet()` no longer pick up dot-prefixed study-area objects (e.g. `sim.studyArea`) as layers to plot.
-* `setupProject()`: the `useGit`, `standAlone`, `updateRprofile`, `setLinuxBinaryRepo`, and `overwrite` arguments now fall back to their documented `getOption("SpaDES.project.*", <default>)` value instead of `NULL` when the option is unset, matching the inner `setup*` functions and `spadesProjectOptions()` (`setLinuxBinaryRepo` now defaults to running on Linux).
-* `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns, and each `setupProject()` argument's `@param` states its default explicitly.
 
 * `setupProject()`: a `studyArea` that can't be evaluated (e.g. a not-yet-installed package or an unreachable file) is now a tolerated error returned unevaluated, like the `...` arguments, instead of hard-stopping the whole call. It is reported in the end-of-call diagnostics summary; set `options(SpaDES.project.strict = TRUE)` to stop on it.
 * `setupProject()` no longer prints a misleading "Module 'x' is specified N times" message when several SpaDES child modules live in subfolders of one git repo (e.g. `PredictiveEcology/scfm@development/modules/scfmIgnition`); the repo is simply cloned once and the message is now only shown for genuine repo overrides.
