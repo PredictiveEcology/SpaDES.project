@@ -1,6 +1,6 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
-version 1.0.1
+version 1.1.0
 =============
 
 ## New features
@@ -164,12 +164,18 @@ version 1.0.1
   silently and the "Copying X packages" message was misleading. Now falls back
   to `find.package()` with `lib.loc` pointing to the caller's pre-switch
   `.libPaths()` (plumbed in via a new `prevLibPaths` arg).
-* Fixed code coverage reporting: `NOT_CRAN=true` is now set in the test-coverage workflow so that `skip_on_cran()` tests run under `covr`.
-* Fixed Windows path comparison in `scratchPath` test.
 * `setupProject()` with `useGit = TRUE` now initializes the project git repository on branch `main` instead of `master`.
 * Removed `mockery` dependency from tests.
 * Fixed test warnings about non-portable paths (> 100 bytes) on macOS/Windows by suppressing in `pkgload2` test.
 * Skipped `setupProject` package-installation test on Windows/macOS due to upstream `Require@development`/`data.table` incompatibility.
+
+version 1.0.1
+=============
+
+## Bug fixes
+
+* Fixed code coverage reporting: `NOT_CRAN=true` is now set in the test-coverage workflow so that `skip_on_cran()` tests run under `covr`.
+* Fixed Windows path comparison in `scratchPath` test.
 * Expanded test suite with utility-function tests (`spadesProjectOptions`, `setProjPkgDir`, `pkgload2`, `getModule`, `listModules`, etc.) and added `packagePath = .libPaths()[1L]` to `setupProject` test calls to prevent lib-path clobbering during testing.
 
 version 1.0.0
