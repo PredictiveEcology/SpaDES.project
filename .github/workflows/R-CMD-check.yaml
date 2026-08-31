@@ -15,8 +15,7 @@ jobs:
   R-CMD-check:
     if: "!contains(github.event.commits[0].message, '[skip-ci]')"
     uses: PredictiveEcology/actions/.github/workflows/R-CMD-check.yaml@main
-    # See test-coverage.yaml: inherit the ORG-level GOOGLEDRIVE_AUTH (a user
-    # OAuth token) rather than mapping this repo's service-account secret.
+    # See test-coverage.yaml: inherit the org-level Drive credential.
     secrets: inherit
     with:
       extra-packages: |
