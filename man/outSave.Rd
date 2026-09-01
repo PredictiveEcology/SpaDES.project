@@ -22,8 +22,9 @@ file and tarball.}
 Defaults to \code{SpaDES.core::simFile(name = runName, path = outputPath(sim), time = end(sim), ext = "rds")}.}
 
 \item{lazy}{Logical. Passed to \code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. When \code{TRUE}
-(default), each user object in \code{sim@.xData} is saved into a sibling
-\verb{<simFilename>_xData/} directory and lazily restored on load via
+(default), each user object in \code{sim@.xData} and each module's \code{mod} objects
+in \code{sim@.xData$.modObjs} are written to their own file in a sibling
+\verb{<simFilename sans ext>_lazy/} directory, and lazily restored on load via
 \code{delayedAssign}. \code{\link[=outTar]{outTar()}} picks up that directory automatically.}
 
 \item{verbose}{Numeric message level, forwarded to

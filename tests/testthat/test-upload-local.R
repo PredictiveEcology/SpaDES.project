@@ -36,20 +36,29 @@ test_that("outTar silently drops missing and empty output paths", {
   expect_false("gone.tif" %in% contents)
 })
 
-test_that("outTar picks up the lazy-save sibling database", {
+test_that("outTar picks up the lazy-save sidecar directory", {
   td <- withr::local_tempdir()
   simFile <- file.path(td, "run3.rds")
   saveRDS(1, simFile)
-  # tools::makeLazyLoadDB writes <base>_xData.rdx / .rdb next to the sim
-  writeLines("x", file.path(td, "run3_xData.rdx"))
-  writeLines("y", file.path(td, "run3_xData.rdb"))
+  # saveSimList(lazy = TRUE) writes one file per object into <base>_lazy/,
+  # plus a _manifest.rds, next to the sim
+  lazyDir <- file.path(td, "run3_lazy")
+  dir.create(lazyDir)
+  saveRDS(list(), file.path(lazyDir, "_manifest.rds"))
+  saveRDS(1, file.path(lazyDir, "someObj.rds"))
 
   tarball <- suppressMessages(
     outTar(simFile, runName = "run3", verbose = FALSE)
   )
 
-  contents <- basename(untar(tarball, list = TRUE))
-  expect_true(all(c("run3_xData.rdx", "run3_xData.rdb") %in% contents))
+  entries <- untar(tarball, list = TRUE)
+  expect_true(all(c("_manifest.rds", "someObj.rds") %in% basename(entries)))
+  # the sidecar files must keep their run3_lazy/ path component: that is how
+  # loadSimList() tells them apart from ordinary output files
+  expect_true(all(grepl("(^|/)run3_lazy/", grep("_lazy/", entries, value = TRUE))))
+  expect_length(grep("(^|/)run3_lazy/", entries), 2L)
+  # simFilename stays first: reUntar() takes the archive's first entry as the simList
+  expect_identical(basename(entries[[1L]]), "run3.rds")
 })
 
 test_that("outTar honours tarDir", {
