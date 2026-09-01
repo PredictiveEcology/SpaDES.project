@@ -49,8 +49,9 @@ Default \code{FALSE}.}
 "argument is of length zero" whenever that option happens to be unset.}
 
 \item{lazy}{Logical. Passed to \code{\link[SpaDES.core:saveSimList]{SpaDES.core::saveSimList()}}. When \code{TRUE}
-(default), each user object in \code{sim@.xData} is saved into a sibling
-\verb{<simFilename>_xData/} directory and lazily restored on load via
+(default), each user object in \code{sim@.xData} and each module's \code{mod} objects
+in \code{sim@.xData$.modObjs} are written to their own file in a sibling
+\verb{<simFilename sans ext>_lazy/} directory, and lazily restored on load via
 \code{delayedAssign}. \code{\link[=outTar]{outTar()}} picks up that directory automatically.}
 }
 \value{

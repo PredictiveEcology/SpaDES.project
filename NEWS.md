@@ -1,5 +1,17 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9001
+==================
+
+## Bug fixes
+
+* `outTar()` now bundles the `<simFilename sans ext>_lazy/` directory written by
+  `SpaDES.core::saveSimList(lazy = TRUE)`. It previously looked for the older
+  `<simFilename>_xData.rdx`/`.rdb` pair, which SpaDES.core no longer writes;
+  finding neither, it produced a tarball holding only the shell `.rds`. Because a
+  lazily saved shell is a few hundred KB of metadata, that silently shipped an
+  archive with nothing behind its promises.
+
 version 1.1.0
 =============
 
