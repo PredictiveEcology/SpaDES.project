@@ -5,6 +5,8 @@ version 1.1.0.9001
 
 ## Bug fixes
 
+* `reUntar()` no longer emits GNU tar's `Removing leading '/' from member names`
+  for every archive.
 * `outTar()` now bundles the `<simFilename sans ext>_lazy/` directory written by
   `SpaDES.core::saveSimList(lazy = TRUE)`. It previously looked for the older
   `<simFilename>_xData.rdx`/`.rdb` pair, which SpaDES.core no longer writes;
