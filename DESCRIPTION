@@ -67,6 +67,7 @@ Suggests:
     rematch2,
     remotes,
     reproducible,
+    rlang,
     rmarkdown,
     sf,
     SpaDES.core,
