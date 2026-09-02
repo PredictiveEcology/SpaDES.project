@@ -141,7 +141,7 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 #'   [SpaDES.core::loadSimList()] for relative-path resolution. Default
 #'   `getwd()`.
 #' @param parse Logical. If `TRUE` (default), module source code is re-parsed
-#'   on load. `FALSE` forwards `reparse = FALSE` to
+#'   on load. `FALSE` forwards `parse = FALSE` to
 #'   [SpaDES.core::loadSimList()], which skips it -- worthwhile because
 #'   reparsing dominates the load time of a lazily saved `simList` (on a
 #'   19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
@@ -161,16 +161,16 @@ reLoad <- function(simFilenames, projectPath = getwd(),
   if (method == "loadSimList")
     reproducible::.requireNamespace("SpaDES.core", stopOnFALSE = TRUE)
 
-  ## `reparse` is newer than some installed SpaDES.core versions; passing it to
+  ## `parse` is newer than some installed SpaDES.core versions; passing it to
   ## one that lacks it is an "unused argument" error. Only forward it when the
   ## installed loadSimList() actually accepts it, and say so if it cannot.
   extra <- list()
   if (method == "loadSimList" && !isTRUE(parse)) {
-    if ("reparse" %in% names(formals(SpaDES.core::loadSimList))) {
-      extra <- list(reparse = FALSE)
+    if ("parse" %in% names(formals(SpaDES.core::loadSimList))) {
+      extra <- list(parse = FALSE)
     } else {
       warning("parse = FALSE needs a SpaDES.core whose loadSimList() has a ",
-              "`reparse` argument; module code will be re-parsed as usual.",
+              "`parse` argument; module code will be re-parsed as usual.",
               call. = FALSE)
     }
   }

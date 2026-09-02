@@ -336,34 +336,34 @@ test_that("outUpload requires a gFolder", {
 # reLoad(parse = ) -- skipping the module re-parse
 # ---------------------------------------------------------------------------
 
-test_that("reLoad(parse = FALSE) forwards reparse to loadSimList", {
+test_that("reLoad(parse = FALSE) forwards parse to loadSimList", {
   .skip_if_no_lazy_sidecar()
-  skip_if(!"reparse" %in% names(formals(SpaDES.core::loadSimList)),
-          "installed SpaDES.core has no `reparse` argument")
+  skip_if(!"parse" %in% names(formals(SpaDES.core::loadSimList)),
+          "installed SpaDES.core has no `parse` argument")
   td <- withr::local_tempdir()
   s <- .makeLazySim(td)
 
   seen <- new.env(parent = emptyenv())
   testthat::local_mocked_bindings(
-    loadSimList = function(filename, ..., reparse = TRUE) {
-      seen$reparse <- reparse
+    loadSimList = function(filename, ..., parse = TRUE) {
+      seen$parse <- parse
       readRDS(filename)
     },
     .package = "SpaDES.core"
   )
 
   suppressMessages(reLoad(s$simFile, parse = FALSE))
-  expect_false(seen$reparse)
+  expect_false(seen$parse)
 
   suppressMessages(reLoad(s$simFile))          # default
-  expect_true(seen$reparse)
+  expect_true(seen$parse)
 })
 
 test_that("reLoad(parse = FALSE) still yields lazily bound objects", {
   .skip_if_no_lazy_sidecar()
   skip_if_not_installed("rlang")
-  skip_if(!"reparse" %in% names(formals(SpaDES.core::loadSimList)),
-          "installed SpaDES.core has no `reparse` argument")
+  skip_if(!"parse" %in% names(formals(SpaDES.core::loadSimList)),
+          "installed SpaDES.core has no `parse` argument")
   td <- withr::local_tempdir()
   s <- .makeLazySim(td)
 
@@ -373,19 +373,19 @@ test_that("reLoad(parse = FALSE) still yields lazily bound objects", {
   expect_identical(sim$alpha, s$objs$alpha)
 })
 
-test_that("reLoad warns, not errors, if SpaDES.core predates `reparse`", {
+test_that("reLoad warns, not errors, if SpaDES.core predates `parse`", {
   .skip_if_no_lazy_sidecar()
   td <- withr::local_tempdir()
   s <- .makeLazySim(td)
 
-  ## an older loadSimList: no `reparse` in its formals
+  ## an older loadSimList: no `parse` in its formals
   testthat::local_mocked_bindings(
     loadSimList = function(filename, projectPath = getwd(), ...) readRDS(filename),
     .package = "SpaDES.core"
   )
 
   expect_warning(suppressMessages(reLoad(s$simFile, parse = FALSE)),
-                 "reparse")
+                 "parse")
 })
 
 test_that("reGetUntarLoad passes parse through to reLoad", {

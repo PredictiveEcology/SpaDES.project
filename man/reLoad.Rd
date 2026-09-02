@@ -22,7 +22,7 @@ reLoad(
 \item{method}{One of \code{"loadSimList"} (default) or \code{"readRDS"}.}
 
 \item{parse}{Logical. If \code{TRUE} (default), module source code is re-parsed
-on load. \code{FALSE} forwards \code{reparse = FALSE} to
+on load. \code{FALSE} forwards \code{parse = FALSE} to
 \code{\link[SpaDES.core:loadSimList]{SpaDES.core::loadSimList()}}, which skips it -- worthwhile because
 reparsing dominates the load time of a lazily saved \code{simList} (on a
 19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
