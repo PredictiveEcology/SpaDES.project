@@ -281,6 +281,24 @@ stripQuestionMark <- function(file) {
 
 
 
+
+## The path to a module within its repo, for a spec that names one:
+##   Acct/Repo@branch/subDir/mod   -> "subDir/mod"
+##   Acct/Repo/subDir/mod@branch   -> "subDir/mod"
+##   Acct/Repo@branch              -> NA   (module is the repo)
+## The branch is whatever follows "@", wherever the "@" falls; everything past
+## acct/repo before it, plus everything past the branch after it, is the path.
+moduleSubFolder <- function(gitRepo) {
+  s <- Require::trimVersionNumber(gitRepo)
+  atPos  <- regexpr("@", s, fixed = TRUE)
+  before <- if (atPos > 0L) substr(s, 1L, atPos - 1L) else s
+  after  <- if (atPos > 0L) substr(s, atPos + 1L, nchar(s)) else ""
+  l <- strsplit(before, "/", fixed = TRUE)[[1L]]
+  r <- strsplit(after, "/", fixed = TRUE)[[1L]]
+  extra <- c(if (length(l) > 2L) l[-seq_len(2L)], if (length(r) > 1L) r[-1L])
+  if (length(extra)) paste(extra, collapse = "/") else NA_character_
+}
+
 downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   dd <- .rndstr(1)
   ## A module may live in a subfolder of its repo, spelled
@@ -290,9 +308,11 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   ## file.path(modulePath, extractModName(...)), and SpaDES.core looks for
   ## <module>/<module>.R. Using the *repo* name here put a nested module at
   ## modulePath/<repo>/<module>/, where neither of them looks. See #141.
-  repoName     <- Require::extractPkgName(modToDL)
   modNameShort <- extractModName(modToDL)
-  subFolder    <- if (identical(modNameShort, repoName)) NA else modNameShort
+  ## The subfolder is the WHOLE path within the repo, not just the module
+  ## directory: `Acct/scfm@development/modules/scfmRegime` keeps its modules in
+  ## `modules/scfmRegime`. Using only the last segment finds nothing.
+  subFolder    <- moduleSubFolder(modToDL)
   ## downloadRepo() names the extracted folder after names(gitRepo), falling
   ## back to the repo name; and hoists `subFolder` up to that folder.
   gitRepo <- stats::setNames(modToDL, modNameShort)
