@@ -250,6 +250,10 @@ test_that("reUntar with pathRemap moves the _lazy directory with the sim", {
 # ---------------------------------------------------------------------------
 
 test_that("reGet returns one row per file and defers to preProcess", {
+  ## local_mocked_bindings(.package=) loads the namespace, so a Suggests-only
+  ## package must be present -- otherwise this errors under `nosuggests`
+  ## rather than skipping.
+  skip_if_not_installed("reproducible")
   td <- withr::local_tempdir()
   f1 <- file.path(td, "a.tar.gz"); writeLines("a", f1)
   f2 <- file.path(td, "b.tar.gz"); writeLines("b", f2)
@@ -273,6 +277,7 @@ test_that("reGet returns one row per file and defers to preProcess", {
 test_that("reGetUntarLoad drives the whole chain without touching Drive", {
   .skip_if_no_gnu_tar()
   .skip_if_no_lazy_sidecar()
+  skip_if_not_installed("reproducible")
   skip_if_not_installed("rlang")
   td <- withr::local_tempdir()
   s <- .makeLazySim(td)
