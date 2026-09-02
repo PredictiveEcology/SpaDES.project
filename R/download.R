@@ -93,7 +93,11 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 
   vapply(tarballs, function(tarball) {
     stopifnot(file.exists(tarball))
-    entries <- utils::untar(tarball, list = TRUE)
+    ## -P (--absolute-names) only so GNU tar has nothing to strip: without it it
+    ## writes "Removing leading `/' from member names" to stderr for every
+    ## archive, which cannot be caught by suppressMessages() and says nothing
+    ## useful. The returned member names are identical either way.
+    entries <- utils::untar(tarball, list = TRUE, extras = "-P")
     if (!length(entries))
       stop("Tarball is empty: ", tarball, call. = FALSE)
     simEntry <- entries[[1L]]
