@@ -10,6 +10,7 @@ reGetUntarLoad(
   pathRemap = NULL,
   projectPath = getwd(),
   method = c("loadSimList", "readRDS"),
+  parse = TRUE,
   overwrite = FALSE,
   verbose = TRUE
 )
@@ -32,6 +33,15 @@ absolute paths (\code{tar --absolute-names}).}
 \code{getwd()}.}
 
 \item{method}{One of \code{"loadSimList"} (default) or \code{"readRDS"}.}
+
+\item{parse}{Logical. If \code{TRUE} (default), module source code is re-parsed
+on load. \code{FALSE} forwards \code{parse = FALSE} to
+\code{\link[SpaDES.core:loadSimList]{SpaDES.core::loadSimList()}}, which skips it -- worthwhile because
+reparsing dominates the load time of a lazily saved \code{simList} (on a
+19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
+user objects and each module's \code{mod} objects are still bound lazily. The
+result is inspect-only -- it has no module code, so it cannot be passed
+to \code{\link[SpaDES.core:spades]{SpaDES.core::spades()}}. Ignored when \code{method = "readRDS"}.}
 
 \item{overwrite}{Logical. Force re-download even if the local file
 exists. Default \code{FALSE}.}

@@ -3,6 +3,12 @@ Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 version 1.1.0.9001
 ==================
 
+## New features
+
+* `reLoad()` and `reGetUntarLoad()` gain `parse`; `parse = FALSE` skips re-parsing
+  module source code, which dominates the load time of a lazily saved `simList`.
+  The result is inspect-only and cannot be passed to `spades()`.
+
 ## Bug fixes
 
 * `reUntar()` no longer emits GNU tar's `Removing leading '/' from member names`
