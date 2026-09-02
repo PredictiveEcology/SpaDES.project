@@ -11,6 +11,9 @@ version 1.1.0.9001
 
 ## Bug fixes
 
+* `getModule()` now handles a module nested in a subfolder of its repo, spelled
+  `Acct/Repo@branch/subFolder`; it previously downloaded the repo but left the
+  module at `<modulePath>/<repo>/<module>/` (#141).
 * `reUntar()` no longer emits GNU tar's `Removing leading '/' from member names`
   for every archive.
 * `outTar()` now bundles the `<simFilename sans ext>_lazy/` directory written by

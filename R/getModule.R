@@ -283,7 +283,19 @@ stripQuestionMark <- function(file) {
 
 downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   dd <- .rndstr(1)
-  modNameShort <- Require::extractPkgName(modToDL)
+  ## A module may live in a subfolder of its repo, spelled
+  ## `Acct/Repo@branch/subFolder`. extractModName() returns that subfolder when
+  ## there is one and the repo name otherwise, and it is the module name that
+  ## matters everywhere downstream: getModule() tests `localExists` at
+  ## file.path(modulePath, extractModName(...)), and SpaDES.core looks for
+  ## <module>/<module>.R. Using the *repo* name here put a nested module at
+  ## modulePath/<repo>/<module>/, where neither of them looks. See #141.
+  repoName     <- Require::extractPkgName(modToDL)
+  modNameShort <- extractModName(modToDL)
+  subFolder    <- if (identical(modNameShort, repoName)) NA else modNameShort
+  ## downloadRepo() names the extracted folder after names(gitRepo), falling
+  ## back to the repo name; and hoists `subFolder` up to that folder.
+  gitRepo <- stats::setNames(modToDL, modNameShort)
   Require::checkPath(dd, create = TRUE)
   messageVerbose(modToDL, " ...", verbose = verbose)
   isGH <- isGitHub(modToDL) && grepl("@", modToDL) # the default isGitHub allows no branch
@@ -292,7 +304,7 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
 
     mess <- capture.output(type = "message",
                            out <- withCallingHandlers({
-                             downloadRepo(modToDL, subFolder = NA,
+                             downloadRepo(gitRepo, subFolder = subFolder,
                                           destDir = dd, overwrite = overwrite,
                                           verbose = verbose + 1)},
                              warning = function(w) {
