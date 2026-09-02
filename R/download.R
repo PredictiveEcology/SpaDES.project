@@ -140,6 +140,14 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 #' @param projectPath Character scalar. Passed to
 #'   [SpaDES.core::loadSimList()] for relative-path resolution. Default
 #'   `getwd()`.
+#' @param parse Logical. If `TRUE` (default), module source code is re-parsed
+#'   on load. `FALSE` forwards `reparse = FALSE` to
+#'   [SpaDES.core::loadSimList()], which skips it -- worthwhile because
+#'   reparsing dominates the load time of a lazily saved `simList` (on a
+#'   19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
+#'   user objects and each module's `mod` objects are still bound lazily. The
+#'   result is inspect-only -- it has no module code, so it cannot be passed
+#'   to [SpaDES.core::spades()]. Ignored when `method = "readRDS"`.
 #' @param method One of `"loadSimList"` (default) or `"readRDS"`.
 #' @param ... Additional args forwarded to [SpaDES.core::loadSimList()]
 #'   (ignored when `method = "readRDS"`).
@@ -148,16 +156,31 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 #' @seealso [reGet()], [reUntar()], [reGetUntarLoad()], [outSave()]
 #' @export
 reLoad <- function(simFilenames, projectPath = getwd(),
-                   method = c("loadSimList", "readRDS"), ...) {
+                   method = c("loadSimList", "readRDS"), parse = TRUE, ...) {
   method <- match.arg(method)
   if (method == "loadSimList")
     reproducible::.requireNamespace("SpaDES.core", stopOnFALSE = TRUE)
+
+  ## `reparse` is newer than some installed SpaDES.core versions; passing it to
+  ## one that lacks it is an "unused argument" error. Only forward it when the
+  ## installed loadSimList() actually accepts it, and say so if it cannot.
+  extra <- list()
+  if (method == "loadSimList" && !isTRUE(parse)) {
+    if ("reparse" %in% names(formals(SpaDES.core::loadSimList))) {
+      extra <- list(reparse = FALSE)
+    } else {
+      warning("parse = FALSE needs a SpaDES.core whose loadSimList() has a ",
+              "`reparse` argument; module code will be re-parsed as usual.",
+              call. = FALSE)
+    }
+  }
 
   sims <- lapply(simFilenames, function(f) {
     stopifnot(file.exists(f))
     elapsed <- system.time({
       sim <- if (method == "loadSimList")
-        SpaDES.core::loadSimList(f, projectPath = projectPath, ...)
+        do.call(SpaDES.core::loadSimList,
+                c(list(f, projectPath = projectPath), extra, list(...)))
       else
         readRDS(f)
     })
@@ -188,6 +211,7 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
                            projectPath = getwd(),
                            method = c("loadSimList", "readRDS"),
+                           parse = TRUE,
                            overwrite = FALSE, verbose = TRUE) {
   method <- match.arg(method)
 
@@ -198,7 +222,8 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
     simPaths <- reUntar(files$local_path, pathRemap = pathRemap, verbose = FALSE)
   )
   t3 <- system.time(
-    sims <- reLoad(simPaths, projectPath = projectPath, method = method)
+    sims <- reLoad(simPaths, projectPath = projectPath, method = method,
+                   parse = parse)
   )
   if (!is.null(pathRemap)) {
     old <- path.expand(pathRemap[["old"]])

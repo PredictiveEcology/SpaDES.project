@@ -326,3 +326,86 @@ test_that("outUpload hands the tarball to drive_upload and honours cleanup", {
 test_that("outUpload requires a gFolder", {
   expect_error(outUpload("x.tar.gz", gFolder = NULL), "gFolder must be supplied")
 })
+
+# ---------------------------------------------------------------------------
+# reLoad(parse = ) -- skipping the module re-parse
+# ---------------------------------------------------------------------------
+
+test_that("reLoad(parse = FALSE) forwards reparse to loadSimList", {
+  .skip_if_no_lazy_sidecar()
+  skip_if(!"reparse" %in% names(formals(SpaDES.core::loadSimList)),
+          "installed SpaDES.core has no `reparse` argument")
+  td <- withr::local_tempdir()
+  s <- .makeLazySim(td)
+
+  seen <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    loadSimList = function(filename, ..., reparse = TRUE) {
+      seen$reparse <- reparse
+      readRDS(filename)
+    },
+    .package = "SpaDES.core"
+  )
+
+  suppressMessages(reLoad(s$simFile, parse = FALSE))
+  expect_false(seen$reparse)
+
+  suppressMessages(reLoad(s$simFile))          # default
+  expect_true(seen$reparse)
+})
+
+test_that("reLoad(parse = FALSE) still yields lazily bound objects", {
+  .skip_if_no_lazy_sidecar()
+  skip_if_not_installed("rlang")
+  skip_if(!"reparse" %in% names(formals(SpaDES.core::loadSimList)),
+          "installed SpaDES.core has no `reparse` argument")
+  td <- withr::local_tempdir()
+  s <- .makeLazySim(td)
+
+  sim <- suppressMessages(reLoad(s$simFile, parse = FALSE))[[1L]]
+  ## the point of the argument: cheaper load, same laziness
+  expect_true(all(rlang::env_binding_are_lazy(sim@.xData, c("alpha", "beta"))))
+  expect_identical(sim$alpha, s$objs$alpha)
+})
+
+test_that("reLoad warns, not errors, if SpaDES.core predates `reparse`", {
+  .skip_if_no_lazy_sidecar()
+  td <- withr::local_tempdir()
+  s <- .makeLazySim(td)
+
+  ## an older loadSimList: no `reparse` in its formals
+  testthat::local_mocked_bindings(
+    loadSimList = function(filename, projectPath = getwd(), ...) readRDS(filename),
+    .package = "SpaDES.core"
+  )
+
+  expect_warning(suppressMessages(reLoad(s$simFile, parse = FALSE)),
+                 "reparse")
+})
+
+test_that("reGetUntarLoad passes parse through to reLoad", {
+  .skip_if_no_gnu_tar()
+  .skip_if_no_lazy_sidecar()
+  td <- withr::local_tempdir()
+  s <- .makeLazySim(td)
+  tarDir <- file.path(td, "tars"); dir.create(tarDir)
+  tb <- suppressMessages(outTar(s$simFile, runName = "lazyrun",
+                                tarDir = tarDir, verbose = FALSE))
+  unlink(s$simFile); unlink(s$lazyDir, recursive = TRUE)
+
+  seen <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    preProcess = function(url, ...) list(targetFilePath = tb),
+    .package = "reproducible"
+  )
+  testthat::local_mocked_bindings(
+    reLoad = function(simFilenames, ..., parse = TRUE) {
+      seen$parse <- parse
+      stats::setNames(list(NULL), basename(simFilenames))
+    }
+  )
+
+  withr::with_dir(tempdir(),
+    suppressMessages(reGetUntarLoad("id", destDir = td, parse = FALSE, verbose = FALSE)))
+  expect_false(seen$parse)
+})
