@@ -5,6 +5,19 @@ version 1.1.0.9001
 
 ## New features
 
+* `reIndex()` and `reGetMember()` read a single object out of a tarball on Google
+  Drive using an HTTP range request, without downloading the archive: on a 4.63 GB
+  archive one 6.2 MB object takes ~1 s versus ~5 min for the whole file.
+* `reGetUntarLoad()` gains `remote`. With `remote = TRUE` the archive is never
+  downloaded: the `simList` shell, its manifest and the output files are fetched
+  from inside it by HTTP range request, and each object arrives only when
+  something touches it. `$`, `[[` and `get()` are unchanged. Default `FALSE`.
+  Each fetch announces itself before transferring, naming the object and its size,
+  so a pause is visibly a download; silence with
+  `options(SpaDES.project.remoteVerbose = FALSE)`.
+
+## New features
+
 * `reLoad()` and `reGetUntarLoad()` gain `parse`; `parse = FALSE` skips re-parsing
   module source code, which dominates the load time of a lazily saved `simList`.
   The result is inspect-only and cannot be passed to `spades()`.
