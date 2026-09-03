@@ -140,15 +140,6 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 #' @param projectPath Character scalar. Passed to
 #'   [SpaDES.core::loadSimList()] for relative-path resolution. Default
 #'   `getwd()`.
-#' @param remote Logical. If `FALSE` (default), the archive is downloaded and
-#'   untarred as usual, and its objects are lazily read from the local sidecar.
-#'   If `TRUE`, the archive is never downloaded: the `simList` shell, its
-#'   manifest and the output files are fetched from within the remote archive by
-#'   HTTP range request, and each object is fetched only when something touches
-#'   it. Output files are fetched either way, since downstream code reads them
-#'   through `outputs(sim)$file` and they are mostly needed. Requires an
-#'   archive with an index beside it (see [reIndex()]) and
-#'   `method = "loadSimList"`.
 #' @param parse Logical. If `TRUE` (default), module source code is re-parsed
 #'   on load. `FALSE` forwards `parse = FALSE` to
 #'   [SpaDES.core::loadSimList()], which skips it -- worthwhile because
@@ -209,6 +200,15 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #' inverse of [outSaveTarUpload()]. Operates on a batch: typically called
 #' with the multi-row `dribble` returned by [outList()] / [outScenarios()].
 #'
+#' @param remote Logical. If `FALSE` (default), the archive is downloaded and
+#'   untarred as usual, and its objects are lazily read from the local sidecar.
+#'   If `TRUE`, the archive is never downloaded: the `simList` shell, its
+#'   manifest and the output files are fetched from within the remote archive by
+#'   HTTP range request, and each object is fetched only when something touches
+#'   it. Output files are fetched either way, since downstream code reads them
+#'   through `outputs(sim)$file` and they are mostly needed. Requires an
+#'   archive with an index beside it (see [reIndex()]) and
+#'   `method = "loadSimList"`.
 #' @inheritParams reGet
 #' @inheritParams reUntar
 #' @inheritParams reLoad
