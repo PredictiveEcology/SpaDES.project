@@ -4,7 +4,7 @@
 \alias{reUntar}
 \title{Extract sim tarballs, optionally remapping a path prefix}
 \usage{
-reUntar(tarballs, pathRemap = NULL, verbose = FALSE)
+reUntar(tarballs, pathRemap = NULL, verbose = FALSE, skipExisting = TRUE)
 }
 \arguments{
 \item{tarballs}{Character vector of paths to local tarballs.}
@@ -15,6 +15,11 @@ reUntar(tarballs, pathRemap = NULL, verbose = FALSE)
 absolute paths (\code{tar --absolute-names}).}
 
 \item{verbose}{Logical. Pass \code{-v} to \code{tar}. Default \code{FALSE}.}
+
+\item{skipExisting}{Logical. If \code{TRUE} (default), an archive whose members
+are all already present on disk (after any \code{pathRemap}) is not extracted
+again. Set \code{FALSE} to force re-extraction, e.g. if the extracted files may
+have been modified in place.}
 }
 \value{
 A character vector (same length as \code{tarballs}) of absolute paths

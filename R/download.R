@@ -54,6 +54,32 @@ reGet <- function(gFiles, destDir, overwrite = FALSE, verbose = TRUE) {
 }
 
 
+## Member names + the exact byte size the archive records for each, from the tar
+## headers only (~7 ms for a 3 GB archive; tar seeks, it does not read the data).
+## Returns NULL if the listing cannot be parsed -- e.g. a non-GNU tar -- so the
+## caller can fall back to a weaker check.
+.tarMemberSizes <- function(tarball) {
+  tv <- tryCatch(
+    suppressWarnings(system2("tar", c("-tvPf", shQuote(tarball)),
+                             stdout = TRUE, stderr = FALSE)),
+    error = function(e) NULL
+  )
+  if (!length(tv) || !is.null(attr(tv, "status")))
+    return(NULL)
+  m <- regmatches(tv, regexec("^(\\S)\\S*\\s+\\S+\\s+([0-9]+)\\s+\\S+\\s+\\S+\\s+(.*)$", tv))
+  if (!all(lengths(m) == 4L))
+    return(NULL)
+  kind <- vapply(m, `[`, character(1L), 2L)
+  out <- data.frame(
+    name = vapply(m, `[`, character(1L), 4L),
+    size = as.numeric(vapply(m, `[`, character(1L), 3L)),
+    stringsAsFactors = FALSE
+  )
+  ## only regular files: a directory's on-disk size is its own, not the 0 the
+  ## header carries, and a symlink's target is not what we would be comparing.
+  out[kind == "-", , drop = FALSE]
+}
+
 #' Extract sim tarballs, optionally remapping a path prefix
 #'
 #' @description
@@ -73,13 +99,18 @@ reGet <- function(gFiles, destDir, overwrite = FALSE, verbose = TRUE) {
 #'   `tarballs`. If `NULL` (default), files are extracted to their original
 #'   absolute paths (`tar --absolute-names`).
 #' @param verbose Logical. Pass `-v` to `tar`. Default `FALSE`.
+#' @param skipExisting Logical. If `TRUE` (default), an archive whose members
+#'   are all already present on disk (after any `pathRemap`) is not extracted
+#'   again. Set `FALSE` to force re-extraction, e.g. if the extracted files may
+#'   have been modified in place.
 #'
 #' @return A character vector (same length as `tarballs`) of absolute paths
 #'   to the `.rds` simList file inside each archive (after any remap),
 #'   suitable for [reLoad()].
 #' @seealso [reGet()], [reLoad()], [reGetUntarLoad()], [outTar()]
 #' @export
-reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
+reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE,
+                    skipExisting = TRUE) {
   if (!is.null(pathRemap)) {
     if (length(pathRemap) != 2L ||
         is.null(names(pathRemap)) ||
@@ -104,14 +135,46 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 
     if (is.null(pathRemap)) {
       extras  <- paste("--absolute-names", vflag)
+      targets <- entries
       simPath <- simEntry
     } else {
       old <- pathRemap[["old"]]
       new <- pathRemap[["new"]]
       extras <- sprintf("--absolute-names --transform=%s %s",
                         shQuote(sprintf("s|^%s|%s|", old, new)), vflag)
-      simPath <- sub(paste0("^", old), new, simEntry)
+      targets <- sub(paste0("^", old), new, entries)
+      simPath <- targets[[1L]]
       dir.create(dirname(simPath), showWarnings = FALSE, recursive = TRUE)
+    }
+
+    ## Re-extracting an archive that is already on disk is the single most
+    ## expensive thing this function does -- tens of seconds per multi-GB
+    ## archive -- and it rewrites bytes that are already correct. Listing the
+    ## members costs nothing (tar reads headers only, ~5 ms for a 3 GB archive)
+    ## and stat-ing them costs nothing, so check before extracting.
+    if (isTRUE(skipExisting)) {
+      mem <- .tarMemberSizes(tarball)
+      complete <- if (is.null(mem)) {
+        all(file.exists(targets))
+      } else {
+        onDisk <- if (is.null(pathRemap)) mem$name
+                  else sub(paste0("^", pathRemap[["old"]]), pathRemap[["new"]], mem$name)
+        ## Scoped to the archive's own directory -- the shell plus its `_lazy`
+        ## sidecar. Archives written from a multi-rep run also carry *other*
+        ## reps' output files, and they do not agree with each other: two
+        ## archives can hold different bytes for one absolute path, so whichever
+        ## extracts last wins and no on-disk state satisfies them all. Testing
+        ## those shared members would re-extract on every call forever, which is
+        ## precisely the cost this check exists to avoid.
+        own <- startsWith(onDisk, paste0(dirname(simPath), "/"))
+        ## file.size() is NA for anything absent, so this is one test for
+        ## "present" and "not truncated" at once.
+        isTRUE(all(file.size(onDisk[own]) == mem$size[own]))
+      }
+      if (isTRUE(complete)) {
+        message("already extracted, skipping ", basename(tarball))
+        return(simPath)
+      }
     }
 
     status <- utils::untar(tarball, extras = extras)
@@ -193,6 +256,23 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 }
 
 
+.reGetMaybeCached <- function(gFiles, destDir, overwrite, verbose, useCache) {
+  if (!isTRUE(useCache))
+    return(reGet(gFiles, destDir, overwrite = overwrite, verbose = verbose))
+
+  files <- reproducible::Cache(
+    reGet, gFiles, destDir, overwrite = overwrite, verbose = verbose
+  )
+  ## the cache stores paths, not the files themselves: a hit naming a file that
+  ## has since been deleted is worse than no hit at all.
+  if (!all(file.exists(files$local_path))) {
+    if (isTRUE(verbose))
+      message("cached paths no longer on disk; re-checking the remote")
+    files <- reGet(gFiles, destDir, overwrite = overwrite, verbose = verbose)
+  }
+  files
+}
+
 #' Download, untar, and load SpaDES sims from Google Drive
 #'
 #' @description
@@ -213,6 +293,16 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #' @inheritParams reUntar
 #' @inheritParams reLoad
 #'
+#' @param skipExisting Logical, passed to [reUntar()]. If `TRUE` (default),
+#'   archives already extracted on disk are not extracted again.
+#' @param useCache Logical. If `TRUE`, [reproducible::Cache()] the *metadata*
+#'   step ([reGet()]), skipping the remote round-trip on repeat calls in a new
+#'   session. Only the small `data.table` of names and paths is cached -- never
+#'   the `simList`s, whose objects are `delayedAssign()` promises that saving
+#'   would force, and so fully materialise. A hit is discarded if any path it
+#'   names has since gone away. Default `FALSE`, since a hit cannot notice an
+#'   archive re-uploaded under the same id.
+#'
 #' @return A named list of `simList` objects, one per row of `gFiles`,
 #'   named by the archive's `name` (sans `.tar.gz`).
 #' @seealso [reGet()], [reUntar()], [reLoad()], [outSaveTarUpload()]
@@ -222,7 +312,8 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
                            projectPath = getwd(),
                            method = c("loadSimList", "readRDS"),
                            parse = TRUE, remote = FALSE,
-                           overwrite = FALSE, verbose = TRUE) {
+                           overwrite = FALSE, verbose = TRUE,
+                           skipExisting = TRUE, useCache = FALSE) {
   method <- match.arg(method)
 
   ## Remote: never download the archive. Fetch the shell, the manifest and the
@@ -248,10 +339,12 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
   }
 
   t1 <- system.time(
-    files <- reGet(gFiles, destDir, overwrite = overwrite, verbose = verbose)
+    files <- .reGetMaybeCached(gFiles, destDir, overwrite = overwrite,
+                               verbose = verbose, useCache = useCache)
   )
   t2 <- system.time(
-    simPaths <- reUntar(files$local_path, pathRemap = pathRemap, verbose = FALSE)
+    simPaths <- reUntar(files$local_path, pathRemap = pathRemap, verbose = FALSE,
+                        skipExisting = skipExisting)
   )
   t3 <- system.time(
     sims <- reLoad(simPaths, projectPath = projectPath, method = method,
