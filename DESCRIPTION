@@ -115,6 +115,7 @@ Collate:
     'packages.R'
     'paths2.R'
     'pkgload2.R'
+    'remoteMember.R'
     'sbatch.R'
     'scenario.R'
     'setupProject.R'

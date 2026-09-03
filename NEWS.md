@@ -5,6 +5,12 @@ version 1.1.0.9001
 
 ## New features
 
+* `reIndex()` and `reGetMember()` read a single object out of a tarball on Google
+  Drive using an HTTP range request, without downloading the archive: on a 4.63 GB
+  archive one 6.2 MB object takes ~1 s versus ~5 min for the whole file.
+
+## New features
+
 * `reLoad()` and `reGetUntarLoad()` gain `parse`; `parse = FALSE` skips re-parsing
   module source code, which dominates the load time of a lazily saved `simList`.
   The result is inspect-only and cannot be passed to `spades()`.
