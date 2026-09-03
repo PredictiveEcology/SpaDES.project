@@ -103,3 +103,28 @@ test_that(".localPathFor applies the same prefix remap as reUntar", {
     SpaDES.project:::.localPathFor("home/a/b/x.rds", c(old = "/home/a", new = "/tmp/z")),
     "/tmp/z/b/x.rds")
 })
+
+test_that(".fmtBytes scales units for the fetch message", {
+  expect_identical(SpaDES.project:::.fmtBytes(900), "900 B")
+  expect_identical(SpaDES.project:::.fmtBytes(1536), "1.5 KB")
+  expect_identical(SpaDES.project:::.fmtBytes(1.5 * 1024^2), "1.5 MB")
+  expect_identical(SpaDES.project:::.fmtBytes(2 * 1024^3), "2 GB")
+  expect_identical(SpaDES.project:::.fmtBytes(NA_real_), "?")
+})
+
+test_that("a fetch announces itself before transferring, and can be silenced", {
+  ## The message has to come BEFORE the transfer: a promise forced deep inside
+  ## other code otherwise just looks like the session has hung.
+  idx <- data.frame(name = "o/run_lazy/0007-big.rds", offset = 512,
+                    size = 2 * 1024^2, stringsAsFactors = FALSE)
+  fetchLike <- function(path, idx, say) {
+    sz <- idx$size[[1]]
+    obj <- sub("^[0-9]+-", "", tools::file_path_sans_ext(basename(path)))
+    if (say) message("fetching '", obj, "' (", SpaDES.project:::.fmtBytes(sz),
+                     ") from the remote archive ...")
+    invisible(path)
+  }
+  ## names the object the user asked for, and its size, so the wait is explained
+  expect_message(fetchLike("d/0007-big.rds", idx, TRUE), "fetching 'big' \\(2 MB\\)")
+  expect_silent(fetchLike("d/0007-big.rds", idx, FALSE))
+})

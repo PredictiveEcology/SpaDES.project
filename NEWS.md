@@ -12,6 +12,9 @@ version 1.1.0.9001
   downloaded: the `simList` shell, its manifest and the output files are fetched
   from inside it by HTTP range request, and each object arrives only when
   something touches it. `$`, `[[` and `get()` are unchanged. Default `FALSE`.
+  Each fetch announces itself before transferring, naming the object and its size,
+  so a pause is visibly a download; silence with
+  `options(SpaDES.project.remoteVerbose = FALSE)`.
 
 ## New features
 

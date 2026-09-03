@@ -44,13 +44,16 @@ reIndex <- function(gFile, destDir = tempdir()) {
 #'   pass it when reading several members so the index is downloaded once.
 #' @param file Optional path to write the raw member to. When `NULL` (default)
 #'   the member is read back with [readRDS()] and returned.
+#' @param progress Logical or `NULL`. Show a transfer progress bar. `NULL`
+#'   (default) shows one in an interactive session for members over ~5 MB,
+#'   where the wait is long enough to look like a hang.
 #'
 #' @return `reGetMember()`: the deserialized object, or the path written when
 #'   `file` is supplied.
 #'
 #' @rdname reIndex
 #' @export
-reGetMember <- function(gFile, member, index = NULL, file = NULL) {
+reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NULL) {
   reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
   reproducible::.requireNamespace("httr", stopOnFALSE = TRUE)
   d <- .driveFile(gFile)
@@ -67,10 +70,16 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL) {
   from <- index$offset[[i]]
   to <- from + index$size[[i]] - 1
   url <- paste0("https://www.googleapis.com/drive/v3/files/", d$id, "?alt=media")
+  ## A large member can take tens of seconds. Show a progress bar when there is
+  ## someone to see it, so the wait is visibly a transfer rather than a hang.
+  prog <- if (isTRUE(progress) ||
+              (is.null(progress) && interactive() && index$size[[i]] > 5e6))
+    httr::progress() else NULL
   resp <- httr::GET(url, googledrive::drive_token(),
                     httr::add_headers(Range = sprintf("bytes=%s-%s",
                                                       format(from, scientific = FALSE),
-                                                      format(to, scientific = FALSE))))
+                                                      format(to, scientific = FALSE))),
+                    prog)
   code <- httr::status_code(resp)
   ## 206 = the server honoured the range. 200 means it ignored it and is sending
   ## the whole file, which would be silently wrong as well as enormous.
@@ -156,12 +165,29 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL) {
     m <- sideNames[basename(sideNames) == basename(path)]
     if (length(m) != 1L)
       stop("Cannot resolve '", basename(path), "' in the remote archive.", call. = FALSE)
+    sz <- idx$size[idx$name == m][[1L]]
+    ## Announce BEFORE transferring: a promise forced deep inside other code
+    ## otherwise looks like the session has hung. The object name is the one
+    ## the user asked for, so they can see what they touched and how big it is.
+    say <- isTRUE(getOption("SpaDES.project.remoteVerbose", TRUE))
+    obj <- sub("^[0-9]+-", "", tools::file_path_sans_ext(basename(path)))
+    if (say)
+      message("fetching '", obj, "' (", .fmtBytes(sz), ") from the remote archive ...")
     dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-    reGetMember(gFile, m, index = idx, file = path)
+    el <- system.time(reGetMember(gFile, m, index = idx, file = path))[["elapsed"]]
+    if (say)
+      message("  ... got '", obj, "' in ", round(el, 1), " s (",
+              .fmtBytes(sz / max(el, 1e-9)), "/s)")
     invisible(path)
   }
   args <- list(shell, projectPath = projectPath, fetch = fetch)
   if ("parse" %in% names(formals(SpaDES.core::loadSimList)))
     args$parse <- parse
   do.call(SpaDES.core::loadSimList, args)
+}
+
+.fmtBytes <- function(b) {
+  if (is.na(b)) return("?")
+  u <- c("B", "KB", "MB", "GB"); i <- max(1L, min(length(u), floor(log(max(b, 1), 1024)) + 1L))
+  paste0(round(b / 1024^(i - 1L), 1), " ", u[[i]])
 }

@@ -7,7 +7,7 @@
 \usage{
 reIndex(gFile, destDir = tempdir())
 
-reGetMember(gFile, member, index = NULL, file = NULL)
+reGetMember(gFile, member, index = NULL, file = NULL, progress = NULL)
 }
 \arguments{
 \item{gFile}{A Google Drive \code{dribble} row, file id, or URL for the \strong{tarball}.}
@@ -22,6 +22,10 @@ pass it when reading several members so the index is downloaded once.}
 
 \item{file}{Optional path to write the raw member to. When \code{NULL} (default)
 the member is read back with \code{\link[=readRDS]{readRDS()}} and returned.}
+
+\item{progress}{Logical or \code{NULL}. Show a transfer progress bar. \code{NULL}
+(default) shows one in an interactive session for members over ~5 MB,
+where the wait is long enough to look like a hang.}
 }
 \value{
 \code{reIndex()}: a \code{data.frame} with \code{name}, \code{offset} and \code{size}, one row
