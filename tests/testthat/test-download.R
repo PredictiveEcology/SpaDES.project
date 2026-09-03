@@ -414,3 +414,84 @@ test_that("reGetUntarLoad passes parse through to reLoad", {
     suppressMessages(reGetUntarLoad("id", destDir = td, parse = FALSE, verbose = FALSE)))
   expect_false(seen$parse)
 })
+
+# ---------------------------------------------------------------------------
+# reUntar(skipExisting =) and .tarMemberSizes()
+# ---------------------------------------------------------------------------
+
+test_that(".tarMemberSizes reports each member's exact size from the headers", {
+  .skip_if_no_gnu_tar()
+  src <- withr::local_tempdir()
+  tarball <- .makeFakeTar(list(x = seq_len(1000L)), src)
+  rdsAbs <- file.path(src, "fake_sim.rds")
+
+  mem <- .tarMemberSizes(tarball)
+
+  expect_s3_class(mem, "data.frame")
+  expect_true(rdsAbs %in% mem$name)
+  expect_identical(mem$size[mem$name == rdsAbs], as.numeric(file.size(rdsAbs)))
+})
+
+test_that(".tarMemberSizes returns NULL rather than erroring on a non-archive", {
+  f <- withr::local_tempfile()
+  writeLines("not a tarball", f)
+
+  expect_null(.tarMemberSizes(f))
+})
+
+test_that("reUntar skips an archive already extracted", {
+  .skip_if_no_gnu_tar()
+  src <- withr::local_tempdir()
+  tarball <- .makeFakeTar(list(x = 1L), src)
+
+  ## the payload is still on disk from .makeFakeTar
+  expect_message(reUntar(tarball), "already extracted, skipping")
+})
+
+test_that("reUntar skipExisting = FALSE extracts regardless", {
+  .skip_if_no_gnu_tar()
+  src <- withr::local_tempdir()
+  tarball <- .makeFakeTar(list(x = 1L), src)
+
+  expect_message(reUntar(tarball, skipExisting = FALSE), "untarred")
+})
+
+test_that("reUntar re-extracts when a member is truncated, not merely present", {
+  .skip_if_no_gnu_tar()
+  src <- withr::local_tempdir()
+  payload <- list(x = seq_len(5000L))
+  tarball <- .makeFakeTar(payload, src)
+  rdsAbs <- file.path(src, "fake_sim.rds")
+
+  ## truncate: still present, so file.exists() alone would wrongly say "done"
+  con <- file(rdsAbs, "r+b"); truncate(con, 0); close(con)
+  expect_true(file.exists(rdsAbs))
+  expect_equal(file.size(rdsAbs), 0)
+
+  expect_message(reUntar(tarball), "untarred")
+  expect_equal(readRDS(rdsAbs), payload)
+})
+
+test_that("reUntar ignores members outside the archive's own directory", {
+  .skip_if_no_gnu_tar()
+  ## Archives written from a multi-rep run carry other reps' outputs, and
+  ## different archives disagree about them. Those members must not decide
+  ## whether this archive is already extracted.
+  root <- withr::local_tempdir()
+  own <- file.path(root, "own"); other <- file.path(root, "other")
+  dir.create(own); dir.create(other)
+  rds <- file.path(own, "fake_sim.rds")
+  saveRDS(list(x = 1L), rds)
+  shared <- file.path(other, "shared.txt")
+  writeLines("from this archive", shared)
+
+  tarball <- file.path(root, "a.tar.gz")
+  withr::with_dir(root, utils::tar(tarball, files = c(rds, shared), compression = "gzip"))
+
+  ## another archive later overwrote the shared file with different content
+  writeLines("from a different archive, longer line", shared)
+
+  expect_message(reUntar(tarball), "already extracted, skipping")
+  ## and the contested file was left as it was, not reverted
+  expect_match(readLines(shared)[[1]], "different archive")
+})

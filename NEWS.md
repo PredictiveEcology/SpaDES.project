@@ -3,6 +3,13 @@ Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 version 1.1.0.9001
 ==================
 
+## Enhancements
+
+* `reUntar()` gains `skipExisting` (default `TRUE`): skips archives whose members
+  are already on disk at the size the archive records.
+* `reGetUntarLoad()` gains `skipExisting`, and `useCache` to `Cache()` the
+  `reGet()` metadata step.
+
 ## New features
 
 * `reIndex()` and `reGetMember()` read a single object out of a tarball on Google

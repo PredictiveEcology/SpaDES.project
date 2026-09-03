@@ -13,7 +13,9 @@ reGetUntarLoad(
   parse = TRUE,
   remote = FALSE,
   overwrite = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  skipExisting = TRUE,
+  useCache = FALSE
 )
 }
 \arguments{
@@ -58,6 +60,17 @@ archive with an index beside it (see \code{\link[=reIndex]{reIndex()}}) and
 exists. Default \code{FALSE}.}
 
 \item{verbose}{Logical. Print elapsed time per download. Default \code{TRUE}.}
+
+\item{skipExisting}{Logical, passed to \code{\link[=reUntar]{reUntar()}}. If \code{TRUE} (default),
+archives already extracted on disk are not extracted again.}
+
+\item{useCache}{Logical. If \code{TRUE}, \code{\link[reproducible:Cache]{reproducible::Cache()}} the \emph{metadata}
+step (\code{\link[=reGet]{reGet()}}), skipping the remote round-trip on repeat calls in a new
+session. Only the small \code{data.table} of names and paths is cached -- never
+the \code{simList}s, whose objects are \code{delayedAssign()} promises that saving
+would force, and so fully materialise. A hit is discarded if any path it
+names has since gone away. Default \code{FALSE}, since a hit cannot notice an
+archive re-uploaded under the same id.}
 }
 \value{
 A named list of \code{simList} objects, one per row of \code{gFiles},
