@@ -8,6 +8,10 @@ version 1.1.0.9001
 * `reIndex()` and `reGetMember()` read a single object out of a tarball on Google
   Drive using an HTTP range request, without downloading the archive: on a 4.63 GB
   archive one 6.2 MB object takes ~1 s versus ~5 min for the whole file.
+* `reGetUntarLoad()` gains `remote`. With `remote = TRUE` the archive is never
+  downloaded: the `simList` shell, its manifest and the output files are fetched
+  from inside it by HTTP range request, and each object arrives only when
+  something touches it. `$`, `[[` and `get()` are unchanged. Default `FALSE`.
 
 ## New features
 

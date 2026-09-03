@@ -32,7 +32,9 @@ reIndex <- function(gFile, destDir = tempdir()) {
          "' beside it. Only archives written with an index can be read this way.",
          call. = FALSE)
   f <- file.path(destDir, idxName)
-  googledrive::drive_download(hits[1, ], path = f, overwrite = TRUE, verbose = FALSE)
+  ## `verbose` is deprecated in googledrive >= 2.0; quiet it locally instead
+  googledrive::with_drive_quiet(
+    googledrive::drive_download(hits[1, ], path = f, overwrite = TRUE))
   readRDS(f)
 }
 
@@ -94,4 +96,72 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL) {
     return(gFile)
   }
   googledrive::drive_get(googledrive::as_id(as.character(gFile)))
+}
+
+## ---------------------------------------------------------------------------
+## Remote lazy loading: objects stay on the remote and arrive on first access;
+## output files are downloaded, as they always were.
+## ---------------------------------------------------------------------------
+
+## Where an archive member should land locally, applying the same prefix remap
+## reUntar() would. Members are stored without the leading "/".
+.localPathFor <- function(member, pathRemap) {
+  p <- paste0("/", sub("^/", "", member))
+  if (!is.null(pathRemap)) p <- sub(paste0("^", path.expand(pathRemap[["old"]])),
+                                    path.expand(pathRemap[["new"]]), p)
+  p
+}
+
+## Load one simList whose objects stay remote. The shell, the manifest and the
+## output files are fetched now -- the outputs because they are read anyway, and
+## because `outputs(sim)$file` must point at real paths for downstream code.
+## Every sidecar object is left to `fetch`, so it moves only if touched.
+.reLoadRemoteOne <- function(gFile, pathRemap = NULL, projectPath = getwd(),
+                             parse = TRUE, verbose = TRUE) {
+  idx <- reIndex(gFile)
+  ## outTar() writes the simList first, and reUntar() relies on that too.
+  ## Derive the sidecar directory from the shell's own name, exactly as
+  ## loadSimList() does. A looser pattern such as "[^/]+_lazy/" is wrong: the
+  ## shell's PARENT directory is itself often named `<rep>_lazy`, so the shell
+  ## gets misclassified as one of its own sidecar objects.
+  shellIx <- 1L
+  if (!grepl("\\.rds$", idx$name[shellIx]))
+    stop("First archive member is not the simList: ", basename(idx$name[shellIx]),
+         call. = FALSE)
+  lazyDirName <- paste0(tools::file_path_sans_ext(basename(idx$name[shellIx])), "_lazy")
+  isSide <- grepl(paste0("(^|/)", lazyDirName, "/"), idx$name)
+  isMan  <- isSide & basename(idx$name) == "_manifest.rds"
+  if (!any(isMan))
+    stop("No lazy manifest in the archive; it was not saved with lazy = TRUE.",
+         call. = FALSE)
+
+  ## shell + manifest + every output file
+  eager <- which(!isSide) 
+  eager <- union(eager, which(isMan))
+  for (i in eager) {
+    dest <- .localPathFor(idx$name[i], pathRemap)
+    dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+    if (!file.exists(dest) || file.size(dest) != idx$size[i])
+      reGetMember(gFile, idx$name[i], index = idx, file = dest)
+  }
+  shell <- .localPathFor(idx$name[shellIx], pathRemap)
+  if (isTRUE(verbose))
+    message("  fetched shell + manifest + ", sum(!isSide) - 1L, " output file(s); ",
+            sum(isSide) - sum(isMan), " object(s) left remote")
+
+  ## Objects: `fetch` is handed the path loadSimList expects; find the member
+  ## with that basename among the sidecar entries and range-fetch it there.
+  sideNames <- idx$name[isSide]
+  fetch <- function(path) {
+    m <- sideNames[basename(sideNames) == basename(path)]
+    if (length(m) != 1L)
+      stop("Cannot resolve '", basename(path), "' in the remote archive.", call. = FALSE)
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    reGetMember(gFile, m, index = idx, file = path)
+    invisible(path)
+  }
+  args <- list(shell, projectPath = projectPath, fetch = fetch)
+  if ("parse" %in% names(formals(SpaDES.core::loadSimList)))
+    args$parse <- parse
+  do.call(SpaDES.core::loadSimList, args)
 }

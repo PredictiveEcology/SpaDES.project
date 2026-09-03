@@ -71,3 +71,35 @@ test_that("reGetMember matches exactly first, and refuses to guess", {
   expect_error(reGetMember("FAKEID", "nope", index = .idx), "No archive member matching")
   expect_error(reGetMember("FAKEID", "\\.rds$", index = .idx), "matches 3 members")
 })
+
+## reGetUntarLoad(remote = TRUE): objects stay on the remote, output files come
+## down. The archive itself is never downloaded.
+
+test_that("remote = TRUE requires loadSimList", {
+  expect_error(reGetUntarLoad("id", destDir = tempdir(), remote = TRUE, method = "readRDS"),
+               "requires method")
+})
+
+test_that("the sidecar dir is derived from the shell, not matched loosely", {
+  ## The shell's PARENT directory is often itself named `<rep>_lazy`, so a
+  ## pattern like "[^/]+_lazy/" misclassifies the shell as its own sidecar --
+  ## which showed up as `paths()` being handed a data.table.
+  nm <- c("out/rep3_lazy/run_3020.rds",             # the shell
+          "out/rep3_lazy/run_3020_lazy/_manifest.rds",
+          "out/rep3_lazy/run_3020_lazy/0001-a.rds",
+          "out/rep3_lazy/cohortData_year2020.rds")  # an output that is also .rds
+  lazyDirName <- paste0(tools::file_path_sans_ext(basename(nm[1])), "_lazy")
+  isSide <- grepl(paste0("(^|/)", lazyDirName, "/"), nm)
+  expect_identical(isSide, c(FALSE, TRUE, TRUE, FALSE))
+  expect_false(isSide[1])                       # shell is not a sidecar
+  expect_false(isSide[4])                       # nor is an output .rds
+  ## the loose pattern gets it wrong, which is why it is not used
+  expect_true(all(grepl("(^|/)[^/]+_lazy/", nm)))
+})
+
+test_that(".localPathFor applies the same prefix remap as reUntar", {
+  expect_identical(SpaDES.project:::.localPathFor("home/a/b/x.rds", NULL), "/home/a/b/x.rds")
+  expect_identical(
+    SpaDES.project:::.localPathFor("home/a/b/x.rds", c(old = "/home/a", new = "/tmp/z")),
+    "/tmp/z/b/x.rds")
+})

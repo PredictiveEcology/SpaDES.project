@@ -11,6 +11,7 @@ reGetUntarLoad(
   projectPath = getwd(),
   method = c("loadSimList", "readRDS"),
   parse = TRUE,
+  remote = FALSE,
   overwrite = FALSE,
   verbose = TRUE
 )
@@ -42,6 +43,16 @@ reparsing dominates the load time of a lazily saved \code{simList} (on a
 user objects and each module's \code{mod} objects are still bound lazily. The
 result is inspect-only -- it has no module code, so it cannot be passed
 to \code{\link[SpaDES.core:spades]{SpaDES.core::spades()}}. Ignored when \code{method = "readRDS"}.}
+
+\item{remote}{Logical. If \code{FALSE} (default), the archive is downloaded and
+untarred as usual, and its objects are lazily read from the local sidecar.
+If \code{TRUE}, the archive is never downloaded: the \code{simList} shell, its
+manifest and the output files are fetched from within the remote archive by
+HTTP range request, and each object is fetched only when something touches
+it. Output files are fetched either way, since downstream code reads them
+through \code{outputs(sim)$file} and they are mostly needed. Requires an
+archive with an index beside it (see \code{\link[=reIndex]{reIndex()}}) and
+\code{method = "loadSimList"}.}
 
 \item{overwrite}{Logical. Force re-download even if the local file
 exists. Default \code{FALSE}.}

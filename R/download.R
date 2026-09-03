@@ -140,6 +140,15 @@ reUntar <- function(tarballs, pathRemap = NULL, verbose = FALSE) {
 #' @param projectPath Character scalar. Passed to
 #'   [SpaDES.core::loadSimList()] for relative-path resolution. Default
 #'   `getwd()`.
+#' @param remote Logical. If `FALSE` (default), the archive is downloaded and
+#'   untarred as usual, and its objects are lazily read from the local sidecar.
+#'   If `TRUE`, the archive is never downloaded: the `simList` shell, its
+#'   manifest and the output files are fetched from within the remote archive by
+#'   HTTP range request, and each object is fetched only when something touches
+#'   it. Output files are fetched either way, since downstream code reads them
+#'   through `outputs(sim)$file` and they are mostly needed. Requires an
+#'   archive with an index beside it (see [reIndex()]) and
+#'   `method = "loadSimList"`.
 #' @param parse Logical. If `TRUE` (default), module source code is re-parsed
 #'   on load. `FALSE` forwards `parse = FALSE` to
 #'   [SpaDES.core::loadSimList()], which skips it -- worthwhile because
@@ -208,12 +217,35 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #'   named by the archive's `name` (sans `.tar.gz`).
 #' @seealso [reGet()], [reUntar()], [reLoad()], [outSaveTarUpload()]
 #' @export
+
 reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
                            projectPath = getwd(),
                            method = c("loadSimList", "readRDS"),
-                           parse = TRUE,
+                           parse = TRUE, remote = FALSE,
                            overwrite = FALSE, verbose = TRUE) {
   method <- match.arg(method)
+
+  ## Remote: never download the archive. Fetch the shell, the manifest and the
+  ## output files; leave every object to be range-fetched on first access.
+  if (isTRUE(remote)) {
+    if (!identical(method, "loadSimList"))
+      stop("remote = TRUE requires method = 'loadSimList'.", call. = FALSE)
+    gf <- if (inherits(gFiles, "dribble")) gFiles else googledrive::as_id(as.character(gFiles))
+    nms <- if (inherits(gFiles, "dribble")) gFiles$name else rep(NA_character_, length(gf))
+    t0 <- system.time(
+      sims <- lapply(seq_along(nms), function(i) {
+        g <- if (inherits(gFiles, "dribble")) gFiles[i, ] else gf[[i]]
+        if (isTRUE(verbose)) message("remote: ", nms[[i]])
+        .reLoadRemoteOne(g, pathRemap = pathRemap, projectPath = projectPath,
+                         parse = parse, verbose = verbose)
+      })
+    )
+    names(sims) <- sub("\\.tar\\.gz$", "", nms)
+    sims <- .remapOutputs(sims, pathRemap)
+    if (isTRUE(verbose))
+      message("reGetUntarLoad (remote) -- total: ", .fmt_elapsed(t0[["elapsed"]]))
+    return(sims)
+  }
 
   t1 <- system.time(
     files <- reGet(gFiles, destDir, overwrite = overwrite, verbose = verbose)
@@ -225,28 +257,35 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
     sims <- reLoad(simPaths, projectPath = projectPath, method = method,
                    parse = parse)
   )
-  if (!is.null(pathRemap)) {
-    old <- path.expand(pathRemap[["old"]])
-    new <- path.expand(pathRemap[["new"]])
-    for (i in seq_along(sims)) {
-      out <- SpaDES.core::outputs(sims[[i]])
-      if (NROW(out) && "file" %in% names(out)) {
-        out$file <- sub(paste0("^", old), new, out$file)
-        SpaDES.core::outputs(sims[[i]]) <- out
-      }
-    }
-  }
+  sims <- .remapOutputs(sims, pathRemap)
   names(sims) <- sub("\\.tar\\.gz$", "", files$name)
 
   total <- t1[["elapsed"]] + t2[["elapsed"]] + t3[["elapsed"]]
-  .fmt_elapsed <- function(s) {
-    if (s < 90)        paste0(round(s, 1), " s")
-    else if (s < 5400) paste0(round(s / 60, 1), " min")
-    else               paste0(round(s / 3600, 2), " hr")
-  }
   message("reGetUntarLoad times -- get: ",   .fmt_elapsed(t1[["elapsed"]]),
           "  untar: ",  .fmt_elapsed(t2[["elapsed"]]),
           "  load: ",   .fmt_elapsed(t3[["elapsed"]]),
           "  total: ",  .fmt_elapsed(total))
   sims
+}
+
+## outputs(sim)$file records the paths from where the sim was written; after a
+## remapped extraction they must be rewritten to match, or downstream code that
+## reads those files (e.g. the *_summary modules) looks in the wrong place.
+.remapOutputs <- function(sims, pathRemap) {
+  if (is.null(pathRemap)) return(sims)
+  old <- path.expand(pathRemap[["old"]]); new <- path.expand(pathRemap[["new"]])
+  for (i in seq_along(sims)) {
+    out <- SpaDES.core::outputs(sims[[i]])
+    if (NROW(out) && "file" %in% names(out)) {
+      out$file <- sub(paste0("^", old), new, out$file)
+      SpaDES.core::outputs(sims[[i]]) <- out
+    }
+  }
+  sims
+}
+
+.fmt_elapsed <- function(s) {
+  if (s < 90) paste0(round(s, 1), " s")
+  else if (s < 5400) paste0(round(s / 60, 1), " min")
+  else paste0(round(s / 3600, 2), " hr")
 }
