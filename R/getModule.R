@@ -96,9 +96,12 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
     if (any(stateDT$OKtoDL %in% TRUE)) {
       stateDT[OKtoDL %in% TRUE, c("acct", "repo", "br") := {
+        ## Take the three fields by NAME. Dropping `versionSpec` and assigning
+        ## whatever is left assumes splitGitRepo() returns exactly four
+        ## elements; it now also returns `subFolder`, which made this "Supplied
+        ## 3 columns to be assigned 4 items".
         a <- splitGitRepo(modulesNoVersion)
-        a[["versionSpec"]] <- NULL
-        lapply(a, unlist)
+        lapply(a[c("acct", "repo", "br")], unlist)
       }
       ]
 

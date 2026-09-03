@@ -11,6 +11,9 @@ version 1.1.0.9001
 
 ## Bug fixes
 
+* `getModule()` no longer assumes `Require::splitGitRepo()` returns exactly four
+  elements. It now selects `acct`/`repo`/`br` by name, fixing "Supplied 3 columns
+  to be assigned 4 items" after Require gained a `subFolder` element.
 * `reUntar()` no longer emits GNU tar's `Removing leading '/' from member names`
   for every archive.
 * `outTar()` now bundles the `<simFilename sans ext>_lazy/` directory written by
