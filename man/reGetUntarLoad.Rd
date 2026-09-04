@@ -15,7 +15,8 @@ reGetUntarLoad(
   overwrite = FALSE,
   verbose = TRUE,
   skipExisting = TRUE,
-  useCache = FALSE
+  useCache = FALSE,
+  pattern = NULL
 )
 }
 \arguments{
@@ -71,6 +72,11 @@ the \code{simList}s, whose objects are \code{delayedAssign()} promises that savi
 would force, and so fully materialise. A hit is discarded if any path it
 names has since gone away. Default \code{FALSE}, since a hit cannot notice an
 archive re-uploaded under the same id.}
+
+\item{pattern}{Optional regex. When supplied, \code{gFiles} is taken to be the
+\emph{folder} holding the archives and is listed with \code{\link[=outList]{outList()}} using this
+pattern, rather than being the archives themselves. Either way, the
+\verb{_index.rds} sidecars written by \code{\link[=reIndex]{reIndex()}} are excluded.}
 }
 \value{
 A named list of \code{simList} objects, one per row of \code{gFiles},
