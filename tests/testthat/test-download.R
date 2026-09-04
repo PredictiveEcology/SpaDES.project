@@ -495,3 +495,72 @@ test_that("reUntar ignores members outside the archive's own directory", {
   ## and the contested file was left as it was, not reverted
   expect_match(readLines(shared)[[1]], "different archive")
 })
+
+# ---------------------------------------------------------------------------
+# reGetUntarLoad(pattern =) -- folder listing woven in
+# ---------------------------------------------------------------------------
+
+.fakeDribble <- function(nms) {
+  ## paste0("id_", character(0)) is "id_", not character(0) -- build the id
+  ## column from seq_len() so the zero-row case stays zero-row.
+  d <- data.frame(name = as.character(nms),
+                  id = if (length(nms)) paste0("id_", seq_along(nms)) else character(0),
+                  stringsAsFactors = FALSE)
+  class(d) <- c("dribble", "tbl_df", "tbl", "data.frame")
+  d
+}
+
+test_that(".resolveGFiles passes a dribble through untouched", {
+  d <- .fakeDribble(c("a_lazy.tar.gz", "b_lazy.tar.gz"))
+
+  expect_identical(.resolveGFiles(d, verbose = FALSE), d)
+})
+
+test_that(".resolveGFiles drops reIndex sidecars", {
+  d <- .fakeDribble(c("a_lazy.tar.gz", "a_lazy_index.rds", "b_lazy.tar.gz"))
+
+  out <- .resolveGFiles(d, verbose = FALSE)
+
+  expect_identical(out$name, c("a_lazy.tar.gz", "b_lazy.tar.gz"))
+})
+
+test_that(".resolveGFiles keeps names that merely contain 'index'", {
+  ## only the _index.rds sidecars are sidecars
+  d <- .fakeDribble(c("reindexed_run_lazy.tar.gz", "x_lazy_index.rds"))
+
+  out <- .resolveGFiles(d, verbose = FALSE)
+
+  expect_identical(out$name, "reindexed_run_lazy.tar.gz")
+})
+
+test_that(".resolveGFiles lists the folder when pattern is supplied", {
+  listed <- .fakeDribble(c("6.2.2_NRV_rep1_lazy.tar.gz",
+                           "6.2.2_NRV_rep1_lazy_index.rds",
+                           "6.2.2_NRV_rep2_lazy.tar.gz"))
+  called <- NULL
+  testthat::local_mocked_bindings(
+    outList = function(folder, pattern) { called <<- list(folder, pattern); listed }
+  )
+
+  out <- .resolveGFiles("theFolderURL", pattern = "NRV.+lazy", verbose = FALSE)
+
+  expect_identical(called[[1]], "theFolderURL")
+  expect_identical(called[[2]], "NRV.+lazy")
+  ## sidecar excluded without the caller having to filter it out
+  expect_identical(out$name, c("6.2.2_NRV_rep1_lazy.tar.gz", "6.2.2_NRV_rep2_lazy.tar.gz"))
+})
+
+test_that(".resolveGFiles errors when nothing matches", {
+  testthat::local_mocked_bindings(
+    outList = function(folder, pattern) .fakeDribble(character(0))
+  )
+
+  expect_error(.resolveGFiles("f", pattern = "nope", verbose = FALSE),
+               "No archives to fetch")
+})
+
+test_that(".resolveGFiles reports the sidecars it ignores", {
+  d <- .fakeDribble(c("a_lazy.tar.gz", "a_lazy_index.rds"))
+
+  expect_message(.resolveGFiles(d, verbose = TRUE), "ignoring 1 reIndex")
+})

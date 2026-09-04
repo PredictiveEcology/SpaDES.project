@@ -5,6 +5,12 @@ version 1.1.0.9001
 
 ## Enhancements
 
+* `reGetUntarLoad()` gains `pattern`: supply it and `gFiles` is taken as the Drive
+  *folder*, listed with `outList()`. `reIndex()`'s `_index.rds` sidecars are
+  always excluded.
+
+## Enhancements
+
 * `reUntar()` gains `skipExisting` (default `TRUE`): skips archives whose members
   are already on disk at the size the archive records.
 * `reGetUntarLoad()` gains `skipExisting`, and `useCache` to `Cache()` the

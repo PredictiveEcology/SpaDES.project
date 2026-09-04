@@ -275,6 +275,30 @@ reLoad <- function(simFilenames, projectPath = getwd(),
   files
 }
 
+## Accept either the archives themselves or the folder holding them. Supplying
+## `pattern` means `gFiles` is a folder to list; without it, `gFiles` is used
+## as given. Either way the `_index.rds` sidecars written by reIndex() are
+## dropped: they are not archives, so passing one on can only be a mistake.
+.resolveGFiles <- function(gFiles, pattern = NULL, verbose = TRUE) {
+  if (!is.null(pattern))
+    gFiles <- outList(gFiles, pattern = pattern)
+
+  if (!inherits(gFiles, "dribble"))
+    return(gFiles)
+
+  isIdx <- grepl("_index\\.rds$", gFiles$name)
+  if (any(isIdx)) {
+    if (isTRUE(verbose))
+      message("ignoring ", sum(isIdx), " reIndex() sidecar(s)")
+    gFiles <- gFiles[!isIdx, , drop = FALSE]
+  }
+  if (!NROW(gFiles))
+    stop("No archives to fetch", if (!is.null(pattern))
+         paste0(" matching pattern ", encodeString(pattern, quote = "\"")), ".",
+         call. = FALSE)
+  gFiles
+}
+
 #' Download, untar, and load SpaDES sims from Google Drive
 #'
 #' @description
@@ -305,6 +329,11 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #'   names has since gone away. Default `FALSE`, since a hit cannot notice an
 #'   archive re-uploaded under the same id.
 #'
+#' @param pattern Optional regex. When supplied, `gFiles` is taken to be the
+#'   *folder* holding the archives and is listed with [outList()] using this
+#'   pattern, rather than being the archives themselves. Either way, the
+#'   `_index.rds` sidecars written by [reIndex()] are excluded.
+#'
 #' @return A named list of `simList` objects, one per row of `gFiles`,
 #'   named by the archive's `name` (sans `.tar.gz`).
 #' @seealso [reGet()], [reUntar()], [reLoad()], [outSaveTarUpload()]
@@ -315,8 +344,10 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
                            method = c("loadSimList", "readRDS"),
                            parse = TRUE, remote = FALSE,
                            overwrite = FALSE, verbose = TRUE,
-                           skipExisting = TRUE, useCache = FALSE) {
+                           skipExisting = TRUE, useCache = FALSE,
+                           pattern = NULL) {
   method <- match.arg(method)
+  gFiles <- .resolveGFiles(gFiles, pattern = pattern, verbose = verbose)
 
   ## Remote: never download the archive. Fetch the shell, the manifest and the
   ## output files; leave every object to be range-fetched on first access.
