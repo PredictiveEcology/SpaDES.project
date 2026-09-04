@@ -260,8 +260,10 @@ reLoad <- function(simFilenames, projectPath = getwd(),
   if (!isTRUE(useCache))
     return(reGet(gFiles, destDir, overwrite = overwrite, verbose = verbose))
 
+  ## the call form, not Cache(reGet, ...): passed as named arguments, `verbose`
+  ## is claimed by Cache *and* forwarded, which it reports on every call.
   files <- reproducible::Cache(
-    reGet, gFiles, destDir, overwrite = overwrite, verbose = verbose
+    reGet(gFiles, destDir, overwrite = overwrite, verbose = verbose)
   )
   ## the cache stores paths, not the files themselves: a hit naming a file that
   ## has since been deleted is worse than no hit at all.
