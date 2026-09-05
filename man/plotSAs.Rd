@@ -27,7 +27,8 @@ plotSAsLeaflet(
   saCols = c("purple", "blue", "green", "red"),
   title = "Study Areas",
   rasterToMatchLabel = "Stand Age",
-  rasterToMatchPalette = c("Set1", "Set2", "Set3")
+  rasterToMatchPalette = c("Set1", "Set2", "Set3"),
+  labelCols = c("ID", "Name", "Names")
 )
 }
 \arguments{
@@ -70,6 +71,11 @@ This happens by default with \code{plotSAsLeaflet} and can't be turned off.}
 \item{minArea}{In m^2. This is the minimium area for the entire plot. If this is too
 small then the legislative boundaries may not appear. The area covered by the plot
 will the maximum of the studyArea** or rasterToMatch** and this \code{minArea} value.}
+
+\item{labelCols}{\code{plotSAsLeaflet} only. Character vector of attribute-column names to look for,
+in order, when labelling the polygons of each \verb{studyArea**} layer; the first one the layer
+actually has supplies the per-feature hover labels. A layer with none of them (or with no
+attribute table at all) falls back to its own name, as before.}
 }
 \value{
 Run primarily for side effects. \code{plotSAs} plots (and returns) a \code{ggplot2} object.

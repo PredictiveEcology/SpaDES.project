@@ -5,6 +5,12 @@ version 1.1.0.9001
 
 ## Enhancements
 
+* `plotSAsLeaflet()` gains `labelCols` (default `c("ID", "Name", "Names")`): each
+  `studyArea**` polygon is now labelled on hover with its own value from the first
+  of those columns the layer carries, rather than every polygon sharing the layer
+  name. A layer with none of those columns, or with no attribute table at all,
+  falls back to the layer name as before.
+
 * `reGetUntarLoad()` gains `pattern`: supply it and `gFiles` is taken as the Drive
   *folder*, listed with `outList()`. `reIndex()`'s `_index.rds` sidecars are
   always excluded.
