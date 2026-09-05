@@ -1,5 +1,27 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9002
+==================
+
+## Bug fixes
+
+* `setupProject()`: a `...` argument whose value comes from `defaultDots` reached
+  later arguments as its *unevaluated expression* rather than its value, so any
+  consumer that pastes it into a string -- most visibly `pathBuild()` in a `paths`
+  argument -- deparsed it into the value's place, producing directories such as
+  `outputs/.ELFind/.GCM` or
+  `outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind/unlist_.samplingRange`.
+  `build_proxy()` installs one active binding per dot that closed over the
+  capture-time value/expression and never consulted `cur` again; `capture_dots()`
+  leaves that value `NULL` for every dot that `defaultDots` supplies, so the
+  binding returned the expression. Meanwhile `evalDots()` *did* resolve the dot,
+  writing it into `cur`, but `expose_new_bindings()` only forwards names that are
+  not already bound, so the stale binding was never upgraded to the live
+  `bind_forward()` behaviour every other name gets. Dot bindings now forward to
+  `cur` whenever it holds the name, matching `bind_forward()`.
+  This only bit callers that let `defaultDots` supply a dot -- i.e. batch/spawn
+  workflows that deliberately do not define it in the calling environment.
+
 version 1.1.0.9001
 ==================
 

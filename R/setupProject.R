@@ -5075,6 +5075,18 @@ build_proxy <- function(cur, caller, dots) {
           if (!missing(value))
             stop(sprintf("Cannot assign to %s.", name), call. = FALSE)
 
+          # `cur` is the source of truth: evalDots() resolves each dot and writes
+          # it there, so forward to it exactly as bind_forward() does for every
+          # other name. Without this the binding pins the dot to its capture-time
+          # state for the life of the call -- and capture_dots() leaves `val` NULL
+          # for every dot that defaultDots supplies -- so a later consumer, such
+          # as a `paths` formal calling pathBuild(), receives the unevaluated
+          # expression and deparses it into the value's place.
+          # expose_new_bindings() cannot repair this: it only forwards names that
+          # are not already bound in `exec`.
+          if (exists(name, envir = cur, inherits = FALSE))
+            return(get(name, envir = cur, inherits = FALSE))
+
           if (!is.null(val)) val else expr
         },
         exec
