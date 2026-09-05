@@ -645,6 +645,11 @@ tmuxSetMouse <- function(on = TRUE) {
 #' @param df A `data.frame` of parameter combinations. Each row is one job.
 #'   Column names become object names in worker panes; values from each row
 #'   are assigned prior to sourcing `global_path`.
+#' @param onExistingQueue What to do when `queue_path` already exists and `df` is
+#'   supplied. `"resume"` (default) keeps the existing queue -- preserving its
+#'   `DONE`/`RUNNING` state -- and warns if `df` holds rows it does not;
+#'   `"append"` adds those rows as `PENDING`; `"rebuild"` discards the existing
+#'   queue and starts from `df`. See [tmuxReconcileQueueWithDF()].
 #' @param forceLocalQueueToGS Logical. If `TRUE`, overwrite the Google Sheet
 #'   queue with the local `df` even if the sheet already contains rows.
 #'   Default `FALSE`.
@@ -797,6 +802,7 @@ experimentTmux <- function(df,
                            pane_mode = c("killAndNewPane", "reuse"),
                            ss_id = NULL,
                            forceLocalQueueToGS = FALSE,
+                           onExistingQueue = c("resume", "append", "rebuild"),
                            enableGSSync = FALSE,
                            email = getOption("gargle_oauth_email"),
                            cache_path = getOption("gargle_oauth_cache"),
@@ -835,6 +841,7 @@ experimentTmux <- function(df,
 
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
+  onExistingQueue <- match.arg(onExistingQueue)
   # on_error     <- match.arg(on_error)
 
   # Cache scenario fields from df so positional pathBuild() calls in
@@ -854,8 +861,12 @@ experimentTmux <- function(df,
   # Materialize the queue from `df` on first run; preserve existing state on resume.
   # Without this, worker panes hit stopifnot(file.exists(queue_path)) in
   # tmuxRunNextWorker() and exit silently before any job runs.
-  if (!file.exists(queue_path) && !missing(df) && is.data.frame(df))
-    tmuxPrepareQueueFromDF(df, queue_path)
+  # An existing queue stays authoritative -- that is what makes a resume keep its
+  # DONE/RUNNING rows -- but tmuxReconcileQueueWithDF() says so out loud when `df`
+  # holds rows the queue does not, instead of discarding `df` silently, and
+  # `onExistingQueue` offers append/rebuild.
+  if (!missing(df) && is.data.frame(df))
+    tmuxReconcileQueueWithDF(df, queue_path, onExistingQueue = onExistingQueue)
 
   # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
   dots_path <- file.path(dirname(queue_path), ".tmux_dots.rds")

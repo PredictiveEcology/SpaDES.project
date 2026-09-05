@@ -24,6 +24,7 @@ experimentTmux(
   pane_mode = c("killAndNewPane", "reuse"),
   ss_id = NULL,
   forceLocalQueueToGS = FALSE,
+  onExistingQueue = c("resume", "append", "rebuild"),
   enableGSSync = FALSE,
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
@@ -93,6 +94,12 @@ above.}
 \item{forceLocalQueueToGS}{Logical. If \code{TRUE}, overwrite the Google Sheet
 queue with the local \code{df} even if the sheet already contains rows.
 Default \code{FALSE}.}
+
+\item{onExistingQueue}{What to do when \code{queue_path} already exists and \code{df} is
+supplied. \code{"resume"} (default) keeps the existing queue -- preserving its
+\code{DONE}/\code{RUNNING} state -- and warns if \code{df} holds rows it does not;
+\code{"append"} adds those rows as \code{PENDING}; \code{"rebuild"} discards the existing
+queue and starts from \code{df}. See \code{\link[=tmuxReconcileQueueWithDF]{tmuxReconcileQueueWithDF()}}.}
 
 \item{enableGSSync}{Logical. If \code{TRUE}, start an additional tmux pane
 that periodically syncs the local queue file to a Google Sheet (requires
