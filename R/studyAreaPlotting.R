@@ -30,6 +30,10 @@ utils::globalVariables(c(
 #' @param title The main title for the ggplot2 object. Defaults to one or both of
 #'   "studyArea" and "rasterToMatch" or their plurals.
 #' @param rasterToMatchLabel Used in rasterToMatch legend
+#' @param labelCols `plotSAsLeaflet` only. Character vector of attribute-column names to look for,
+#'   in order, when labelling the polygons of each `studyArea**` layer; the first one the layer
+#'   actually has supplies the per-feature hover labels. A layer with none of them (or with no
+#'   attribute table at all) falls back to its own name, as before.
 #' @param rasterToMatchPalette A palette to be used for colour scheme in rasterToMatch plotting.
 #'   Can be any that work with `tidyterra::whitebox.colors`.
 #' @param country The country for jurisdiction boundaries; defaults to "CAN". Passed to
@@ -224,12 +228,30 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
   gg
 }
 
+## Hover labels for one studyArea layer's polygons: the first of `labelCols` the layer carries,
+## else the layer name. Always returns either a length-1 or a length-nrow(v) character vector, so
+## leaflet has one label per feature and never has to resolve a formula against the attribute table.
+.saHoverLabels <- function(v, layerName, labelCols) {
+  if (is.null(labelCols) || !length(labelCols) || !NROW(v)) {
+    return(layerName)
+  }
+  col <- intersect(labelCols, names(v))
+  if (!length(col)) {
+    return(layerName)
+  }
+  labs <- as.character(v[[col[1]]][[1]])
+  ## NA / empty entries would render as a blank tooltip; name those features after the layer
+  labs[is.na(labs) | !nzchar(labs)] <- layerName
+  labs
+}
+
 #' @rdname plotSAs
 #' @export
 plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue", "green", "red"),
                            title = "Study Areas",
                            rasterToMatchLabel = "Stand Age",
-                           rasterToMatchPalette = c("Set1", "Set2", "Set3")) {
+                           rasterToMatchPalette = c("Set1", "Set2", "Set3"),
+                           labelCols = c("ID", "Name", "Names")) {
   pkgs <- c("leaflet", "leafem", "tidyterra", "reproducible", "sf", "terra", "RColorBrewer")
   requireNamespaces(pkgs)
 
@@ -320,14 +342,15 @@ plotSAsLeaflet <- function(ll, ..., include = TRUE, exclude, saCols = c("purple"
       } else {
         vv <- ll[[sa]]
       }
+      ## Per-feature hover labels from the first of `labelCols` this layer has, so a polygon
+      ## identifies itself (e.g. the ELF id) rather than only its layer. Passed as a plain
+      ## character vector, NOT a ~formula: leaflet resolves a formula against
+      ## metaData(<SpatVector>), which calls data.frame() on the attribute table and errors on
+      ## an attribute-less geometry under newer terra. A length-1 value recycles across features.
+      labs <- .saHoverLabels(vv, sa, labelCols)
+
       a <- a |> leaflet::addPolygons(data=vv, weight = 3,
-                            ## `sa` is the layer's name, a constant -- not a
-                            ## column of `vv`. As a ~formula leaflet resolves it
-                            ## against metaData(<SpatVector>), which calls
-                            ## data.frame() on the attribute table and errors on
-                            ## an attribute-less geometry under newer terra. A
-                            ## plain string recycles across features identically.
-                            label = sa,
+                            label = labs,
                             fillColor = saCols[i], color = saCols[i],
                             fillOpacity = 0, group = sa,
                             highlight = leaflet::highlightOptions(weight = 10#,
