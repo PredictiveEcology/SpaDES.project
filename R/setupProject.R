@@ -658,6 +658,10 @@ setupProject <- function(name, paths, modules, packages,
       }
 
       pathsSUB <- checkProjectPath(pathsSUB, name, envir = envirCur, envir2 = envir)
+      # publish what is known of `paths` now (projectPath, packagePath), so a formal
+      # evaluated before setupPaths() -- the first setupOptions() run -- can reference
+      # it in the same environment that sees the caller's variables (#158)
+      assign("paths", pathsSUB, envir = envir)
       if (missing(name)) {
         name <- basename(normPath(pathsSUB[["projectPath"]]))
       } else {
@@ -672,7 +676,7 @@ setupProject <- function(name, paths, modules, packages,
       # This needs to be set to default before running setupOptions as it will unset it there if needed
       base::options("spades.useRequireOverride" = FALSE)
       optsFirst <- setupOptions(name, optionsSUB, pathsSUB, times, overwrite = isTRUE(overwrite),
-                                envir = envirCur, useGit = useGit,
+                                envir = envir, useGit = useGit,
                                 updateRprofile = updateRprofile,
                                 verbose = verbose - 1)
 
@@ -711,7 +715,7 @@ setupProject <- function(name, paths, modules, packages,
 
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,
-                                     overwrite = overwrite, envir = envirCur, verbose = verbose)
+                                     overwrite = overwrite, envir = envir, verbose = verbose)
       modules <- extractModName(names(modulePackages))
       names(modules) <- names(modulePackages)
 
@@ -730,7 +734,7 @@ setupProject <- function(name, paths, modules, packages,
       setupPackages(packages, modulePackages, require = require, paths = paths,
                     setLinuxBinaryRepo = setLinuxBinaryRepo,
                     standAlone = standAlone,
-                    libPaths = paths[["packagePath"]], envir = envirCur, verbose = verbose)
+                    libPaths = paths[["packagePath"]], envir = envir, verbose = verbose)
       # } else {
 
       # messageVerbose(yellow("skipping setupPackages because `options(spades.useRequire = FALSE)`"),
@@ -745,10 +749,10 @@ setupProject <- function(name, paths, modules, packages,
         terra::terraOptions(tempdir = paths$terraPath)
       }
       sideEffectsSUB <- setupSideEffects(name, sideEffectsSUB, paths, times, overwrite = isTRUE(overwrite),
-                                         envir = envirCur, verbose = verbose)
+                                         envir = envir, verbose = verbose)
 
       # 2nd time
-      opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envirCur,
+      opts <- setupOptions(name, optionsSUB, paths, times, overwrite = isTRUE(overwrite), envir = envir,
                            useGit = useGit, updateRprofile = updateRprofile, verbose = verbose - 1)
       if (!is.null(opts$newOptions))
         opts <- mergeOpts(opts, optsFirst, verbose)
@@ -1348,6 +1352,7 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
 setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
                              envir = parent.frame(), callingEnv = sys.frame(-2), verbose = getOption("Require.verbose", 1L),
                              dots, defaultDots, ...) {
+  callerFrame <- parent.frame()
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -1358,6 +1363,7 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
 
     #
     sideEffectsSUB <- substitute(sideEffects) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    sideEffectsSUB <- .derefSymbolInCaller(sideEffectsSUB, callerFrame)
     sideEffects <- evalSUB(sideEffectsSUB, valObjName = "sideEffects", envir = envirCur, envir2 = envir)
 
     # if (!is.character(sideEffects)) { # this is because I wrote this second;
@@ -1408,6 +1414,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                          ...) {
+  callerFrame <- parent.frame()
 
   makeUpdateRprofileSticky(updateRprofile)
 
@@ -1424,6 +1431,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
 
     optionsSUB <- substitute(options) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     envirCur <- environment()
+    optionsSUB <- .derefSymbolInCaller(optionsSUB, callerFrame)
     options <- evalSUB(optionsSUB, valObjName = "options", envir = envirCur, envir2 = envir)
     # post check
     # if (isTRUE(try(any(grepl("^options$", eval(optionsSUB, envir = envir)[[1]])), silent = TRUE))) {
@@ -1670,6 +1678,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                          updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
                          ...) {
+  callerFrame <- parent.frame()
 
   envirCur <- environment()
   makeUpdateRprofileSticky(updateRprofile)
@@ -1693,6 +1702,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     messageVerbose(yellow(paste0(.txtSettingUp, " modules...")), verbose = verbose, verboseLevel = 0)
 
     modulesSUB <- substitute(modules) # must do this in case the user passes e.g., `list(fireStart = times$start)`
+    modulesSUB <- .derefSymbolInCaller(modulesSUB, callerFrame)
     modules <- evalSUB(val = modulesSUB, valObjName = "modules", envir = envirCur, envir2 = envir)
     if(!is(modules, "character")) {
       stop("'modules' must be a character vector.")
@@ -2611,6 +2621,7 @@ inTempProject <- function(paths) {
 evalSUB <- function(val, valObjName, envir, envir2) {
   valOrig <- val
   val2 <- val
+  valPrev <- NULL
 
   userQuoted <-
     if (is.call(val)) {
@@ -2630,9 +2641,17 @@ evalSUB <- function(val, valObjName, envir, envir2) {
         }
       }
       stStart <- Sys.time()
-      if (inherits(val, "name"))
-        val2 <- get0(val, envir = envir, inherits = FALSE)
-      else {
+      if (inherits(val, "name")) {
+        # A bare symbol names something the user can see from the call site --
+        # the helper's own formals, the resolution scope, the caller's chain up
+        # to the global env -- before anything a package namespace happens to
+        # export under that name (`params = pf` must not become stats::pf). #158
+        nm <- as.character(val)
+        found <- .userEnvOf(nm, envir)
+        if (is.null(found) && !missing(envir2)) found <- .userEnvOf(nm, envir2)
+        val2 <- if (!is.null(found)) get(nm, envir = found, inherits = FALSE)
+                else get0(val, envir = envir, inherits = FALSE)
+      } else {
         val2 <- try(eval(val, envir = envir), silent = TRUE)
       }
       tryAgain <- TRUE
@@ -2680,6 +2699,11 @@ evalSUB <- function(val, valObjName, envir, envir2) {
       }
       if (missing(envir2))
         break
+      # No progress -- e.g. a symbol whose value is that same symbol -- would
+      # otherwise loop here forever. #158
+      if (identical(val, valPrev))
+        break
+      valPrev <- val
     }
   },
   warning = function(w) {

@@ -13,17 +13,19 @@
 ## enclosure chain up to and including the global environment, skipping
 ## namespaces, imports, attached packages and base: a name that only resolves
 ## to a package function (`.mode`, `c`, `q`) is not a caller-supplied value.
-.userVisible <- function(nm, env) {
+.userEnvOf <- function(nm, env) {
+  if (!is.environment(env)) return(NULL)
   while (!identical(env, emptyenv())) {
     envName <- environmentName(env)
     skip <- isNamespace(env) || identical(env, baseenv()) ||
       grepl("^(package:|imports:)", envName)
-    if (!skip && exists(nm, envir = env, inherits = FALSE)) return(TRUE)
+    if (!skip && exists(nm, envir = env, inherits = FALSE)) return(env)
     if (identical(env, globalenv())) break
     env <- parent.env(env)
   }
-  FALSE
+  NULL
 }
+.userVisible <- function(nm, env) !is.null(.userEnvOf(nm, env))
 
 ## Evaluate one expression in `scope`. Returns list(ok, value). On failure the
 ## error is recorded in the diagnostic scope under `context` (see
@@ -123,4 +125,20 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
   if (!missing(defaultDots))
     bindDefaultDots(as.list(defaultDots), scope = scope, callerEnv = callingEnv, envirCur = envir)
   resolveDots(exprs, scope = scope, envirCur = envir)
+}
+
+## setupProject() hands its helpers the captured expression under a variable
+## (`setupOptions(name, optionsSUB, ...)`), so the helper's own
+## `substitute(options)` yields the symbol `optionsSUB`, not the user's
+## expression. Dereference such a symbol in the helper's immediate caller before
+## evaluating, so evalSUB() starts from the expression and never from a symbol
+## that names itself. Works the same for a direct call, `setupOptions(options =
+## myList)`: `myList` is looked up where the user wrote it. (#158)
+.derefSymbolInCaller <- function(sub, frame) {
+  if (is.name(sub)) {
+    nm <- as.character(sub)
+    if (nzchar(nm) && exists(nm, envir = frame, inherits = FALSE))
+      return(get(nm, envir = frame, inherits = FALSE))
+  }
+  sub
 }
