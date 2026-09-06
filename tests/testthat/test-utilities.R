@@ -332,7 +332,7 @@ test_that("getModule returns list with success and failed elements", {
 })
 
 # ---------------------------------------------------------------------------
-# makeDESCRIPTION.R -- tested indirectly; test .moduleNameNoUnderscore
+# makeDESCRIPTION.R -- tested indirectly (it delegates to SpaDES.core)
 # ---------------------------------------------------------------------------
 
 test_that(".libPathDefault produces consistent paths", {

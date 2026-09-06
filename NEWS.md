@@ -1,5 +1,27 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9004
+==================
+
+## Internal
+
+* `makeDESCRIPTION()` delegates to `SpaDES.core::DESCRIPTIONfromModule()` instead
+  of carrying its own copy of the metadata -> `DESCRIPTION` translation.
+  `SpaDES.core` had an independent implementation inside `convertToPackage()`, and
+  the two had drifted -- each had fixes and features the other lacked, and this
+  package even inlined its own `.moduleNameNoUnderscore()` to avoid reaching into
+  `SpaDES.core`. `SpaDES.core` owns module metadata (`defineModule()`,
+  `packages()`, `moduleMetadata()`), so the translation lives there; the
+  project-level entry points `makeDESCRIPTION()`/`makeDESCRIPTIONproject()` stay
+  here. `SpaDES.core` is in Suggests, so the delegation is guarded by
+  `requireNamespace()` and errors clearly if it is absent.
+  Requires `SpaDES.core (>= 3.2.1.9002)`.
+
+  Two bugs fixed on the `SpaDES.core` side come along with this: a module
+  `description` written as a `paste()` call was deparsed into the field
+  (`Description: paste ...`), and the version was read positionally rather than
+  by module name.
+
 version 1.1.0.9002
 ==================
 
