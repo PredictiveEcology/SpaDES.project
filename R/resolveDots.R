@@ -64,8 +64,12 @@ defaultDotExprs <- function(defaultDotsSUB, force) {
 ## Bind, as values in `scope`, every default whose name the caller did not
 ## supply. Because this happens before any argument is evaluated, a default is
 ## available to every argument that references it -- a dot, or a formal such as
-## `times = as.list(unlist(.times))`. Returns the names bound, invisibly.
-bindDefaultDots <- function(exprs, scope, callerEnv) {
+## `times = as.list(unlist(.times))`. Also bound into `envirCur` when given:
+## several setup* helpers evaluate their formal with setupProject()'s own frame
+## as the outermost fallback (`modules = unlist(.modules)` reaches setupModules()
+## with `envir = envirCur`), so the defaults must be visible there too. Returns
+## the names bound, invisibly.
+bindDefaultDots <- function(exprs, scope, callerEnv, envirCur = NULL) {
   nms <- names(exprs)
   if (!length(exprs) || is.null(nms)) return(invisible(character()))
   bound <- character()
@@ -75,6 +79,7 @@ bindDefaultDots <- function(exprs, scope, callerEnv) {
     res <- .evalInScope(exprs[[i]], context = paste0("defaultDots$", nm), scope)
     if (!isTRUE(res$ok)) next
     assign(nm, res$value, envir = scope)
+    if (!is.null(envirCur)) assign(nm, res$value, envir = envirCur)
     bound <- c(bound, nm)
   }
   invisible(bound)
@@ -116,6 +121,6 @@ evalDots <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
   if (!missing(dots) && length(dots)) exprs <- append(dots, exprs)
   scope <- new.env(parent = callingEnv)
   if (!missing(defaultDots))
-    bindDefaultDots(as.list(defaultDots), scope = scope, callerEnv = callingEnv)
+    bindDefaultDots(as.list(defaultDots), scope = scope, callerEnv = callingEnv, envirCur = envir)
   resolveDots(exprs, scope = scope, envirCur = envir)
 }

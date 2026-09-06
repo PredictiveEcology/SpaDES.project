@@ -612,7 +612,7 @@ setupProject <- function(name, paths, modules, packages,
     # `times = as.list(unlist(.times))` -- then finds it by name.
     if (!missing(defaultDots))
       bindDefaultDots(defaultDotExprs(defaultDotsSUB, function() defaultDots),
-                      scope = envir, callerEnv = callerEnv)
+                      scope = envir, callerEnv = callerEnv, envirCur = envirCur)
     if (!missing(dots) && length(dots)) {
       # both, so the restore at the top of a second fullAttempt keeps them
       dotsSUB <- dotsSUBOrig <- append(dots, dotsSUB)

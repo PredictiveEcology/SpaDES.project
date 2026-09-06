@@ -151,3 +151,25 @@ test_that("later dots see earlier dots, formals, and `functions`; each dot runs 
   expect_identical(out$.d, basename(attr(out$paths, "extraPaths")$projectPath))
   expect_identical(e$count, 1L)
 })
+
+test_that("a default is visible to formals evaluated by the setup* helpers (modules, options)", {
+  ## `modules = unlist(.modules)` reaches setupModules() with setupProject()'s
+  ## own frame as the outermost fallback, not the resolution scope. Caught by
+  ## FireSenseTesting's global.R, not by the suite -- hence this test.
+  skip_on_cran()
+  setupTest(); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
+  msgs <- character()
+  out <- withCallingHandlers(suppressWarnings(
+    runIn(quote(setupProject(
+      defaultDots = list(.mods = "PredictiveEcology/Biomass_speciesData@master", .optVal = 3L),
+      paths = list(packagePath = .libPaths()[1L]),
+      modules = unlist(.mods),
+      packages = NULL,
+      options = list(SpaDES.project.testOptFromDefault = .optVal),
+      updateRprofile = FALSE)))),
+    message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
+  expect_false(any(grepl("tolerated error", msgs)))
+  expect_identical(unname(out$modules), "Biomass_speciesData")
+  expect_identical(getOption("SpaDES.project.testOptFromDefault"), 3L)
+  options(SpaDES.project.testOptFromDefault = NULL)
+})
