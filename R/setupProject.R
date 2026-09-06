@@ -3816,6 +3816,42 @@ evalDotsOuter <- function(dots, dotsSUB, defaultDots, envir = parent.frame(),
   }
   if (exists("dotsSUBreworked"))
     dotsSUB <- dotsSUBreworked
+
+  ## A dot can legitimately remain unevaluated: eval() happens in `envir`, so an
+  ## expression referring to something only the caller can see -- `lala = fn(1)`
+  ## -- fails and falls back to the expression above. That is deliberate and
+  ## tested ("test sideEffects that are not in sideEffect").
+  ##
+  ## What is never legitimate is a dot that is still a language object AND names
+  ## itself. Every `...` argument is bound before it is evaluated, so
+  ## `exists("<dot>")` is TRUE and reading `<dot>` returns that binding -- which
+  ## hands back the expression. Such a dot cannot ever resolve, and letting it
+  ## through means whatever consumes it deparses the expression into the value's
+  ## place: `pathBuild()` turned one into the directory
+  ## `outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind`, and the run
+  ## carried on against paths nobody intended. The only previous signal was
+  ## `is.na() applied to non-(list or vector) of type 'symbol'`, a warning.
+  ##
+  ## Note the ordinary pass-through `x = x` also names itself, but it resolves,
+  ## so it never reaches here.
+  stillLang <- vapply(dotsSUB, function(v) is.name(v) || is.call(v), logical(1))
+  if (any(stillLang)) {
+    nms <- names(dotsSUB)[stillLang]
+    selfRef <- nms[vapply(nms, function(n) n %in% all.names(dotsSUB[[n]]), logical(1))]
+    if (length(selfRef)) {
+      shown <- vapply(dotsSUB[selfRef],
+                      function(v) paste(deparse(v), collapse = " "), character(1))
+      stop("setupProject(): these `...` arguments refer to their own name and can ",
+           "never resolve:\n",
+           paste0("  ", selfRef, " = ", shown, collapse = "\n"),
+           "\n\nEvery `...` argument is bound before it is evaluated, so ",
+           "exists(\"<name>\") is always TRUE\nand <name> returns the expression ",
+           "itself. Use `defaultDots` to supply a fallback:\n",
+           "  defaultDots = list(", selfRef[[1]], " = <value>)",
+           call. = FALSE)
+    }
+  }
+
   dotsSUB
 }
 

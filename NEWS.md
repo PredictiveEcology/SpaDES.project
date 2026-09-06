@@ -1,5 +1,33 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9008
+==================
+
+## Bug fixes
+
+* `setupProject()` now errors on a `...` argument that refers to its own name and
+  is still an unevaluated expression -- a state it can never leave. Every `...`
+  argument is bound before it is evaluated, so `exists("<name>")` inside the call
+  is always `TRUE`, `<name>` then reads that binding, and the binding hands back
+  the expression. An idiom such as
+
+      .studyAreaName = if (exists(".studyAreaName")) .studyAreaName else .ELFind
+
+  therefore resolves to itself. Nothing complained: whatever consumed the value
+  deparsed the expression into its place, so `pathBuild()` produced the directory
+  `outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind/...` and the run
+  carried on against paths nobody intended. The only prior signal was
+  `is.na() applied to non-(list or vector) of type 'symbol'`, a warning.
+  The error names the offending arguments and points at `defaultDots`, which is
+  the supported way to say "unless the caller supplied one".
+
+  Deliberately narrow. Two nearby cases are untouched:
+  the ordinary pass-through `x = x` also names itself but resolves normally, so
+  it never reaches the check; and a dot that merely *fails* to evaluate -- e.g.
+  `lala = fn(1)`, where `fn` is visible only to the caller and not in the
+  environment `...` arguments are evaluated in -- keeps falling back to its
+  expression, which is existing, tested behaviour.
+
 version 1.1.0.9007
 ==================
 
