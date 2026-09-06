@@ -353,8 +353,12 @@ NULL
 #'
 #' If "dot" arguments are declared before the first formal argument, they are
 #' evaluated before the formals; otherwise they are evaluated after the formals.
-#' The exception is `params`, which is evaluated like the `...` arguments, i.e., in
-#' order.
+#' For this purpose `params`, `studyArea`, `times` and `defaultDots` do not count
+#' as formals: `params` is evaluated in order like a `...` argument, and
+#' `defaultDots` is the fallback table the dots are resolved against, not a
+#' configuration block -- so a dot written after `defaultDots` (the natural place,
+#' since that is where its fallback lives) is still resolved before `paths`,
+#' `modules` and the other formals, and can be used inside them.
 #'
 #' }
 #'
@@ -4351,7 +4355,7 @@ gitIgnoreInitials <- function(paths) {
   }
 }
 
-argsCanGoAnywhere <- c("params", "studyArea", "times")
+argsCanGoAnywhere <- c("params", "studyArea", "times", "defaultDots")
 
 DEFAULT <- "DEFAULT"
 
