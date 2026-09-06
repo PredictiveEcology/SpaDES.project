@@ -494,8 +494,10 @@ test_that("test sideEffects that are not in sideEffect", {
     sideEffect = fn(1) # This would not fail; but check that it does not put something in out2
   )
 
-  expect_true(!is.null(out$lala))
-  expect_true(is.null(out2$lala))
+  # `fn(1)` is NULL: a dot that evaluates to NULL is a value, kept under its name
+  expect_true("lala" %in% names(out))
+  expect_null(out$lala)
+  expect_false("lala" %in% names(out2))
 })
 
 test_that("test check if all args are used", {

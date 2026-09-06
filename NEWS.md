@@ -1,5 +1,49 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9009
+==================
+
+## Rewrite of `...` / `defaultDots` resolution in `setupProject()`
+
+The machinery that resolved `...` ("dot") arguments -- a proxy environment of
+active bindings, `evalDots()`, `evalDotsOuter()` and a four-stage retry ladder
+that walked every frame on the call stack -- is replaced by one small resolver
+(`R/resolveDots.R`) built on a single scope environment whose parent is the
+calling environment. The rules it implements are the documented ones, now
+literally:
+
+* every argument is evaluated once, in the order it is written, and sees the
+  resolved value of every argument written above it -- dots and formals alike --
+  as in a script;
+* every `defaultDots` entry the caller did not supply is bound as a value before
+  anything is evaluated, so it is available to any argument that names it (a
+  dot, a dot under another name such as `cores = .cores`, or a formal such as
+  `times = as.list(unlist(.times))`); a caller-supplied value always wins, and a
+  name that only resolves to a package function does not count as supplied;
+* only values are ever bound in that scope, never unevaluated expressions, so a
+  dot's own name is not visible to its own expression and
+  `.x = if (exists(".x")) .x else <fallback>` behaves as written.
+
+Fixed as a consequence (all reproduced in `tests/testthat/test-dots-resolution.R`):
+
+* with no `defaultDots` at all, a self-defaulting dot came back as its own
+  unevaluated `if` call, because the scoped evaluation was skipped entirely and
+  the expression was published under the dot's name;
+* `defaultDots` given as a variable rather than a literal `list()` silently
+  supplied no defaults to dots written before the first formal;
+* a `defaultDots` entry could not reference one written above it;
+* a dot that evaluated to `NULL` was treated as a failure, retried across the
+  call stack, and could vanish from the result. `NULL` is now a value, kept
+  under its name;
+* the `envir` argument was documented but ignored; it is now the parent of the
+  resolution scope.
+
+Behaviour that is deliberately unchanged: a dot that cannot be evaluated even
+with the defaults is returned as its unevaluated expression, recorded as a
+tolerated error in the end-of-call diagnostics, and escalated only under
+`options(SpaDES.project.strict = TRUE)`; dots written before the first formal
+run before it, the rest run in written order after the packages are set up.
+
 version 1.1.0.9008
 ==================
 
