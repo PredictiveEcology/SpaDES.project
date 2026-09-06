@@ -38,6 +38,17 @@ Fixed as a consequence (all reproduced in `tests/testthat/test-dots-resolution.R
 * the `envir` argument was documented but ignored; it is now the parent of the
   resolution scope.
 
+Behaviour change to be aware of: a `...` expression sees exactly what a script
+at the call site would see -- the calling environment and the attached packages
+-- and no longer the packages `SpaDES.project` itself imports. Code such as
+`scenario = { data.table(...) }` with nothing attaching data.table used to work
+only because the expression was evaluated inside `setupProject()`'s own frame;
+it now comes back as a tolerated error naming the function. Attach the package
+(`require = "data.table"`) or qualify the call (`data.table::data.table()`).
+A dot that references a formal written *below* it (e.g. `outputs` using
+`times$end` with `times` declared afterwards) likewise used to work by forcing
+the formal's promise early, and is now a tolerated error: write it above.
+
 Behaviour that is deliberately unchanged: a dot that cannot be evaluated even
 with the defaults is returned as its unevaluated expression, recorded as a
 tolerated error in the end-of-call diagnostics, and escalated only under
