@@ -489,3 +489,23 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
     cli::cli_progress_done(id = pb)
   }
 }
+
+# Push a whole queue to the sheet, replacing its contents from A1. Dot-prefixed
+# column names cannot survive a round trip through Sheets, so `.col` is written
+# as `dotcol` (see revertDotNames()). Everything is written as character.
+# `q` MUST be the queue data.frame: experimentTmux() once reached this point
+# with `q` unassigned in the fresh-sheet branch, so `lapply(q, as.character)`
+# deparsed base::q -- the quit function -- into the Status tab and every
+# worker found an empty queue.
+.gs_push_queue <- function(ss_id, q, sheet = "Status") {
+  if (!is.data.frame(q))
+    stop("The queue to push to the Google Sheet must be a data.frame, not ",
+         class(q)[1], call. = FALSE)
+  reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
+  q_sync        <- as.data.frame(lapply(q, as.character), stringsAsFactors = FALSE)
+  names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
+  googlesheets4::with_gs4_quiet(
+    googlesheets4::range_write(ss = ss_id, data = q_sync, sheet = sheet,
+                               range = "A1", reformat = FALSE))
+  invisible(q_sync)
+}
