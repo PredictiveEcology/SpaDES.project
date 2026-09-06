@@ -148,6 +148,7 @@ test_that(".gs_write_cells reads the bounding range when no current_row is given
 })
 
 test_that(".gs_push_queue writes the whole queue as character with dot-prefixed names", {
+  skip_if_not_installed("googlesheets4")
   written <- NULL
   testthat::local_mocked_bindings(
     range_write = function(ss, data, range, sheet, ...) { written <<- list(ss = ss, data = data, range = range, sheet = sheet); invisible() },
@@ -167,6 +168,7 @@ test_that(".gs_push_queue writes the whole queue as character with dot-prefixed 
 })
 
 test_that(".gs_push_queue refuses anything that is not a data.frame (the base::q accident)", {
+  skip_if_not_installed("googlesheets4")
   testthat::local_mocked_bindings(
     range_write = function(...) stop("range_write must not be reached"),
     .package = "googlesheets4"
