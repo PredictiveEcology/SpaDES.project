@@ -38,6 +38,13 @@ Fixed as a consequence (all reproduced in `tests/testthat/test-dots-resolution.R
 * the `envir` argument was documented but ignored; it is now the parent of the
   resolution scope.
 
+* formals are resolved from the call site outward (#158): a formal given as a
+  bare symbol resolves to the caller's variable before any package object of
+  the same name (`params = pf` no longer becomes `stats::pf`), and the
+  `setup*` helpers evaluate against the same scope the `...` arguments use, so
+  an `options` list can combine a caller-local variable with `paths$...`.
+  `evalSUB()` also stops when an iteration makes no progress instead of looping.
+
 Behaviour change to be aware of: a `...` expression sees exactly what a script
 at the call site would see -- the calling environment and the attached packages
 -- and no longer the packages `SpaDES.project` itself imports. Code such as
