@@ -625,8 +625,16 @@ setupProject <- function(name, paths, modules, packages,
                    envir = envirCur)
         })
       }
-      if (firstNamedArg > 2) { # there is always an empty one at first slot
-        firstSet <- if (is.infinite(firstNamedArg)) seq(length(origArgOrder) - 1) else (1:(firstNamedArg - 2))
+      # The early batch is every dot written before the first counted formal.
+      # Select it by NAME: `origArgOrder` names every argument of the call, while
+      # `dotsSUB` holds only the dots, so a positional slice (`1:(firstNamedArg - 2)`)
+      # overshot whenever an argsCanGoAnywhere formal -- defaultDots, times, params,
+      # studyArea -- sat before the first counted one, and pulled dots written AFTER
+      # `paths` into the early batch, ahead of the arguments they reference.
+      earlyArgs <- if (is.null(origArgOrder)) character() else
+        if (is.infinite(firstNamedArg)) origArgOrder else origArgOrder[seq_len(firstNamedArg - 1)]
+      firstSet <- which(names(dotsSUB) %in% earlyArgs)
+      if (length(firstSet)) {
         dotsLater <- dotsSUB[-firstSet]
         dotsSUB <- dotsSUB[firstSet]
         # addNewObjsToProxy(envirCur, envir, proxy)
