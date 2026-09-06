@@ -63,3 +63,44 @@ test_that("a dot declared after paths is still evaluated after paths (unchanged)
   ))
   expect_identical(out$.late, "4.3")
 })
+
+## The early/late split must be computed by NAME, not by position.
+##
+## `origArgOrder` names every argument of the call; `dotsSUB` holds only the
+## dots. `firstSet <- 1:(firstNamedArg - 2)` indexed the second with a position
+## counted over the first, so whenever an argsCanGoAnywhere formal (defaultDots,
+## times, params, studyArea) sat before the first counted formal, the slice ran
+## past the true early dots and pulled in dots written AFTER `paths`. Those were
+## then evaluated before the arguments above them existed, and an
+## `if (exists(".x")) .x else .ELFind` dot came back as its own unevaluated call.
+
+test_that("defaultDots before paths does not pull a later dot into the early batch", {
+  ## global.R layout: dots, defaultDots, paths, then a self-defaulting dot.
+  setupTest()
+  libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
+  out <- suppressWarnings(setupProject(
+    .ELFind = .ELFind,
+    defaultDots = list(.ELFind = "4.3"),
+    paths = list(packagePath = .libPaths()[1L]),
+    .studyAreaName = if (exists(".studyAreaName")) .studyAreaName else .ELFind,  # after paths
+    updateRprofile = FALSE
+  ))
+  expect_identical(out$.ELFind, "4.3")
+  expect_identical(out$.studyAreaName, "4.3")
+})
+
+test_that("times before paths does not pull a later dot into the early batch", {
+  ## Same defect, pre-existing form: `times` has always been in argsCanGoAnywhere.
+  setupTest()
+  libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
+  out <- suppressWarnings(setupProject(
+    .ELFind = .ELFind,
+    times = list(start = 1, end = 2),
+    defaultDots = list(.ELFind = "4.3"),
+    paths = list(packagePath = .libPaths()[1L]),
+    .studyAreaName = if (exists(".studyAreaName")) .studyAreaName else .ELFind,  # after paths
+    updateRprofile = FALSE
+  ))
+  expect_identical(out$.studyAreaName, "4.3")
+  expect_equal(out$times, list(start = 1, end = 2))
+})
