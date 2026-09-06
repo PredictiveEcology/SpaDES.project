@@ -1,5 +1,17 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9006
+==================
+
+## Bug fixes
+
+* `makeDESCRIPTION()` checked only that `SpaDES.core` was installed before
+  delegating to `SpaDES.core::DESCRIPTIONfromModule()`. `SpaDES.core` is in
+  Suggests, so its version floor cannot be enforced at install time and an older
+  copy is both installed and importable -- which surfaced as
+  `'DESCRIPTIONfromModule' is not an exported object from 'namespace:SpaDES.core'`
+  rather than something the reader can act on. It now checks for the function.
+
 version 1.1.0.9004
 ==================
 
