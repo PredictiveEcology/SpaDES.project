@@ -91,16 +91,19 @@ test_that("book: `params` from a file that references a dot declared above", {
 })
 
 test_that("book: `packages = c(...)` and `require = c(...)` as vectors", {
-  skip_on_cran(); skip_if_not_installed("terra")
-  setupTest(pkgs = "terra"); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
-  if ("package:terra" %in% search()) detach("package:terra", character.only = TRUE)
-  on.exit(if ("package:terra" %in% search()) detach("package:terra", character.only = TRUE), add = TRUE)
+  skip_on_cran(); skip_if_not_installed("terra"); skip_if_not_installed("withr")
+  ## No setupTest(pkgs = "terra") here: that attaches terra via withr::local_package(),
+  ## and the point of this test is that `require =` does the attaching.
+  setupTest(); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
+  attachedBefore <- "package:terra" %in% search()
   out <- runIn(quote(setupProject(
     paths = list(packagePath = .libPaths()[1L]),
     packages = c("terra", "withr"),                                  # 16 of the book's 23 calls
     require = c("terra"),
     .afterRequire = exists("vect"),                                  # late dot: attached packages are visible
     updateRprofile = FALSE)))
+  if (!attachedBefore)
+    on.exit(if ("package:terra" %in% search()) detach("package:terra", character.only = TRUE), add = TRUE)
   expect_true("package:terra" %in% search())
   expect_true(out$.afterRequire)
 })
