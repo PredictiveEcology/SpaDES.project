@@ -75,13 +75,15 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 
 \item{dots}{Any other named objects passed as a list a user might want for other elements.}
 
-\item{defaultDots}{A named list of any arbitrary R objects.
+\item{defaultDots}{A named list of any arbitrary R objects, written as a
+literal \code{list(...)} or as a variable holding one.
 These can be supplied to give default values to objects that
 are otherwise passed in with the \code{...}, i.e., not specifically named for these
 \verb{setup*} functions. If named objects are supplied as top-level arguments, then
 the \code{defaultDots} will be overridden. This can be particularly useful if the
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
-processing to optionally fill them. See examples.}
+processing to optionally fill them. In a literal \code{list(...)} an entry may
+reference an entry written above it. See examples.}
 
 \item{...}{further named arguments that acts like \code{objects}, but a different
 way to specify them. These can be anything. The general use case

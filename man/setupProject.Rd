@@ -217,13 +217,15 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 \code{Require} function, when \code{verbose >= 2}, also returns details as if
 \code{returnDetails = TRUE} (for backwards compatibility).}
 
-\item{defaultDots}{A named list of any arbitrary R objects.
+\item{defaultDots}{A named list of any arbitrary R objects, written as a
+literal \code{list(...)} or as a variable holding one.
 These can be supplied to give default values to objects that
 are otherwise passed in with the \code{...}, i.e., not specifically named for these
 \verb{setup*} functions. If named objects are supplied as top-level arguments, then
 the \code{defaultDots} will be overridden. This can be particularly useful if the
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
-processing to optionally fill them. See examples.}
+processing to optionally fill them. In a literal \code{list(...)} an entry may
+reference an entry written above it. See examples.}
 
 \item{envir}{The environment where \code{setupProject} is called from. Defaults to
 \code{parent.frame()} which should be fine in most cases and user shouldn't need
@@ -376,13 +378,22 @@ to exist before, e.g., \code{paths} is evaluated, they should declare that argum
 \item \strong{Because of this sequential evaluation, any argument written \emph{above} another
 is available to it}, exactly like a normal series of statements. A later
 argument can refer to the resolved value of an earlier one by name.
-\item \strong{If a name is undefined when an argument is evaluated, \code{setupProject()} inserts
-the matching \code{defaultDots} value and re-evaluates.} A value the caller \emph{does}
-supply always takes precedence over the \code{defaultDots} fallback. This is what
-makes a pattern such as
+\item \strong{Every \code{defaultDots} entry the caller did not supply is bound, as a value,
+before any argument is evaluated.} A value the caller \emph{does} supply always
+takes precedence over the \code{defaultDots} fallback; a name that only resolves to
+a function in a package namespace does not count as caller-supplied. This is
+what makes a pattern such as
 \code{.samplingRange = unlist(.samplingRange)} (with \code{defaultDots = list(.samplingRange = 1990:2020)})
 resolve to the caller's value when one is supplied (e.g. a batch run that sets
-\code{.samplingRange} before calling), and to the default otherwise.
+\code{.samplingRange} before calling), and to the default otherwise. Because the
+defaults are bound up front, any argument can reference them -- a \code{...}
+argument under a different name (\code{cores = .cores}) or a formal
+(\code{times = as.list(unlist(.times))}).
+\item \strong{A dot's own name is not visible to its own expression} unless the caller
+defined it or \code{defaultDots} supplies it, so
+\verb{.x = if (exists(".x")) .x else <fallback>} behaves as written. All of this
+happens in one scope environment whose parent is the calling environment
+(\code{envir}); only values are ever bound there, never unevaluated expressions.
 }
 
 If "dot" arguments are declared before the first formal argument, they are

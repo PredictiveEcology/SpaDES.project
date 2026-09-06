@@ -182,36 +182,28 @@ test_that(paste("evalDots: when defaultDots absorbs a failure, no record",
   )
 })
 
-test_that(paste("evalDots: with the real build_proxy shape that surfaced",
-                "the bug, no .samplingRange record survives"), {
+test_that(paste("evalDots: expression captured inside a function whose caller",
+                "lacks the object -- no .samplingRange record survives"), {
   closeAllScopes()
   scope <- setupDiagOpen()
   on.exit(closeAllScopes())
 
-  ## set up exactly as setupProject does: pass through a function that calls
-  ## capture_dots() + build_proxy(). When the dot's expression cannot be
-  ## eagerly forced (.samplingRange not found in the caller env), build_proxy
-  ## installs an active binding that returns the unevaluated expression. This
-  ## is the shape that produced the user-visible "object '.samplingRange'
-  ## not found" before the recovery clear was wired in.
-  fnNm <- function(...) {
-    dotsSUB <- as.list(substitute(list(...)))[-1L]
-    dotsAll <- capture_dots(...)
-    proxy <- build_proxy(cur = environment(), caller = parent.frame(),
-                         dots = dotsAll)
-    list(proxyExec = proxy$exec, dotsSUB = dotsSUB)
-  }
-  got <- fnNm(.samplingRange = unlist(.samplingRange))
+  ## the shape setupProject() sees: the dot expression is captured in one
+  ## function frame, the object it names exists nowhere the caller can see, and
+  ## defaultDots is what supplies it.
+  fnNm <- function(...) as.list(substitute(list(...)))[-1L]
+  dotsSUB <- fnNm(.samplingRange = unlist(.samplingRange))
+  callingEnv <- new.env(parent = globalenv())
   defaultDots <- list(.samplingRange = 1990:2020)
 
   out <- suppressWarnings(
-    evalDots(dots = got$dotsSUB, dotsSUB = got$dotsSUB, defaultDots = defaultDots,
-             envir = environment(), callingEnv = got$proxyExec)
+    evalDots(dots = dotsSUB, dotsSUB = dotsSUB, defaultDots = defaultDots,
+             envir = environment(), callingEnv = callingEnv)
   )
   expect_equal(out$.samplingRange, 1990:2020)
   expect_false(
     any(vapply(scope$attempts, function(r)
       grepl("unlist(.samplingRange)", r$expr, fixed = TRUE), logical(1))),
-    info = "defaultDots resolved the value; the prior record should be deleted"
+    info = "defaultDots resolved the value; no record should exist"
   )
 })
