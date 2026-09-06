@@ -146,3 +146,31 @@ test_that(".gs_write_cells reads the bounding range when no current_row is given
 
   expect_identical(read_calls, 1L)
 })
+
+test_that(".gs_push_queue writes the whole queue as character with dot-prefixed names", {
+  written <- NULL
+  testthat::local_mocked_bindings(
+    range_write = function(ss, data, range, sheet, ...) { written <<- list(ss = ss, data = data, range = range, sheet = sheet); invisible() },
+    with_gs4_quiet = function(expr) expr,
+    .package = "googlesheets4"
+  )
+  q <- data.frame(.ELFind = c("6.2.1", "12.3"), .rep = c(1, 1), status = c("PENDING", "PENDING"),
+                  process_id = c(NA_integer_, NA_integer_), stringsAsFactors = FALSE)
+  SpaDES.project:::.gs_push_queue("fake-id", q)
+  expect_identical(written$ss, "fake-id")
+  expect_identical(written$sheet, "Status")
+  expect_identical(written$range, "A1")
+  expect_identical(names(written$data), c("dotELFind", "dotrep", "status", "process_id"))
+  expect_identical(nrow(written$data), 2L)
+  expect_true(all(vapply(written$data, is.character, logical(1))))
+  expect_identical(written$data$dotELFind, c("6.2.1", "12.3"))
+})
+
+test_that(".gs_push_queue refuses anything that is not a data.frame (the base::q accident)", {
+  testthat::local_mocked_bindings(
+    range_write = function(...) stop("range_write must not be reached"),
+    .package = "googlesheets4"
+  )
+  ## experimentTmux() once pushed with `q` unassigned, i.e. base::q (quit)
+  expect_error(SpaDES.project:::.gs_push_queue("fake-id", base::q), "must be a data.frame")
+})

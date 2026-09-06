@@ -925,6 +925,12 @@ experimentTmux <- function(df,
     # if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
     gs_q <- try(.gs_read_queue(ss_id), silent = TRUE) 
 
+    # The queue that will be pushed below. Start from the local file (already
+    # reconciled with `df` above); the merge branch replaces it with the merged
+    # sheet contents when the sheet already holds rows. Without this a fresh
+    # sheet left `q` unassigned and the push serialised base::q instead.
+    q <- readRDS(queue_path)
+
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
       # Validate GS column names against df before using GS data.
       # GS strips leading dots, so we write `.col` as `dotcol` and revert on read.
@@ -1006,13 +1012,11 @@ experimentTmux <- function(df,
       saveRDS(q, queue_path)
     }
 
-    # Push merged (or fresh) queue to GS
-    q_sync        <- as.data.frame(lapply(q, as.character))
-    names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
-    try(googlesheets4::with_gs4_quiet(
-      googlesheets4::range_write(ss = ss_id, data = q_sync,
-                                  sheet = "Status", range = "A1", reformat = FALSE)
-    ), silent = TRUE)
+    # Push merged (or fresh) queue to GS. Not a silent try: a failed push leaves
+    # workers reading a sheet that does not match the queue they were given.
+    tryCatch(.gs_push_queue(ss_id, q),
+             error = function(e) warning("Could not push the queue to the Google Sheet (",
+                                         ss_id, "): ", conditionMessage(e), call. = FALSE))
   }
   tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath, ...)
