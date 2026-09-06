@@ -43,8 +43,16 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
   # SpaDES.core. SpaDES.core owns module metadata -- defineModule(), packages(),
   # moduleMetadata() -- so the translation lives there now and this delegates.
   # SpaDES.core is in Suggests, hence requireNamespace() rather than an import.
-  if (!requireNamespace("SpaDES.core", quietly = TRUE))
-    stop("makeDESCRIPTION() needs SpaDES.core: install.packages('SpaDES.core')", call. = FALSE)
+  # Check for the function, not just the package: SpaDES.core is in Suggests, so
+  # its version floor cannot be enforced at install time, and an older copy is
+  # both installed and importable. Testing the namespace alone let that through
+  # and produced "'DESCRIPTIONfromModule' is not an exported object" instead of
+  # something the reader can act on.
+  if (!requireNamespace("SpaDES.core", quietly = TRUE) ||
+      !exists("DESCRIPTIONfromModule", envir = asNamespace("SpaDES.core"), inherits = FALSE))
+    stop("makeDESCRIPTION() needs SpaDES.core (>= 3.2.1.9002), which provides ",
+         "DESCRIPTIONfromModule(). Install or update it:\n",
+         "  Require::Install('PredictiveEcology/SpaDES.core@development')", call. = FALSE)
 
   if (missing(verbose)) verbose <- getOption("Require.verbose", 1L)
 
