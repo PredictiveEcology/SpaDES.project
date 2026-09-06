@@ -92,6 +92,12 @@ test_that("book: `params` from a file that references a dot declared above", {
 
 test_that("book: `packages = c(...)` and `require = c(...)` as vectors", {
   skip_on_cran(); skip_if_not_installed("terra"); skip_if_not_installed("withr")
+  ## On the windows-latest runners pak cannot create its cache directory inside
+  ## the test's temp HOME ("could not be installed: SpaDES.core, terra, withr;
+  ## Caused by error in get_user_cache_dir()"), so nothing reaches the test
+  ## library and nothing can be attached. That is package installation on the
+  ## runner, not the argument shape under test.
+  skip_on_os("windows")
   ## No setupTest(pkgs = "terra") here: that attaches terra via withr::local_package(),
   ## and the point of this test is that `require =` does the attaching.
   setupTest(); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
