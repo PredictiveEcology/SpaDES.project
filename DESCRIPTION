@@ -70,7 +70,7 @@ Suggests:
     rlang,
     rmarkdown,
     sf,
-    SpaDES.core,
+    SpaDES.core (>= 3.2.1.9002),
     SpaDES.tools,
     terra,
     testthat (>= 3.0.0),

@@ -186,3 +186,27 @@ test_that("makeDESCRIPTION accepts pre-parsed metadataList", {
 
   expect_identical(dcfField(f, "Version"), "3.3.3")
 })
+
+## --- delegation contract -----------------------------------------------------
+## makeDESCRIPTION() now forwards to SpaDES.core::DESCRIPTIONfromModule(); the
+## tests above pin the behaviour, these two pin the handover itself.
+
+test_that("an argument the caller omitted is not forwarded", {
+  # DESCRIPTIONfromModule() uses missing() on each override to decide whether to
+  # fall back to the module metadata. Forwarding a placeholder for an omitted
+  # argument would silently override the metadata with it -- so an omitted
+  # `version` must still yield the module's own version, not a default.
+  td <- withr::local_tempdir()
+  mkModule(td, "modOmit", version = "7.7.7")
+
+  f <- makeDESCRIPTION("modOmit", modulePath = td, write = FALSE, verbose = 0)
+  expect_identical(dcfField(f, "Version"), "7.7.7")
+  expect_identical(dcfField(f, "Package"), "modOmit")
+})
+
+test_that("a missing SpaDES.core gives a clear error, not a lookup failure", {
+  # SpaDES.core is in Suggests, so this has to fail with something a user can act
+  # on rather than "could not find function" from inside the delegation.
+  local_mocked_bindings(requireNamespace = function(...) FALSE, .package = "base")
+  expect_error(makeDESCRIPTION("x", modulePath = "y"), "needs SpaDES.core")
+})
