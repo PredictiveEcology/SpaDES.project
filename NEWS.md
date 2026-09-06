@@ -1,5 +1,33 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9008
+==================
+
+## Bug fixes
+
+* `setupProject()`: a `...` argument declared after `defaultDots` is now resolved
+  before `paths` (and the other formals) are evaluated, so it can be used inside
+  them. Dots are evaluated in two batches -- those before the first formal
+  argument run before the formals, the rest after -- and `defaultDots` counted as
+  a formal for that split. A dot written after it, which is the natural place
+  since that is where its fallback lives, was therefore not resolved until after
+  `paths` had already been built. `pathBuild()` received the dot's unevaluated
+  expression and deparsed it into a directory name:
+
+      outputs/.ELFind/370                                     (for `.foo = .ELFind`)
+      outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind/...
+
+  while `out$.foo` was, by the end of the call, correctly `"4.3"`. This broke the
+  documented headline contract -- "any argument written above another is
+  available to it" -- for exactly the layout `global.R` files use, and the only
+  signal was `is.na() applied to non-(list or vector) of type 'symbol'`, a
+  warning.
+
+  `defaultDots` is a fallback table, not a configuration block, and now joins
+  `params`, `studyArea` and `times` in not splitting the dot sequence. The
+  evaluation-order documentation is corrected to say so. Dots declared after a
+  real formal such as `paths` keep their documented late evaluation.
+
 version 1.1.0.9007
 ==================
 

@@ -387,8 +387,12 @@ resolve to the caller's value when one is supplied (e.g. a batch run that sets
 
 If "dot" arguments are declared before the first formal argument, they are
 evaluated before the formals; otherwise they are evaluated after the formals.
-The exception is \code{params}, which is evaluated like the \code{...} arguments, i.e., in
-order.
+For this purpose \code{params}, \code{studyArea}, \code{times} and \code{defaultDots} do not count
+as formals: \code{params} is evaluated in order like a \code{...} argument, and
+\code{defaultDots} is the fallback table the dots are resolved against, not a
+configuration block -- so a dot written after \code{defaultDots} (the natural place,
+since that is where its fallback lives) is still resolved before \code{paths},
+\code{modules} and the other formals, and can be used inside them.
 
 }
 
