@@ -5,6 +5,14 @@ version 1.1.0.9006
 
 ## Bug fixes
 
+* `test-makeDESCRIPTION.R` skips when `SpaDES.core` is unavailable. Those tests
+  predate the delegation and had no guard, so the no-suggests leg of
+  `R CMD check` -- where Suggests are deliberately absent -- failed with 11
+  errors instead of skipping. This is what turned `development` red after the
+  delegation landed.
+* `VersionOnRepos` is declared in `R/imports.R`'s `globalVariables()`. It had been
+  declared in `R/makeDESCRIPTION.R`, which no longer needs it; removing that block
+  left `getVersionOnRepos` with a "no visible binding" NOTE.
 * `makeDESCRIPTION()` checked only that `SpaDES.core` was installed before
   delegating to `SpaDES.core::DESCRIPTIONfromModule()`. `SpaDES.core` is in
   Suggests, so its version floor cannot be enforced at install time and an older
