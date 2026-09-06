@@ -1,5 +1,29 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9007
+==================
+
+## Bug fixes
+
+* `experimentTmux()` no longer discards `df` silently when `queue_path` already
+  exists. An existing queue stays authoritative -- that is what lets a resumed run
+  keep its `DONE`/`RUNNING` rows rather than repeating finished work -- but the
+  rule was applied without a word, so a caller who had rebuilt `df` (new scenarios
+  added, completed ones dropped) would watch the previous queue run instead, with
+  nothing to distinguish that from success. The only remedy was to notice, and
+  delete or rename the file.
+
+## Enhancements
+
+* `experimentTmux()` gains `onExistingQueue`, and the reconciliation is exposed as
+  `tmuxReconcileQueueWithDF()`:
+  `"resume"` (default, the previous behaviour) keeps the existing queue and now
+  *warns* when `df` holds rows it does not, naming them and the two ways to act on
+  them; `"append"` adds just those rows as `PENDING`, leaving existing rows and
+  their status untouched; `"rebuild"` starts again from `df`.
+  Rows are compared on the scenario columns -- non-meta, non-list -- so list
+  payload such as `.modules`/`.times` does not make an existing scenario look new.
+
 version 1.1.0.9006
 ==================
 
