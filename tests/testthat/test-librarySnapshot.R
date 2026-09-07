@@ -50,7 +50,7 @@ test_that("snapshotLibrary(setLibPaths = TRUE) puts the snapshot first and drops
   snap <- snapshotLibrary(lib, where = where, id = "host_125")
   expect_identical(normalizePath(.libPaths()[1]), normalizePath(snap))
   expect_false(normalizePath(lib) %in% normalizePath(.libPaths()))
-  expect_identical(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"), snap)
+  expect_identical(normalizePath(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT")), normalizePath(snap))
   expect_true(releaseLibrarySnapshot(snap))
   expect_false(dir.exists(snap))
   expect_identical(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"), "")
@@ -117,7 +117,7 @@ test_that(".librarySnapshotCode runs in a bare session, before any package, and 
   }, args = list(code = code))
   expect_true(startsWith(basename(out$lib1), "lib_"))
   expect_identical(normalizePath(dirname(out$lib1)), normalizePath(where))
-  expect_identical(out$env, out$lib1)
+  expect_identical(normalizePath(out$env), normalizePath(out$lib1))
   expect_false("SpaDES.project" %in% out$loaded)
   expect_true(file.exists(file.path(out$lib1, "pkgA", "DESCRIPTION")))
 })
@@ -154,4 +154,9 @@ test_that("libraryInUse does not report the calling process or a harness that me
   withr::local_envvar(SPADES_PROJECT_LIB_SNAPSHOT = NA)
   busy <- libraryInUse(withr::local_tempdir())
   expect_false(any(grepl(paste0("^", Sys.getpid(), " "), busy)))
+})
+
+test_that(".pidsAlive knows this process is alive and a wild pid is not", {
+  f <- SpaDES.project:::.pidsAlive
+  expect_identical(f(c(Sys.getpid(), 999999L, NA_integer_)), c(TRUE, FALSE, FALSE))
 })

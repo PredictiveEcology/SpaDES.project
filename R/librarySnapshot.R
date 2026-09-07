@@ -146,7 +146,13 @@ libraryInUse <- function(activeRunningPath = getOption("spades.activeRunningPath
 .pidsAlive <- function(pids) {
   vapply(pids, function(p) {
     if (is.na(p)) return(FALSE)
-    if (.Platform$OS.type == "unix") return(dir.exists(file.path("/proc", p)))
+    if (.Platform$OS.type == "unix") {
+      # Linux has /proc; macOS and the BSDs do not, so ask the kernel with signal 0
+      if (dir.exists("/proc")) return(dir.exists(file.path("/proc", p)))
+      st <- tryCatch(suppressWarnings(system2("kill", c("-0", p), stdout = FALSE, stderr = FALSE)),
+                     error = function(e) 1L)
+      return(identical(as.integer(st), 0L))
+    }
     out <- tryCatch(suppressWarnings(system2("tasklist", c("/FI", shQuote(paste0("PID eq ", p)), "/NH"),
                                              stdout = TRUE, stderr = FALSE)),
                     error = function(e) character())
@@ -203,7 +209,9 @@ snapshotLibrary <- function(libPath = .libPaths()[1],
   }
   writeLines(c(libPath, format(Sys.time(), "%Y-%m-%d %H:%M:%S"), as.character(Sys.getpid())),
              file.path(snap, ".snapshot_of"))
-  snap
+  # normalised, so it compares equal to what .libPaths() reports (/private/var on
+  # macOS, drive-letter forms on Windows)
+  normalizePath(snap)
 }
 
 #' @export
@@ -212,9 +220,11 @@ releaseLibrarySnapshot <- function(snapshot = Sys.getenv("SPADES_PROJECT_LIB_SNA
   if (!nzchar(snapshot) || !dir.exists(snapshot)) return(invisible(FALSE))
   if (!file.exists(file.path(snapshot, ".snapshot_of")))
     stop("Not a library snapshot (no .snapshot_of marker): ", snapshot, call. = FALSE)
+  current <- Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT")
+  same <- nzchar(current) && identical(normalizePath(current, mustWork = FALSE),
+                                       normalizePath(snapshot, mustWork = FALSE))
   unlink(snapshot, recursive = TRUE)
-  if (identical(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"), snapshot))
-    Sys.unsetenv("SPADES_PROJECT_LIB_SNAPSHOT")
+  if (same) Sys.unsetenv("SPADES_PROJECT_LIB_SNAPSHOT")
   invisible(TRUE)
 }
 
