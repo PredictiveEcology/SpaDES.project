@@ -167,6 +167,14 @@
 #' @seealso \code{\link{experimentTmux}}, \code{\link{awaitExperimentFuture}},
 #'   \code{\link{tmuxRunWorkerLoop}}
 #' @export
+#' @param sync_library `NULL` (default) or a character vector of package
+#'   specifications for `Require::Install()`. If given, [syncProjectLibrary()] runs
+#'   once, now, in a fresh process and only while no worker is alive, before any
+#'   worker starts. Never sync per job.
+#' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
+#'   hardlinked snapshot of the project library before loading anything from it,
+#'   so an install into the shared library cannot corrupt a running job. See
+#'   [librarySnapshot].
 experimentFuture <- function(
   df,
   global_path       = "global.R",
@@ -184,6 +192,8 @@ experimentFuture <- function(
   sp_dev_path       = NULL,
   local_pat_file    = NULL,
   copyModules       = FALSE,
+  sync_library = NULL,
+  snapshot_library = TRUE,
   ...
 ) {
 
@@ -362,6 +372,11 @@ experimentFuture <- function(
     dots_path         = dots_path
   )
 
+  if (!is.null(sync_library))
+    syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
+  snap_code <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
+    .librarySnapshotCode(.libPaths()[1L], activeRunningPath) else ""
+
   if (is_local) {
     # Local workers: callr::r_bg() writes stdout + stderr directly to log files.
     # This gives true streaming logs (visible via tail -f) without any sink() magic.
@@ -369,8 +384,10 @@ experimentFuture <- function(
       procs[[i]] <- callr::r_bg(
         func = function(queue_path, global_path, on_interrupt, ss_id,
                         email, cache_path, runNameLabel, activeRunningPath,
-                        dots_path, stop_file, lib_paths) {
+                        dots_path, stop_file, lib_paths, snap_code) {
           .libPaths(lib_paths)
+          # hardlinked per-job library, before anything is loaded from it
+          if (nzchar(snap_code)) eval(parse(text = snap_code))
           SpaDES.project::tmuxRunWorkerLoop(
             queue_path        = queue_path,
             global_path       = global_path,
@@ -385,7 +402,8 @@ experimentFuture <- function(
             pane_mode         = "reuse"
           )
         },
-        args    = c(worker_args, list(stop_file = stop_files[[i]], lib_paths = .libPaths())),
+        args    = c(worker_args, list(stop_file = stop_files[[i]], lib_paths = .libPaths(),
+                                      snap_code = snap_code)),
         stdout  = log_files[[i]],
         stderr  = log_files[[i]],
         # Unset TMUX/TMUX_PANE so workers don't emit OSC 2 escape bytes into log files.
@@ -514,6 +532,10 @@ experimentFuture <- function(
 #'
 #' @return Invisibly returns the worker identifier string.
 #' @export
+#' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
+#'   hardlinked snapshot of the project library before loading anything from it,
+#'   so an install into the shared library cannot corrupt a running job. See
+#'   [librarySnapshot].
 runWorkerLoopFuture <- function(
   queue_path,
   global_path,
@@ -525,7 +547,8 @@ runWorkerLoopFuture <- function(
   activeRunningPath = NULL,
   dots_path         = NULL,
   stop_file         = NULL,
-  log_file          = NULL
+  log_file          = NULL,
+  snapshot_library = TRUE
 ) {
   on_interrupt <- match.arg(on_interrupt)
 
@@ -547,8 +570,9 @@ runWorkerLoopFuture <- function(
     proc <- callr::r_bg(
       func = function(queue_path, global_path, on_interrupt,
                       ss_id, email, cache_path, runNameLabel,
-                      activeRunningPath, dots_path, stop_file, lib_paths) {
+                      activeRunningPath, dots_path, stop_file, lib_paths, snap_code) {
         .libPaths(lib_paths)
+        if (nzchar(snap_code)) eval(parse(text = snap_code))
         SpaDES.project::tmuxRunWorkerLoop(
           queue_path        = queue_path,
           global_path       = global_path,
@@ -574,7 +598,9 @@ runWorkerLoopFuture <- function(
         activeRunningPath = activeRunningPath,
         dots_path         = dots_path,
         stop_file         = stop_file,
-        lib_paths         = .libPaths()
+        lib_paths         = .libPaths(),
+        snap_code         = if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
+          .librarySnapshotCode(.libPaths()[1L], activeRunningPath) else ""
       ),
       stdout  = log_file,
       stderr  = log_file,

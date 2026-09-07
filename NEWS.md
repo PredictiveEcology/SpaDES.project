@@ -1,5 +1,21 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9012
+==================
+
+## New features
+
+* Shared project library safety for experiment workers (#163). `syncProjectLibrary()`
+  installs or updates packages once per launch, in a fresh process, and refuses while any
+  worker is alive; `snapshotLibrary()` gives each worker session a hardlinked copy of the
+  library (falling back to a copy across filesystems), so an install into the shared
+  library can no longer corrupt a running job's lazy-load databases. `experimentTmux()`,
+  `experimentFuture()` and `experimentSBATCH()` gain `sync_library` (package specs to sync
+  at launch; default `NULL`) and `snapshot_library` (default `TRUE`); the worker startup
+  scripts take the snapshot before any package is loaded, `tmuxRunWorkerLoop()` sweeps
+  snapshots left by dead workers and releases its own at exit. `libraryInUse()`,
+  `releaseLibrarySnapshot()` and `sweepLibrarySnapshots()` are exported too.
+
 version 1.1.0.9011
 ==================
 

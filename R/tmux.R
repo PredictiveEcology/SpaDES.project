@@ -780,6 +780,14 @@ tmuxSetMouse <- function(on = TRUE) {
 #' # --- Restart a single broken pane ---
 #' # In the broken pane, press Up then Enter to re-run the last command.
 #' }
+#' @param sync_library `NULL` (default) or a character vector of package
+#'   specifications for `Require::Install()`. If given, [syncProjectLibrary()] runs
+#'   once, now, in a fresh process and only while no worker is alive, before any
+#'   worker starts. Never sync per job.
+#' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
+#'   hardlinked snapshot of the project library before loading anything from it,
+#'   so an install into the shared library cannot corrupt a running job. See
+#'   [librarySnapshot].
 experimentTmux <- function(df,
                            global_path = "global.R",
                            cores = NULL,
@@ -809,12 +817,18 @@ experimentTmux <- function(df,
                            workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
                            runNameLabel = quote(colnames(q)[1:2]),
                            copyModules = FALSE,
+                           sync_library = NULL,
+                           snapshot_library = TRUE,
                            ...) {
   
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
+
+  # -- shared library: sync once now, with no worker alive, never per job
+  if (!is.null(sync_library))
+    syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
 
   # -- warn if any cores are remote and local tmux is not in a systemd scope.
   # Without a scope, a local logout / session end can SIGHUP the tmux server and
@@ -1327,7 +1341,8 @@ experimentTmux <- function(df,
         email             = email,
         cache_path        = .normalizeCachePath(cache_path),
         dots_path         = if (file.exists(dots_path)) dp else NULL,
-        lib_path          = .libPaths()
+        lib_path          = .libPaths(),
+        snapshot_library  = snapshot_library
       )
 
       # 3. Send startup command immediately to the freshly created pane
@@ -1931,6 +1946,10 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' @param cache_path gargle OAuth cache path; forwarded to replacement panes.
 #' @param dots_path Path to `.tmux_dots.rds` holding extra `...` args; forwarded to
 #'   replacement panes so they can reload complex objects before sourcing.
+#' @param snapshot_library Logical. Forwarded to replacement panes: each new worker
+#'   session takes a hardlinked snapshot of the project library before loading
+#'   anything from it (see [librarySnapshot]). This session's own snapshot, if the
+#'   startup script made one, is released when R exits.
 #' @return invisibly TRUE
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
@@ -1943,9 +1962,14 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           pane_mode = c("reuse", "killAndNewPane"),
                           email = getOption("gargle_oauth_email"),
                           cache_path = getOption("gargle_oauth_cache"),
-                          dots_path = NULL) {
+                          dots_path = NULL,
+                          snapshot_library = TRUE) {
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
+  # Library snapshots: drop those left by dead workers, and make sure this
+  # session's own one (made by the startup script) goes when R exits.
+  try(sweepLibrarySnapshots(activeRunningPath), silent = TRUE)
+  if (nzchar(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"))) .registerSnapshotRelease()
   # A parallel worker that reached here inherited a worker profile through
   # R_PROFILE_USER. It must connect back to its parent, not claim a job: the
   # parent's cluster setup would hang and every job would fan out into more jobs.
@@ -2006,7 +2030,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    email             = email,
                    cache_path        = cache_path,
                    dots_path         = dots_path,
-                   lib_path          = .libPaths()
+                   lib_path          = .libPaths(),
+                   snapshot_library  = snapshot_library
                  ), .respawn_script)
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
       # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
@@ -2236,7 +2261,7 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
-                                  dots_path, lib_path = .libPaths()) {
+                                  dots_path, lib_path = .libPaths(), snapshot_library = TRUE) {
   # Ensure project lib is first so correct package versions are loaded
   ## The worker starts a fresh R and must be able to load SpaDES.project, so it
   ## needs the whole library search path, not just its first entry. Under covr /
@@ -2256,6 +2281,11 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   # did the same.
   lib_pre <- sprintf("Sys.unsetenv('R_PROFILE_USER'); .libPaths(c(%s, .libPaths())); ",
                      deparse1(lib_path))
+  # Give this job its own hardlinked copy of the library before anything is
+  # loaded from it, so an install into the shared library cannot corrupt the
+  # running job (see ?librarySnapshot).
+  snap_pre <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
+    .librarySnapshotCode(lib_path[1L], activeRunningPath) else ""
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
@@ -2264,14 +2294,15 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
             deparse1(dots_path), deparse1(dots_path))
   else ""
   sprintf(
-    paste0("%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
+    paste0("%s%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
-           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
-    lib_pre, wd_pre, dots_pre,
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s)"),
+    lib_pre, snap_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
-    deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
+    deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path),
+    deparse1(isTRUE(snapshot_library))
   )
 }
 

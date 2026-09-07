@@ -22,6 +22,8 @@ experimentSBATCH(
   r_cmd = file.path(R.home("bin"), "Rscript"),
   r_libs = .libPaths(),
   dry_run = FALSE,
+  sync_library = NULL,
+  snapshot_library = TRUE,
   ...
 )
 }
@@ -91,6 +93,16 @@ different filesystem layout.}
 \item{dry_run}{If \code{TRUE}, generate the job scripts but do not submit
 them.  Returns a handle whose \code{job_ids} are all \code{NA}.  Useful
 for inspecting what would be submitted.}
+
+\item{sync_library}{\code{NULL} (default) or a character vector of package
+specifications for \code{Require::Install()}. If given, \code{\link[=syncProjectLibrary]{syncProjectLibrary()}} runs
+once, now, in a fresh process and only while no worker is alive, before any
+worker starts. Never sync per job.}
+
+\item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+\link{librarySnapshot}.}
 
 \item{...}{Additional named arguments stored in \code{.sbatch_dots.rds} and
 loaded into each worker's \code{.GlobalEnv} before sourcing
