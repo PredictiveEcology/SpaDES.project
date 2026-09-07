@@ -1,5 +1,15 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9011
+==================
+
+## Bug fixes
+
+* `experimentTmux()`: a detached tmux session (never attached) keeps the default 80x24
+  window, and creating worker panes failed with "no space for new pane" after three or
+  four. Before splitting, when no client is attached, the window is now set to
+  `window-size manual` and resized to hold every pane (tmux >= 2.9). (#161)
+
 version 1.1.0.9010
 ==================
 

@@ -1296,6 +1296,11 @@ experimentTmux <- function(df,
     # startup command.  Pane 1's remote setup starts running while pane 2 is
     # still being created  -- no waiting for all N panes before work begins.
     worker_ids <- character()
+    # A headless session (nobody attached) stays 80x24 and runs out of room after
+    # three or four panes; give it enough rows for every pane before splitting.
+    existing <- try(length(.tmux_out("list-panes", "-t", target_win)), silent = TRUE)
+    if (inherits(existing, "try-error")) existing <- 1L
+    .tmux_ensure_window_capacity(target_win, n_panes = n_workers + existing)
     for (i in seq_len(n_workers)) {
       # 1. Create pane detached so focus stays on Master
       new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
@@ -2281,6 +2286,58 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #' @noRd
 .isParallelWorkerProcess <- function(args = commandArgs()) {
   any(grepl("workRSOCK|worker\\.rank=[0-9]+\\.parallelly\\.parent=|parallelly:::", args))
+}
+
+# A detached tmux session (`tmux new-session -d`, never attached) keeps the
+# default 80x24 window, so tiling stops after three or four panes with
+# "no space for new pane". A window follows the size of its attached client;
+# with no client there is nothing to follow, and `window-size manual` plus an
+# explicit `resize-window` (tmux >= 2.9) is the documented way to give a
+# headless window room. Returns NULL when nothing needs doing (a client is
+# attached, or the window is already large enough), else the target geometry.
+.tmux_window_geometry <- function(n_panes, width, height, attached,
+                                  rows_per_pane = 12L, min_cols = 200L) {
+  if (isTRUE(attached > 0L)) return(NULL)
+  n_panes <- max(1L, as.integer(n_panes))
+  # tiled layout is roughly two columns of panes
+  rows_needed <- as.integer(ceiling(n_panes / 2) * rows_per_pane)
+  w <- max(as.integer(width), as.integer(min_cols))
+  h <- max(as.integer(height), rows_needed)
+  if (identical(w, as.integer(width)) && identical(h, as.integer(height))) return(NULL)
+  list(width = w, height = h)
+}
+
+# Make sure `target_win` can hold `n_panes` tiled panes. No-op when a client is
+# attached (the client's terminal decides) or when tmux is too old to resize a
+# window; a failure to resize is reported, not fatal, because the split that
+# follows will say "no space for new pane" on its own.
+.tmux_ensure_window_capacity <- function(target_win, n_panes, verbose = TRUE) {
+  info <- try(.tmux_out("display-message", "-p", "-t", target_win,
+                        "#{session_attached} #{window_width} #{window_height} #{session_name}"),
+              silent = TRUE)
+  if (inherits(info, "try-error") || !length(info)) return(invisible(NULL))
+  parts    <- strsplit(trimws(info[[1L]]), "[[:space:]]+")[[1L]]
+  attached <- suppressWarnings(as.integer(parts[1L]))
+  width    <- suppressWarnings(as.integer(parts[2L]))
+  height   <- suppressWarnings(as.integer(parts[3L]))
+  sess     <- parts[4L]
+  if (anyNA(c(attached, width, height))) return(invisible(NULL))
+  geom <- .tmux_window_geometry(n_panes, width, height, attached)
+  if (is.null(geom)) return(invisible(NULL))
+  try(.tmux_run("set-option", "-t", sess, "window-size", "manual"), silent = TRUE)
+  ok <- try(.tmux_run("resize-window", "-t", target_win, "-x", geom$width, "-y", geom$height),
+            silent = TRUE)
+  if (inherits(ok, "try-error")) {
+    if (isTRUE(verbose))
+      message("tmux: no client is attached and the window is ", width, "x", height,
+              ", which cannot tile ", n_panes, " panes; resize-window failed (tmux < 2.9?). ",
+              "Attach a client or enlarge the window by hand.")
+    return(invisible(NULL))
+  }
+  if (isTRUE(verbose))
+    message("tmux: no client attached; resized window ", target_win, " from ",
+            width, "x", height, " to ", geom$width, "x", geom$height, " for ", n_panes, " panes")
+  invisible(geom)
 }
 
 #' @keywords internal
