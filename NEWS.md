@@ -1,5 +1,20 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9010
+==================
+
+## Bug fixes
+
+* `experimentTmux()` / `tmuxRunWorkerLoop()`: the respawn script used by
+  `pane_mode = "killAndNewPane"` is sourced through `R_PROFILE_USER` but, unlike
+  the first-generation startup script, did not unset it. Every child R process of
+  a respawned worker -- each `makeClusterPSOCK()` worker started by a job -- inherited
+  the variable, sourced the profile at startup, and became a queue worker: it
+  claimed a row and ran a whole simulation, whose own PSOCK workers did the same,
+  while the parent's cluster setup hung waiting for workers that never connected.
+  The respawn script now unsets `R_PROFILE_USER` first, and `tmuxRunWorkerLoop()`
+  refuses to start in a process whose command line marks it as a parallel worker.
+
 version 1.1.0.9009
 ==================
 

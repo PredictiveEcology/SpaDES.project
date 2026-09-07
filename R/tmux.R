@@ -1941,6 +1941,15 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           dots_path = NULL) {
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
+  # A parallel worker that reached here inherited a worker profile through
+  # R_PROFILE_USER. It must connect back to its parent, not claim a job: the
+  # parent's cluster setup would hang and every job would fan out into more jobs.
+  if (.isParallelWorkerProcess()) {
+    message("tmuxRunWorkerLoop(): this R process (pid ", Sys.getpid(),
+            ") is a parallel worker spawned by another R session; ",
+            "not starting the queue worker loop.")
+    return(invisible(FALSE))
+  }
   # Authenticate with Google before any sheet access.
   # Setting options alone is not sufficient in a non-interactive Rscript session;
   # gs4_auth() must be called explicitly so gargle loads the cached token.
@@ -2233,7 +2242,15 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   ## "there is no package called 'SpaDES.project'". On a workstation [1] happens
   ## to be the user library that does hold it, which is why this only ever
   ## failed under coverage.
-  lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
+  # This script is sourced via R_PROFILE_USER. Unset it first, as the first-
+  # generation startup script (.make_script) already does: a child Rscript
+  # spawned by the job -- a makeClusterPSOCK worker, callr, mirai -- inherits the
+  # environment, would source this profile at its own startup, and would become a
+  # queue worker itself. That happened on a respawned pane: each climateData PSOCK
+  # worker claimed a queue row and ran a whole simulation, whose own PSOCK workers
+  # did the same.
+  lib_pre <- sprintf("Sys.unsetenv('R_PROFILE_USER'); .libPaths(c(%s, .libPaths())); ",
+                     deparse1(lib_path))
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
@@ -2251,6 +2268,19 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
   )
+}
+
+#' Is this R process a parallel worker spawned by another R session?
+#'
+#' Recognised by the command line R was started with: base `parallel` PSOCK
+#' workers run `parallel:::.workRSOCK()`, and `parallelly` workers carry a
+#' `worker.rank=<n>.parallelly.parent=<pid>` marker. Used to refuse to start a
+#' queue worker loop in such a process.
+#' @param args Character; defaults to [commandArgs()]. A parameter so it can be tested.
+#' @keywords internal
+#' @noRd
+.isParallelWorkerProcess <- function(args = commandArgs()) {
+  any(grepl("workRSOCK|worker\\.rank=[0-9]+\\.parallelly\\.parent=|parallelly:::", args))
 }
 
 #' @keywords internal
