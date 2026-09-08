@@ -164,6 +164,14 @@
 #' @seealso \code{\link{experimentTmux}}, \code{\link{experimentFuture}},
 #'   \code{\link{awaitExperimentSBATCH}}, \code{\link{killExperimentSBATCH}}
 #' @export
+#' @param sync_library `NULL` (default) or a character vector of package
+#'   specifications for `Require::Install()`. If given, [syncProjectLibrary()] runs
+#'   once, now, in a fresh process and only while no worker is alive, before any
+#'   worker starts. Never sync per job.
+#' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
+#'   hardlinked snapshot of the project library before loading anything from it,
+#'   so an install into the shared library cannot corrupt a running job. See
+#'   [librarySnapshot].
 experimentSBATCH <- function(
   df,
   global_path         = "global.R",
@@ -182,6 +190,8 @@ experimentSBATCH <- function(
   r_cmd               = file.path(R.home("bin"), "Rscript"),
   r_libs              = .libPaths(),
   dry_run             = FALSE,
+  sync_library        = NULL,
+  snapshot_library    = TRUE,
   ...
 ) {
   on_interrupt <- match.arg(on_interrupt)
@@ -197,6 +207,8 @@ experimentSBATCH <- function(
   activeRunningPath <- tmuxActiveRunningPath(
     activeRunningPath = activeRunningPath, queue_path
   )
+  if (!is.null(sync_library))
+    syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
 
   # -- 2. Save ... args so workers can load complex objects ------------------
   dots_path <- file.path(dirname(queue_path), ".sbatch_dots.rds")
@@ -304,7 +316,8 @@ experimentSBATCH <- function(
       dots_path         = dots_path,
       sbatch_opts       = sbatch_opts,
       r_cmd             = r_cmd,
-      r_libs            = r_libs
+      r_libs            = r_libs,
+      snapshot_library  = snapshot_library
     )
   }
 
@@ -361,7 +374,7 @@ experimentSBATCH <- function(
                                  queue_path, global_path, on_interrupt, ss_id,
                                  email, cache_path, runNameLabel,
                                  activeRunningPath, dots_path,
-                                 sbatch_opts, r_cmd, r_libs) {
+                                 sbatch_opts, r_cmd, r_libs, snapshot_library = TRUE) {
   # SBATCH directives -- always set output / error / job-name; user-provided
   # opts come after and may NOT override these.
   reserved <- c("output", "error", "job-name", "job_name")
@@ -385,6 +398,10 @@ experimentSBATCH <- function(
   # R worker invocation -- a single Rscript -e expression. All args serialized
   # via deparse() so the worker recreates them exactly (NULL stays NULL,
   # quote(...) stays a call, paths stay character).
+  # hardlinked per-job library (see ?librarySnapshot); pasted, not sprintf-ed,
+  # because the snippet contains a deparsed function
+  snap_code <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
+    .librarySnapshotCode(r_libs[1L], activeRunningPath) else ""
   r_expr <- sprintf(
     paste0(
       ".libPaths(%s); ",
@@ -400,6 +417,7 @@ experimentSBATCH <- function(
     .deparse_one(runNameLabel),.deparse_one(activeRunningPath),
     .deparse_one(dots_path),   .deparse_one(stop_file)
   )
+  r_expr <- sub("^(.libPaths\\([^;]*\\); )", paste0("\\1", gsub("\\\\", "\\\\\\\\", snap_code)), r_expr)
 
   body <- c(
     "#!/bin/bash",

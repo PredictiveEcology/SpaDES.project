@@ -31,6 +31,8 @@ experimentTmux(
   workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
   runNameLabel = quote(colnames(q)[1:2]),
   copyModules = FALSE,
+  sync_library = NULL,
+  snapshot_library = TRUE,
   ...
 )
 }
@@ -118,6 +120,16 @@ produce a human-readable job label used in log files and Google Sheet status upd
 directory given by \code{getOption("spades.modulePath")} to the same absolute path on
 each remote host before workers start.  Issues a warning and skips if the option is
 unset.  Default \code{FALSE}.}
+
+\item{sync_library}{\code{NULL} (default) or a character vector of package
+specifications for \code{Require::Install()}. If given, \code{\link[=syncProjectLibrary]{syncProjectLibrary()}} runs
+once, now, in a fresh process and only while no worker is alive, before any
+worker starts. Never sync per job.}
+
+\item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+\link{librarySnapshot}.}
 
 \item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
 }

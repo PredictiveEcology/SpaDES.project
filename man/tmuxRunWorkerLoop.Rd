@@ -16,7 +16,8 @@ tmuxRunWorkerLoop(
   pane_mode = c("reuse", "killAndNewPane"),
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
-  dots_path = NULL
+  dots_path = NULL,
+  snapshot_library = TRUE
 )
 }
 \arguments{
@@ -49,6 +50,11 @@ tmux window, then kills the current pane  -- freeing all R memory between jobs.}
 
 \item{dots_path}{Path to \code{.tmux_dots.rds} holding extra \code{...} args; forwarded to
 replacement panes so they can reload complex objects before sourcing.}
+
+\item{snapshot_library}{Logical. Forwarded to replacement panes: each new worker
+session takes a hardlinked snapshot of the project library before loading
+anything from it (see \link{librarySnapshot}). This session's own snapshot, if the
+startup script made one, is released when R exits.}
 }
 \value{
 invisibly TRUE

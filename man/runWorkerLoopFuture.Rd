@@ -15,7 +15,8 @@ runWorkerLoopFuture(
   activeRunningPath = NULL,
   dots_path = NULL,
   stop_file = NULL,
-  log_file = NULL
+  log_file = NULL,
+  snapshot_library = TRUE
 )
 }
 \arguments{
@@ -45,6 +46,11 @@ current job finishes.}
 
 \item{log_file}{Path to the log file for this worker.  If \code{NULL},
 output goes to the current connection.}
+
+\item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+\link{librarySnapshot}.}
 }
 \value{
 Invisibly returns the worker identifier string.
