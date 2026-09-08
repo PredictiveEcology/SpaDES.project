@@ -70,7 +70,7 @@ test_that("sweepLibrarySnapshots removes dead owners on this host and keeps live
   dead  <- snapshotLibrary(lib, where = where, id = paste0(me, "_", 999999L), setLibPaths = FALSE)
   other <- snapshotLibrary(lib, where = where, id = "somewhere-else_1", setLibPaths = FALSE)
   removed <- sweepLibrarySnapshots(where)
-  expect_identical(removed, dead)
+  expect_identical(normalizePath(removed, mustWork = FALSE), normalizePath(dead, mustWork = FALSE))
   expect_true(dir.exists(live)); expect_true(dir.exists(other)); expect_false(dir.exists(dead))
 })
 

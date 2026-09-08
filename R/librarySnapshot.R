@@ -240,8 +240,10 @@ sweepLibrarySnapshots <- function(where = getOption("spades.activeRunningPath"))
   # judged from here, so it is left alone.
   host <- sub("^lib_(.*)_[0-9]+$", "\\1", basename(snaps))
   dead <- host == Sys.info()[["nodename"]] & !is.na(pids) & !.pidsAlive(pids)
+  # normalised before unlinking, so the return value matches what snapshotLibrary() gave out
+  gone <- normalizePath(snaps[dead], mustWork = FALSE)
   for (s in snaps[dead]) unlink(s, recursive = TRUE)
-  invisible(snaps[dead])
+  invisible(gone)
 }
 
 # The startup snippet for a worker script. Base R only: nothing may be loaded
