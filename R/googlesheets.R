@@ -237,6 +237,14 @@
       )
       q[[nm]][row_i] <- val2
       applied <- c(applied, sprintf("%s=%s", nm, as.character(val2)))
+    } else if (nm %in% meta_cols) {
+      ## A meta column the queue predates -- `last_error`, for one. Add it rather than
+      ## drop the update: an existing run should start recording failures immediately,
+      ## not only after the queue is rebuilt. Data columns are still skipped, since
+      ## inventing one of those would change what the run means.
+      q[[nm]] <- NA_character_
+      q[[nm]][row_i] <- as.character(updates[[nm]])
+      applied <- c(applied, sprintf("%s=%s (column added)", nm, as.character(updates[[nm]])))
     } else {
       skipped <- c(skipped, nm)
     }
