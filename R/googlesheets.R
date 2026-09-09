@@ -72,6 +72,30 @@
   invisible(NULL)
 }
 
+#' Is this pid a live process?
+#'
+#' Not `file.exists("/proc/<pid>")`: a zombie -- a process that has exited but whose
+#' parent has not reaped it -- still has a `/proc` entry, so bare existence reports it
+#' alive. A worker killed while its parent is something that does not wait for it (a tmux
+#' server, say) can stay a zombie indefinitely, and its queue row would then never be
+#' reclaimed: that study area is silently skipped for the rest of the run.
+#'
+#' The state is the field after the last `")"` in `/proc/<pid>/stat`, because the comm
+#' field can itself contain spaces and parentheses.
+#'
+#' @param pid Integer or character process id.
+#' @param procRoot Root of the proc filesystem; only overridden by tests, which cannot
+#'   manufacture a zombie reliably (R reaps its own forked children).
+#' @return `TRUE` if the process exists and is not a zombie.
+#' @keywords internal
+.pidIsAlive <- function(pid, procRoot = "/proc") {
+  f <- file.path(procRoot, pid, "stat")
+  if (!file.exists(f)) return(FALSE)
+  l <- tryCatch(readLines(f, warn = FALSE)[1L], error = function(e) NA_character_)
+  if (is.na(l)) return(FALSE)
+  !identical(strsplit(sub("^.*\\) ", "", l), " ")[[1L]][1L], "Z")
+}
+
 # Reclaim RUNNING rows whose R process is no longer alive on any machine.
 #
 # Liveness decision per row:
@@ -141,12 +165,15 @@
 
     # --- /proc liveness check (local or SSH) ---
     if (machine == local_node) {
-      alive <- file.exists(paste0("/proc/", ssh_pids))
+      alive <- vapply(ssh_pids, .pidIsAlive, logical(1), USE.NAMES = FALSE)
     } else {
       pid_str   <- paste(ssh_pids, collapse = " ")
+      ## Same zombie test as .pidIsAlive(): state is the field after the last ")",
+      ## because the comm field can itself contain spaces and parentheses.
       check_cmd <- paste0(
         "for pid in ", pid_str,
-        "; do [ -d /proc/$pid ] && echo alive || echo dead; done"
+        "; do s=$(sed 's/^.*) //' /proc/$pid/stat 2>/dev/null | cut -d' ' -f1);",
+        " if [ -n \"$s\" ] && [ \"$s\" != Z ]; then echo alive; else echo dead; fi; done"
       )
       result <- tryCatch(
         system2("ssh",
