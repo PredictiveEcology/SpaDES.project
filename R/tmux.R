@@ -1454,7 +1454,7 @@ experimentTmux <- function(df,
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
           inner <- sprintf(
-            "trap '' HUP; exec env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+            "trap '' HUP; exec env SPADES_USE_REQUIRE=false R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
             rpath)
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
                   cores_full[i], shQuote(inner))
@@ -1486,7 +1486,7 @@ experimentTmux <- function(df,
         scp_cmd <- sprintf("scp -q %s %s:%s",
                            shQuote(remote_script), cores_full[i], remote_path)
         ssh_cmd <- sprintf(
-          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env SPADES_USE_REQUIRE=false R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
           cores_full[i], shQuote(remote_path)
         )
         remote_node2 <- tryCatch(
@@ -1515,7 +1515,7 @@ experimentTmux <- function(df,
         # tests time out with no output files. R_BROWSER / R_PDFVIEWER are
         # set to "false" by check and cause noise on first plot.
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+                  sprintf("env SPADES_USE_REQUIRE=false R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
                           shQuote(local_script)), "C-m")
       }
     }  # end merged loop
@@ -2054,7 +2054,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       # a respawned pane re-enters R with R_TESTS pointing at the harness
       # startup script and never reaches the worker's profile.
       respawn_cmd <- sprintf(
-        "env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+        "env SPADES_USE_REQUIRE=false R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
         shQuote(.respawn_script)
       )
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
@@ -3614,6 +3614,23 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
   }
   fi
 }
+
+## A worker must never install packages. Every worker sources the user's global.R at the
+## start of every job, so with N workers that is N processes resolving and writing one
+## shared library: on 2026-09-09 a worker rewrote SpaDES.tools mid-run and four of its
+## twelve siblings died with "lazy-load database ... is corrupt", each as it next touched a
+## SpaDES.tools function. Installation belongs to whoever launches the fleet, once, before
+## any worker exists.
+##
+## Carried as an environment variable rather than an option because SpaDES.core already
+## derives spades.useRequire from it:
+##   spades.useRequire = !tolower(Sys.getenv("SPADES_USE_REQUIRE")) %in% "false"
+## so a global.R that says nothing about it installs normally when run by hand and does not
+## install when run by a worker. Nothing about the fleet leaks into the user's script.
+##
+## `SPADES_USE_REQUIRE=false` is therefore set on every command that starts a worker:
+## the local pane launch, its respawn, and both remote (ssh) forms. test-workerEnv.R
+## asserts that none of them loses it.
 
 ## One line of failure text for the queue row. A requeued job otherwise leaves NO trace
 ## of why it failed: with on_interrupt = "requeue" every failure silently rewrites the row
