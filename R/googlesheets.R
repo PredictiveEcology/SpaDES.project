@@ -128,6 +128,22 @@
   machines    <- unique(q$machine_name[running_idx])
 
   .reclaim <- function(idx, pid, machine, reason) {
+    ## Read the queue again right before writing. The decision above came from a read
+    ## taken before the liveness checks; since then another worker may have reclaimed this
+    ## row and a third claimed it and started the job. Writing INTERRUPTED over that claim
+    ## puts a running job back in the queue, and the next worker runs it too (#169). Only
+    ## reclaim if the row is still RUNNING under the machine and process found dead; an
+    ## unreadable queue is not proof, so leave the row alone then.
+    q_now <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
+    unchanged <- !is.null(q_now) && NROW(q_now) >= idx &&
+      identical(q_now$status[idx], "RUNNING") &&
+      identical(q_now$machine_name[idx], machine) &&
+      identical(suppressWarnings(as.integer(q_now$process_id[idx])), as.integer(pid))
+    if (!unchanged) {
+      message("Not reclaiming job row ", idx, ": it changed after PID ", pid,
+              " on ", machine, " was found dead")
+      return(invisible(NULL))
+    }
     sheet_row <- idx + 1L
     try(.gs_write_cells(ss_id, sheet_row,
                         updates       = list(status         = "INTERRUPTED",
