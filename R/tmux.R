@@ -1661,7 +1661,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         upd <- list(status         = txtInterrupted,
                     claimed_by     = NA_character_,
-                    interrupted_at = now)
+                    interrupted_at = now,
+                    last_error     = "R exited before the job outcome was recorded (quit() inside global.R?)")
         try(.gs_write_cells(
           ge2$ss_id, ge2$sheet_row,
           updates       = upd,
@@ -1708,6 +1709,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     # After the handler returns, the error propagates naturally to R's
     # top-level handler (interactive session stays alive).
     # tryCatch(interrupt=) wraps the outside so interrupts are still caught.
+    lastErr <- NA_character_
     outcome <- tryCatch(
       withCallingHandlers({
         source(global_path, local = scn_env)
@@ -1715,10 +1717,12 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       }, error = function(e) {
         # Capture call stack while frames are still intact, then mark INTERRUPTED.
         assign(".spades_tb", sys.calls(), envir = scn_env)
+        lastErr <<- .errText(e)
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         upd <- list(status         = txtInterrupted,
                     claimed_by     = NA_character_,
-                    interrupted_at = now)
+                    interrupted_at = now,
+                    last_error     = lastErr)
         try(.gs_write_cells(ss_id, sheet_row,
                             updates       = upd,
                             col_positions = col_pos), silent = TRUE)
@@ -1735,7 +1739,12 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         message("\nq(status=1L) to retry  |  q() to stop the loop")
         "error"
       },
-      interrupt = function(e) "interrupt"
+      interrupt = function(e) {
+        ## Recorded too: a row that requeues because someone pressed Ctrl-C should not
+        ## look the same as one that requeued because the job blew up.
+        lastErr <<- "interrupted (Ctrl-C)"
+        "interrupt"
+      }
     )
 
     now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -1745,11 +1754,15 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       # Clear claimed_by on DONE -- the row is no longer claimed by the
       # worker.  process_id / machine_name are preserved as a historical
       # record of which worker on which machine produced the result.
-      list(status = txtDone, claimed_by = NA_character_, finished_at = now)
+      list(status = txtDone, claimed_by = NA_character_, finished_at = now,
+           last_error = NA_character_)
     } else if (on_interrupt == "requeue") {
-      list(status = txtPending, claimed_by = NA_character_)
+      ## The reason travels with the requeue. Without it a failed job is
+      ## indistinguishable from one that was never started.
+      list(status = txtPending, claimed_by = NA_character_, last_error = lastErr)
     } else {
-      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now)
+      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now,
+           last_error = lastErr)
     }
     if (.trace) message(sprintf("[gs-worker] final outcome=%s row_i=%s -> %s",
                                 outcome, row_i,
@@ -1820,7 +1833,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   # Scrub stale completion/interrupt fields left from a prior run of this row,
   # so RUNNING never carries a finished_at / heartbeat / interrupted_at value.
   for (cn in intersect(c("finished_at", "DEoptimElapsedTime", "heartbeat_at",
-                         "heartbeat_iter", "iterationsTotal", "interrupted_at"),
+                         "heartbeat_iter", "iterationsTotal", "interrupted_at",
+                         "last_error"),
                        names(q))) {
     q[[cn]][i] <- NA
   }
@@ -1893,6 +1907,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           q2$status[i]         <- txtInterrupted
           q2$claimed_by[i]     <- NA_character_
           q2$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          if ("last_error" %in% names(q2)) q2$last_error[i] <- .errText(e)
           saveRDS(q2, queue_path)
         }, silent = TRUE)
         try(filelock::unlock(lck2), silent = TRUE)
@@ -2912,7 +2927,8 @@ tmuxPrepareQueueFromDF <- function(df, queue_path) {
     heartbeat_at   = as.character(NA),
     heartbeat_iter = as.integer(NA),
     iterationsTotal= as.integer(NA),
-    interrupted_at = as.character(NA)
+    interrupted_at = as.character(NA),
+    last_error     = as.character(NA)
   )
   saveRDS(q, queue_path)
   invisible(queue_path)
@@ -3180,6 +3196,8 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
     data.table::setDT(q)
     if (!"interrupted_at" %in% names(q))
       q[, interrupted_at := NA_character_]
+    if (!"last_error" %in% names(q))
+      q[, last_error := NA_character_]
     scenarioFieldsSet(setdiff(names(q), meta_cols))   # for positional pathBuild() in runNameLabel / statusCalculate
 
     # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
@@ -3614,10 +3632,25 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
 ## the local pane launch, its respawn, and both remote (ssh) forms. test-workerEnv.R
 ## asserts that none of them loses it.
 
+## One line of failure text for the queue row. A requeued job otherwise leaves NO trace
+## of why it failed: with on_interrupt = "requeue" every failure silently rewrites the row
+## to PENDING, so a whole fleet dying (a corrupted lazy-load database, say) looks exactly
+## like a fleet that is merely slow. Kept short because it lands in one spreadsheet cell.
+.errText <- function(e, n = 300L) {
+  msg <- tryCatch(conditionMessage(e), error = function(...) "")
+  cl  <- tryCatch(conditionCall(e), error = function(...) NULL)
+  txt <- paste(msg, collapse = " ")
+  if (!is.null(cl))
+    txt <- paste0(txt, "  [in ", paste(deparse(cl, nlines = 1L), collapse = " "), "]")
+  txt <- gsub("[[:space:]]+", " ", trimws(txt))
+  if (nchar(txt) > n) txt <- paste0(substr(txt, 1L, n - 1L), "\u2026")
+  if (!nzchar(txt)) NA_character_ else txt
+}
+
 meta_cols <- c("status","claimed_by","started_at","finished_at",
                "DEoptimElapsedTime","machine_name","process_id",
                "heartbeat_at","heartbeat_iter","iterationsTotal",
-               "interrupted_at")
+               "interrupted_at","last_error")
 
 is_pid_alive_tools <- function(pid) {
   stopifnot(length(pid) == 1L, is.numeric(pid), pid > 0)
