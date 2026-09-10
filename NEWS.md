@@ -1,5 +1,18 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9013
+==================
+
+## Bug fixes
+
+* Two workers could run the same job. The Google Sheets queue marks a `RUNNING` row
+  `INTERRUPTED` when its process is dead, but decided that from a read taken before its
+  liveness checks. When a whole fleet starts at once, one worker reclaims a dead row,
+  another claims it and starts the job, and a third -- still acting on its earlier read --
+  marks it `INTERRUPTED` again, so the next worker claims it too. The queue is now read
+  again immediately before each reclaim, and the row is left alone unless it is still
+  `RUNNING` under the same machine and process that were found dead. (#169)
+
 version 1.1.0.9012
 ==================
 
