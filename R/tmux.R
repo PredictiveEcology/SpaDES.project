@@ -2000,6 +2000,10 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
             "not starting the queue worker loop.")
     return(invisible(FALSE))
   }
+  # setupProject() starts reproducible's showCache pre-warm, a forked scan that
+  # only speeds up a later interactive showCache(). A queue worker never makes
+  # that call, so the fork is an idle extra process for the whole job.
+  options(reproducible.showCachePreWarm = FALSE)
   # Authenticate with Google before any sheet access.
   # Setting options alone is not sufficient in a non-interactive Rscript session;
   # gs4_auth() must be called explicitly so gargle loads the cached token.
