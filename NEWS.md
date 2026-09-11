@@ -1,5 +1,15 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9015
+==================
+
+## Bug fixes
+
+* `tmuxRunWorkerLoop()` turns off reproducible's showCache pre-warm
+  (`options(reproducible.showCachePreWarm = FALSE)`). `setupProject()` starts it so a
+  later interactive `showCache()` is fast; a queue worker never makes that call, so each
+  job carried an idle forked process (~400 MB on the fireSense fits) for its whole run.
+
 version 1.1.0.9014
 ==================
 
