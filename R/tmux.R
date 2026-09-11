@@ -976,7 +976,11 @@ experimentTmux <- function(df,
           )
         }
       }
-      q <- data.table::setDT(gs_q)
+      ## The sheet holds every value as text. Restore the types from `df` (or the local
+      ## queue) before this becomes the local queue, or a resumed queue loses them for
+      ## good: a numeric `.rep` was saved as "1".
+      q <- .gs_restore_types(data.table::setDT(gs_q),
+                             template = if (!missing(df) && !is.null(df)) df else q)
       # GS has existing state  -- merge rather than overwrite
       # data_cols <- gsub("^.", "", data_cols)
       # data.table::setnames(q, new = gsub("^\\.", "", names(q)), old = names(q))
@@ -1620,12 +1624,14 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     # still resolve, but no user-visible state is leaked into the REPL's
     # global env. Use SpaDES.project::lastTraceback() for post-mortem
     # inspection — that accessor reads `.pkgEnv$lastScn$.spades_tb`.
+    ## The sheet gives every value back as text. Restore the column types from the
+    ## local queue rather than evaluating each cell as R code: eval(parse(text = "14.3"))
+    ## turned the ELF name "14.3" into the number 14.3 (and would turn "4.10" into 4.1),
+    ## while "5.3.1", which does not parse, stayed a string.
+    q <- .gs_restore_types(q, tryCatch(readRDS(queue_path), error = function(e) NULL))
     scn_env <- new.env(parent = globalenv())
-    for (nm in data_cols) {
-      # try parsing as it could be an expression written/recorded as a character
-      newPoss <- tryCatch(eval(parse(text = q[[nm]][1L])), error = function(err) q[[nm]][1L], silent = TRUE)
-      assign(nm, newPoss, envir = scn_env)
-    }
+    for (nm in data_cols)
+      assign(nm, q[[nm]][[1L]], envir = scn_env)
     .pkgEnv$lastScn <- scn_env
 
     # Compute runName from runNameLabel now that data cols are in scn_env
