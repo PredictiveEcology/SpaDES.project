@@ -11,6 +11,58 @@
   as.data.frame(q, stringsAsFactors = FALSE)
 }
 
+# The sheet stores every queue value as text (.gs_push_queue() writes
+# `lapply(q, as.character)`), so give it back the column types the queue has in R.
+# `template` is a data.frame with those types -- the experiment `df` or the local
+# queue file -- matched by column name, whether written `.col` or `dotcol`:
+#   * character: kept as the text it is, so an ELF named "14.3" or "4.10" is never
+#     read as the number 14.3 or 4.1;
+#   * numeric, integer, logical: coerced to that class;
+#   * list: each cell rebuilt from the `c(...)` / `list(...)` text as.character() wrote.
+# A column the template lacks stays text unless every cell is such a constructor.
+# Meta columns (status, timestamps, ...) are left as the sheet has them.
+.gs_restore_types <- function(gs, template = NULL) {
+  wasDT <- data.table::is.data.table(gs)
+  gs <- as.data.frame(gs, stringsAsFactors = FALSE)
+  for (nm in names(gs)) {
+    nmDot <- sub(paste0("^", dotTxt), ".", nm)
+    if (nm %in% meta_cols || nmDot %in% meta_cols) next
+    tn <- intersect(c(nm, nmDot), names(template))
+    gs[[nm]] <- .gs_restore_column(gs[[nm]], if (length(tn)) template[[tn[1L]]])
+  }
+  if (wasDT) data.table::setDT(gs)
+  gs
+}
+
+.gs_restore_column <- function(x, template = NULL) {
+  if (!is.character(x) || is.character(template) || is.factor(template))
+    return(x)
+  if (is.list(template))
+    return(lapply(x, .gs_constructor_value))
+  if (is.numeric(template) || is.logical(template))
+    return(suppressWarnings(methods::as(x, class(template)[1L])))
+  if (is.null(template)) {
+    vals <- lapply(x, .gs_constructor_value)
+    if (all(vapply(vals, function(v) is.character(v) && length(v) == 1L, logical(1))))
+      return(x)
+    return(vals)
+  }
+  x
+}
+
+# Rebuild a cell that as.character() wrote for a list-column element -- `c("a", "b")`,
+# `list(start = 1, end = 2)`, `1991:2020`, `character(0)`. Any other text is returned
+# unchanged: it is not evaluated just because it would parse.
+.gs_constructor_value <- function(txt) {
+  if (is.na(txt)) return(txt)
+  expr <- tryCatch(str2lang(txt), error = function(e) NULL)
+  if (is.call(expr) && is.name(expr[[1L]]) &&
+      as.character(expr[[1L]]) %in% c("c", "list", ":", "character", "numeric",
+                                      "integer", "double", "logical"))
+    return(tryCatch(eval(expr, baseenv()), error = function(e) txt))
+  txt
+}
+
 # Write named scalar values into specific columns of one sheet row.
 # Batches all updates into a single range_write call to avoid quota exhaustion.
 # col_positions: named integer vector  col_name -> col_index (1-based)
@@ -502,13 +554,8 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
         # Append rows the user added directly in the sheet
         if (n_gs > n_local) {
           new_gs <- gs_q[(n_local + 1L):n_gs, , drop = FALSE]
-          # Coerce to match local column types where possible
-          for (col in intersect(names(q), names(new_gs))) {
-            tryCatch(
-              new_gs[[col]] <- methods::as(new_gs[[col]], class(q[[col]])),
-              error = function(e) NULL
-            )
-          }
+          # Coerce to match local column types
+          new_gs <- .gs_restore_types(new_gs, q)
           q <- rbind(q, new_gs[, names(q), drop = FALSE])
         }
 

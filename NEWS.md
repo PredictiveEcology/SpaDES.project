@@ -1,5 +1,20 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.1.0.9014
+==================
+
+## Bug fixes
+
+* Queue values read back from the Google Sheet keep the types they have in the queue.
+  A worker used to evaluate each cell as R code, so an experiment value such as
+  `.ELFind = "14.3"` reached `global.R` as the number `14.3`, and `"4.10"` would have
+  become `4.1` -- a different study area -- while `"5.3.1"`, which does not parse,
+  stayed a string. Character columns now stay text, numeric and logical columns are
+  coerced to their class, and list columns are rebuilt from their `c(...)`/`list(...)`
+  text. `experimentTmux()` resuming from an existing sheet also saved the sheet's
+  all-text copy as the local queue, which is how a numeric `.rep` became `"1"`; it now
+  restores the types from `df`.
+
 version 1.1.0.9013
 ==================
 
