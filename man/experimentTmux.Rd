@@ -24,12 +24,15 @@ experimentTmux(
   pane_mode = c("killAndNewPane", "reuse"),
   ss_id = NULL,
   forceLocalQueueToGS = FALSE,
+  onExistingQueue = c("resume", "append", "rebuild"),
   enableGSSync = FALSE,
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
   workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
   runNameLabel = quote(colnames(q)[1:2]),
   copyModules = FALSE,
+  sync_library = NULL,
+  snapshot_library = TRUE,
   ...
 )
 }
@@ -94,6 +97,12 @@ above.}
 queue with the local \code{df} even if the sheet already contains rows.
 Default \code{FALSE}.}
 
+\item{onExistingQueue}{What to do when \code{queue_path} already exists and \code{df} is
+supplied. \code{"resume"} (default) keeps the existing queue -- preserving its
+\code{DONE}/\code{RUNNING} state -- and warns if \code{df} holds rows it does not;
+\code{"append"} adds those rows as \code{PENDING}; \code{"rebuild"} discards the existing
+queue and starts from \code{df}. See \code{\link[=tmuxReconcileQueueWithDF]{tmuxReconcileQueueWithDF()}}.}
+
 \item{enableGSSync}{Logical. If \code{TRUE}, start an additional tmux pane
 that periodically syncs the local queue file to a Google Sheet (requires
 \code{ss_id}).  Default \code{FALSE}.}
@@ -111,6 +120,16 @@ produce a human-readable job label used in log files and Google Sheet status upd
 directory given by \code{getOption("spades.modulePath")} to the same absolute path on
 each remote host before workers start.  Issues a warning and skips if the option is
 unset.  Default \code{FALSE}.}
+
+\item{sync_library}{\code{NULL} (default) or a character vector of package
+specifications for \code{Require::Install()}. If given, \code{\link[=syncProjectLibrary]{syncProjectLibrary()}} runs
+once, now, in a fresh process and only while no worker is alive, before any
+worker starts. Never sync per job.}
+
+\item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+\link{librarySnapshot}.}
 
 \item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
 }

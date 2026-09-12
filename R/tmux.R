@@ -1,5 +1,5 @@
 utils::globalVariables(c(
-  "..meta_cols", "interrupted_at"
+  "..meta_cols", "interrupted_at", "last_error"
 ))
 
 # ======================================================================
@@ -645,6 +645,11 @@ tmuxSetMouse <- function(on = TRUE) {
 #' @param df A `data.frame` of parameter combinations. Each row is one job.
 #'   Column names become object names in worker panes; values from each row
 #'   are assigned prior to sourcing `global_path`.
+#' @param onExistingQueue What to do when `queue_path` already exists and `df` is
+#'   supplied. `"resume"` (default) keeps the existing queue -- preserving its
+#'   `DONE`/`RUNNING` state -- and warns if `df` holds rows it does not;
+#'   `"append"` adds those rows as `PENDING`; `"rebuild"` discards the existing
+#'   queue and starts from `df`. See [tmuxReconcileQueueWithDF()].
 #' @param forceLocalQueueToGS Logical. If `TRUE`, overwrite the Google Sheet
 #'   queue with the local `df` even if the sheet already contains rows.
 #'   Default `FALSE`.
@@ -775,6 +780,14 @@ tmuxSetMouse <- function(on = TRUE) {
 #' # --- Restart a single broken pane ---
 #' # In the broken pane, press Up then Enter to re-run the last command.
 #' }
+#' @param sync_library `NULL` (default) or a character vector of package
+#'   specifications for `Require::Install()`. If given, [syncProjectLibrary()] runs
+#'   once, now, in a fresh process and only while no worker is alive, before any
+#'   worker starts. Never sync per job.
+#' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
+#'   hardlinked snapshot of the project library before loading anything from it,
+#'   so an install into the shared library cannot corrupt a running job. See
+#'   [librarySnapshot].
 experimentTmux <- function(df,
                            global_path = "global.R",
                            cores = NULL,
@@ -797,18 +810,25 @@ experimentTmux <- function(df,
                            pane_mode = c("killAndNewPane", "reuse"),
                            ss_id = NULL,
                            forceLocalQueueToGS = FALSE,
+                           onExistingQueue = c("resume", "append", "rebuild"),
                            enableGSSync = FALSE,
                            email = getOption("gargle_oauth_email"),
                            cache_path = getOption("gargle_oauth_cache"),
                            workersToMonitor = unique(if (is.null(cores)) "localhost" else cores),
                            runNameLabel = quote(colnames(q)[1:2]),
                            copyModules = FALSE,
+                           sync_library = NULL,
+                           snapshot_library = TRUE,
                            ...) {
   
   # -- dependency check
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
+
+  # -- shared library: sync once now, with no worker alive, never per job
+  if (!is.null(sync_library))
+    syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
 
   # -- warn if any cores are remote and local tmux is not in a systemd scope.
   # Without a scope, a local logout / session end can SIGHUP the tmux server and
@@ -835,6 +855,7 @@ experimentTmux <- function(df,
 
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
+  onExistingQueue <- match.arg(onExistingQueue)
   # on_error     <- match.arg(on_error)
 
   # Cache scenario fields from df so positional pathBuild() calls in
@@ -854,8 +875,12 @@ experimentTmux <- function(df,
   # Materialize the queue from `df` on first run; preserve existing state on resume.
   # Without this, worker panes hit stopifnot(file.exists(queue_path)) in
   # tmuxRunNextWorker() and exit silently before any job runs.
-  if (!file.exists(queue_path) && !missing(df) && is.data.frame(df))
-    tmuxPrepareQueueFromDF(df, queue_path)
+  # An existing queue stays authoritative -- that is what makes a resume keep its
+  # DONE/RUNNING rows -- but tmuxReconcileQueueWithDF() says so out loud when `df`
+  # holds rows the queue does not, instead of discarding `df` silently, and
+  # `onExistingQueue` offers append/rebuild.
+  if (!missing(df) && is.data.frame(df))
+    tmuxReconcileQueueWithDF(df, queue_path, onExistingQueue = onExistingQueue)
 
   # Save ... args to RDS so panes can load complex objects (lists, etc.) directly
   dots_path <- file.path(dirname(queue_path), ".tmux_dots.rds")
@@ -914,6 +939,12 @@ experimentTmux <- function(df,
     # if (!is.null(cache_path)) options(gargle_oauth_cache = cache_path)
     gs_q <- try(.gs_read_queue(ss_id), silent = TRUE) 
 
+    # The queue that will be pushed below. Start from the local file (already
+    # reconciled with `df` above); the merge branch replaces it with the merged
+    # sheet contents when the sheet already holds rows. Without this a fresh
+    # sheet left `q` unassigned and the push serialised base::q instead.
+    q <- readRDS(queue_path)
+
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
       # Validate GS column names against df before using GS data.
       # GS strips leading dots, so we write `.col` as `dotcol` and revert on read.
@@ -945,7 +976,11 @@ experimentTmux <- function(df,
           )
         }
       }
-      q <- data.table::setDT(gs_q)
+      ## The sheet holds every value as text. Restore the types from `df` (or the local
+      ## queue) before this becomes the local queue, or a resumed queue loses them for
+      ## good: a numeric `.rep` was saved as "1".
+      q <- .gs_restore_types(data.table::setDT(gs_q),
+                             template = if (!missing(df) && !is.null(df)) df else q)
       # GS has existing state  -- merge rather than overwrite
       # data_cols <- gsub("^.", "", data_cols)
       # data.table::setnames(q, new = gsub("^\\.", "", names(q)), old = names(q))
@@ -995,13 +1030,11 @@ experimentTmux <- function(df,
       saveRDS(q, queue_path)
     }
 
-    # Push merged (or fresh) queue to GS
-    q_sync        <- as.data.frame(lapply(q, as.character))
-    names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
-    try(googlesheets4::with_gs4_quiet(
-      googlesheets4::range_write(ss = ss_id, data = q_sync,
-                                  sheet = "Status", range = "A1", reformat = FALSE)
-    ), silent = TRUE)
+    # Push merged (or fresh) queue to GS. Not a silent try: a failed push leaves
+    # workers reading a sheet that does not match the queue they were given.
+    tryCatch(.gs_push_queue(ss_id, q),
+             error = function(e) warning("Could not push the queue to the Google Sheet (",
+                                         ss_id, "): ", conditionMessage(e), call. = FALSE))
   }
   tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath, ...)
@@ -1281,6 +1314,11 @@ experimentTmux <- function(df,
     # startup command.  Pane 1's remote setup starts running while pane 2 is
     # still being created  -- no waiting for all N panes before work begins.
     worker_ids <- character()
+    # A headless session (nobody attached) stays 80x24 and runs out of room after
+    # three or four panes; give it enough rows for every pane before splitting.
+    existing <- try(length(.tmux_out("list-panes", "-t", target_win)), silent = TRUE)
+    if (inherits(existing, "try-error")) existing <- 1L
+    .tmux_ensure_window_capacity(target_win, n_panes = n_workers + existing)
     for (i in seq_len(n_workers)) {
       # 1. Create pane detached so focus stays on Master
       new_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
@@ -1307,7 +1345,8 @@ experimentTmux <- function(df,
         email             = email,
         cache_path        = .normalizeCachePath(cache_path),
         dots_path         = if (file.exists(dots_path)) dp else NULL,
-        lib_path          = .libPaths()[1L]
+        lib_path          = .libPaths(),
+        snapshot_library  = snapshot_library
       )
 
       # 3. Send startup command immediately to the freshly created pane
@@ -1419,7 +1458,7 @@ experimentTmux <- function(df,
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
           inner <- sprintf(
-            "trap '' HUP; exec env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+            "trap '' HUP; exec env SPADES_USE_REQUIRE=false R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
             rpath)
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
                   cores_full[i], shQuote(inner))
@@ -1451,7 +1490,7 @@ experimentTmux <- function(df,
         scp_cmd <- sprintf("scp -q %s %s:%s",
                            shQuote(remote_script), cores_full[i], remote_path)
         ssh_cmd <- sprintf(
-          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env SPADES_USE_REQUIRE=false R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
           cores_full[i], shQuote(remote_path)
         )
         remote_node2 <- tryCatch(
@@ -1480,7 +1519,7 @@ experimentTmux <- function(df,
         # tests time out with no output files. R_BROWSER / R_PDFVIEWER are
         # set to "false" by check and cause noise on first plot.
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+                  sprintf("env SPADES_USE_REQUIRE=false R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
                           shQuote(local_script)), "C-m")
       }
     }  # end merged loop
@@ -1501,7 +1540,7 @@ experimentTmux <- function(df,
       pane_mode = pane_mode, email = email,
       cache_path = .normalizeCachePath(cache_path),
       dots_path = if (file.exists(dots_path)) dots_path else NULL,
-      lib_path = .libPaths()[1L]
+      lib_path = .libPaths()
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     message("running:\n")
@@ -1585,12 +1624,14 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     # still resolve, but no user-visible state is leaked into the REPL's
     # global env. Use SpaDES.project::lastTraceback() for post-mortem
     # inspection — that accessor reads `.pkgEnv$lastScn$.spades_tb`.
+    ## The sheet gives every value back as text. Restore the column types from the
+    ## local queue rather than evaluating each cell as R code: eval(parse(text = "14.3"))
+    ## turned the ELF name "14.3" into the number 14.3 (and would turn "4.10" into 4.1),
+    ## while "5.3.1", which does not parse, stayed a string.
+    q <- .gs_restore_types(q, tryCatch(readRDS(queue_path), error = function(e) NULL))
     scn_env <- new.env(parent = globalenv())
-    for (nm in data_cols) {
-      # try parsing as it could be an expression written/recorded as a character
-      newPoss <- tryCatch(eval(parse(text = q[[nm]][1L])), error = function(err) q[[nm]][1L], silent = TRUE)
-      assign(nm, newPoss, envir = scn_env)
-    }
+    for (nm in data_cols)
+      assign(nm, q[[nm]][[1L]], envir = scn_env)
     .pkgEnv$lastScn <- scn_env
 
     # Compute runName from runNameLabel now that data cols are in scn_env
@@ -1626,7 +1667,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         upd <- list(status         = txtInterrupted,
                     claimed_by     = NA_character_,
-                    interrupted_at = now)
+                    interrupted_at = now,
+                    last_error     = "R exited before the job outcome was recorded (quit() inside global.R?)")
         try(.gs_write_cells(
           ge2$ss_id, ge2$sheet_row,
           updates       = upd,
@@ -1673,6 +1715,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     # After the handler returns, the error propagates naturally to R's
     # top-level handler (interactive session stays alive).
     # tryCatch(interrupt=) wraps the outside so interrupts are still caught.
+    lastErr <- NA_character_
     outcome <- tryCatch(
       withCallingHandlers({
         source(global_path, local = scn_env)
@@ -1680,10 +1723,12 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       }, error = function(e) {
         # Capture call stack while frames are still intact, then mark INTERRUPTED.
         assign(".spades_tb", sys.calls(), envir = scn_env)
+        lastErr <<- .errText(e)
         now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
         upd <- list(status         = txtInterrupted,
                     claimed_by     = NA_character_,
-                    interrupted_at = now)
+                    interrupted_at = now,
+                    last_error     = lastErr)
         try(.gs_write_cells(ss_id, sheet_row,
                             updates       = upd,
                             col_positions = col_pos), silent = TRUE)
@@ -1700,7 +1745,12 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         message("\nq(status=1L) to retry  |  q() to stop the loop")
         "error"
       },
-      interrupt = function(e) "interrupt"
+      interrupt = function(e) {
+        ## Recorded too: a row that requeues because someone pressed Ctrl-C should not
+        ## look the same as one that requeued because the job blew up.
+        lastErr <<- "interrupted (Ctrl-C)"
+        "interrupt"
+      }
     )
 
     now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -1710,11 +1760,15 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       # Clear claimed_by on DONE -- the row is no longer claimed by the
       # worker.  process_id / machine_name are preserved as a historical
       # record of which worker on which machine produced the result.
-      list(status = txtDone, claimed_by = NA_character_, finished_at = now)
+      list(status = txtDone, claimed_by = NA_character_, finished_at = now,
+           last_error = NA_character_)
     } else if (on_interrupt == "requeue") {
-      list(status = txtPending, claimed_by = NA_character_)
+      ## The reason travels with the requeue. Without it a failed job is
+      ## indistinguishable from one that was never started.
+      list(status = txtPending, claimed_by = NA_character_, last_error = lastErr)
     } else {
-      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now)
+      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now,
+           last_error = lastErr)
     }
     if (.trace) message(sprintf("[gs-worker] final outcome=%s row_i=%s -> %s",
                                 outcome, row_i,
@@ -1785,7 +1839,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   # Scrub stale completion/interrupt fields left from a prior run of this row,
   # so RUNNING never carries a finished_at / heartbeat / interrupted_at value.
   for (cn in intersect(c("finished_at", "DEoptimElapsedTime", "heartbeat_at",
-                         "heartbeat_iter", "iterationsTotal", "interrupted_at"),
+                         "heartbeat_iter", "iterationsTotal", "interrupted_at",
+                         "last_error"),
                        names(q))) {
     q[[cn]][i] <- NA
   }
@@ -1858,6 +1913,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           q2$status[i]         <- txtInterrupted
           q2$claimed_by[i]     <- NA_character_
           q2$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+          if ("last_error" %in% names(q2)) q2$last_error[i] <- .errText(e)
           saveRDS(q2, queue_path)
         }, silent = TRUE)
         try(filelock::unlock(lck2), silent = TRUE)
@@ -1911,6 +1967,10 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' @param cache_path gargle OAuth cache path; forwarded to replacement panes.
 #' @param dots_path Path to `.tmux_dots.rds` holding extra `...` args; forwarded to
 #'   replacement panes so they can reload complex objects before sourcing.
+#' @param snapshot_library Logical. Forwarded to replacement panes: each new worker
+#'   session takes a hardlinked snapshot of the project library before loading
+#'   anything from it (see [librarySnapshot]). This session's own snapshot, if the
+#'   startup script made one, is released when R exits.
 #' @return invisibly TRUE
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
@@ -1923,9 +1983,27 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           pane_mode = c("reuse", "killAndNewPane"),
                           email = getOption("gargle_oauth_email"),
                           cache_path = getOption("gargle_oauth_cache"),
-                          dots_path = NULL) {
+                          dots_path = NULL,
+                          snapshot_library = TRUE) {
   on_interrupt <- match.arg(on_interrupt)
   pane_mode    <- match.arg(pane_mode)
+  # Library snapshots: drop those left by dead workers, and make sure this
+  # session's own one (made by the startup script) goes when R exits.
+  try(sweepLibrarySnapshots(activeRunningPath), silent = TRUE)
+  if (nzchar(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"))) .registerSnapshotRelease()
+  # A parallel worker that reached here inherited a worker profile through
+  # R_PROFILE_USER. It must connect back to its parent, not claim a job: the
+  # parent's cluster setup would hang and every job would fan out into more jobs.
+  if (.isParallelWorkerProcess()) {
+    message("tmuxRunWorkerLoop(): this R process (pid ", Sys.getpid(),
+            ") is a parallel worker spawned by another R session; ",
+            "not starting the queue worker loop.")
+    return(invisible(FALSE))
+  }
+  # setupProject() starts reproducible's showCache pre-warm, a forked scan that
+  # only speeds up a later interactive showCache(). A queue worker never makes
+  # that call, so the fork is an idle extra process for the whole job.
+  options(reproducible.showCachePreWarm = FALSE)
   # Authenticate with Google before any sheet access.
   # Setting options alone is not sufficient in a non-interactive Rscript session;
   # gs4_auth() must be called explicitly so gargle loads the cached token.
@@ -1977,7 +2055,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    email             = email,
                    cache_path        = cache_path,
                    dots_path         = dots_path,
-                   lib_path          = .libPaths()[1L]
+                   lib_path          = .libPaths(),
+                   snapshot_library  = snapshot_library
                  ), .respawn_script)
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
       # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
@@ -1985,7 +2064,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       # a respawned pane re-enters R with R_TESTS pointing at the harness
       # startup script and never reaches the worker's profile.
       respawn_cmd <- sprintf(
-        "env R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+        "env SPADES_USE_REQUIRE=false R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
         shQuote(.respawn_script)
       )
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
@@ -2207,9 +2286,31 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
-                                  dots_path, lib_path = .libPaths()[1L]) {
+                                  dots_path, lib_path = .libPaths(), snapshot_library = TRUE) {
   # Ensure project lib is first so correct package versions are loaded
-  lib_pre <- sprintf(".libPaths(c(%s, .libPaths())); ", deparse1(lib_path))
+  ## The worker starts a fresh R and must be able to load SpaDES.project, so it
+  ## needs the whole library search path, not just its first entry. Under covr /
+  ## R CMD check .libPaths()[1] is the check's own test library
+  ## (SpaDES.project-test-lib) while the package is installed in a separate temp
+  ## library further down the path, so passing only [1] handed the worker a
+  ## library without the package and it died with
+  ## "there is no package called 'SpaDES.project'". On a workstation [1] happens
+  ## to be the user library that does hold it, which is why this only ever
+  ## failed under coverage.
+  # This script is sourced via R_PROFILE_USER. Unset it first, as the first-
+  # generation startup script (.make_script) already does: a child Rscript
+  # spawned by the job -- a makeClusterPSOCK worker, callr, mirai -- inherits the
+  # environment, would source this profile at its own startup, and would become a
+  # queue worker itself. That happened on a respawned pane: each climateData PSOCK
+  # worker claimed a queue row and ran a whole simulation, whose own PSOCK workers
+  # did the same.
+  lib_pre <- sprintf("Sys.unsetenv('R_PROFILE_USER'); .libPaths(c(%s, .libPaths())); ",
+                     deparse1(lib_path))
+  # Give this job its own hardlinked copy of the library before anything is
+  # loaded from it, so an install into the shared library cannot corrupt the
+  # running job (see ?librarySnapshot).
+  snap_pre <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
+    .librarySnapshotCode(lib_path[1L], activeRunningPath) else ""
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
@@ -2218,15 +2319,81 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
             deparse1(dots_path), deparse1(dots_path))
   else ""
   sprintf(
-    paste0("%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
+    paste0("%s%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
-           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s)"),
-    lib_pre, wd_pre, dots_pre,
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s)"),
+    lib_pre, snap_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
-    deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path)
+    deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path),
+    deparse1(isTRUE(snapshot_library))
   )
+}
+
+#' Is this R process a parallel worker spawned by another R session?
+#'
+#' Recognised by the command line R was started with: base `parallel` PSOCK
+#' workers run `parallel:::.workRSOCK()`, and `parallelly` workers carry a
+#' `worker.rank=<n>.parallelly.parent=<pid>` marker. Used to refuse to start a
+#' queue worker loop in such a process.
+#' @param args Character; defaults to [commandArgs()]. A parameter so it can be tested.
+#' @keywords internal
+#' @noRd
+.isParallelWorkerProcess <- function(args = commandArgs()) {
+  any(grepl("workRSOCK|worker\\.rank=[0-9]+\\.parallelly\\.parent=|parallelly:::", args))
+}
+
+# A detached tmux session (`tmux new-session -d`, never attached) keeps the
+# default 80x24 window, so tiling stops after three or four panes with
+# "no space for new pane". A window follows the size of its attached client;
+# with no client there is nothing to follow, and `window-size manual` plus an
+# explicit `resize-window` (tmux >= 2.9) is the documented way to give a
+# headless window room. Returns NULL when nothing needs doing (a client is
+# attached, or the window is already large enough), else the target geometry.
+.tmux_window_geometry <- function(n_panes, width, height, attached,
+                                  rows_per_pane = 12L, min_cols = 200L) {
+  if (isTRUE(attached > 0L)) return(NULL)
+  n_panes <- max(1L, as.integer(n_panes))
+  # tiled layout is roughly two columns of panes
+  rows_needed <- as.integer(ceiling(n_panes / 2) * rows_per_pane)
+  w <- max(as.integer(width), as.integer(min_cols))
+  h <- max(as.integer(height), rows_needed)
+  if (identical(w, as.integer(width)) && identical(h, as.integer(height))) return(NULL)
+  list(width = w, height = h)
+}
+
+# Make sure `target_win` can hold `n_panes` tiled panes. No-op when a client is
+# attached (the client's terminal decides) or when tmux is too old to resize a
+# window; a failure to resize is reported, not fatal, because the split that
+# follows will say "no space for new pane" on its own.
+.tmux_ensure_window_capacity <- function(target_win, n_panes, verbose = TRUE) {
+  info <- try(.tmux_out("display-message", "-p", "-t", target_win,
+                        "#{session_attached} #{window_width} #{window_height} #{session_name}"),
+              silent = TRUE)
+  if (inherits(info, "try-error") || !length(info)) return(invisible(NULL))
+  parts    <- strsplit(trimws(info[[1L]]), "[[:space:]]+")[[1L]]
+  attached <- suppressWarnings(as.integer(parts[1L]))
+  width    <- suppressWarnings(as.integer(parts[2L]))
+  height   <- suppressWarnings(as.integer(parts[3L]))
+  sess     <- parts[4L]
+  if (anyNA(c(attached, width, height))) return(invisible(NULL))
+  geom <- .tmux_window_geometry(n_panes, width, height, attached)
+  if (is.null(geom)) return(invisible(NULL))
+  try(.tmux_run("set-option", "-t", sess, "window-size", "manual"), silent = TRUE)
+  ok <- try(.tmux_run("resize-window", "-t", target_win, "-x", geom$width, "-y", geom$height),
+            silent = TRUE)
+  if (inherits(ok, "try-error")) {
+    if (isTRUE(verbose))
+      message("tmux: no client is attached and the window is ", width, "x", height,
+              ", which cannot tile ", n_panes, " panes; resize-window failed (tmux < 2.9?). ",
+              "Attach a client or enlarge the window by hand.")
+    return(invisible(NULL))
+  }
+  if (isTRUE(verbose))
+    message("tmux: no client attached; resized window ", target_win, " from ",
+            width, "x", height, " to ", geom$width, "x", geom$height, " for ", n_panes, " panes")
+  invisible(geom)
 }
 
 #' @keywords internal
@@ -2770,7 +2937,8 @@ tmuxPrepareQueueFromDF <- function(df, queue_path) {
     heartbeat_at   = as.character(NA),
     heartbeat_iter = as.integer(NA),
     iterationsTotal= as.integer(NA),
-    interrupted_at = as.character(NA)
+    interrupted_at = as.character(NA),
+    last_error     = as.character(NA)
   )
   saveRDS(q, queue_path)
   invisible(queue_path)
@@ -3038,6 +3206,8 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
     data.table::setDT(q)
     if (!"interrupted_at" %in% names(q))
       q[, interrupted_at := NA_character_]
+    if (!"last_error" %in% names(q))
+      q[, last_error := NA_character_]
     scenarioFieldsSet(setdiff(names(q), meta_cols))   # for positional pathBuild() in runNameLabel / statusCalculate
 
     # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
@@ -3455,10 +3625,42 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
   fi
 }
 
+## A worker must never install packages. Every worker sources the user's global.R at the
+## start of every job, so with N workers that is N processes resolving and writing one
+## shared library: on 2026-09-09 a worker rewrote SpaDES.tools mid-run and four of its
+## twelve siblings died with "lazy-load database ... is corrupt", each as it next touched a
+## SpaDES.tools function. Installation belongs to whoever launches the fleet, once, before
+## any worker exists.
+##
+## Carried as an environment variable rather than an option because SpaDES.core already
+## derives spades.useRequire from it:
+##   spades.useRequire = !tolower(Sys.getenv("SPADES_USE_REQUIRE")) %in% "false"
+## so a global.R that says nothing about it installs normally when run by hand and does not
+## install when run by a worker. Nothing about the fleet leaks into the user's script.
+##
+## `SPADES_USE_REQUIRE=false` is therefore set on every command that starts a worker:
+## the local pane launch, its respawn, and both remote (ssh) forms. test-workerEnv.R
+## asserts that none of them loses it.
+
+## One line of failure text for the queue row. A requeued job otherwise leaves NO trace
+## of why it failed: with on_interrupt = "requeue" every failure silently rewrites the row
+## to PENDING, so a whole fleet dying (a corrupted lazy-load database, say) looks exactly
+## like a fleet that is merely slow. Kept short because it lands in one spreadsheet cell.
+.errText <- function(e, n = 300L) {
+  msg <- tryCatch(conditionMessage(e), error = function(...) "")
+  cl  <- tryCatch(conditionCall(e), error = function(...) NULL)
+  txt <- paste(msg, collapse = " ")
+  if (!is.null(cl))
+    txt <- paste0(txt, "  [in ", paste(deparse(cl, nlines = 1L), collapse = " "), "]")
+  txt <- gsub("[[:space:]]+", " ", trimws(txt))
+  if (nchar(txt) > n) txt <- paste0(substr(txt, 1L, n - 1L), "\u2026")
+  if (!nzchar(txt)) NA_character_ else txt
+}
+
 meta_cols <- c("status","claimed_by","started_at","finished_at",
                "DEoptimElapsedTime","machine_name","process_id",
                "heartbeat_at","heartbeat_iter","iterationsTotal",
-               "interrupted_at")
+               "interrupted_at","last_error")
 
 is_pid_alive_tools <- function(pid) {
   stopifnot(length(pid) == 1L, is.numeric(pid), pid > 0)

@@ -10,8 +10,13 @@ reGetUntarLoad(
   pathRemap = NULL,
   projectPath = getwd(),
   method = c("loadSimList", "readRDS"),
+  parse = TRUE,
+  remote = FALSE,
   overwrite = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  skipExisting = TRUE,
+  useCache = FALSE,
+  pattern = NULL
 )
 }
 \arguments{
@@ -33,10 +38,45 @@ absolute paths (\code{tar --absolute-names}).}
 
 \item{method}{One of \code{"loadSimList"} (default) or \code{"readRDS"}.}
 
+\item{parse}{Logical. If \code{TRUE} (default), module source code is re-parsed
+on load. \code{FALSE} forwards \code{parse = FALSE} to
+\code{\link[SpaDES.core:loadSimList]{SpaDES.core::loadSimList()}}, which skips it -- worthwhile because
+reparsing dominates the load time of a lazily saved \code{simList} (on a
+19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
+user objects and each module's \code{mod} objects are still bound lazily. The
+result is inspect-only -- it has no module code, so it cannot be passed
+to \code{\link[SpaDES.core:spades]{SpaDES.core::spades()}}. Ignored when \code{method = "readRDS"}.}
+
+\item{remote}{Logical. If \code{FALSE} (default), the archive is downloaded and
+untarred as usual, and its objects are lazily read from the local sidecar.
+If \code{TRUE}, the archive is never downloaded: the \code{simList} shell, its
+manifest and the output files are fetched from within the remote archive by
+HTTP range request, and each object is fetched only when something touches
+it. Output files are fetched either way, since downstream code reads them
+through \code{outputs(sim)$file} and they are mostly needed. Requires an
+archive with an index beside it (see \code{\link[=reIndex]{reIndex()}}) and
+\code{method = "loadSimList"}.}
+
 \item{overwrite}{Logical. Force re-download even if the local file
 exists. Default \code{FALSE}.}
 
 \item{verbose}{Logical. Print elapsed time per download. Default \code{TRUE}.}
+
+\item{skipExisting}{Logical, passed to \code{\link[=reUntar]{reUntar()}}. If \code{TRUE} (default),
+archives already extracted on disk are not extracted again.}
+
+\item{useCache}{Logical. If \code{TRUE}, \code{\link[reproducible:Cache]{reproducible::Cache()}} the \emph{metadata}
+step (\code{\link[=reGet]{reGet()}}), skipping the remote round-trip on repeat calls in a new
+session. Only the small \code{data.table} of names and paths is cached -- never
+the \code{simList}s, whose objects are \code{delayedAssign()} promises that saving
+would force, and so fully materialise. A hit is discarded if any path it
+names has since gone away. Default \code{FALSE}, since a hit cannot notice an
+archive re-uploaded under the same id.}
+
+\item{pattern}{Optional regex. When supplied, \code{gFiles} is taken to be the
+\emph{folder} holding the archives and is listed with \code{\link[=outList]{outList()}} using this
+pattern, rather than being the archives themselves. Either way, the
+\verb{_index.rds} sidecars written by \code{\link[=reIndex]{reIndex()}} are excluded.}
 }
 \value{
 A named list of \code{simList} objects, one per row of \code{gFiles},

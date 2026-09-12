@@ -1,5 +1,327 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.2.0
+=============
+
+This release rolls up the 1.1.0.9001-1.1.0.9015 development series, listed below.
+
+## Bug fixes
+
+* `makeDESCRIPTION()` resolves `SpaDES.core::DESCRIPTIONfromModule()` at call time, so the package no longer declares a dependency on an object no released SpaDES.core exports.
+* `tmuxRefreshQueueStatus()` declares `last_error` as a global variable, silencing an R CMD check note.
+
+version 1.1.0.9015
+==================
+
+## Bug fixes
+
+* `tmuxRunWorkerLoop()` turns off reproducible's showCache pre-warm
+  (`options(reproducible.showCachePreWarm = FALSE)`). `setupProject()` starts it so a
+  later interactive `showCache()` is fast; a queue worker never makes that call, so each
+  job carried an idle forked process (~400 MB on the fireSense fits) for its whole run.
+
+version 1.1.0.9014
+==================
+
+## Bug fixes
+
+* Queue values read back from the Google Sheet keep the types they have in the queue.
+  A worker used to evaluate each cell as R code, so an experiment value such as
+  `.ELFind = "14.3"` reached `global.R` as the number `14.3`, and `"4.10"` would have
+  become `4.1` -- a different study area -- while `"5.3.1"`, which does not parse,
+  stayed a string. Character columns now stay text, numeric and logical columns are
+  coerced to their class, and list columns are rebuilt from their `c(...)`/`list(...)`
+  text. `experimentTmux()` resuming from an existing sheet also saved the sheet's
+  all-text copy as the local queue, which is how a numeric `.rep` became `"1"`; it now
+  restores the types from `df`.
+
+version 1.1.0.9013
+==================
+
+## Bug fixes
+
+* Two workers could run the same job. The Google Sheets queue marks a `RUNNING` row
+  `INTERRUPTED` when its process is dead, but decided that from a read taken before its
+  liveness checks. When a whole fleet starts at once, one worker reclaims a dead row,
+  another claims it and starts the job, and a third -- still acting on its earlier read --
+  marks it `INTERRUPTED` again, so the next worker claims it too. The queue is now read
+  again immediately before each reclaim, and the row is left alone unless it is still
+  `RUNNING` under the same machine and process that were found dead. (#169)
+
+version 1.1.0.9012
+==================
+
+## New features
+
+* Shared project library safety for experiment workers (#163). `syncProjectLibrary()`
+  installs or updates packages once per launch, in a fresh process, and refuses while any
+  worker is alive; `snapshotLibrary()` gives each worker session a hardlinked copy of the
+  library (falling back to a copy across filesystems), so an install into the shared
+  library can no longer corrupt a running job's lazy-load databases. `experimentTmux()`,
+  `experimentFuture()` and `experimentSBATCH()` gain `sync_library` (package specs to sync
+  at launch; default `NULL`) and `snapshot_library` (default `TRUE`); the worker startup
+  scripts take the snapshot before any package is loaded, `tmuxRunWorkerLoop()` sweeps
+  snapshots left by dead workers and releases its own at exit. `libraryInUse()`,
+  `releaseLibrarySnapshot()` and `sweepLibrarySnapshots()` are exported too.
+
+version 1.1.0.9011
+==================
+
+## Bug fixes
+
+* `experimentTmux()`: a detached tmux session (never attached) keeps the default 80x24
+  window, and creating worker panes failed with "no space for new pane" after three or
+  four. Before splitting, when no client is attached, the window is now set to
+  `window-size manual` and resized to hold every pane (tmux >= 2.9). (#161)
+
+version 1.1.0.9010
+==================
+
+## Bug fixes
+
+* `experimentTmux()` / `tmuxRunWorkerLoop()`: the respawn script used by
+  `pane_mode = "killAndNewPane"` is sourced through `R_PROFILE_USER` but, unlike
+  the first-generation startup script, did not unset it. Every child R process of
+  a respawned worker -- each `makeClusterPSOCK()` worker started by a job -- inherited
+  the variable, sourced the profile at startup, and became a queue worker: it
+  claimed a row and ran a whole simulation, whose own PSOCK workers did the same,
+  while the parent's cluster setup hung waiting for workers that never connected.
+  The respawn script now unsets `R_PROFILE_USER` first, and `tmuxRunWorkerLoop()`
+  refuses to start in a process whose command line marks it as a parallel worker.
+
+version 1.1.0.9009
+==================
+
+## Rewrite of `...` / `defaultDots` resolution in `setupProject()`
+
+The machinery that resolved `...` ("dot") arguments -- a proxy environment of
+active bindings, `evalDots()`, `evalDotsOuter()` and a four-stage retry ladder
+that walked every frame on the call stack -- is replaced by one small resolver
+(`R/resolveDots.R`) built on a single scope environment whose parent is the
+calling environment. The rules it implements are the documented ones, now
+literally:
+
+* every argument is evaluated once, in the order it is written, and sees the
+  resolved value of every argument written above it -- dots and formals alike --
+  as in a script;
+* every `defaultDots` entry the caller did not supply is bound as a value before
+  anything is evaluated, so it is available to any argument that names it (a
+  dot, a dot under another name such as `cores = .cores`, or a formal such as
+  `times = as.list(unlist(.times))`); a caller-supplied value always wins, and a
+  name that only resolves to a package function does not count as supplied;
+* only values are ever bound in that scope, never unevaluated expressions, so a
+  dot's own name is not visible to its own expression and
+  `.x = if (exists(".x")) .x else <fallback>` behaves as written.
+
+Fixed as a consequence (all reproduced in `tests/testthat/test-dots-resolution.R`):
+
+* with no `defaultDots` at all, a self-defaulting dot came back as its own
+  unevaluated `if` call, because the scoped evaluation was skipped entirely and
+  the expression was published under the dot's name;
+* `defaultDots` given as a variable rather than a literal `list()` silently
+  supplied no defaults to dots written before the first formal;
+* a `defaultDots` entry could not reference one written above it;
+* a dot that evaluated to `NULL` was treated as a failure, retried across the
+  call stack, and could vanish from the result. `NULL` is now a value, kept
+  under its name;
+* the `envir` argument was documented but ignored; it is now the parent of the
+  resolution scope.
+
+* formals are resolved from the call site outward (#158): a formal given as a
+  bare symbol resolves to the caller's variable before any package object of
+  the same name (`params = pf` no longer becomes `stats::pf`), and the
+  `setup*` helpers evaluate against the same scope the `...` arguments use, so
+  an `options` list can combine a caller-local variable with `paths$...`.
+  `evalSUB()` also stops when an iteration makes no progress instead of looping.
+
+Behaviour change to be aware of: a `...` expression sees exactly what a script
+at the call site would see -- the calling environment and the attached packages
+-- and no longer the packages `SpaDES.project` itself imports. Code such as
+`scenario = { data.table(...) }` with nothing attaching data.table used to work
+only because the expression was evaluated inside `setupProject()`'s own frame;
+it now comes back as a tolerated error naming the function. Attach the package
+(`require = "data.table"`) or qualify the call (`data.table::data.table()`).
+A dot that references a formal written *below* it (e.g. `outputs` using
+`times$end` with `times` declared afterwards) likewise used to work by forcing
+the formal's promise early, and is now a tolerated error: write it above.
+
+Behaviour that is deliberately unchanged: a dot that cannot be evaluated even
+with the defaults is returned as its unevaluated expression, recorded as a
+tolerated error in the end-of-call diagnostics, and escalated only under
+`options(SpaDES.project.strict = TRUE)`; dots written before the first formal
+run before it, the rest run in written order after the packages are set up.
+
+version 1.1.0.9008
+==================
+
+## Bug fixes
+
+* `setupProject()`: a `...` argument declared after `defaultDots` is now resolved
+  before `paths` (and the other formals) are evaluated, so it can be used inside
+  them. Dots are evaluated in two batches -- those before the first formal
+  argument run before the formals, the rest after -- and `defaultDots` counted as
+  a formal for that split. A dot written after it, which is the natural place
+  since that is where its fallback lives, was therefore not resolved until after
+  `paths` had already been built. `pathBuild()` received the dot's unevaluated
+  expression and deparsed it into a directory name:
+
+      outputs/.ELFind/370                                     (for `.foo = .ELFind`)
+      outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind/...
+
+  while `out$.foo` was, by the end of the call, correctly `"4.3"`. This broke the
+  documented headline contract -- "any argument written above another is
+  available to it" -- for exactly the layout `global.R` files use, and the only
+  signal was `is.na() applied to non-(list or vector) of type 'symbol'`, a
+  warning.
+
+  `defaultDots` is a fallback table, not a configuration block, and now joins
+  `params`, `studyArea` and `times` in not splitting the dot sequence. The
+  evaluation-order documentation is corrected to say so. Dots declared after a
+  real formal such as `paths` keep their documented late evaluation.
+
+version 1.1.0.9007
+==================
+
+## Bug fixes
+
+* `experimentTmux()` no longer discards `df` silently when `queue_path` already
+  exists. An existing queue stays authoritative -- that is what lets a resumed run
+  keep its `DONE`/`RUNNING` rows rather than repeating finished work -- but the
+  rule was applied without a word, so a caller who had rebuilt `df` (new scenarios
+  added, completed ones dropped) would watch the previous queue run instead, with
+  nothing to distinguish that from success. The only remedy was to notice, and
+  delete or rename the file.
+
+## Enhancements
+
+* `experimentTmux()` gains `onExistingQueue`, and the reconciliation is exposed as
+  `tmuxReconcileQueueWithDF()`:
+  `"resume"` (default, the previous behaviour) keeps the existing queue and now
+  *warns* when `df` holds rows it does not, naming them and the two ways to act on
+  them; `"append"` adds just those rows as `PENDING`, leaving existing rows and
+  their status untouched; `"rebuild"` starts again from `df`.
+  Rows are compared on the scenario columns -- non-meta, non-list -- so list
+  payload such as `.modules`/`.times` does not make an existing scenario look new.
+
+version 1.1.0.9006
+==================
+
+## Bug fixes
+
+* `test-makeDESCRIPTION.R` skips when `SpaDES.core` is unavailable. Those tests
+  predate the delegation and had no guard, so the no-suggests leg of
+  `R CMD check` -- where Suggests are deliberately absent -- failed with 11
+  errors instead of skipping. This is what turned `development` red after the
+  delegation landed.
+* `VersionOnRepos` is declared in `R/imports.R`'s `globalVariables()`. It had been
+  declared in `R/makeDESCRIPTION.R`, which no longer needs it; removing that block
+  left `getVersionOnRepos` with a "no visible binding" NOTE.
+* `makeDESCRIPTION()` checked only that `SpaDES.core` was installed before
+  delegating to `SpaDES.core::DESCRIPTIONfromModule()`. `SpaDES.core` is in
+  Suggests, so its version floor cannot be enforced at install time and an older
+  copy is both installed and importable -- which surfaced as
+  `'DESCRIPTIONfromModule' is not an exported object from 'namespace:SpaDES.core'`
+  rather than something the reader can act on. It now checks for the function.
+
+version 1.1.0.9004
+==================
+
+## Internal
+
+* `makeDESCRIPTION()` delegates to `SpaDES.core::DESCRIPTIONfromModule()` instead
+  of carrying its own copy of the metadata -> `DESCRIPTION` translation.
+  `SpaDES.core` had an independent implementation inside `convertToPackage()`, and
+  the two had drifted -- each had fixes and features the other lacked, and this
+  package even inlined its own `.moduleNameNoUnderscore()` to avoid reaching into
+  `SpaDES.core`. `SpaDES.core` owns module metadata (`defineModule()`,
+  `packages()`, `moduleMetadata()`), so the translation lives there; the
+  project-level entry points `makeDESCRIPTION()`/`makeDESCRIPTIONproject()` stay
+  here. `SpaDES.core` is in Suggests, so the delegation is guarded by
+  `requireNamespace()` and errors clearly if it is absent.
+  Requires `SpaDES.core (>= 3.2.1.9002)`.
+
+  Two bugs fixed on the `SpaDES.core` side come along with this: a module
+  `description` written as a `paste()` call was deparsed into the field
+  (`Description: paste ...`), and the version was read positionally rather than
+  by module name.
+
+version 1.1.0.9002
+==================
+
+## Bug fixes
+
+* `setupProject()`: a `...` argument whose value comes from `defaultDots` reached
+  later arguments as its *unevaluated expression* rather than its value, so any
+  consumer that pastes it into a string -- most visibly `pathBuild()` in a `paths`
+  argument -- deparsed it into the value's place, producing directories such as
+  `outputs/.ELFind/.GCM` or
+  `outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind/unlist_.samplingRange`.
+  `build_proxy()` installs one active binding per dot that closed over the
+  capture-time value/expression and never consulted `cur` again; `capture_dots()`
+  leaves that value `NULL` for every dot that `defaultDots` supplies, so the
+  binding returned the expression. Meanwhile `evalDots()` *did* resolve the dot,
+  writing it into `cur`, but `expose_new_bindings()` only forwards names that are
+  not already bound, so the stale binding was never upgraded to the live
+  `bind_forward()` behaviour every other name gets. Dot bindings now forward to
+  `cur` whenever it holds the name, matching `bind_forward()`.
+  This only bit callers that let `defaultDots` supply a dot -- i.e. batch/spawn
+  workflows that deliberately do not define it in the calling environment.
+
+version 1.1.0.9001
+==================
+
+## Enhancements
+
+* `plotSAsLeaflet()` gains `labelCols` (default `c("ID", "Name", "Names")`): each
+  `studyArea**` polygon is now labelled on hover with its own value from the first
+  of those columns the layer carries, rather than every polygon sharing the layer
+  name. A layer with none of those columns, or with no attribute table at all,
+  falls back to the layer name as before.
+
+* `reGetUntarLoad()` gains `pattern`: supply it and `gFiles` is taken as the Drive
+  *folder*, listed with `outList()`. `reIndex()`'s `_index.rds` sidecars are
+  always excluded.
+
+## Enhancements
+
+* `reUntar()` gains `skipExisting` (default `TRUE`): skips archives whose members
+  are already on disk at the size the archive records.
+* `reGetUntarLoad()` gains `skipExisting`, and `useCache` to `Cache()` the
+  `reGet()` metadata step.
+
+## New features
+
+* `reIndex()` and `reGetMember()` read a single object out of a tarball on Google
+  Drive using an HTTP range request, without downloading the archive: on a 4.63 GB
+  archive one 6.2 MB object takes ~1 s versus ~5 min for the whole file.
+* `reGetUntarLoad()` gains `remote`. With `remote = TRUE` the archive is never
+  downloaded: the `simList` shell, its manifest and the output files are fetched
+  from inside it by HTTP range request, and each object arrives only when
+  something touches it. `$`, `[[` and `get()` are unchanged. Default `FALSE`.
+  Each fetch announces itself before transferring, naming the object and its size,
+  so a pause is visibly a download; silence with
+  `options(SpaDES.project.remoteVerbose = FALSE)`.
+
+## New features
+
+* `reLoad()` and `reGetUntarLoad()` gain `parse`; `parse = FALSE` skips re-parsing
+  module source code, which dominates the load time of a lazily saved `simList`.
+  The result is inspect-only and cannot be passed to `spades()`.
+
+## Bug fixes
+
+* `getModule()` no longer assumes `Require::splitGitRepo()` returns exactly four
+  elements. It now selects `acct`/`repo`/`br` by name, fixing "Supplied 3 columns
+  to be assigned 4 items" after Require gained a `subFolder` element.
+* `reUntar()` no longer emits GNU tar's `Removing leading '/' from member names`
+  for every archive.
+* `outTar()` now bundles the `<simFilename sans ext>_lazy/` directory written by
+  `SpaDES.core::saveSimList(lazy = TRUE)`. It previously looked for the older
+  `<simFilename>_xData.rdx`/`.rdb` pair, which SpaDES.core no longer writes;
+  finding neither, it produced a tarball holding only the shell `.rds`. Because a
+  lazily saved shell is a few hundred KB of metadata, that silently shipped an
+  archive with nothing behind its promises.
+
 version 1.1.0
 =============
 
@@ -106,6 +428,8 @@ version 1.1.0
 * `spadesProjectOptions()`: help page now documents the default and meaning of every option it returns.
 
 ## Bug fixes
+
+* `experimentTmux()` workers now receive the full library search path; they previously got only `.libPaths()[1]`, so under `R CMD check` / `covr` they could not load `SpaDES.project` itself and exited with "there is no package called".
 
 * `setupProject(Restart = TRUE)` re-opens the global script after restarting Positron, via the `positron.session_init` hook (Positron >= 2026.04); on older Positron it prints the path to open instead of writing a hook that would never fire.
 * `setupProject(Restart = TRUE)`: the generated `.Rprofile` cleanup no longer truncates the project `.Rprofile` (its `grep()` pattern never matched, and `readLns[-integer(0)]` returns nothing).

@@ -312,3 +312,48 @@ test_that("plotSAsLeaflet labels each study-area polygon with its layer name", {
                          function(z) isTRUE(any(unlist(z) == "studyArea")),
                          logical(1))))
 })
+
+## `labelCols`: per-feature hover labels. mkSA()'s attribute column is `name`,
+## which is deliberately NOT one of the defaults, so the tests above keep
+## exercising the layer-name fallback.
+mkIdSA <- function(col = "ID", ids = c("6.1.1", "6.2.2")) {
+  v <- rbind(terra::vect(terra::ext(5.0e6, 5.1e6, 2e6, 2.2e6), crs = theCRS),
+             terra::vect(terra::ext(5.1e6, 5.2e6, 2e6, 2.2e6), crs = theCRS))
+  v[[col]] <- ids
+  v
+}
+
+test_that("plotSAsLeaflet labels each polygon with its own ID, not the layer name", {
+  skip_if_no_plotting(c("leaflet", "leafem"))
+  useLocalCache()
+
+  a <- suppressWarnings(plotSAsLeaflet(list(studyArea = mkIdSA(),
+                                            rasterToMatch = mkRTM())))
+
+  pg <- Filter(function(x) identical(x$method, "addPolygons"), a$x$calls)
+  labs <- unlist(pg[[1]]$args)
+  # one label per feature, the ID values -- not a single "studyArea"
+  expect_true(all(c("6.1.1", "6.2.2") %in% labs))
+})
+
+test_that(".saHoverLabels picks the first available column, else the layer name", {
+  skip_if_not_installed("terra")
+
+  # `Name` when `ID` is absent; `ID` wins when both are present
+  expect_equal(.saHoverLabels(mkIdSA("Name", c("a", "b")), "sa", c("ID", "Name", "Names")),
+               c("a", "b"))
+  v <- mkIdSA("ID", c("x", "y"))
+  v$Name <- c("ignored1", "ignored2")
+  expect_equal(.saHoverLabels(v, "sa", c("ID", "Name", "Names")), c("x", "y"))
+
+  # no matching column, no attribute table, and no labelCols: fall back
+  expect_equal(.saHoverLabels(mkIdSA("other", c("a", "b")), "sa", c("ID", "Name")), "sa")
+  expect_equal(.saHoverLabels(mkSA(), "sa", c("ID", "Name")), "sa")
+  expect_equal(.saHoverLabels(mkIdSA(), "sa", NULL), "sa")
+
+  # NA / empty entries would render as blank tooltips
+  expect_equal(.saHoverLabels(mkIdSA("ID", c(NA, "")), "sa", "ID"), c("sa", "sa"))
+
+  # non-character columns are coerced, so leaflet always gets a character vector
+  expect_equal(.saHoverLabels(mkIdSA("ID", c(1L, 2L)), "sa", "ID"), c("1", "2"))
+})

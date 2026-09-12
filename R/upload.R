@@ -13,8 +13,9 @@
 #'   Defaults to `SpaDES.core::simFile(name = runName, path = outputPath(sim),
 #'   time = end(sim), ext = "rds")`.
 #' @param lazy Logical. Passed to [SpaDES.core::saveSimList()]. When `TRUE`
-#'   (default), each user object in `sim@.xData` is saved into a sibling
-#'   `<simFilename>_xData/` directory and lazily restored on load via
+#'   (default), each user object in `sim@.xData` and each module's `mod` objects
+#'   in `sim@.xData$.modObjs` are written to their own file in a sibling
+#'   `<simFilename sans ext>_lazy/` directory, and lazily restored on load via
 #'   `delayedAssign`. [outTar()] picks up that directory automatically.
 #'
 #' @param verbose Numeric message level, forwarded to
@@ -76,14 +77,15 @@ outTar <- function(simFilename, outputFiles = character(0), runName,
                    tarDir = dirname(simFilename), verbose = TRUE) {
   outputFiles <- outputFiles[nzchar(outputFiles) & file.exists(outputFiles)]
 
-  ## Lazy-saved sims have a sibling <simFilename>_xData.rdx/.rdb pair
-  ## (a tools::makeLazyLoadDB output). Bundle them alongside the .rds so
-  ## reLoad can attach the lazy DB via lazyLoad().
-  lazyBase    <- paste0(tools::file_path_sans_ext(simFilename), "_xData")
-  lazyDbFiles <- paste0(lazyBase, c(".rdx", ".rdb"))
-  lazyDbFiles <- lazyDbFiles[file.exists(lazyDbFiles)]
+  ## Lazy-saved sims keep their objects -- user objects and every module's `mod`
+  ## objects -- one per file in a sibling <simFilename sans ext>_lazy/ directory,
+  ## with a _manifest.rds. Bundle the whole directory alongside the .rds, or the
+  ## reloaded simList is a shell with nothing behind its promises.
+  lazyDir   <- paste0(tools::file_path_sans_ext(simFilename), "_lazy")
+  lazyFiles <- if (dir.exists(lazyDir)) dir(lazyDir, full.names = TRUE) else character(0)
 
-  allFiles    <- unique(c(simFilename, lazyDbFiles, outputFiles))
+  ## simFilename first: reUntar() takes the archive's first entry as the simList.
+  allFiles  <- unique(c(simFilename, lazyFiles, outputFiles))
   tarball     <- file.path(tarDir, paste0(runName, ".tar.gz"))
   tar(tarball, files = allFiles,
       extra_flags = if (isTRUE(verbose)) "-v" else "")

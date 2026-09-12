@@ -83,3 +83,22 @@ test_that("tmuxRunWorkerLoop keeps going on interrupt when requeueing", {
   # requeue means an interrupt is not fatal; only "empty" ends the loop
   expect_identical(i, 3L)
 })
+
+test_that("tmuxRunWorkerLoop turns off the showCache pre-warm before running a job", {
+  # setupProject() (sourced by each job) starts the pre-warm fork unless this is off;
+  # a worker never harvests it, so each job carried an idle forked process.
+  td <- withr::local_tempdir()
+  withr::local_options(reproducible.showCachePreWarm = NULL)
+  seen <- "not called"
+  testthat::local_mocked_bindings(
+    tmuxRunNextWorker = function(...) {
+      seen <<- getOption("reproducible.showCachePreWarm")
+      "empty"
+    })
+
+  suppressMessages(
+    tmuxRunWorkerLoop(queue_path = file.path(td, "q.rds"),
+                      global_path = mkGlobal(td)))
+
+  expect_identical(seen, FALSE)
+})

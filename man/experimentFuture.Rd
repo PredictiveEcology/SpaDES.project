@@ -21,6 +21,8 @@ experimentFuture(
   sp_dev_path = NULL,
   local_pat_file = NULL,
   copyModules = FALSE,
+  sync_library = NULL,
+  snapshot_library = TRUE,
   ...
 )
 }
@@ -77,6 +79,16 @@ rsyncs the directory given by \code{getOption("spades.modulePath")} to the
 same absolute path on each remote host after \code{.setup_remote_machine()}
 completes.  Issues a warning and skips if the option is unset.
 Default \code{FALSE}.}
+
+\item{sync_library}{\code{NULL} (default) or a character vector of package
+specifications for \code{Require::Install()}. If given, \code{\link[=syncProjectLibrary]{syncProjectLibrary()}} runs
+once, now, in a fresh process and only while no worker is alive, before any
+worker starts. Never sync per job.}
+
+\item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+\link{librarySnapshot}.}
 
 \item{...}{Additional named arguments stored in \code{.future_dots.rds} and
 loaded into each worker's \code{.GlobalEnv} before sourcing

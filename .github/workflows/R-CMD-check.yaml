@@ -7,9 +7,14 @@ on:
 
 name: R-CMD-check
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# No `concurrency:` here on purpose. The reusable workflow this calls sets its
+# own group, and inside a reusable workflow `github.workflow` resolves to the
+# CALLER's name -- so a caller-level group with the same expression produces the
+# identical key and the child waits on a group its own parent holds:
+#   "Canceling since a deadlock was detected for concurrency group ...
+#    between a top level workflow and 'R-CMD-check'"
+# The shared workflow's version is also the better one: it cancels superseded
+# PR runs but lets a default-branch push run to completion.
 
 jobs:
   R-CMD-check:

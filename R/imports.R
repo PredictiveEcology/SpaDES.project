@@ -1,6 +1,6 @@
 utils::globalVariables(c(
   "..apCachedCols", ".N", "N", "Package", "VersionOK", "filenameFromFunction",
-  "i.VersionOnRepos", "inequality", "keepBasedOnRedundantInequalities"
+  "i.VersionOnRepos", "VersionOnRepos", "inequality", "keepBasedOnRedundantInequalities"
 ))
 
 

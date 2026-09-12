@@ -18,12 +18,25 @@ mkModule <- function(modulePath, name, reqdPkgs = '"data.table"', version = "1.2
   modulePath
 }
 
+## makeDESCRIPTION() delegates to SpaDES.core::DESCRIPTIONfromModule(), and
+## SpaDES.core is in Suggests -- so on a no-suggests check (or against an older
+## SpaDES.core) there is nothing to delegate to and the function correctly
+## errors. Skip rather than fail; the error itself is asserted at the bottom.
+skipUnlessDelegateAvailable <- function() {
+  testthat::skip_if_not(
+    requireNamespace("SpaDES.core", quietly = TRUE) &&
+      exists("DESCRIPTIONfromModule", envir = asNamespace("SpaDES.core"), inherits = FALSE),
+    "SpaDES.core::DESCRIPTIONfromModule() is not available"
+  )
+}
+
 dcfField <- function(file, field) {
   v <- read.dcf(file, fields = field)[1, 1]
   unname(v)
 }
 
 test_that("makeDESCRIPTION builds a DESCRIPTION from one module's metadata", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "modA", reqdPkgs = '"data.table", "terra (>= 1.7)"')
 
@@ -46,6 +59,7 @@ test_that("makeDESCRIPTION builds a DESCRIPTION from one module's metadata", {
 })
 
 test_that("makeDESCRIPTION takes the module's own version, once", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "modA", version = "9.8.7")
 
@@ -58,6 +72,7 @@ test_that("makeDESCRIPTION takes the module's own version, once", {
 })
 
 test_that("makeDESCRIPTION converts underscores in the package name", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "mod_B")
 
@@ -69,6 +84,7 @@ test_that("makeDESCRIPTION converts underscores in the package name", {
 })
 
 test_that("makeDESCRIPTION honours explicit overrides", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "modA")
 
@@ -85,6 +101,7 @@ test_that("makeDESCRIPTION honours explicit overrides", {
 })
 
 test_that("makeDESCRIPTION writes one file per module, each with its own metadata", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "modA", reqdPkgs = '"data.table"', version = "1.0.0")
   mkModule(td, "modB", reqdPkgs = '"terra"',      version = "2.0.0")
@@ -110,6 +127,7 @@ test_that("makeDESCRIPTION writes one file per module, each with its own metadat
 })
 
 test_that("singleDESCRIPTION merges every module's reqdPkgs into one file", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   pp <- withr::local_tempdir()
   mkModule(td, "modA", reqdPkgs = '"data.table"')
@@ -132,6 +150,7 @@ test_that("singleDESCRIPTION merges every module's reqdPkgs into one file", {
 })
 
 test_that("singleDESCRIPTION lifts GitHub specs into Remotes", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   pp <- withr::local_tempdir()
   mkModule(td, "modA", reqdPkgs = '"PredictiveEcology/Require@development"')
@@ -148,6 +167,7 @@ test_that("singleDESCRIPTION lifts GitHub specs into Remotes", {
 })
 
 test_that("makeDESCRIPTION with write = FALSE does not touch the module folder", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "modA")
 
@@ -158,6 +178,7 @@ test_that("makeDESCRIPTION with write = FALSE does not touch the module folder",
 })
 
 test_that("makeDESCRIPTIONproject defaults to a single project-level DESCRIPTION", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   pp <- withr::local_tempdir()
   mkModule(td, "modA", reqdPkgs = '"data.table"')
@@ -177,6 +198,7 @@ test_that("makeDESCRIPTIONproject defaults to a single project-level DESCRIPTION
 })
 
 test_that("makeDESCRIPTION accepts pre-parsed metadataList", {
+  skipUnlessDelegateAvailable()
   td <- withr::local_tempdir()
   mkModule(td, "modA", version = "3.3.3")
   md <- list(parse(file.path(td, "modA", "modA.R"), keep.source = TRUE))
@@ -185,4 +207,29 @@ test_that("makeDESCRIPTION accepts pre-parsed metadataList", {
                        metadataList = md)
 
   expect_identical(dcfField(f, "Version"), "3.3.3")
+})
+
+## --- delegation contract -----------------------------------------------------
+## makeDESCRIPTION() now forwards to SpaDES.core::DESCRIPTIONfromModule(); the
+## tests above pin the behaviour, these two pin the handover itself.
+
+test_that("an argument the caller omitted is not forwarded", {
+  skipUnlessDelegateAvailable()
+  # DESCRIPTIONfromModule() uses missing() on each override to decide whether to
+  # fall back to the module metadata. Forwarding a placeholder for an omitted
+  # argument would silently override the metadata with it -- so an omitted
+  # `version` must still yield the module's own version, not a default.
+  td <- withr::local_tempdir()
+  mkModule(td, "modOmit", version = "7.7.7")
+
+  f <- makeDESCRIPTION("modOmit", modulePath = td, write = FALSE, verbose = 0)
+  expect_identical(dcfField(f, "Version"), "7.7.7")
+  expect_identical(dcfField(f, "Package"), "modOmit")
+})
+
+test_that("a missing SpaDES.core gives a clear error, not a lookup failure", {
+  # SpaDES.core is in Suggests, so this has to fail with something a user can act
+  # on rather than "could not find function" from inside the delegation.
+  local_mocked_bindings(requireNamespace = function(...) FALSE, .package = "base")
+  expect_error(makeDESCRIPTION("x", modulePath = "y"), "needs SpaDES.core")
 })

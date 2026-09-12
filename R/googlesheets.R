@@ -11,6 +11,58 @@
   as.data.frame(q, stringsAsFactors = FALSE)
 }
 
+# The sheet stores every queue value as text (.gs_push_queue() writes
+# `lapply(q, as.character)`), so give it back the column types the queue has in R.
+# `template` is a data.frame with those types -- the experiment `df` or the local
+# queue file -- matched by column name, whether written `.col` or `dotcol`:
+#   * character: kept as the text it is, so an ELF named "14.3" or "4.10" is never
+#     read as the number 14.3 or 4.1;
+#   * numeric, integer, logical: coerced to that class;
+#   * list: each cell rebuilt from the `c(...)` / `list(...)` text as.character() wrote.
+# A column the template lacks stays text unless every cell is such a constructor.
+# Meta columns (status, timestamps, ...) are left as the sheet has them.
+.gs_restore_types <- function(gs, template = NULL) {
+  wasDT <- data.table::is.data.table(gs)
+  gs <- as.data.frame(gs, stringsAsFactors = FALSE)
+  for (nm in names(gs)) {
+    nmDot <- sub(paste0("^", dotTxt), ".", nm)
+    if (nm %in% meta_cols || nmDot %in% meta_cols) next
+    tn <- intersect(c(nm, nmDot), names(template))
+    gs[[nm]] <- .gs_restore_column(gs[[nm]], if (length(tn)) template[[tn[1L]]])
+  }
+  if (wasDT) data.table::setDT(gs)
+  gs
+}
+
+.gs_restore_column <- function(x, template = NULL) {
+  if (!is.character(x) || is.character(template) || is.factor(template))
+    return(x)
+  if (is.list(template))
+    return(lapply(x, .gs_constructor_value))
+  if (is.numeric(template) || is.logical(template))
+    return(suppressWarnings(methods::as(x, class(template)[1L])))
+  if (is.null(template)) {
+    vals <- lapply(x, .gs_constructor_value)
+    if (all(vapply(vals, function(v) is.character(v) && length(v) == 1L, logical(1))))
+      return(x)
+    return(vals)
+  }
+  x
+}
+
+# Rebuild a cell that as.character() wrote for a list-column element -- `c("a", "b")`,
+# `list(start = 1, end = 2)`, `1991:2020`, `character(0)`. Any other text is returned
+# unchanged: it is not evaluated just because it would parse.
+.gs_constructor_value <- function(txt) {
+  if (is.na(txt)) return(txt)
+  expr <- tryCatch(str2lang(txt), error = function(e) NULL)
+  if (is.call(expr) && is.name(expr[[1L]]) &&
+      as.character(expr[[1L]]) %in% c("c", "list", ":", "character", "numeric",
+                                      "integer", "double", "logical"))
+    return(tryCatch(eval(expr, baseenv()), error = function(e) txt))
+  txt
+}
+
 # Write named scalar values into specific columns of one sheet row.
 # Batches all updates into a single range_write call to avoid quota exhaustion.
 # col_positions: named integer vector  col_name -> col_index (1-based)
@@ -72,6 +124,30 @@
   invisible(NULL)
 }
 
+#' Is this pid a live process?
+#'
+#' Not `file.exists("/proc/<pid>")`: a zombie -- a process that has exited but whose
+#' parent has not reaped it -- still has a `/proc` entry, so bare existence reports it
+#' alive. A worker killed while its parent is something that does not wait for it (a tmux
+#' server, say) can stay a zombie indefinitely, and its queue row would then never be
+#' reclaimed: that study area is silently skipped for the rest of the run.
+#'
+#' The state is the field after the last `")"` in `/proc/<pid>/stat`, because the comm
+#' field can itself contain spaces and parentheses.
+#'
+#' @param pid Integer or character process id.
+#' @param procRoot Root of the proc filesystem; only overridden by tests, which cannot
+#'   manufacture a zombie reliably (R reaps its own forked children).
+#' @return `TRUE` if the process exists and is not a zombie.
+#' @keywords internal
+.pidIsAlive <- function(pid, procRoot = "/proc") {
+  f <- file.path(procRoot, pid, "stat")
+  if (!file.exists(f)) return(FALSE)
+  l <- tryCatch(readLines(f, warn = FALSE)[1L], error = function(e) NA_character_)
+  if (is.na(l)) return(FALSE)
+  !identical(strsplit(sub("^.*\\) ", "", l), " ")[[1L]][1L], "Z")
+}
+
 # Reclaim RUNNING rows whose R process is no longer alive on any machine.
 #
 # Liveness decision per row:
@@ -104,6 +180,22 @@
   machines    <- unique(q$machine_name[running_idx])
 
   .reclaim <- function(idx, pid, machine, reason) {
+    ## Read the queue again right before writing. The decision above came from a read
+    ## taken before the liveness checks; since then another worker may have reclaimed this
+    ## row and a third claimed it and started the job. Writing INTERRUPTED over that claim
+    ## puts a running job back in the queue, and the next worker runs it too (#169). Only
+    ## reclaim if the row is still RUNNING under the machine and process found dead; an
+    ## unreadable queue is not proof, so leave the row alone then.
+    q_now <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
+    unchanged <- !is.null(q_now) && NROW(q_now) >= idx &&
+      identical(q_now$status[idx], "RUNNING") &&
+      identical(q_now$machine_name[idx], machine) &&
+      identical(suppressWarnings(as.integer(q_now$process_id[idx])), as.integer(pid))
+    if (!unchanged) {
+      message("Not reclaiming job row ", idx, ": it changed after PID ", pid,
+              " on ", machine, " was found dead")
+      return(invisible(NULL))
+    }
     sheet_row <- idx + 1L
     try(.gs_write_cells(ss_id, sheet_row,
                         updates       = list(status         = "INTERRUPTED",
@@ -141,12 +233,15 @@
 
     # --- /proc liveness check (local or SSH) ---
     if (machine == local_node) {
-      alive <- file.exists(paste0("/proc/", ssh_pids))
+      alive <- vapply(ssh_pids, .pidIsAlive, logical(1), USE.NAMES = FALSE)
     } else {
       pid_str   <- paste(ssh_pids, collapse = " ")
+      ## Same zombie test as .pidIsAlive(): state is the field after the last ")",
+      ## because the comm field can itself contain spaces and parentheses.
       check_cmd <- paste0(
         "for pid in ", pid_str,
-        "; do [ -d /proc/$pid ] && echo alive || echo dead; done"
+        "; do s=$(sed 's/^.*) //' /proc/$pid/stat 2>/dev/null | cut -d' ' -f1);",
+        " if [ -n \"$s\" ] && [ \"$s\" != Z ]; then echo alive; else echo dead; fi; done"
       )
       result <- tryCatch(
         system2("ssh",
@@ -210,6 +305,14 @@
       )
       q[[nm]][row_i] <- val2
       applied <- c(applied, sprintf("%s=%s", nm, as.character(val2)))
+    } else if (nm %in% meta_cols) {
+      ## A meta column the queue predates -- `last_error`, for one. Add it rather than
+      ## drop the update: an existing run should start recording failures immediately,
+      ## not only after the queue is rebuilt. Data columns are still skipped, since
+      ## inventing one of those would change what the run means.
+      q[[nm]] <- NA_character_
+      q[[nm]][row_i] <- as.character(updates[[nm]])
+      applied <- c(applied, sprintf("%s=%s (column added)", nm, as.character(updates[[nm]])))
     } else {
       skipped <- c(skipped, nm)
     }
@@ -451,13 +554,8 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
         # Append rows the user added directly in the sheet
         if (n_gs > n_local) {
           new_gs <- gs_q[(n_local + 1L):n_gs, , drop = FALSE]
-          # Coerce to match local column types where possible
-          for (col in intersect(names(q), names(new_gs))) {
-            tryCatch(
-              new_gs[[col]] <- methods::as(new_gs[[col]], class(q[[col]])),
-              error = function(e) NULL
-            )
-          }
+          # Coerce to match local column types
+          new_gs <- .gs_restore_types(new_gs, q)
           q <- rbind(q, new_gs[, names(q), drop = FALSE])
         }
 
@@ -488,4 +586,24 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
     }
     cli::cli_progress_done(id = pb)
   }
+}
+
+# Push a whole queue to the sheet, replacing its contents from A1. Dot-prefixed
+# column names cannot survive a round trip through Sheets, so `.col` is written
+# as `dotcol` (see revertDotNames()). Everything is written as character.
+# `q` MUST be the queue data.frame: experimentTmux() once reached this point
+# with `q` unassigned in the fresh-sheet branch, so `lapply(q, as.character)`
+# deparsed base::q -- the quit function -- into the Status tab and every
+# worker found an empty queue.
+.gs_push_queue <- function(ss_id, q, sheet = "Status") {
+  if (!is.data.frame(q))
+    stop("The queue to push to the Google Sheet must be a data.frame, not ",
+         class(q)[1], call. = FALSE)
+  reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
+  q_sync        <- as.data.frame(lapply(q, as.character), stringsAsFactors = FALSE)
+  names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
+  googlesheets4::with_gs4_quiet(
+    googlesheets4::range_write(ss = ss_id, data = q_sync, sheet = sheet,
+                               range = "A1", reformat = FALSE))
+  invisible(q_sync)
 }
