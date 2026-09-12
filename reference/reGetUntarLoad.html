@@ -25,7 +25,7 @@ with the multi-row dribble returned by outList() / outScenarios()."><!-- mathjax
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -88,8 +88,13 @@ with the multi-row <code>dribble</code> returned by <code><a href="outList.html"
 <span>  pathRemap <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  projectPath <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/getwd.html" class="external-link">getwd</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"loadSimList"</span>, <span class="st">"readRDS"</span><span class="op">)</span>,</span>
+<span>  parse <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  remote <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  overwrite <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  skipExisting <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  useCache <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  pattern <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -125,6 +130,29 @@ absolute paths (<code>tar --absolute-names</code>).</p></dd>
 <dd><p>One of <code>"loadSimList"</code> (default) or <code>"readRDS"</code>.</p></dd>
 
 
+<dt id="arg-parse">parse<a class="anchor" aria-label="anchor" href="#arg-parse"></a></dt>
+<dd><p>Logical. If <code>TRUE</code> (default), module source code is re-parsed
+on load. <code>FALSE</code> forwards <code>parse = FALSE</code> to
+<code><a href="https://spades-core.predictiveecology.org/reference/loadSimList.html" class="external-link">SpaDES.core::loadSimList()</a></code>, which skips it – worthwhile because
+reparsing dominates the load time of a lazily saved <code>simList</code> (on a
+19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
+user objects and each module's <code>mod</code> objects are still bound lazily. The
+result is inspect-only – it has no module code, so it cannot be passed
+to <code><a href="https://spades-core.predictiveecology.org/reference/spades.html" class="external-link">SpaDES.core::spades()</a></code>. Ignored when <code>method = "readRDS"</code>.</p></dd>
+
+
+<dt id="arg-remote">remote<a class="anchor" aria-label="anchor" href="#arg-remote"></a></dt>
+<dd><p>Logical. If <code>FALSE</code> (default), the archive is downloaded and
+untarred as usual, and its objects are lazily read from the local sidecar.
+If <code>TRUE</code>, the archive is never downloaded: the <code>simList</code> shell, its
+manifest and the output files are fetched from within the remote archive by
+HTTP range request, and each object is fetched only when something touches
+it. Output files are fetched either way, since downstream code reads them
+through <code>outputs(sim)$file</code> and they are mostly needed. Requires an
+archive with an index beside it (see <code><a href="reIndex.html">reIndex()</a></code>) and
+<code>method = "loadSimList"</code>.</p></dd>
+
+
 <dt id="arg-overwrite">overwrite<a class="anchor" aria-label="anchor" href="#arg-overwrite"></a></dt>
 <dd><p>Logical. Force re-download even if the local file
 exists. Default <code>FALSE</code>.</p></dd>
@@ -132,6 +160,28 @@ exists. Default <code>FALSE</code>.</p></dd>
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
 <dd><p>Logical. Print elapsed time per download. Default <code>TRUE</code>.</p></dd>
+
+
+<dt id="arg-skipexisting">skipExisting<a class="anchor" aria-label="anchor" href="#arg-skipexisting"></a></dt>
+<dd><p>Logical, passed to <code><a href="reUntar.html">reUntar()</a></code>. If <code>TRUE</code> (default),
+archives already extracted on disk are not extracted again.</p></dd>
+
+
+<dt id="arg-usecache">useCache<a class="anchor" aria-label="anchor" href="#arg-usecache"></a></dt>
+<dd><p>Logical. If <code>TRUE</code>, <code><a href="https://reproducible.predictiveecology.org/reference/Cache.html" class="external-link">reproducible::Cache()</a></code> the <em>metadata</em>
+step (<code><a href="reGet.html">reGet()</a></code>), skipping the remote round-trip on repeat calls in a new
+session. Only the small <code>data.table</code> of names and paths is cached – never
+the <code>simList</code>s, whose objects are <code><a href="https://rdrr.io/r/base/delayedAssign.html" class="external-link">delayedAssign()</a></code> promises that saving
+would force, and so fully materialise. A hit is discarded if any path it
+names has since gone away. Default <code>FALSE</code>, since a hit cannot notice an
+archive re-uploaded under the same id.</p></dd>
+
+
+<dt id="arg-pattern">pattern<a class="anchor" aria-label="anchor" href="#arg-pattern"></a></dt>
+<dd><p>Optional regex. When supplied, <code>gFiles</code> is taken to be the
+<em>folder</em> holding the archives and is listed with <code><a href="outList.html">outList()</a></code> using this
+pattern, rather than being the archives themselves. Either way, the
+<code>_index.rds</code> sidecars written by <code><a href="reIndex.html">reIndex()</a></code> are excluded.</p></dd>
 
 </dl></div>
     <div id="value">

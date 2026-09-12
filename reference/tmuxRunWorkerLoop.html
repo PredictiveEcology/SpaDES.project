@@ -23,7 +23,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -90,7 +90,8 @@
 <span>  pane_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"reuse"</span>, <span class="st">"killAndNewPane"</span><span class="op">)</span>,</span>
 <span>  email <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"gargle_oauth_email"</span><span class="op">)</span>,</span>
 <span>  cache_path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"gargle_oauth_cache"</span><span class="op">)</span>,</span>
-<span>  dots_path <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  dots_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  snapshot_library <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -150,6 +151,13 @@ tmux window, then kills the current pane  – freeing all R memory between jobs.
 <dt id="arg-dots-path">dots_path<a class="anchor" aria-label="anchor" href="#arg-dots-path"></a></dt>
 <dd><p>Path to <code>.tmux_dots.rds</code> holding extra <code>...</code> args; forwarded to
 replacement panes so they can reload complex objects before sourcing.</p></dd>
+
+
+<dt id="arg-snapshot-library">snapshot_library<a class="anchor" aria-label="anchor" href="#arg-snapshot-library"></a></dt>
+<dd><p>Logical. Forwarded to replacement panes: each new worker
+session takes a hardlinked snapshot of the project library before loading
+anything from it (see <a href="librarySnapshot.html">librarySnapshot</a>). This session's own snapshot, if the
+startup script made one, is released when R exits.</p></dd>
 
 </dl></div>
     <div id="value">

@@ -26,7 +26,7 @@ Drive folder."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/li
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -152,8 +152,9 @@ Default <code>FALSE</code>.</p></dd>
 
 <dt id="arg-lazy">lazy<a class="anchor" aria-label="anchor" href="#arg-lazy"></a></dt>
 <dd><p>Logical. Passed to <code><a href="https://spades-core.predictiveecology.org/reference/saveSimList.html" class="external-link">SpaDES.core::saveSimList()</a></code>. When <code>TRUE</code>
-(default), each user object in <code>sim@.xData</code> is saved into a sibling
-<code>&lt;simFilename&gt;_xData/</code> directory and lazily restored on load via
+(default), each user object in <code>sim@.xData</code> and each module's <code>mod</code> objects
+in <code>sim@.xData$.modObjs</code> are written to their own file in a sibling
+<code>&lt;simFilename sans ext&gt;_lazy/</code> directory, and lazily restored on load via
 <code>delayedAssign</code>. <code><a href="outTar.html">outTar()</a></code> picks up that directory automatically.</p></dd>
 
 </dl></div>

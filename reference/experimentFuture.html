@@ -32,7 +32,7 @@ tail -f."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/ma
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -113,6 +113,8 @@ Because workers write to files via <code><a href="https://callr.r-lib.org/refere
 <span>  sp_dev_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  local_pat_file <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  copyModules <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  sync_library <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  snapshot_library <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -204,6 +206,20 @@ rsyncs the directory given by <code>getOption("spades.modulePath")</code> to the
 same absolute path on each remote host after <code>.setup_remote_machine()</code>
 completes.  Issues a warning and skips if the option is unset.
 Default <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-sync-library">sync_library<a class="anchor" aria-label="anchor" href="#arg-sync-library"></a></dt>
+<dd><p><code>NULL</code> (default) or a character vector of package
+specifications for <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Install()</a></code>. If given, <code><a href="librarySnapshot.html">syncProjectLibrary()</a></code> runs
+once, now, in a fresh process and only while no worker is alive, before any
+worker starts. Never sync per job.</p></dd>
+
+
+<dt id="arg-snapshot-library">snapshot_library<a class="anchor" aria-label="anchor" href="#arg-snapshot-library"></a></dt>
+<dd><p>Logical (default <code>TRUE</code>). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+<a href="librarySnapshot.html">librarySnapshot</a>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

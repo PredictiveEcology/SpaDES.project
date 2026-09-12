@@ -30,7 +30,7 @@ handled by loadSimList's pre-.unwrap resilient pass."><!-- mathjax --><script sr
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -96,6 +96,7 @@ handled by <code>loadSimList</code>'s pre-<code>.unwrap</code> resilient pass.</
 <span>  <span class="va">simFilenames</span>,</span>
 <span>  projectPath <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/getwd.html" class="external-link">getwd</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"loadSimList"</span>, <span class="st">"readRDS"</span><span class="op">)</span>,</span>
+<span>  parse <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -116,6 +117,17 @@ handled by <code>loadSimList</code>'s pre-<code>.unwrap</code> resilient pass.</
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
 <dd><p>One of <code>"loadSimList"</code> (default) or <code>"readRDS"</code>.</p></dd>
+
+
+<dt id="arg-parse">parse<a class="anchor" aria-label="anchor" href="#arg-parse"></a></dt>
+<dd><p>Logical. If <code>TRUE</code> (default), module source code is re-parsed
+on load. <code>FALSE</code> forwards <code>parse = FALSE</code> to
+<code><a href="https://spades-core.predictiveecology.org/reference/loadSimList.html" class="external-link">SpaDES.core::loadSimList()</a></code>, which skips it – worthwhile because
+reparsing dominates the load time of a lazily saved <code>simList</code> (on a
+19-module simulation, ~7 s of a ~9.5 s load). Objects are unaffected:
+user objects and each module's <code>mod</code> objects are still bound lazily. The
+result is inspect-only – it has no module code, so it cannot be passed
+to <code><a href="https://spades-core.predictiveecology.org/reference/spades.html" class="external-link">SpaDES.core::spades()</a></code>. Ignored when <code>method = "readRDS"</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

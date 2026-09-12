@@ -169,7 +169,7 @@ session (-g) and persists for the session's lifetime; it does not modify
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -381,12 +381,15 @@ session (<code>-g</code>) and persists for the session's lifetime; it does not m
 <span>  pane_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"killAndNewPane"</span>, <span class="st">"reuse"</span><span class="op">)</span>,</span>
 <span>  ss_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  forceLocalQueueToGS <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  onExistingQueue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"resume"</span>, <span class="st">"append"</span>, <span class="st">"rebuild"</span><span class="op">)</span>,</span>
 <span>  enableGSSync <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  email <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"gargle_oauth_email"</span><span class="op">)</span>,</span>
 <span>  cache_path <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"gargle_oauth_cache"</span><span class="op">)</span>,</span>
 <span>  workersToMonitor <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">cores</span><span class="op">)</span><span class="op">)</span> <span class="st">"localhost"</span> <span class="kw">else</span> <span class="va">cores</span><span class="op">)</span>,</span>
 <span>  runNameLabel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substitute.html" class="external-link">quote</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">q</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>  copyModules <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  sync_library <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  snapshot_library <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -493,6 +496,14 @@ queue with the local <code>df</code> even if the sheet already contains rows.
 Default <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-onexistingqueue">onExistingQueue<a class="anchor" aria-label="anchor" href="#arg-onexistingqueue"></a></dt>
+<dd><p>What to do when <code>queue_path</code> already exists and <code>df</code> is
+supplied. <code>"resume"</code> (default) keeps the existing queue – preserving its
+<code>DONE</code>/<code>RUNNING</code> state – and warns if <code>df</code> holds rows it does not;
+<code>"append"</code> adds those rows as <code>PENDING</code>; <code>"rebuild"</code> discards the existing
+queue and starts from <code>df</code>. See <code><a href="tmuxReconcileQueueWithDF.html">tmuxReconcileQueueWithDF()</a></code>.</p></dd>
+
+
 <dt id="arg-enablegssync">enableGSSync<a class="anchor" aria-label="anchor" href="#arg-enablegssync"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, start an additional tmux pane
 that periodically syncs the local queue file to a Google Sheet (requires
@@ -521,6 +532,20 @@ produce a human-readable job label used in log files and Google Sheet status upd
 directory given by <code>getOption("spades.modulePath")</code> to the same absolute path on
 each remote host before workers start.  Issues a warning and skips if the option is
 unset.  Default <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-sync-library">sync_library<a class="anchor" aria-label="anchor" href="#arg-sync-library"></a></dt>
+<dd><p><code>NULL</code> (default) or a character vector of package
+specifications for <code><a href="https://Require.predictiveecology.org/reference/Require.html" class="external-link">Require::Install()</a></code>. If given, <code><a href="librarySnapshot.html">syncProjectLibrary()</a></code> runs
+once, now, in a fresh process and only while no worker is alive, before any
+worker starts. Never sync per job.</p></dd>
+
+
+<dt id="arg-snapshot-library">snapshot_library<a class="anchor" aria-label="anchor" href="#arg-snapshot-library"></a></dt>
+<dd><p>Logical (default <code>TRUE</code>). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+<a href="librarySnapshot.html">librarySnapshot</a>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

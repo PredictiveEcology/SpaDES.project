@@ -26,7 +26,7 @@ workers use callr::r_bg() and do not need this wrapper."><!-- mathjax --><script
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -95,7 +95,8 @@ workers use <code><a href="https://callr.r-lib.org/reference/r_bg.html" class="e
 <span>  activeRunningPath <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  dots_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  stop_file <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  log_file <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  log_file <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  snapshot_library <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -150,6 +151,13 @@ current job finishes.</p></dd>
 <dt id="arg-log-file">log_file<a class="anchor" aria-label="anchor" href="#arg-log-file"></a></dt>
 <dd><p>Path to the log file for this worker.  If <code>NULL</code>,
 output goes to the current connection.</p></dd>
+
+
+<dt id="arg-snapshot-library">snapshot_library<a class="anchor" aria-label="anchor" href="#arg-snapshot-library"></a></dt>
+<dd><p>Logical (default <code>TRUE</code>). Each worker session takes a
+hardlinked snapshot of the project library before loading anything from it,
+so an install into the shared library cannot corrupt a running job. See
+<a href="librarySnapshot.html">librarySnapshot</a>.</p></dd>
 
 </dl></div>
     <div id="value">

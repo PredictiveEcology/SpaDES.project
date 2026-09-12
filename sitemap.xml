@@ -19,6 +19,7 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/awaitExperimentFuture.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/awaitExperimentSBATCH.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/dot-libPathDefault.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/dot-pidIsAlive.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/dot-sync_loop_internal.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/experiment.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/experiment2.html</loc></url>
@@ -42,6 +43,7 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/killExperimentFuture.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/killExperimentSBATCH.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/lastTraceback.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/librarySnapshot.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/listModules.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/localHostLabel.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/makeDESCRIPTION.html</loc></url>
@@ -66,6 +68,7 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/queueUploadMissing.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/reGet.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/reGetUntarLoad.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/reIndex.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/reLoad.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/reUntar.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/register_scenario_format.html</loc></url>
@@ -98,6 +101,7 @@
 <url><loc>http://spades-project.predictiveecology.org/reference/tmuxListPanes.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/tmuxMirrorQueueToSheets.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/tmuxPrepareQueueFromDF.html</loc></url>
+<url><loc>http://spades-project.predictiveecology.org/reference/tmuxReconcileQueueWithDF.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/tmuxRefreshQueueStatus.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/tmuxRunNextWorker.html</loc></url>
 <url><loc>http://spades-project.predictiveecology.org/reference/tmuxRunWorkerLoop.html</loc></url>

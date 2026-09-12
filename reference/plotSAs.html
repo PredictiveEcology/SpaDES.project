@@ -23,7 +23,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -100,7 +100,8 @@
 <span>  saCols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"purple"</span>, <span class="st">"blue"</span>, <span class="st">"green"</span>, <span class="st">"red"</span><span class="op">)</span>,</span>
 <span>  title <span class="op">=</span> <span class="st">"Study Areas"</span>,</span>
 <span>  rasterToMatchLabel <span class="op">=</span> <span class="st">"Stand Age"</span>,</span>
-<span>  rasterToMatchPalette <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Set1"</span>, <span class="st">"Set2"</span>, <span class="st">"Set3"</span><span class="op">)</span></span>
+<span>  rasterToMatchPalette <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Set1"</span>, <span class="st">"Set2"</span>, <span class="st">"Set3"</span><span class="op">)</span>,</span>
+<span>  labelCols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ID"</span>, <span class="st">"Name"</span>, <span class="st">"Names"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -168,6 +169,13 @@ This happens by default with <code>plotSAsLeaflet</code> and can't be turned off
 <dd><p>In m^2. This is the minimium area for the entire plot. If this is too
 small then the legislative boundaries may not appear. The area covered by the plot
 will the maximum of the studyArea** or rasterToMatch** and this <code>minArea</code> value.</p></dd>
+
+
+<dt id="arg-labelcols">labelCols<a class="anchor" aria-label="anchor" href="#arg-labelcols"></a></dt>
+<dd><p><code>plotSAsLeaflet</code> only. Character vector of attribute-column names to look for,
+in order, when labelling the polygons of each <code>studyArea**</code> layer; the first one the layer
+actually has supplies the per-feature hover labels. A layer with none of them (or with no
+attribute table at all) falls back to its own name, as before.</p></dd>
 
 </dl></div>
     <div id="value">

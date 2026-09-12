@@ -23,7 +23,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -72,6 +72,174 @@
       <small>Source: <a href="https://github.com/PredictiveEcology/SpaDES.project/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.2.0" id="version-120">version 1.2.0<a class="anchor" aria-label="anchor" href="#version-120"></a></h2>
+<p>This release rolls up the 1.1.0.9001-1.1.0.9015 development series, listed below.</p>
+<div class="section level3">
+<h3 id="bug-fixes-1-2-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-2-0"></a></h3>
+<ul><li>
+<code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTION()</a></code> resolves <code>SpaDES.core::DESCRIPTIONfromModule()</code> at call time, so the package no longer declares a dependency on an object no released SpaDES.core exports.</li>
+<li>
+<code><a href="../reference/tmuxRefreshQueueStatus.html">tmuxRefreshQueueStatus()</a></code> declares <code>last_error</code> as a global variable, silencing an R CMD check note.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9015" id="version-1109015">version 1.1.0.9015<a class="anchor" aria-label="anchor" href="#version-1109015"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9015">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9015"></a></h3>
+<ul><li>
+<code><a href="../reference/tmuxRunWorkerLoop.html">tmuxRunWorkerLoop()</a></code> turns off reproducible’s showCache pre-warm (<code>options(reproducible.showCachePreWarm = FALSE)</code>). <code><a href="../reference/setupProject.html">setupProject()</a></code> starts it so a later interactive <code><a href="https://reproducible.predictiveecology.org/reference/viewCache.html" class="external-link">showCache()</a></code> is fast; a queue worker never makes that call, so each job carried an idle forked process (~400 MB on the fireSense fits) for its whole run.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9014" id="version-1109014">version 1.1.0.9014<a class="anchor" aria-label="anchor" href="#version-1109014"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9014">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9014"></a></h3>
+<ul><li>Queue values read back from the Google Sheet keep the types they have in the queue. A worker used to evaluate each cell as R code, so an experiment value such as <code>.ELFind = "14.3"</code> reached <code>global.R</code> as the number <code>14.3</code>, and <code>"4.10"</code> would have become <code>4.1</code> – a different study area – while <code>"5.3.1"</code>, which does not parse, stayed a string. Character columns now stay text, numeric and logical columns are coerced to their class, and list columns are rebuilt from their <code>c(...)</code>/<code>list(...)</code> text. <code><a href="../reference/experimentTmux.html">experimentTmux()</a></code> resuming from an existing sheet also saved the sheet’s all-text copy as the local queue, which is how a numeric <code>.rep</code> became <code>"1"</code>; it now restores the types from <code>df</code>.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9013" id="version-1109013">version 1.1.0.9013<a class="anchor" aria-label="anchor" href="#version-1109013"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9013">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9013"></a></h3>
+<ul><li>Two workers could run the same job. The Google Sheets queue marks a <code>RUNNING</code> row <code>INTERRUPTED</code> when its process is dead, but decided that from a read taken before its liveness checks. When a whole fleet starts at once, one worker reclaims a dead row, another claims it and starts the job, and a third – still acting on its earlier read – marks it <code>INTERRUPTED</code> again, so the next worker claims it too. The queue is now read again immediately before each reclaim, and the row is left alone unless it is still <code>RUNNING</code> under the same machine and process that were found dead. (<a href="https://github.com/PredictiveEcology/SpaDES.project/issues/169" class="external-link">#169</a>)</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9012" id="version-1109012">version 1.1.0.9012<a class="anchor" aria-label="anchor" href="#version-1109012"></a></h2>
+<div class="section level3">
+<h3 id="new-features-1-1-0-9012">New features<a class="anchor" aria-label="anchor" href="#new-features-1-1-0-9012"></a></h3>
+<ul><li>Shared project library safety for experiment workers (<a href="https://github.com/PredictiveEcology/SpaDES.project/issues/163" class="external-link">#163</a>). <code><a href="../reference/librarySnapshot.html">syncProjectLibrary()</a></code> installs or updates packages once per launch, in a fresh process, and refuses while any worker is alive; <code><a href="../reference/librarySnapshot.html">snapshotLibrary()</a></code> gives each worker session a hardlinked copy of the library (falling back to a copy across filesystems), so an install into the shared library can no longer corrupt a running job’s lazy-load databases. <code><a href="../reference/experimentTmux.html">experimentTmux()</a></code>, <code><a href="../reference/experimentFuture.html">experimentFuture()</a></code> and <code><a href="../reference/experimentSBATCH.html">experimentSBATCH()</a></code> gain <code>sync_library</code> (package specs to sync at launch; default <code>NULL</code>) and <code>snapshot_library</code> (default <code>TRUE</code>); the worker startup scripts take the snapshot before any package is loaded, <code><a href="../reference/tmuxRunWorkerLoop.html">tmuxRunWorkerLoop()</a></code> sweeps snapshots left by dead workers and releases its own at exit. <code><a href="../reference/librarySnapshot.html">libraryInUse()</a></code>, <code><a href="../reference/librarySnapshot.html">releaseLibrarySnapshot()</a></code> and <code><a href="../reference/librarySnapshot.html">sweepLibrarySnapshots()</a></code> are exported too.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9011" id="version-1109011">version 1.1.0.9011<a class="anchor" aria-label="anchor" href="#version-1109011"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9011">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9011"></a></h3>
+<ul><li>
+<code><a href="../reference/experimentTmux.html">experimentTmux()</a></code>: a detached tmux session (never attached) keeps the default 80x24 window, and creating worker panes failed with “no space for new pane” after three or four. Before splitting, when no client is attached, the window is now set to <code>window-size manual</code> and resized to hold every pane (tmux &gt;= 2.9). (<a href="https://github.com/PredictiveEcology/SpaDES.project/issues/161" class="external-link">#161</a>)</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9010" id="version-1109010">version 1.1.0.9010<a class="anchor" aria-label="anchor" href="#version-1109010"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9010">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9010"></a></h3>
+<ul><li>
+<code><a href="../reference/experimentTmux.html">experimentTmux()</a></code> / <code><a href="../reference/tmuxRunWorkerLoop.html">tmuxRunWorkerLoop()</a></code>: the respawn script used by <code>pane_mode = "killAndNewPane"</code> is sourced through <code>R_PROFILE_USER</code> but, unlike the first-generation startup script, did not unset it. Every child R process of a respawned worker – each <code>makeClusterPSOCK()</code> worker started by a job – inherited the variable, sourced the profile at startup, and became a queue worker: it claimed a row and ran a whole simulation, whose own PSOCK workers did the same, while the parent’s cluster setup hung waiting for workers that never connected. The respawn script now unsets <code>R_PROFILE_USER</code> first, and <code><a href="../reference/tmuxRunWorkerLoop.html">tmuxRunWorkerLoop()</a></code> refuses to start in a process whose command line marks it as a parallel worker.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9009" id="version-1109009">version 1.1.0.9009<a class="anchor" aria-label="anchor" href="#version-1109009"></a></h2>
+<div class="section level3">
+<h3 id="rewrite-of---defaultdots-resolution-in-setupproject-1-1-0-9009">Rewrite of <code>...</code> / <code>defaultDots</code> resolution in <code>setupProject()</code>
+<a class="anchor" aria-label="anchor" href="#rewrite-of---defaultdots-resolution-in-setupproject-1-1-0-9009"></a></h3>
+<p>The machinery that resolved <code>...</code> (“dot”) arguments – a proxy environment of active bindings, <code>evalDots()</code>, <code>evalDotsOuter()</code> and a four-stage retry ladder that walked every frame on the call stack – is replaced by one small resolver (<code>R/resolveDots.R</code>) built on a single scope environment whose parent is the calling environment. The rules it implements are the documented ones, now literally:</p>
+<ul><li>every argument is evaluated once, in the order it is written, and sees the resolved value of every argument written above it – dots and formals alike – as in a script;</li>
+<li>every <code>defaultDots</code> entry the caller did not supply is bound as a value before anything is evaluated, so it is available to any argument that names it (a dot, a dot under another name such as <code>cores = .cores</code>, or a formal such as <code>times = as.list(unlist(.times))</code>); a caller-supplied value always wins, and a name that only resolves to a package function does not count as supplied;</li>
+<li>only values are ever bound in that scope, never unevaluated expressions, so a dot’s own name is not visible to its own expression and <code>.x = if (exists(".x")) .x else &lt;fallback&gt;</code> behaves as written.</li>
+</ul><p>Fixed as a consequence (all reproduced in <code>tests/testthat/test-dots-resolution.R</code>):</p>
+<ul><li><p>with no <code>defaultDots</code> at all, a self-defaulting dot came back as its own unevaluated <code>if</code> call, because the scoped evaluation was skipped entirely and the expression was published under the dot’s name;</p></li>
+<li><p><code>defaultDots</code> given as a variable rather than a literal <code><a href="https://rdrr.io/r/base/list.html" class="external-link">list()</a></code> silently supplied no defaults to dots written before the first formal;</p></li>
+<li><p>a <code>defaultDots</code> entry could not reference one written above it;</p></li>
+<li><p>a dot that evaluated to <code>NULL</code> was treated as a failure, retried across the call stack, and could vanish from the result. <code>NULL</code> is now a value, kept under its name;</p></li>
+<li><p>the <code>envir</code> argument was documented but ignored; it is now the parent of the resolution scope.</p></li>
+<li><p>formals are resolved from the call site outward (<a href="https://github.com/PredictiveEcology/SpaDES.project/issues/158" class="external-link">#158</a>): a formal given as a bare symbol resolves to the caller’s variable before any package object of the same name (<code>params = pf</code> no longer becomes <code><a href="https://rdrr.io/r/stats/Fdist.html" class="external-link">stats::pf</a></code>), and the <code>setup*</code> helpers evaluate against the same scope the <code>...</code> arguments use, so an <code>options</code> list can combine a caller-local variable with <code>paths$...</code>. <code>evalSUB()</code> also stops when an iteration makes no progress instead of looping.</p></li>
+</ul><p>Behaviour change to be aware of: a <code>...</code> expression sees exactly what a script at the call site would see – the calling environment and the attached packages – and no longer the packages <code>SpaDES.project</code> itself imports. Code such as <code>scenario = { data.table(...) }</code> with nothing attaching data.table used to work only because the expression was evaluated inside <code><a href="../reference/setupProject.html">setupProject()</a></code>’s own frame; it now comes back as a tolerated error naming the function. Attach the package (<code>require = "data.table"</code>) or qualify the call (<code><a href="https://rdrr.io/pkg/data.table/man/data.table.html" class="external-link">data.table::data.table()</a></code>). A dot that references a formal written <em>below</em> it (e.g. <code>outputs</code> using <code>times$end</code> with <code>times</code> declared afterwards) likewise used to work by forcing the formal’s promise early, and is now a tolerated error: write it above.</p>
+<p>Behaviour that is deliberately unchanged: a dot that cannot be evaluated even with the defaults is returned as its unevaluated expression, recorded as a tolerated error in the end-of-call diagnostics, and escalated only under <code>options(SpaDES.project.strict = TRUE)</code>; dots written before the first formal run before it, the rest run in written order after the packages are set up.</p>
+</div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9008" id="version-1109008">version 1.1.0.9008<a class="anchor" aria-label="anchor" href="#version-1109008"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9008">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9008"></a></h3>
+<ul><li>
+<p><code><a href="../reference/setupProject.html">setupProject()</a></code>: a <code>...</code> argument declared after <code>defaultDots</code> is now resolved before <code>paths</code> (and the other formals) are evaluated, so it can be used inside them. Dots are evaluated in two batches – those before the first formal argument run before the formals, the rest after – and <code>defaultDots</code> counted as a formal for that split. A dot written after it, which is the natural place since that is where its fallback lives, was therefore not resolved until after <code>paths</code> had already been built. <code><a href="../reference/pathBuild.html">pathBuild()</a></code> received the dot’s unevaluated expression and deparsed it into a directory name:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>outputs<span class="sc">/</span>.ELFind<span class="sc">/</span><span class="dv">370</span>                                     (<span class="cf">for</span> <span class="st">`</span><span class="at">.foo = .ELFind</span><span class="st">`</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>outputs<span class="sc">/</span><span class="fu">if_exists</span>(<span class="st">".studyAreaName"</span>)_.studyAreaName_.ELFind<span class="sc">/</span>...</span></code></pre></div>
+<p>while <code>out$.foo</code> was, by the end of the call, correctly <code>"4.3"</code>. This broke the documented headline contract – “any argument written above another is available to it” – for exactly the layout <code>global.R</code> files use, and the only signal was <code>is.na() applied to non-(list or vector) of type 'symbol'</code>, a warning.</p>
+<p><code>defaultDots</code> is a fallback table, not a configuration block, and now joins <code>params</code>, <code>studyArea</code> and <code>times</code> in not splitting the dot sequence. The evaluation-order documentation is corrected to say so. Dots declared after a real formal such as <code>paths</code> keep their documented late evaluation.</p>
+</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9007" id="version-1109007">version 1.1.0.9007<a class="anchor" aria-label="anchor" href="#version-1109007"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9007">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9007"></a></h3>
+<ul><li>
+<code><a href="../reference/experimentTmux.html">experimentTmux()</a></code> no longer discards <code>df</code> silently when <code>queue_path</code> already exists. An existing queue stays authoritative – that is what lets a resumed run keep its <code>DONE</code>/<code>RUNNING</code> rows rather than repeating finished work – but the rule was applied without a word, so a caller who had rebuilt <code>df</code> (new scenarios added, completed ones dropped) would watch the previous queue run instead, with nothing to distinguish that from success. The only remedy was to notice, and delete or rename the file.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="enhancements-1-1-0-9007">Enhancements<a class="anchor" aria-label="anchor" href="#enhancements-1-1-0-9007"></a></h3>
+<ul><li>
+<code><a href="../reference/experimentTmux.html">experimentTmux()</a></code> gains <code>onExistingQueue</code>, and the reconciliation is exposed as <code><a href="../reference/tmuxReconcileQueueWithDF.html">tmuxReconcileQueueWithDF()</a></code>: <code>"resume"</code> (default, the previous behaviour) keeps the existing queue and now <em>warns</em> when <code>df</code> holds rows it does not, naming them and the two ways to act on them; <code>"append"</code> adds just those rows as <code>PENDING</code>, leaving existing rows and their status untouched; <code>"rebuild"</code> starts again from <code>df</code>. Rows are compared on the scenario columns – non-meta, non-list – so list payload such as <code>.modules</code>/<code>.times</code> does not make an existing scenario look new.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9006" id="version-1109006">version 1.1.0.9006<a class="anchor" aria-label="anchor" href="#version-1109006"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9006">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9006"></a></h3>
+<ul><li>
+<code>test-makeDESCRIPTION.R</code> skips when <code>SpaDES.core</code> is unavailable. Those tests predate the delegation and had no guard, so the no-suggests leg of <code>R CMD check</code> – where Suggests are deliberately absent – failed with 11 errors instead of skipping. This is what turned <code>development</code> red after the delegation landed.</li>
+<li>
+<code>VersionOnRepos</code> is declared in <code>R/imports.R</code>’s <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">globalVariables()</a></code>. It had been declared in <code>R/makeDESCRIPTION.R</code>, which no longer needs it; removing that block left <code>getVersionOnRepos</code> with a “no visible binding” NOTE.</li>
+<li>
+<code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTION()</a></code> checked only that <code>SpaDES.core</code> was installed before delegating to <code>SpaDES.core::DESCRIPTIONfromModule()</code>. <code>SpaDES.core</code> is in Suggests, so its version floor cannot be enforced at install time and an older copy is both installed and importable – which surfaced as <code>'DESCRIPTIONfromModule' is not an exported object from 'namespace:SpaDES.core'</code> rather than something the reader can act on. It now checks for the function.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9004" id="version-1109004">version 1.1.0.9004<a class="anchor" aria-label="anchor" href="#version-1109004"></a></h2>
+<div class="section level3">
+<h3 id="internal-1-1-0-9004">Internal<a class="anchor" aria-label="anchor" href="#internal-1-1-0-9004"></a></h3>
+<ul><li>
+<p><code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTION()</a></code> delegates to <code>SpaDES.core::DESCRIPTIONfromModule()</code> instead of carrying its own copy of the metadata -&gt; <code>DESCRIPTION</code> translation. <code>SpaDES.core</code> had an independent implementation inside <code><a href="https://spades-core.predictiveecology.org/reference/convertToPackage.html" class="external-link">convertToPackage()</a></code>, and the two had drifted – each had fixes and features the other lacked, and this package even inlined its own <code>.moduleNameNoUnderscore()</code> to avoid reaching into <code>SpaDES.core</code>. <code>SpaDES.core</code> owns module metadata (<code><a href="https://spades-core.predictiveecology.org/reference/defineModule.html" class="external-link">defineModule()</a></code>, <code><a href="https://spades-core.predictiveecology.org/reference/packages.html" class="external-link">packages()</a></code>, <code><a href="https://spades-core.predictiveecology.org/reference/moduleMetadata.html" class="external-link">moduleMetadata()</a></code>), so the translation lives there; the project-level entry points <code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTION()</a></code>/<code><a href="../reference/makeDESCRIPTION.html">makeDESCRIPTIONproject()</a></code> stay here. <code>SpaDES.core</code> is in Suggests, so the delegation is guarded by <code><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace()</a></code> and errors clearly if it is absent. Requires <code>SpaDES.core (&gt;= 3.2.1.9002)</code>.</p>
+<p>Two bugs fixed on the <code>SpaDES.core</code> side come along with this: a module <code>description</code> written as a <code><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste()</a></code> call was deparsed into the field (<code>Description: paste ...</code>), and the version was read positionally rather than by module name.</p>
+</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9002" id="version-1109002">version 1.1.0.9002<a class="anchor" aria-label="anchor" href="#version-1109002"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9002">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9002"></a></h3>
+<ul><li>
+<code><a href="../reference/setupProject.html">setupProject()</a></code>: a <code>...</code> argument whose value comes from <code>defaultDots</code> reached later arguments as its <em>unevaluated expression</em> rather than its value, so any consumer that pastes it into a string – most visibly <code><a href="../reference/pathBuild.html">pathBuild()</a></code> in a <code>paths</code> argument – deparsed it into the value’s place, producing directories such as <code>outputs/.ELFind/.GCM</code> or <code>outputs/if_exists(".studyAreaName")_.studyAreaName_.ELFind/unlist_.samplingRange</code>. <code>build_proxy()</code> installs one active binding per dot that closed over the capture-time value/expression and never consulted <code>cur</code> again; <code>capture_dots()</code> leaves that value <code>NULL</code> for every dot that <code>defaultDots</code> supplies, so the binding returned the expression. Meanwhile <code>evalDots()</code> <em>did</em> resolve the dot, writing it into <code>cur</code>, but <code>expose_new_bindings()</code> only forwards names that are not already bound, so the stale binding was never upgraded to the live <code>bind_forward()</code> behaviour every other name gets. Dot bindings now forward to <code>cur</code> whenever it holds the name, matching <code>bind_forward()</code>. This only bit callers that let <code>defaultDots</code> supply a dot – i.e. batch/spawn workflows that deliberately do not define it in the calling environment.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.1.0.9001" id="version-1109001">version 1.1.0.9001<a class="anchor" aria-label="anchor" href="#version-1109001"></a></h2>
+<div class="section level3">
+<h3 id="enhancements-1-1-0-9001">Enhancements<a class="anchor" aria-label="anchor" href="#enhancements-1-1-0-9001"></a></h3>
+<ul><li><p><code><a href="../reference/plotSAs.html">plotSAsLeaflet()</a></code> gains <code>labelCols</code> (default <code>c("ID", "Name", "Names")</code>): each <code>studyArea**</code> polygon is now labelled on hover with its own value from the first of those columns the layer carries, rather than every polygon sharing the layer name. A layer with none of those columns, or with no attribute table at all, falls back to the layer name as before.</p></li>
+<li><p><code><a href="../reference/reGetUntarLoad.html">reGetUntarLoad()</a></code> gains <code>pattern</code>: supply it and <code>gFiles</code> is taken as the Drive <em>folder</em>, listed with <code><a href="../reference/outList.html">outList()</a></code>. <code><a href="../reference/reIndex.html">reIndex()</a></code>’s <code>_index.rds</code> sidecars are always excluded.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="enhancements-1-1-0-9001-1">Enhancements<a class="anchor" aria-label="anchor" href="#enhancements-1-1-0-9001-1"></a></h3>
+<ul><li>
+<code><a href="../reference/reUntar.html">reUntar()</a></code> gains <code>skipExisting</code> (default <code>TRUE</code>): skips archives whose members are already on disk at the size the archive records.</li>
+<li>
+<code><a href="../reference/reGetUntarLoad.html">reGetUntarLoad()</a></code> gains <code>skipExisting</code>, and <code>useCache</code> to <code><a href="https://reproducible.predictiveecology.org/reference/Cache.html" class="external-link">Cache()</a></code> the <code><a href="../reference/reGet.html">reGet()</a></code> metadata step.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="new-features-1-1-0-9001">New features<a class="anchor" aria-label="anchor" href="#new-features-1-1-0-9001"></a></h3>
+<ul><li>
+<code><a href="../reference/reIndex.html">reIndex()</a></code> and <code><a href="../reference/reIndex.html">reGetMember()</a></code> read a single object out of a tarball on Google Drive using an HTTP range request, without downloading the archive: on a 4.63 GB archive one 6.2 MB object takes ~1 s versus ~5 min for the whole file.</li>
+<li>
+<code><a href="../reference/reGetUntarLoad.html">reGetUntarLoad()</a></code> gains <code>remote</code>. With <code>remote = TRUE</code> the archive is never downloaded: the <code>simList</code> shell, its manifest and the output files are fetched from inside it by HTTP range request, and each object arrives only when something touches it. <code>$</code>, <code>[[</code> and <code><a href="https://rdrr.io/r/base/get.html" class="external-link">get()</a></code> are unchanged. Default <code>FALSE</code>. Each fetch announces itself before transferring, naming the object and its size, so a pause is visibly a download; silence with <code>options(SpaDES.project.remoteVerbose = FALSE)</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="new-features-1-1-0-9001-1">New features<a class="anchor" aria-label="anchor" href="#new-features-1-1-0-9001-1"></a></h3>
+<ul><li>
+<code><a href="../reference/reLoad.html">reLoad()</a></code> and <code><a href="../reference/reGetUntarLoad.html">reGetUntarLoad()</a></code> gain <code>parse</code>; <code>parse = FALSE</code> skips re-parsing module source code, which dominates the load time of a lazily saved <code>simList</code>. The result is inspect-only and cannot be passed to <code><a href="https://spades-core.predictiveecology.org/reference/spades.html" class="external-link">spades()</a></code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-1-1-0-9001">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0-9001"></a></h3>
+<ul><li>
+<code><a href="../reference/getModule.html">getModule()</a></code> no longer assumes <code>Require::splitGitRepo()</code> returns exactly four elements. It now selects <code>acct</code>/<code>repo</code>/<code>br</code> by name, fixing “Supplied 3 columns to be assigned 4 items” after Require gained a <code>subFolder</code> element.</li>
+<li>
+<code><a href="../reference/reUntar.html">reUntar()</a></code> no longer emits GNU tar’s <code>Removing leading '/' from member names</code> for every archive.</li>
+<li>
+<code><a href="../reference/outTar.html">outTar()</a></code> now bundles the <code>&lt;simFilename sans ext&gt;_lazy/</code> directory written by <code>SpaDES.core::saveSimList(lazy = TRUE)</code>. It previously looked for the older <code>&lt;simFilename&gt;_xData.rdx</code>/<code>.rdb</code> pair, which SpaDES.core no longer writes; finding neither, it produced a tarball holding only the shell <code>.rds</code>. Because a lazily saved shell is a few hundred KB of metadata, that silently shipped an archive with nothing behind its promises.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="1.1.0" id="version-110">version 1.1.0<a class="anchor" aria-label="anchor" href="#version-110"></a></h2>
 <div class="section level3">
@@ -134,7 +302,8 @@
 </ul></div>
 <div class="section level3">
 <h3 id="bug-fixes-1-1-0">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-1-0"></a></h3>
-<ul><li><p><code>setupProject(Restart = TRUE)</code> re-opens the global script after restarting Positron, via the <code>positron.session_init</code> hook (Positron &gt;= 2026.04); on older Positron it prints the path to open instead of writing a hook that would never fire.</p></li>
+<ul><li><p><code><a href="../reference/experimentTmux.html">experimentTmux()</a></code> workers now receive the full library search path; they previously got only <code>.libPaths()[1]</code>, so under <code>R CMD check</code> / <code>covr</code> they could not load <code>SpaDES.project</code> itself and exited with “there is no package called”.</p></li>
+<li><p><code>setupProject(Restart = TRUE)</code> re-opens the global script after restarting Positron, via the <code>positron.session_init</code> hook (Positron &gt;= 2026.04); on older Positron it prints the path to open instead of writing a hook that would never fire.</p></li>
 <li><p><code>setupProject(Restart = TRUE)</code>: the generated <code>.Rprofile</code> cleanup no longer truncates the project <code>.Rprofile</code> (its <code><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep()</a></code> pattern never matched, and <code>readLns[-integer(0)]</code> returns nothing).</p></li>
 <li><p><code>setupProject(Restart = TRUE)</code> no longer restarts endlessly in Positron: the “already in this project” test now compares the open workspace folder, instead of looking for an <code>.Rproj</code> file Positron never creates.</p></li>
 <li><p><code><a href="../reference/plotSAs.html">plotSAsLeaflet()</a></code> no longer fails on a study area with no attribute table; the polygon label was a formula, which made leaflet resolve it against the geometry’s attributes.</p></li>

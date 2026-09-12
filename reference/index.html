@@ -23,7 +23,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">SpaDES.project</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.2.0</span>
       </span>
     </div>
 
@@ -188,6 +188,10 @@
         </td>
         <td><p>Inspect the call stack from the most recent worker error</p></td>
       </tr><tr><td>
+          <p><code><a href="librarySnapshot.html">syncProjectLibrary()</a></code> <code><a href="librarySnapshot.html">libraryInUse()</a></code> <code><a href="librarySnapshot.html">snapshotLibrary()</a></code> <code><a href="librarySnapshot.html">releaseLibrarySnapshot()</a></code> <code><a href="librarySnapshot.html">sweepLibrarySnapshots()</a></code> </p>
+        </td>
+        <td><p>Keep a shared project library safe under concurrent experiment workers</p></td>
+      </tr><tr><td>
           <p><code><a href="listModules.html">listModules()</a></code> <code><a href="listModules.html">moduleDependencies()</a></code> <code><a href="listModules.html">moduleDependenciesToGraph()</a></code> <code><a href="listModules.html">PlotModuleGraph()</a></code> </p>
         </td>
         <td><p>Tools for examining modules on known repositories</p></td>
@@ -279,6 +283,10 @@
           <p><code><a href="reGetUntarLoad.html">reGetUntarLoad()</a></code> </p>
         </td>
         <td><p>Download, untar, and load SpaDES sims from Google Drive</p></td>
+      </tr><tr><td>
+          <p><code><a href="reIndex.html">reIndex()</a></code> <code><a href="reIndex.html">reGetMember()</a></code> </p>
+        </td>
+        <td><p>Read one member out of a remote tar archive, without downloading it</p></td>
       </tr><tr><td>
           <p><code><a href="reLoad.html">reLoad()</a></code> </p>
         </td>
@@ -403,6 +411,10 @@
           <p><code><a href="tmuxPrepareQueueFromDF.html">tmuxPrepareQueueFromDF()</a></code> </p>
         </td>
         <td><p>Initialize a file-backed queue from a data.frame</p></td>
+      </tr><tr><td>
+          <p><code><a href="tmuxReconcileQueueWithDF.html">tmuxReconcileQueueWithDF()</a></code> </p>
+        </td>
+        <td><p>Reconcile an existing file-backed queue with a freshly built <code>df</code></p></td>
       </tr><tr><td>
           <p><code><a href="tmuxRefreshQueueStatus.html">tmuxRefreshQueueStatus()</a></code> </p>
         </td>
