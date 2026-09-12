@@ -11,3 +11,5 @@
 ^\.vscode$
 ^CLAUDE\.md$
 ^Linux-X64-.*$
+^tests/testthat/logs$
+^tests/testthat/hi$

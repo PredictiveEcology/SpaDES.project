@@ -70,5 +70,7 @@ makeDESCRIPTION <- function(modules, modulePath, projectPath = ".", singleDESCRI
   if (!missing(authors))      args$authors      <- authors
   if (!missing(metadataList)) args$metadataList <- metadataList
 
-  do.call(SpaDES.core::DESCRIPTIONfromModule, args)
+  # Resolved at call time, not with `::`: no released SpaDES.core exports this
+  # yet, so a static reference is an unresolvable dependency at check time.
+  do.call(getExportedValue("SpaDES.core", "DESCRIPTIONfromModule"), args)
 }

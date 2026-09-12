@@ -1,5 +1,15 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.2.0
+=============
+
+This release rolls up the 1.1.0.9001-1.1.0.9015 development series, listed below.
+
+## Bug fixes
+
+* `makeDESCRIPTION()` resolves `SpaDES.core::DESCRIPTIONfromModule()` at call time, so the package no longer declares a dependency on an object no released SpaDES.core exports.
+* `tmuxRefreshQueueStatus()` declares `last_error` as a global variable, silencing an R CMD check note.
+
 version 1.1.0.9015
 ==================
 

@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2026-09-11
-Version: 1.1.0.9015
+Version: 1.2.0
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -70,7 +70,7 @@ Suggests:
     rlang,
     rmarkdown,
     sf,
-    SpaDES.core (>= 3.2.1.9002),
+    SpaDES.core (>= 3.2.1),
     SpaDES.tools,
     terra,
     testthat (>= 3.0.0),
@@ -79,11 +79,6 @@ Suggests:
     visNetwork,
     waldo,
     withr
-Remotes:
-    PredictiveEcology/Require@development,
-    PredictiveEcology/reproducible@development,
-    PredictiveEcology/SpaDES.core@development,
-    PredictiveEcology/SpaDES.tools@development
 Encoding: UTF-8
 Language: en-CA
 License: GPL-3

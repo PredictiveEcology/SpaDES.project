@@ -1,5 +1,5 @@
 utils::globalVariables(c(
-  "..meta_cols", "interrupted_at"
+  "..meta_cols", "interrupted_at", "last_error"
 ))
 
 # ======================================================================
