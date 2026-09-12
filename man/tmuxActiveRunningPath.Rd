@@ -17,7 +17,7 @@ tmuxActiveRunningPath(
 
 \item{queue_path}{Character. Path to the queue \code{.rds} file, used to derive the default path.}
 
-\item{prefix}{Character. Directory prefix for the path. Default \code{"logs"}.}
+\item{prefix}{Character. Directory name placed beside the queue file. Default \code{"logs"}.}
 
 \item{suffix}{Character. Suffix used in the path. Defaults to \code{queue_path}.}
 }

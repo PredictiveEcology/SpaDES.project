@@ -500,7 +500,7 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
   repeat {
     if (file.exists(queue_path)) {
 
-      activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, basename(queue_path))
+      activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
       tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel,
                                 statusCalculate = statusCalculate,
                                 activeRunningPath = activeRunningPath, ...)

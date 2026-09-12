@@ -3685,15 +3685,19 @@ txtRunning <- "RUNNING"
 #' @param activeRunningPath Optional character path. If `NULL` (default), derived from
 #'   `prefix` and `queue_path`.
 #' @param queue_path Character. Path to the queue `.rds` file, used to derive the default path.
-#' @param prefix Character. Directory prefix for the path. Default `"logs"`.
+#' @param prefix Character. Directory name placed beside the queue file. Default `"logs"`.
 #' @param suffix Character. Suffix used in the path. Defaults to `queue_path`.
 #' @return The default path.
 #' @export
 tmuxActiveRunningPath <- function(activeRunningPath = NULL, queue_path, prefix = "logs", suffix = queue_path) {
   if (is.null(activeRunningPath)) {
     if (missing(queue_path))
-      suffix <- "tmuxStatus"
-    activeRunningPath <- file.path(prefix, basename(suffix))
+      suffix <- file.path(".", "tmuxStatus")
+    # Anchored to the queue's own directory, not the caller's cwd: callers
+    # normalize queue_path to an absolute path, and a bare relative "logs/..."
+    # put the flag files (and worker library snapshots) wherever R happened to
+    # be started -- under testthat, that is the package source tree.
+    activeRunningPath <- file.path(dirname(suffix), prefix, basename(suffix))
   }
   if (!dir.exists(activeRunningPath))
     dir.create(activeRunningPath, recursive = TRUE, showWarnings = FALSE)

@@ -116,3 +116,25 @@ test_that(".tmux_attach_ps_stats requires a 6+ digit pid to parse a title", {
   # the short one cannot be dispatched, so its stats stay NA
   expect_true(is.na(res$state[[1]]))
 })
+
+test_that("tmuxActiveRunningPath anchors to the queue's directory, not the cwd", {
+  qdir <- tempfile("arp"); dir.create(qdir)
+  on.exit(unlink(qdir, recursive = TRUE), add = TRUE)
+  queue_path <- file.path(qdir, "future_queue.rds")
+
+  # cwd deliberately elsewhere: a relative "logs/..." would land here instead
+  cwd <- tempfile("cwd"); dir.create(cwd)
+  on.exit(unlink(cwd, recursive = TRUE), add = TRUE)
+  withr::with_dir(cwd, {
+    res <- tmuxActiveRunningPath(NULL, queue_path)
+    expect_identical(normalizePath(res),
+                     normalizePath(file.path(qdir, "logs", "future_queue.rds")))
+    expect_false(dir.exists(file.path(cwd, "logs")))
+  })
+})
+
+test_that("tmuxActiveRunningPath honours an explicit activeRunningPath", {
+  d <- tempfile("arp2")
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  expect_identical(tmuxActiveRunningPath(d, "/nowhere/q.rds"), d)
+})
