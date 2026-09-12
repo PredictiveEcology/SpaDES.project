@@ -1,5 +1,12 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+version 1.2.0.9000
+==================
+
+## Bug fixes
+
+* `tmuxActiveRunningPath()` anchors the run directory to the queue file's own directory instead of building a path relative to the caller's working directory, so `Running_*.rds` sentinels and worker library snapshots no longer land wherever R was started.
+
 version 1.2.0
 =============
 
