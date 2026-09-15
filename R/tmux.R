@@ -2362,9 +2362,9 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 # A detached tmux session (`tmux new-session -d`, never attached) keeps the
 # default 80x24 window, so tiling stops after three or four panes with
 # "no space for new pane". A window follows the size of its attached client;
-# with no client there is nothing to follow, and `window-size manual` plus an
-# explicit `resize-window` (tmux >= 2.9) is the documented way to give a
-# headless window room. Returns NULL when nothing needs doing (a client is
+# with no client there is nothing to follow, so an explicit `resize-window`
+# (tmux >= 2.9) gives a headless window room, and the session's `default-size`
+# keeps it (see .tmux_ensure_window_capacity). Returns NULL when nothing needs doing (a client is
 # attached, or the window is already large enough), else the target geometry.
 .tmux_window_geometry <- function(n_panes, width, height, attached,
                                   rows_per_pane = 12L, min_cols = 200L) {
@@ -2395,7 +2395,6 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   if (anyNA(c(attached, width, height))) return(invisible(NULL))
   geom <- .tmux_window_geometry(n_panes, width, height, attached)
   if (is.null(geom)) return(invisible(NULL))
-  try(.tmux_run("set-option", "-t", sess, "window-size", "manual"), silent = TRUE)
   ok <- try(.tmux_run("resize-window", "-t", target_win, "-x", geom$width, "-y", geom$height),
             silent = TRUE)
   if (inherits(ok, "try-error")) {
@@ -2405,6 +2404,13 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
               "Attach a client or enlarge the window by hand.")
     return(invisible(NULL))
   }
+  # resize-window leaves `window-size manual` on the window and the session, and a client that
+  # attaches later can then never resize the window (tmux 3.4). Keep the room as the session's
+  # default size, which a detached window uses, and remove the pin so an attached terminal decides.
+  try(.tmux_run("set-option", "-t", sess, "default-size", paste0(geom$width, "x", geom$height)),
+      silent = TRUE)
+  try(.tmux_run("set-window-option", "-u", "-t", target_win, "window-size"), silent = TRUE)
+  try(.tmux_run("set-option", "-u", "-t", sess, "window-size"), silent = TRUE)
   if (isTRUE(verbose))
     message("tmux: no client attached; resized window ", target_win, " from ",
             width, "x", height, " to ", geom$width, "x", geom$height, " for ", n_panes, " panes")
