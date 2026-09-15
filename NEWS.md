@@ -5,6 +5,7 @@ version 1.2.0.9000
 
 ## Bug fixes
 
+* Worker pane titles read `<machine>-<pid>-<run name>` again. A job claimed from a Google Sheet queue had an empty run name when `runNameLabel` referred to the queue, as the usual `quote(colnames(q)[1])` does. It was evaluated where `q` is `base::q`, so the "Claimed job:" message and the pane title lost the job's name. Local workers also showed their machine twice, because the short hostname used as a host label was put in front of the node name.
 * `tmuxActiveRunningPath()` anchors the run directory to the queue file's own directory instead of building a path relative to the caller's working directory, so `Running_*.rds` sentinels and worker library snapshots no longer land wherever R was started.
 
 version 1.2.0

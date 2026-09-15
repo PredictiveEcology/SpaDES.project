@@ -112,3 +112,38 @@ test_that("tmuxRunNextWorker hands global.R the queue's values with their types,
     expect_identical(got$modules, q$.modules[[i]])
   }
 })
+
+test_that("a claimed job is named by its queue value, so the pane title ends with the ELF", {
+  ## 2026-09-15, FireSense phase 2: panes read "A159568-A159568-444101-" and the log "Claimed job: ".
+  ## The fleet passes runNameLabel = quote(colnames(q)[1]); f382a0e evaluated it in the scenario
+  ## environment, where `q` is base::q (quit), so the run name was empty.
+  td <- withr::local_tempdir()
+  q <- data.frame(.ELFind = c("14.3", "5.3.1"), .rep = 1L, status = "PENDING", stringsAsFactors = FALSE)
+  qp <- file.path(td, "queue.rds")
+  saveRDS(q, qp)
+  sheet <- as.data.frame(lapply(q, as.character), stringsAsFactors = FALSE)
+  names(sheet) <- gsub("^\\.", "dot", names(sheet))
+  titles <- character()
+  testthat::local_mocked_bindings(
+    .gs_claim_next_job = function(...)
+      list(row_index = 1L, sheet_row = 2L,
+           col_positions = stats::setNames(seq_along(sheet), names(sheet)),
+           data = sheet[1, , drop = FALSE]),
+    .gs_write_cells = function(...) invisible(NULL),
+    .mirror_local_queue = function(...) invisible(NULL),
+    .tmux_run = function(...) {
+      a <- c(...)
+      if (identical(a[1L], "select-pane")) titles <<- c(titles, a[length(a)])
+      invisible(NULL)
+    })
+  withr::local_options(.spades_pane_prefix = "A159568-42")
+  withr::local_envvar(TMUX = "", TMUX_PANE = "%1")
+
+  msgs <- testthat::capture_messages(
+    res <- tmuxRunNextWorker(queue_path = qp, global_path = mkGlobal(td), ss_id = "fake-sheet-id",
+                             runNameLabel = quote(colnames(q)[1])))
+
+  expect_identical(res, "ok")
+  expect_true(any(grepl("Claimed job: 14.3", msgs, fixed = TRUE)))
+  expect_identical(titles[1L], "A159568-42-14.3")
+})
