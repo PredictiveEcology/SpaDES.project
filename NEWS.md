@@ -5,6 +5,7 @@ version 1.2.0.9000
 
 ## Bug fixes
 
+* A headless `experimentTmux()` session no longer locks its window size. Growing the window so the worker panes fit left it at `window-size manual`, so a user who attached later could not resize it and the panes stayed small. The room is now kept as the session's `default-size` and the `manual` setting is removed, so the window stays large while detached and follows the terminal of a client that attaches.
 * `tmuxActiveRunningPath()` anchors the run directory to the queue file's own directory instead of building a path relative to the caller's working directory, so `Running_*.rds` sentinels and worker library snapshots no longer land wherever R was started.
 
 version 1.2.0
