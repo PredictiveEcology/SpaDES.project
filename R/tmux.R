@@ -1409,7 +1409,9 @@ experimentTmux <- function(df,
             paste0("  .host  <- ", deparse1(hl)),
             "  .node  <- Sys.info()[[\"nodename\"]]",
             "  .pid   <- Sys.getpid()",
-            "  .title <- if (nzchar(.host)) paste0(.host, \"-\", .node, \"-\", .pid) else paste0(.node, \"-\", .pid)",
+            # <machine>-<pid>: the host label goes in front only when it names a different machine
+            # (a remote worker's cores-list name), not the local short hostname again.
+            "  .title <- if (nzchar(.host) && !identical(sub(\"\\\\..*$\", \"\", .host), sub(\"\\\\..*$\", \"\", .node))) paste0(.host, \"-\", .node, \"-\", .pid) else paste0(.node, \"-\", .pid)",
             "  options(.spades_pane_prefix = .title)",
             "  cat(sprintf(\"\\033]2;%s\\007\", .title))",
             "  message(\"\\n\", strrep(\"-\", 60))",
@@ -1634,11 +1636,24 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       assign(nm, q[[nm]][[1L]], envir = scn_env)
     .pkgEnv$lastScn <- scn_env
 
-    # Compute runName from runNameLabel now that data cols are in scn_env
+    # Compute runName from runNameLabel. As in the queue-status refresh, evaluate it where `q` is the
+    # claimed queue row and the data columns are visible: the usual label, quote(colnames(q)[1]),
+    # gives column NAMES, and their values name the job. Evaluated in scn_env alone, `q` is base::q
+    # (quit), so the run name, the "Claimed job:" line and the pane title's ELF came out empty.
     runName <- tryCatch({
-      raw <- eval(runNameLabel, envir = scn_env)
-      gsub("[^[:alnum:]_.:-]", "-", paste(as.character(raw), collapse = "-"))
-    }, error = function(e) paste(q[[data_cols[1L]]][1L], collapse = "-"))
+      labelEnv <- new.env(parent = scn_env)
+      assign("q", q, envir = labelEnv)
+      raw <- if (is.symbol(runNameLabel)) as.character(runNameLabel)
+             else eval(runNameLabel, envir = labelEnv)
+      rn <- if (is.character(raw) && length(raw) > 0L && all(raw %in% names(q))) {
+        getRunName(q, 1L, raw)
+      } else {
+        paste(as.character(raw), collapse = "-")
+      }
+      gsub("[^[:alnum:]_.:-]", "-", rn)
+    }, error = function(e) "")
+    if (!nzchar(runName))
+      runName <- gsub("[^[:alnum:]_.:-]", "-", paste(q[[data_cols[1L]]][1L], collapse = "-"))
 
     message("\n[", format(Sys.time(), "%H:%M:%S"), "] Claimed job: ", runName)
 

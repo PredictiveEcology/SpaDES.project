@@ -25,6 +25,32 @@ test_that("OSC2 guard includes isatty(stdout()) for SSH-session compatibility", 
   )
 })
 
+test_that("a worker's startup title names its machine once: <machine>-<pid>", {
+  ## 2026-09-15: local workers read "A159568-A159568-444101". 9adb2b7 made the host label fall back to
+  ## `hostname -s` for local workers, and the startup title put that label in front of the node name.
+  ## The title line is part of the startup script experimentTmux() writes, which runs before the
+  ## project library is on .libPaths(), so it is tested by running that generated line.
+  strs <- function(x) {
+    if (is.character(x)) return(x)
+    if (is.call(x) || is.pairlist(x) || is.expression(x) || is.function(x))
+      return(unlist(lapply(as.list(if (is.function(x)) body(x) else x), strs)))
+    NULL
+  }
+  line <- grep("^\\s*\\.title <- ", strs(SpaDES.project::experimentTmux), value = TRUE)
+  expect_length(line, 1L)
+  titleFor <- function(host, node, pid = 42L) {
+    e <- new.env()
+    e$.host <- host; e$.node <- node; e$.pid <- pid
+    eval(parse(text = line), envir = e)
+    e$.title
+  }
+  expect_identical(titleFor("A159568", "A159568"), "A159568-42")
+  expect_identical(titleFor("A159568", "A159568.nrcan.gc.ca"), "A159568.nrcan.gc.ca-42")
+  expect_identical(titleFor("", "A159568"), "A159568-42")
+  ## a remote worker keeps the cores-list label in front of its node name
+  expect_identical(titleFor("birds", "A159596"), "birds-A159596-42")
+})
+
 test_that("tmuxRunNextWorker emits OSC2 pane title escape when TMUX is set", {
   skip_if_not_installed("filelock")
 
