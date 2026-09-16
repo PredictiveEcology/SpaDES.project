@@ -721,7 +721,9 @@ setupProject <- function(name, paths, modules, packages,
 
       m <- fileRelPathFromFullGHpath(names(modules))
       if (any(nzchar(m))) {
-        paths[["modulePath"]] <- unique(c(paths[["modulePath"]], file.path(paths[["modulePath"]], unique(m))))
+        nested <- nzchar(m)
+        nestedDirs <- file.path(whichModulePath(modules[nested], paths[["modulePath"]]), m[nested])
+        paths[["modulePath"]] <- unique(c(paths[["modulePath"]], nestedDirs))
       }
       assign("modules", modules, envir = envir)
       assign("paths", paths, envir = envir)
@@ -1725,8 +1727,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     modulesOrigNestedName <- extractModName(modulesOrig)
     ## check that we keep only the modules needed
     # This also flattens them if they were nested modules
-    actualModPaths <- normPath(file.path(paths$modulePath, m, modulesOrigNestedName))
-    wantedModPath <- normPath(file.path(paths$modulePath, modulesOrigNestedName))
+    modPath <- whichModulePath(modulesOrigNestedName, paths$modulePath)
+    actualModPaths <- normPath(file.path(modPath, m, modulesOrigNestedName))
+    wantedModPath <- normPath(file.path(modPath, modulesOrigNestedName))
     isNested <- which(!actualModPaths %in% wantedModPath)
 
     if (useGit %in% FALSE) {
@@ -1970,15 +1973,16 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       wantedModPath2 <- wantedModPath[isNested]
       modulesOrigNestedName2 <- modulesOrigNestedName[isNested]
       modulesOrigPkgName2 <- modulesOrigPkgName[isNested]
+      modPath2 <- modPath[isNested]
 
-      moduleSuperFolder <- unique(normPath(file.path(paths$modulePath, modulesOrigPkgName2)))
+      moduleSuperFolder <- unique(normPath(file.path(modPath2, modulesOrigPkgName2)))
 
       ## modules were probably nested in a GH repo
       actualModFiles <- sapply(actualModPaths2, list.files, recursive = TRUE, all.files = TRUE, full.names = TRUE, USE.NAMES = FALSE) |>
         unlist()
       newModFiles <- actualModFiles
-      for (ddir in dirname(actualModPaths2)) {
-        newModFiles <- sub(ddir, paths$modulePath, newModFiles)
+      for (i in seq_along(actualModPaths2)) {
+        newModFiles <- sub(dirname(actualModPaths2[i]), modPath2[i], newModFiles)
       }
 
       invisible(sapply(unique(dirname(newModFiles)), dir.create, recursive = TRUE, showWarnings = FALSE))
