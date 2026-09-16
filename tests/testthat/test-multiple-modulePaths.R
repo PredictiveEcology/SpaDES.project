@@ -61,7 +61,9 @@ test_that("nested GitHub modules are flattened into the modulePath they were dow
   skip_on_cran()
   skip_if_offline()
   setupTest()
-  root <- withr::local_tempdir()
+  ## normalised, as setupProject() returns them: macOS /var -> /private/var,
+  ## Windows 8.3 short names and backslashes
+  root <- normPath(withr::local_tempdir())
   mps <- file.path(root, c("mp1", "mp2"))
   mkModule(mps[2], "localMod", '"fs"')
   nested <- c("PredictiveEcology/scfm@development/modules/scfmLandcoverInit",
