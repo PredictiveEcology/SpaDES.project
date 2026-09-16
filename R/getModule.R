@@ -3,7 +3,7 @@ utils::globalVariables(c(
     "hasSubFolder", "repoLocation", "isGH", "canDownload", "OKtoDL",
     "downloaded", "hasVersionSpec", "inequ", "moduleFullName",
     "needDownload", "pkg", "status", "sufficient", "versionSpec",
-    "modulesNoVersion")
+    "modulesNoVersion", "modPath", "modDir")
 ))
 
 #' Simple function to download a SpaDES module as GitHub repository
@@ -41,10 +41,12 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   modulesOrigPkgName <- extractPkgName(modulesOrig)
   modulesOrigNestedName <- extractModName(modulesOrig)
 
-  localExists <- dir.exists(file.path(modulePath, modulesOrigNestedName)) # |
+  modPath <- whichModulePath(modulesOrigNestedName, modulePath)
+  localExists <- dir.exists(file.path(modPath, modulesOrigNestedName)) # |
     # dir.exists(file.path(modulePath, m))
 
   stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
+                        modPath = modPath, modDir = file.path(modPath, modulesOrigNestedName),
                         versionSpec = extractVersionNumber(modules),
                         modulesNoVersion = Require::trimVersionNumber(modules),
                         sufficient = NA, version = NA_character_,
@@ -72,7 +74,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   if (all(!overwrite %in% FALSE)) {
     if (any(stateDT$localExists %in% TRUE & !stateDT$sufficient %in% FALSE)) {
       messageVerbose("Local copies: ", verbose = verbose)
-      stateDT <- checkModuleVersion(stateDT, modulePath, verbose = getOption("Require.verbose"))
+      stateDT <- checkModuleVersion(stateDT, verbose = getOption("Require.verbose"))
     }
 
   }
@@ -108,18 +110,18 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
       stateDT[OKtoDL %in% TRUE, {
         downloadGHRepoOuter(modToDL = moduleFullName[[1]],
                             overwrite = OKtoDL[[1]],
-                            modulePath = modulePath,
+                            modulePath = modPath[[1]],
                             verbose = verbose)
       }
       , by = c("acct", "repo")] # if there is one large repository with many SpaDES modules, download only once
 
       stateDT[OKtoDL %in% TRUE, downloaded :=
-                Require::extractPkgName(moduleFullName) %in% dir(modulePath)]
+                dir.exists(file.path(modPath, Require::extractPkgName(moduleFullName)))]
 
       if (any(stateDT$downloaded %in% TRUE)) {
         messageVerbose("Downloaded copies: ", verbose = verbose)
         downloadedDT <- split(stateDT, by = "downloaded")
-        downloadedDT[["TRUE"]] <- checkModuleVersion(downloadedDT[["TRUE"]], modulePath, verbose = getOption("Require.verbose"))
+        downloadedDT[["TRUE"]] <- checkModuleVersion(downloadedDT[["TRUE"]], verbose = getOption("Require.verbose"))
         stateDT <- rbindlist(downloadedDT)
       }
       stateDT[sufficient %in% TRUE & downloaded %in% TRUE, status := "downloaded"]
@@ -136,8 +138,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 
   successes <- stateDT$moduleFullName[stateDT$sufficient %in% TRUE]
   failed <- stateDT$moduleFullName[!stateDT$sufficient %in% TRUE]
-  stateDT[, modulePath := file.path(modulePath, modulesOrigNestedName)]
-  df <- stateDT[, list(moduleFullName, status, modulePath)]
+  df <- stateDT[, list(moduleFullName, status, modulePath = modDir)]
   messageDF(df, verbose = verbose)
 
   return(list(success = successes, failed = failed))
@@ -245,7 +246,15 @@ downloadFile <- function(gitRepo, file, overwrite = FALSE, destDir = ".",
 
 }
 
-checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require.verbose")) {
+# For each module, the first of `modulePath` that contains it; `modulePath[1]`
+# (where a download goes) if none does. `modulePath` may have several entries.
+whichModulePath <- function(modules, modulePath) {
+  vapply(modules, function(mod) {
+    modulePath[c(which(dir.exists(file.path(modulePath, mod))), 1L)[1]]
+  }, character(1), USE.NAMES = FALSE)
+}
+
+checkModuleVersion <- function(stateDT, verbose = getOption("Require.verbose")) {
   stateDT$moduleFullName
   set(stateDT, NULL, "hasVersionSpec", !is.na(stateDT$versionSpec))
   stateDT[!sufficient %in% TRUE, sufficient := !hasVersionSpec]
@@ -255,7 +264,9 @@ checkModuleVersion <- function(stateDT, modulePath, verbose = getOption("Require
             `:=`(inequ = extractInequality(moduleFullName),
                  pkg = extractPkgGitHub(moduleFullName))]
     stateDT[hasVersionSpec %in% TRUE,
-            `:=`(version = as.character(metadataInModules(modules = pkg, metadataItem = "version", modulePath = modulePath)))]
+            `:=`(version = vapply(seq_along(pkg), function(i)
+              as.character(metadataInModules(modules = pkg[i], metadataItem = "version",
+                                             modulePath = modPath[i])), character(1)))]
     stateDT[hasVersionSpec %in% TRUE,
             sufficient := compareVersion2(as.character(version),
                             versionSpec = versionSpec[hasVersionSpec], inequality = inequ)]
