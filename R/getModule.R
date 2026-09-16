@@ -71,12 +71,13 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
       messageVerbose("overwrite = ", mess,"; redownloading ", paste(modsToOverwrite, collapse = ", "))
   }
 
-  if (all(!overwrite %in% FALSE)) {
-    if (any(stateDT$localExists %in% TRUE & !stateDT$sufficient %in% FALSE)) {
-      messageVerbose("Local copies: ", verbose = verbose)
-      stateDT <- checkModuleVersion(stateDT, verbose = getOption("Require.verbose"))
-    }
-
+  ## Check the version of every local copy not already marked for overwrite.
+  ## Only those rows: checkModuleVersion() sets `sufficient` on all it is given.
+  toCheck <- stateDT$localExists %in% TRUE & !stateDT$sufficient %in% FALSE
+  if (any(toCheck)) {
+    messageVerbose("Local copies: ", verbose = verbose)
+    stateDT <- rbindlist(list(checkModuleVersion(stateDT[toCheck], verbose = getOption("Require.verbose")),
+                              stateDT[!toCheck]), fill = TRUE)
   }
   stateDT[localExists %in% FALSE | sufficient %in% FALSE, needDownload := TRUE]
 
@@ -122,7 +123,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
         messageVerbose("Downloaded copies: ", verbose = verbose)
         downloadedDT <- split(stateDT, by = "downloaded")
         downloadedDT[["TRUE"]] <- checkModuleVersion(downloadedDT[["TRUE"]], verbose = getOption("Require.verbose"))
-        stateDT <- rbindlist(downloadedDT)
+        stateDT <- rbindlist(downloadedDT, fill = TRUE)
       }
       stateDT[sufficient %in% TRUE & downloaded %in% TRUE, status := "downloaded"]
       stateDT[sufficient %in% FALSE & downloaded %in% TRUE, status := "downloaded but incorrect version"]
