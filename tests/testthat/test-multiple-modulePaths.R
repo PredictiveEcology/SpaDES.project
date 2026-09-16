@@ -52,3 +52,30 @@ test_that("setupModules reads reqdPkgs from modules spread over several modulePa
     expect_identical(pkgs[["modB"]], "fs")
   }
 })
+
+test_that("nested GitHub modules are flattened into the modulePath they were downloaded to", {
+  ## With several modulePaths, flattening used `sub(..., paths$modulePath, ...)`
+  ## (only the first used) and checked `file.path(modulePath, modules)` pairwise,
+  ## so it undid itself; the added nested modulePath entry was also paired
+  ## positionally, pointing at a directory that did not exist.
+  skip_on_cran()
+  skip_if_offline()
+  setupTest()
+  root <- withr::local_tempdir()
+  mps <- file.path(root, c("mp1", "mp2"))
+  mkModule(mps[2], "localMod", '"fs"')
+  nested <- c("PredictiveEcology/scfm@development/modules/scfmLandcoverInit",
+              "PredictiveEcology/scfm@development/modules/scfmRegime")
+  warns <- capture_warnings(suppressMessages(
+    out <- setupProject(modules = c("localMod", nested),
+                        paths = list(modulePath = mps, projectPath = file.path(root, "proj"),
+                                     packagePath = .libPaths()[1L]),
+                        packages = NULL, useGit = FALSE, updateRprofile = FALSE)))
+  expect_false(any(grepl("replacement", warns)))
+  expect_true(all(dir.exists(file.path(mps[1], c("scfmLandcoverInit", "scfmRegime")))))
+  expect_true(dir.exists(file.path(mps[2], "localMod")))
+  expect_false(dir.exists(file.path(mps[1], "scfm")))   # superfolder removed after copying
+  expect_identical(out$paths$modulePath[1:2], mps)
+  expect_true(all(dir.exists(out$paths$modulePath) | grepl("scfm/modules$", out$paths$modulePath)))
+  expect_false(any(grepl(file.path(mps[2], "scfm"), out$paths$modulePath, fixed = TRUE)))
+})
