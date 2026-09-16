@@ -7,6 +7,7 @@ version 1.2.0.9000
 
 * Worker pane titles read `<machine>-<pid>-<run name>` again. A job claimed from a Google Sheet queue had an empty run name when `runNameLabel` referred to the queue, as the usual `quote(colnames(q)[1])` does. It was evaluated where `q` is `base::q`, so the "Claimed job:" message and the pane title lost the job's name. Local workers also showed their machine twice, because the short hostname used as a host label was put in front of the node name.
 * A headless `experimentTmux()` session no longer locks its window size. Growing the window so the worker panes fit left it at `window-size manual`, so a user who attached later could not resize it and the panes stayed small. The room is now kept as the session's `default-size` and the `manual` setting is removed, so the window stays large while detached and follows the terminal of a client that attaches.
+* `setupProject()` / `getModule()` accept several `paths$modulePath` entries, finding each module in whichever one holds it (was "the condition has length > 1").
 * `tmuxActiveRunningPath()` anchors the run directory to the queue file's own directory instead of building a path relative to the caller's working directory, so `Running_*.rds` sentinels and worker library snapshots no longer land wherever R was started.
 
 version 1.2.0

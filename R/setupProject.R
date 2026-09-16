@@ -1939,10 +1939,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     # Must try both `m` and original `modulePath` if they were flatteend
     modulePackages <- Map(mo = modulesOrigNestedName, di = m,
                           MoreArgs = list(modulePath = paths$modulePath), function(di, mo, modulePath) {
-                            modPathLocal <- file.path(paths[["modulePath"]], di)
-                            if (!dir.exists(modPathLocal)) {
-                              modPathLocal <- paths[["modulePath"]]
-                            }
+                            modPathLocal <- whichModulePath(mo, c(file.path(modulePath, di), modulePath))
 
                             modulePackages <-
                               unlist(packagesInModules(modulePath = modPathLocal,
