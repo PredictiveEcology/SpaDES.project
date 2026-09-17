@@ -138,6 +138,38 @@ test_that("positional pathBuild infers fields from bare-symbol args", {
                c(".ELFind", ".samplingRange", ".GCM", ".SSP", ".rep"))
 })
 
+test_that("bare-symbol names beat a cache whose field order differs", {
+  .reset(); on.exit(.reset(), add = TRUE)
+  # A queue read earlier in the session caches ITS column order, which need not
+  # match the call site in global.R. Before this was fixed, a matching count was
+  # enough for the cache to win, so `.rep`'s label landed on the sampling range
+  # and the run wrote to outputs/4.3/rep1990-2020/CNRM-ESM2-1/ssp370/1.
+  scenarioFieldsSet(c(".ELFind", ".rep", ".GCM", ".SSP", ".samplingRange"))
+  register_scenario_format(withFieldLabel = c(.SSP = "ssp", .rep = "rep"))
+
+  .ELFind        <- "4.3"
+  .samplingRange <- 1990:2020
+  .GCM           <- "CNRM-ESM2-1"
+  .SSP           <- 370
+  .rep           <- 1L
+
+  expect_equal(pathBuild(.ELFind, .samplingRange, .GCM, .SSP, .rep),
+               "outputs/4.3/1990-2020/CNRM-ESM2-1/ssp370/rep1")
+  # The queue's own field order stays cached: parsers that are positional on it
+  # (pathParse, statusCalculate) must keep reading the queue's layout.
+  expect_equal(scenarioFields(),
+               c(".ELFind", ".rep", ".GCM", ".SSP", ".samplingRange"))
+})
+
+test_that("cached fields still win when symbols are not the field names", {
+  .reset(); on.exit(.reset(), add = TRUE)
+  # Local variables named for the call site, not the schema: the cache is the
+  # only source of field names, so it must still be used.
+  scenarioFieldsSet(c(".A", ".B"))
+  elf <- "foo"; n <- 1L
+  expect_equal(pathBuild(elf, n), "outputs/foo/1")
+})
+
 test_that("positional pathBuild with literals still requires cached fields", {
   .reset(); on.exit(.reset(), add = TRUE)
   expect_error(pathBuild("foo", 1L),
