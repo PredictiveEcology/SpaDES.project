@@ -21,8 +21,10 @@ Character scalar.
 }
 \description{
 Generic format: each non-empty field's value becomes one path segment.
-Field order is taken from the order of the input (or, for positional
-calls, from \code{\link[=scenarioFields]{scenarioFields()}}). Integer-and-contiguous vectors are
+Field order is taken from the order of the input. A positional call is
+named by its own argument symbols when those name the cached
+\code{\link[=scenarioFields]{scenarioFields()}} in any order, and by \code{\link[=scenarioFields]{scenarioFields()}} otherwise.
+Integer-and-contiguous vectors are
 encoded as \code{start-end}. Empty / \code{NA} fields are dropped entirely
 (yielding one fewer segment); for round-tripping see \code{\link[=pathParse]{pathParse()}}.
 }

@@ -497,8 +497,10 @@ print.scenario <- function(x, ...) {
 #' Default scenario path builder.
 #'
 #' Generic format: each non-empty field's value becomes one path segment.
-#' Field order is taken from the order of the input (or, for positional
-#' calls, from [scenarioFields()]). Integer-and-contiguous vectors are
+#' Field order is taken from the order of the input. A positional call is
+#' named by its own argument symbols when those name the cached
+#' [scenarioFields()] in any order, and by [scenarioFields()] otherwise.
+#' Integer-and-contiguous vectors are
 #' encoded as `start-end`. Empty / `NA` fields are dropped entirely
 #' (yielding one fewer segment); for round-tripping see [pathParse()].
 #'
@@ -531,25 +533,32 @@ pathBuild <- function(..., pre = "outputs",
     s <- args
   } else {
     flds <- scenarioFields()
-    if (is.null(flds) || length(flds) != length(args)) {
-      # Positional call with no usable cache -- try to recover field
-      # names from the caller's syntax: pathBuild(.ELFind, .samplingRange,
-      # ..., .rep) -> use those symbols as field names. Only kicks in
-      # when *every* dot-arg is a bare symbol; literals keep the original
-      # cached-fields requirement.
-      dotExprs <- match.call(expand.dots = FALSE)$`...`
-      if (!is.null(dotExprs) &&
-          length(dotExprs) == length(args) &&
-          all(vapply(dotExprs, is.symbol, logical(1L)))) {
-        flds <- vapply(dotExprs, as.character, character(1L))
-        scenarioFieldsSet(flds)         # cache for subsequent calls
-      } else {
-        stop("pathBuild(): positional call needs cached fields ",
-             "(via queueRead) of matching length, or bare-symbol ",
-             "arguments to infer them. Got ", length(args),
-             " value(s); cached fields = ",
-             if (is.null(flds)) "<none>" else paste(flds, collapse = ", "))
-      }
+    # Recover field names from the caller's syntax: pathBuild(.ELFind,
+    # .samplingRange, ..., .rep) -> use those symbols as field names. Only
+    # kicks in when *every* dot-arg is a bare symbol; literals keep the
+    # cached-fields requirement.
+    dotExprs <- match.call(expand.dots = FALSE)$`...`
+    symFlds <- if (!is.null(dotExprs) &&
+                   length(dotExprs) == length(args) &&
+                   all(vapply(dotExprs, is.symbol, logical(1L))))
+      vapply(dotExprs, as.character, character(1L))
+    usable <- !is.null(flds) && length(flds) == length(args)
+    if (!is.null(symFlds) && (!usable || setequal(symFlds, flds))) {
+      # The symbols name this call's fields, so they beat the cache when they
+      # are the same set in another order: the cache holds whatever queue was
+      # read last, whose column order need not match this call site. Trusting
+      # the count alone put `.rep`'s label on the sampling range and wrote to
+      # outputs/<ELF>/rep1990-2020/... for jobs launched from predictExpt.R.
+      # A different set means the symbols are local names, not fields; then the
+      # cache is all we have.
+      if (!usable) scenarioFieldsSet(symFlds)   # nothing cached yet -- seed it
+      flds <- symFlds
+    } else if (!usable) {
+      stop("pathBuild(): positional call needs cached fields ",
+           "(via queueRead) of matching length, or bare-symbol ",
+           "arguments to infer them. Got ", length(args),
+           " value(s); cached fields = ",
+           if (is.null(flds)) "<none>" else paste(flds, collapse = ", "))
     }
     s <- setNames(args, flds)
   }
