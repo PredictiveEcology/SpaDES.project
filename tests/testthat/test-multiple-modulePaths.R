@@ -81,3 +81,53 @@ test_that("nested GitHub modules are flattened into the modulePath they were dow
   expect_true(all(dir.exists(out$paths$modulePath) | grepl("scfm/modules$", out$paths$modulePath)))
   expect_false(any(grepl(file.path(mps[2], "scfm"), out$paths$modulePath, fixed = TRUE)))
 })
+
+test_that("useGit clones each GitHub module into the modulePath that holds it, else the first", {
+  ## The git branch of setupModules() used `paths$modulePath` as one path:
+  ## `dir.exists(localPath) && ...` failed with two. A clone (project repo with
+  ## no commits yet) also went to modulePath/basename(modulePath)/repo.
+  skip_on_cran()
+  skip_if_offline()
+  skip_if_not_installed("gert")
+  withr::local_options(Require.updateRprofile = NULL)
+  mod <- "PredictiveEcology/Biomass_speciesFactorial@main"
+  repo <- "Biomass_speciesFactorial"
+  sig <- gert::git_signature("test", "test@example.com")
+  mkProj <- function(commit) {
+    proj <- normPath(withr::local_tempdir(.local_envir = parent.frame()))
+    mps <- file.path(proj, c("mp1", "mp2"))
+    for (mp in mps) dir.create(mp)
+    gert::git_init(proj)
+    if (commit) {
+      writeLines("x", file.path(proj, "README.md"))
+      gert::git_add("README.md", repo = proj)
+      gert::git_commit("init", author = sig, repo = proj)
+    }
+    list(proj = proj, mps = mps)
+  }
+  runSetupModules <- function(p) {
+    withr::local_dir(p$proj)
+    suppressMessages(
+      setupModules(name = basename(p$proj), paths = list(modulePath = p$mps, projectPath = p$proj),
+                   modules = mod, inProject = TRUE, useGit = TRUE,
+                   updateRprofile = FALSE, verbose = -1))
+  }
+
+  ## clone (no commits yet) and submodule (committed): both go to the first path
+  for (commit in c(FALSE, TRUE)) {
+    p <- mkProj(commit)
+    pkgs <- runSetupModules(p)
+    expect_true(file.exists(file.path(p$mps[1], repo, ".git")))  # a dir, or a file for a submodule
+    expect_false(dir.exists(file.path(p$mps[1], "mp1")))
+    expect_length(list.files(p$mps[2]), 0L)
+    expect_true("data.table" %in% pkgs[[mod]])
+  }
+
+  ## already cloned in the second path: used there, not cloned again
+  p <- mkProj(TRUE)
+  gert::git_clone(paste0("https://github.com/PredictiveEcology/", repo),
+                  path = file.path(p$mps[2], repo), verbose = FALSE)
+  pkgs <- runSetupModules(p)
+  expect_length(list.files(p$mps[1]), 0L)
+  expect_true("data.table" %in% pkgs[[mod]])
+})
