@@ -117,6 +117,30 @@ test_that(".tmux_attach_ps_stats requires a 6+ digit pid to parse a title", {
   expect_true(is.na(res$state[[1]]))
 })
 
+test_that(".tmux_attach_ps_stats does not fork", {
+  # Regression: this used parallel::mclapply(), which made it the first fork in
+  # a session.  `parallel` chains to whatever SIGCHLD handler is installed at
+  # its first fork; pak's private-library loader installs one from a
+  # processx.so that pak's exit finalizer later dyn.unload()s, so R segfaulted
+  # at exit.  The full crash only reproduces under the downstream R CMD check
+  # runner; what is testable here is the invariant that removes the hazard.
+  skip_if(.Platform$OS.type != "unix")
+  forks <- 0L
+  suppressMessages(trace(parallel:::mcfork,
+                         tracer = function() forks <<- forks + 1L,
+                         print = FALSE))
+  on.exit(suppressMessages(untrace(parallel:::mcfork)), add = TRUE)
+
+  pid   <- Sys.getpid()
+  panes <- data.frame(
+    title = c(paste0(Sys.info()[["nodename"]], "-", pid, "-run1"),
+              paste0("nosuchhost-fakenode-", pid + 1L, "-run2")),
+    stringsAsFactors = FALSE)
+  SpaDES.project:::.tmux_attach_ps_stats(panes)
+
+  expect_identical(forks, 0L)
+})
+
 test_that("tmuxActiveRunningPath anchors to the queue's directory, not the cwd", {
   qdir <- tempfile("arp"); dir.create(qdir)
   on.exit(unlink(qdir, recursive = TRUE), add = TRUE)

@@ -2735,16 +2735,24 @@ tmuxListPanes <- function(stats = FALSE) {
   target[is_local] <- "__LOCAL__"
   target[has_host] <- parsed_host[has_host]
 
-  # Group unique pids per target and query each target in parallel.  SSH setup
-  # dominates wall time; parallelising collapses N*latency down to ~1*latency.
+  # Group unique pids per target and query each target in turn.  This used to
+  # use parallel::mclapply() to collapse N*(SSH latency) down to ~1*latency, but
+  # forking here is unsafe: `parallel` chains to whatever SIGCHLD handler is
+  # installed at its FIRST fork, and pak's private-library loader installs one
+  # from a processx.so that pak's exit finalizer later dyn.unload()s -- the
+  # exit-time SIGCHLD then jumps into unmapped memory and R segfaults at exit.
+  # This is a monitoring call over a handful of machines, so serial ps / SSH is
+  # fast enough; it matches .ef_attach_ps_stats() (R/future.R), already serial.
   # `split` (unlike `parsed_pid[target == tgt]`) drops rows where target is NA.
   keep <- !is.na(target)
   target_pids <- lapply(split(parsed_pid[keep], target[keep]), unique)
   targets <- names(target_pids)
-  mc <- max(1L, min(length(targets), 16L))
-  results <- parallel::mclapply(targets, function(tgt)
-    .tmux_ps_stats(tgt, target_pids[[tgt]]),
-    mc.cores = mc, mc.preschedule = FALSE)
+  # suppressWarnings: unreachable hosts make system2() warn about ssh's exit
+  # status 255; .tmux_ps_stats() already reports that as NULL.  mclapply() used
+  # to swallow these in the child, so this keeps the output as it was.
+  results <- lapply(targets, function(tgt)
+    suppressWarnings(
+      tryCatch(.tmux_ps_stats(tgt, target_pids[[tgt]]), error = function(e) NULL)))
   names(results) <- targets
 
   for (tgt in targets) {
