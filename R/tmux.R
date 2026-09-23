@@ -3771,7 +3771,10 @@ dotTxt <- "dot"
     "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
     # ...and attach them NOW, for the worker loop the profile runs.
     paste0("local(for (.p in c('datasets','utils','grDevices','graphics','stats','methods'))",
-           " suppressPackageStartupMessages(library(.p, character.only = TRUE)))")
+           " suppressPackageStartupMessages(library(.p, character.only = TRUE)))"),
+    # Restore parallel's SIGCHLD handler before exit finalizers run. Otherwise pak's finalizer unloads its
+    # private processx.so, then parallel's reinstalls processx's handler, and R segfaults at exit.
+    ".Last <- function() if ('parallel' %in% loadedNamespaces()) parallel:::clean_pids(NULL)"
   )
 }
 

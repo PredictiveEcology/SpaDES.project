@@ -18,3 +18,22 @@ test_that("code run from a worker profile sees the default packages", {
   s <- readLines(out)
   expect_true(all(paste0("package:", c("grDevices", "graphics", "stats", "datasets", "utils", "methods")) %in% s))
 })
+
+## pak's private processx installs a SIGCHLD handler; parallel saves it at its first fork. At exit pak's
+## finalizer unloads processx.so, then parallel's finalizer reinstalls the saved handler, and R's tempdir
+## cleanup (system("rm ...")) segfaults. The profile's .Last restores parallel's handler first.
+test_that("a worker profile session does not segfault at exit after pak's processx and a fork", {
+  skip_on_os("windows")
+  skip_if_not_installed("pak")
+  prof <- withr::local_tempfile(fileext = ".R")
+  writeLines(SpaDES.project:::.tmux_profile_head(), prof)
+  script <- withr::local_tempfile(fileext = ".R")
+  writeLines(c("loadNamespace('parallel')",
+               "pak:::load_private_package('processx', 'c_')",
+               "p <- pak:::pkg_data$ns$processx$process$new('true'); p$wait()",
+               "j <- parallel::mcparallel(1); invisible(parallel::mccollect(j))"), script)
+  rscript <- file.path(R.home("bin"), "Rscript")
+  status <- withr::with_envvar(c(R_PROFILE_USER = prof),
+                               suppressWarnings(system2(rscript, shQuote(script), stdout = FALSE, stderr = FALSE)))
+  expect_identical(status, 0L)
+})
