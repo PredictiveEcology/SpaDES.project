@@ -1,5 +1,7 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- Queue workers now run with the default packages (`datasets`, `utils`, `grDevices`, `graphics`, `stats`, `methods`) attached. The worker's `R_PROFILE_USER` profile runs the whole worker loop, and R reads the user profile before it attaches the default packages, so jobs ran with only `methods` and `base` and failed at their first base-graphics plot with "object 'png' not found". The profile now attaches them itself.
+
 version 1.2.0.9000
 ==================
 

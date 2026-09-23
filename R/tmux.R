@@ -1377,12 +1377,7 @@ experimentTmux <- function(df,
           else
             trimws(system("hostname -s", intern = TRUE, ignore.stderr = TRUE)[1L])
           c(
-            # Override any Rprofile.site that sets defaultPackages=character(0).
-            # Profile files run before .First.sys() attaches packages, so setting
-            # this option here ensures the standard packages are always attached.
-            # (~/.Rprofile is skipped when R_PROFILE_USER is set, so we must
-            # set it here too  -- not just in ~/.Rprofile written by setup.)
-            "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
+            .tmux_profile_head(),
             # Load GITHUB_PAT from the file written during setup so pak/gh can
             # authenticate even though ~/.Rprofile is skipped here.
             .pat_reader_line,
@@ -3757,3 +3752,26 @@ revertDotNames <- function(q) {
 }
 
 dotTxt <- "dot"
+
+#' First lines of a worker's R profile
+#'
+#' The worker's profile (`R_PROFILE_USER`) does not only set options: it runs the whole worker loop.
+#' R reads the user profile BEFORE `.First.sys()` attaches the default packages, so code run from the
+#' profile saw only `methods` and `base`. Setting `options(defaultPackages)` there is not enough: it
+#' takes effect only after the profile returns, i.e. after the worker loop. So the packages are attached
+#' here, explicitly. Without them a job failed at its first base-graphics `Plots()` call with
+#' "object 'png' not found" (`grDevices`), 2026-09-23.
+#'
+#' @return character; lines for the top of the profile.
+#' @keywords internal
+.tmux_profile_head <- function() {
+  c(
+    # Override any Rprofile.site that sets defaultPackages=character(0), for the
+    # session after the profile (~/.Rprofile is skipped when R_PROFILE_USER is set).
+    "options(defaultPackages = c('datasets','utils','grDevices','graphics','stats','methods'))",
+    # ...and attach them NOW, for the worker loop the profile runs.
+    paste0("local(for (.p in c('datasets','utils','grDevices','graphics','stats','methods'))",
+           " suppressPackageStartupMessages(library(.p, character.only = TRUE)))")
+  )
+}
+
