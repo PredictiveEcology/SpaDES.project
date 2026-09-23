@@ -4,6 +4,8 @@
 ## (FireSense Mackenzie phase 1, 2026-09-23).
 
 test_that("code run from a worker profile sees the default packages", {
+  ## Queue workers are tmux panes, which exist only on Unix; on Windows CI this launch writes nothing.
+  skip_on_os("windows")
   prof <- withr::local_tempfile(fileext = ".R")
   out <- withr::local_tempfile(fileext = ".txt")
   writeLines(c(SpaDES.project:::.tmux_profile_head(),
