@@ -7,10 +7,12 @@ test_that("code run from a worker profile sees the default packages", {
   prof <- withr::local_tempfile(fileext = ".R")
   out <- withr::local_tempfile(fileext = ".txt")
   writeLines(c(SpaDES.project:::.tmux_profile_head(),
-               sprintf("writeLines(search(), %s)", deparse(out))), prof)
+               sprintf("writeLines(search(), %s)", deparse(normalizePath(out, winslash = "/", mustWork = FALSE)))), prof)
+  ## Rscript reads R_PROFILE_USER too; shQuote() so the expression survives Windows' shell as well
+  rscript <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
   withr::with_envvar(c(R_PROFILE_USER = prof, R_DEFAULT_PACKAGES = "NULL"),
-                     system2(file.path(R.home("bin"), "R"), c("--quiet", "--no-save", "--no-restore", "-e", "'invisible(0)'"),
-                             stdout = FALSE, stderr = FALSE))
+                     system2(rscript, c("-e", shQuote("invisible(0)")), stdout = FALSE, stderr = FALSE))
+  expect_true(file.exists(out), info = "the profile did not run")
   s <- readLines(out)
   expect_true(all(paste0("package:", c("grDevices", "graphics", "stats", "datasets", "utils", "methods")) %in% s))
 })
