@@ -3774,7 +3774,9 @@ dotTxt <- "dot"
            " suppressPackageStartupMessages(library(.p, character.only = TRUE)))"),
     # Restore parallel's SIGCHLD handler before exit finalizers run. Otherwise pak's finalizer unloads its
     # private processx.so, then parallel's reinstalls processx's handler, and R segfaults at exit.
-    ".Last <- function() if ('parallel' %in% loadedNamespaces()) parallel:::clean_pids(NULL)"
+    # (clean_pids exists only where parallel can fork, i.e. not on Windows)
+    paste0(".Last <- function() if ('parallel' %in% loadedNamespaces() &&",
+           " exists('clean_pids', envir = asNamespace('parallel'))) parallel:::clean_pids(NULL)")
   )
 }
 
