@@ -22,3 +22,9 @@ if (tryCatch(packageVersion("terra") > "0", error = function(e) FALSE))
 testLib <- file.path(tempdir(), "SpaDES.project-test-lib")
 dir.create(testLib, recursive = TRUE, showWarnings = FALSE)
 withr::defer(unlink(testLib, recursive = TRUE), teardown_env())
+
+# Same guard as the worker profile's .Last (.tmux_profile_head()): restore parallel's SIGCHLD handler while
+# pak's private processx.so is still loaded, or the test process can segfault at exit.
+# clean_pids() exists only where parallel can fork (not on Windows: CI failed there with "object 'clean_pids' not found").
+withr::defer(if ("parallel" %in% loadedNamespaces() && exists("clean_pids", envir = asNamespace("parallel")))
+  parallel:::clean_pids(NULL), teardown_env())
