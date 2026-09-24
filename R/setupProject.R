@@ -1306,7 +1306,8 @@ setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALS
     functions <- evalSUB(functionsSUB, valObjName = "functions", envir = envir, envir2 = envir)
 
     functions <- parseFileLists(functions, paths = paths, namedList = TRUE,
-                                overwrite = isTRUE(overwrite), envir = envir, verbose = verbose)
+                                overwrite = isTRUE(overwrite), envir = envir, verbose = verbose,
+                                rCodeFor = "functions")
     isFuns <- vapply(functions, is.function, FUN.VALUE = logical(1))
     if (any(isFuns))
       list2env(functions[isFuns], envir = envir)
@@ -1381,7 +1382,8 @@ setupSideEffects <- function(name, sideEffects, paths, times, overwrite = FALSE,
                         verbose = verbose - 2)
 
     sideEffects <- parseFileLists(sideEffects, paths, namedList = FALSE,
-                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose - 1)
+                                  overwrite = isTRUE(overwrite), envir = envir, verbose = verbose - 1,
+                                  rCodeFor = "sideEffects")
     messageVerbose(yellow("  done setting up sideEffects"), verbose = verbose, verboseLevel = 0)
   }
 
@@ -1449,7 +1451,7 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
     }
 
     options <- parseFileLists(options, paths, overwrite = isTRUE(overwrite),
-                              envir = envir, verbose = verbose)
+                              envir = envir, verbose = verbose, rCodeFor = "options")
 
     postOptions <- base::options()
     newValues <- oldValues <- list()
@@ -1528,7 +1530,7 @@ parseListsSequentially <- function(files, parsed, curly, namedList = TRUE, envir
   } else {
     llOuter <- lapply(files, function(optFiles) {
       os <- optFiles # default -- in case the file doesn't exist
-      if (isTRUE(tools::file_ext(optFiles) %in% c("txt", "R")) && file.exists(optFiles)) {
+      if (isTRUE(tolower(tools::file_ext(optFiles)) %in% c("txt", "r")) && file.exists(optFiles)) {
         pp <- parse(optFiles)
         os <- parseListsSequentially(parsed = pp, namedList = namedList, envir = envir,
                                      verbose = verbose)
@@ -2270,7 +2272,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
     paramsSUB <- substitute(params) # must do this in case the user passes e.g., `list(fireStart = times$start)`
     params <- evalSUB(val = paramsSUB, valObjName = "params", envir = callingEnv, envir2 = envir)
     params <- parseFileLists(params, paths, overwrite = isTRUE(overwrite),
-                             envir = envir, verbose = verbose)
+                             envir = envir, verbose = verbose, rCodeFor = "params")
 
     if (length(params)) {
 
@@ -2346,7 +2348,7 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
 
 parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envir,
-                           verbose = getOption("Require.verbose", 1L), dots, ...) {
+                           verbose = getOption("Require.verbose", 1L), dots, rCodeFor = NULL, ...) {
   if (is(obj, "list")) {
     nams <- names(obj)
     if (is.null(nams)) {
@@ -2362,7 +2364,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       newObjs <- Map(objInner = obj[notNamed],
                      function(objInner)
                        parseFileLists(objInner, paths, namedList, overwrite,
-                                      envir, verbose, dots, ...))
+                                      envir, verbose, dots, rCodeFor = rCodeFor, ...))
       # check which ones changed; the ones that don't are files that don't exist
       isChanged <- mapply(SIMPLIFY = TRUE, oldObj = obj[notNamed], newObj = newObjs,
                           function(newObj, oldObj) !identical(newObj, oldObj))
@@ -2405,6 +2407,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
   }
 
   if (is.character(obj)) {
+    unnamed <- if (is.null(names(obj))) rep(TRUE, length(obj)) else !nzchar(names(obj))
     obj <- mapply(opt = obj, function(opt) {
       opt <- convertHTTPsToGH(opt)
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
@@ -2491,6 +2494,8 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
         obj[areAbs %in% FALSE] <- file.path(paths[["projectPath"]], obj[areAbs %in% FALSE])
       }
     }
+    if (!is.null(rCodeFor))
+      .stopIfNotRCode(obj[unnamed], rCodeFor)
 
   }
   if (is.character(obj)) {
@@ -2502,6 +2507,23 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
   }
 
   return(obj)
+}
+
+## An unnamed file in `options`, `params`, `sideEffects` or `functions` is read as R code
+## (parseListsSequentially); any other file would be silently dropped, so stop instead.
+## `files` are the local files, named by what the user supplied (a remote file's source).
+.stopIfNotRCode <- function(files, rCodeFor) {
+  notR <- file.exists(files) & !dir.exists(files) &
+    !tolower(tools::file_ext(files)) %in% c("r", "txt")
+  if (any(notR)) {
+    src <- names(files)[notR]
+    from <- ifelse(is.null(src) | src == files[notR], "", paste0(" (downloaded from ", src, ")"))
+    stop("`", rCodeFor, "` reads each unnamed file as R code (.R or .txt), but ",
+         paste0(files[notR], from, collapse = ", "), " is not an R file. ",
+         "To use a data file, read it inside an R expression or give its path as a named element.",
+         call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 checkProjectPath <- function(paths, name, envir, envir2) {
