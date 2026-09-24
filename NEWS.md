@@ -1,5 +1,6 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- `setupProject()` now stops, naming the file, when an unnamed element of `options`, `params`, `sideEffects` or `functions` is a file that is not R code (.R, .r or .txt). Such a file, local or downloaded, used to be dropped silently. A `.r` file is now read as R code, like `.R`.
 - Queue workers no longer segfault when R exits. pak's private processx installs a SIGCHLD handler, and `parallel` (the worker heartbeat's `mcparallel()`) saves it at its first fork. At exit pak unloads processx, then `parallel` reinstalls the saved handler, and R crashes when it deletes its temporary directory. The worker profile's `.Last` now restores `parallel`'s handler before either runs. The test suite does the same at teardown.
 - Queue workers now run with the default packages (`datasets`, `utils`, `grDevices`, `graphics`, `stats`, `methods`) attached. The worker's `R_PROFILE_USER` profile runs the whole worker loop, and R reads the user profile before it attaches the default packages, so jobs ran with only `methods` and `base` and failed at their first base-graphics plot with "object 'png' not found". The profile now attaches them itself.
 
