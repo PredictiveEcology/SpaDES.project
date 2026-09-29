@@ -599,3 +599,4 @@ version 0.0.1
 =============
 
 * initial version
+- Respawned queue workers (every pane's second and later job) now get the same profile head as the first job. Their `worker_respawn.R` profile lacked it, so those jobs still ran without the default packages (failing at the first base-graphics plot with "object 'png' not found") and without `GITHUB_PAT`.

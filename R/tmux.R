@@ -1365,11 +1365,7 @@ experimentTmux <- function(df,
       # wrote to ~/.Rprofile during setup never fires.  Embed it here instead.
       # Path mirrors local_lib (same on localhost and remote by design).
       .remote_pat_file <- file.path(.libPaths()[1L], ".spades_github_pat")
-      .pat_reader_line  <- paste0(
-          "local({f<-", deparse1(.remote_pat_file), ";",
-          "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
-          "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
-        )
+      .pat_reader_line  <- .pat_reader_code(.remote_pat_file)
 
         .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
           hl <- if (!is.null(host_label) && !host_label %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
@@ -2054,7 +2050,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       # Use activeRunningPath (not tempfile) so the script survives q() and can be
       # re-run from the pane without stalling on a deleted tempfile.
       .respawn_script <- file.path(activeRunningPath, "worker_respawn.R")
-      writeLines(.build_worker_r_expr(
+      .write_respawn_profile(.build_worker_r_expr(
                    queue_path        = queue_path,
                    global_path       = global_path,
                    on_interrupt      = on_interrupt,
@@ -2067,7 +2063,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    dots_path         = dots_path,
                    lib_path          = .libPaths(),
                    snapshot_library  = snapshot_library
-                 ), .respawn_script)
+                 ), .respawn_script, file.path(.libPaths()[1L], ".spades_github_pat"))
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
       # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
       # local-worker startup at the top of experimentTmux(). Without this,
@@ -3752,6 +3748,21 @@ revertDotNames <- function(q) {
 }
 
 dotTxt <- "dot"
+
+## R code that loads GITHUB_PAT from the file written during setup (~/.Rprofile is skipped under R_PROFILE_USER).
+.pat_reader_code <- function(patFile) {
+  paste0(
+    "local({f<-", deparse1(patFile), ";",
+    "if(file.exists(f)){p<-readLines(f,warn=FALSE)[1L];",
+    "if(nzchar(p))Sys.setenv(GITHUB_PAT=p,GITHUB_TOKEN=p)}})"
+  )
+}
+
+## The respawned worker's profile (R_PROFILE_USER) needs the same head and PAT reader as the startup profile:
+## R reads the profile before attaching the default packages, and the profile runs the whole worker loop.
+.write_respawn_profile <- function(workerExpr, path, patFile) {
+  writeLines(c(.tmux_profile_head(), .pat_reader_code(patFile), workerExpr), path)
+}
 
 #' First lines of a worker's R profile
 #'
