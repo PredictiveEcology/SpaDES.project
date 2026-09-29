@@ -33,8 +33,19 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 \code{Require} function, when \code{verbose >= 2}, also returns details as if
 \code{returnDetails = TRUE} (for backwards compatibility).}
 }
+\value{
+A list with \code{success} and \code{failed}, the module specifications (children included)
+that are, or are not, available locally.
+}
 \description{
 Simple function to download a SpaDES module as GitHub repository
+}
+\details{
+A parent module lists its children in \code{childModules}. After a module is fetched (or
+found locally), its children are fetched too, recursively: an entry written as
+\code{"owner/repo@branch"} is fetched as written; a plain name (or \code{"name@branch"}) is fetched
+from the parent's GitHub account (and branch, unless one is given). A module also named in
+\code{modules} is fetched only as it is written there, never from a parent's entry.
 }
 \seealso{
 \link{getGithubFile}
