@@ -6,7 +6,7 @@ URL:
     https://spades-project.predictiveecology.org/,
     https://github.com/PredictiveEcology/SpaDES.project
 Date: 2026-09-29
-Version: 1.2.0.9008
+Version: 1.2.0.9009
 Authors@R: c(
     person("Eliot J B", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca",
            role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6914-8316")),
@@ -124,4 +124,9 @@ Collate:
     'txt.R'
     'upload.R'
     'zzz.R'
+Remotes:
+    PredictiveEcology/Require@development,
+    PredictiveEcology/reproducible@development,
+    PredictiveEcology/SpaDES.core@development,
+    PredictiveEcology/SpaDES.tools@development
 Config/roxygen2/version: 8.1.0
