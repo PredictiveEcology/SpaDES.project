@@ -718,6 +718,9 @@ setupProject <- function(name, paths, modules, packages,
                                      overwrite = overwrite, envir = envir, verbose = verbose)
       modules <- extractModName(names(modulePackages))
       names(modules) <- names(modulePackages)
+      ## a module also listed as a child of another in `modules` reaches simInit() via its parent
+      desc <- unlist(lapply(modules, .descendantModules, modulePath = paths[["modulePath"]]))
+      modules <- modules[!modules %in% desc]
 
       m <- fileRelPathFromFullGHpath(names(modules))
       if (any(nzchar(m))) {
@@ -1952,7 +1955,13 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
                             modulePackages <-
                               unlist(packagesInModules(modulePath = modPathLocal,
-                                                       modules = mo), use.names = FALSE)})
+                                                       modules = mo), use.names = FALSE)
+                            ## a parent's children are not in `modules`; their packages go with it
+                            kids <- .descendantModules(mo, modulePath)
+                            kidPackages <- lapply(kids, function(kid)
+                              packagesInModules(modulePath = whichModulePath(kid, modulePath),
+                                                modules = kid))
+                            c(modulePackages, unlist(kidPackages, use.names = FALSE))})
     # modulePackages <- packagesInModules(modulePath = file.path(paths[["modulePath"]], dirname(m)),
     #                                     modules = modulesOrigNestedName)
     packages <- modulePackages[modulesOrigNestedName]
@@ -2278,6 +2287,10 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
 
       # If the path is nested within a repository, the module will already be stripped of the @
       modulesSimple <- simplifyModuleName(modules)
+      ## a parent's children take params too
+      if (!missing(paths) && length(paths[["modulePath"]]))
+        modulesSimple <- unique(c(modulesSimple, unlist(lapply(
+          modulesSimple, .descendantModules, modulePath = paths[["modulePath"]]))))
       # modulesSimple1 <- Require::extractPkgName(modules)
       # modulesSimple2 <- Require::extractPkgName(unname(modules))
       # take1st <- grepl("@", modulesSimple2)

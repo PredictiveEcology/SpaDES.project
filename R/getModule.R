@@ -21,6 +21,16 @@ utils::globalVariables(c(
 #'   \code{file.path(modulePath, repository)}. If omitted, and `options(spades.modulePath)` is
 #'   set, it will use `getOption("spades.modulePath")`, otherwise it will use `"."`.
 #'
+#' @details
+#' A parent module lists its children in `childModules`. After a module is fetched (or
+#' found locally), its children are fetched too, recursively: an entry written as
+#' `"owner/repo@branch"` is fetched as written; a plain name (or `"name@branch"`) is fetched
+#' from the parent's GitHub account (and branch, unless one is given). A module also named in
+#' `modules` is fetched only as it is written there, never from a parent's entry.
+#'
+#' @return A list with `success` and `failed`, the module specifications (children included)
+#'   that are, or are not, available locally.
+#'
 #' @export
 #' @seealso [getGithubFile]
 #' @include imports.R
@@ -31,6 +41,14 @@ utils::globalVariables(c(
 #' @importFrom utils capture.output
 getModule <- function(modules, modulePath, overwrite = FALSE,
                       verbose = getOption("Require.verbose", 1L)) {
+  out <- .getModuleNoChildren(modules, modulePath, overwrite = overwrite, verbose = verbose)
+  kids <- .getChildModules(out$success, explicit = modules, modulePath = modulePath,
+                           overwrite = overwrite, verbose = verbose)
+  list(success = c(out$success, kids$success), failed = c(out$failed, kids$failed))
+}
+
+.getModuleNoChildren <- function(modules, modulePath, overwrite = FALSE,
+                                 verbose = getOption("Require.verbose", 1L)) {
 
   modulePath <- normPath(modulePath)
   modulePath <- checkPath(modulePath, create = TRUE)
@@ -342,3 +360,60 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   }
 }
 
+## The `childModules` entries of each module in `modules` (names or specs), as written.
+.childModuleEntries <- function(modules, modulePath) {
+  unlist(lapply(extractModName(modules), function(mod) {
+    kids <- metadataInModules(modules = mod, metadataItem = "childModules",
+                              modulePath = whichModulePath(mod, modulePath), verbose = -1)
+    kids <- as.character(unlist(kids, use.names = FALSE))
+    kids[!is.na(kids) & nzchar(kids)]
+  }), use.names = FALSE)
+}
+
+## Where to fetch a child from: an "owner/repo..." entry as written; a plain name, or
+## "name@branch", from the parent's account and (unless given) branch. A parent that is
+## local only, or nested in another repository, leaves its plain children as they are.
+.childModuleSpec <- function(kid, parent) {
+  if (grepl("/", sub("@.*$", "", kid))) return(kid)
+  parent <- trimVersionNumber(parent)
+  if (!isGitHub(parent)) return(kid)
+  gr <- lapply(splitGitRepo(parent)[c("acct", "br", "subFolder")], unlist)
+  if (!is.na(gr$subFolder)) return(kid)
+  br <- if (grepl("@", kid)) sub("^[^@]*@", "", kid) else gr$br
+  paste0(gr$acct, "/", sub("@.*$", "", kid), "@", br)
+}
+
+## Fetch the children of `parents`, then theirs, and so on. `explicit` (the modules the
+## user asked for) are never refetched from a parent's entry; `seen` stops a cycle.
+.getChildModules <- function(parents, explicit, modulePath, overwrite = FALSE,
+                             verbose = getOption("Require.verbose", 1L)) {
+  ## a logical `overwrite` per explicit module does not apply to children
+  if (is.logical(overwrite) && length(overwrite) != 1) overwrite <- FALSE
+  seen <- if (length(explicit)) extractModName(explicit) else character()
+  success <- failed <- character()
+  while (length(parents)) {
+    kids <- unlist(lapply(parents, function(par)
+      vapply(.childModuleEntries(par, modulePath), .childModuleSpec, character(1),
+             parent = par, USE.NAMES = FALSE)), use.names = FALSE)
+    if (!length(kids)) break
+    kidNames <- extractModName(kids)
+    keep <- !kidNames %in% seen & !duplicated(kidNames)
+    kids <- kids[keep]
+    if (!length(kids)) break
+    seen <- c(seen, kidNames[keep])
+    messageVerbose("Child modules: ", paste(kids, collapse = ", "), verbose = verbose)
+    out <- .getModuleNoChildren(kids, modulePath, overwrite = overwrite, verbose = verbose)
+    success <- c(success, out$success)
+    failed <- c(failed, out$failed)
+    parents <- out$success
+  }
+  list(success = success, failed = failed)
+}
+
+## Names of all modules below `module` (children, grandchildren, ...), as found locally.
+.descendantModules <- function(module, modulePath, seen = character()) {
+  kids <- setdiff(extractModName(.childModuleEntries(module, modulePath)), c(seen, module))
+  if (!length(kids)) return(character())
+  seen <- c(seen, module, kids)
+  unique(c(kids, unlist(lapply(kids, .descendantModules, modulePath = modulePath, seen = seen))))
+}
