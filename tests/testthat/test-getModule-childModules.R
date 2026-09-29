@@ -160,3 +160,103 @@ test_that("setupProject passes the parent, not its children, on to simInit", {
   expect_identical(versionOf(mp, "kidA"), "3.0.0")
   expect_setequal(setdiff(names(out$params), ".globals"), c("kidA", "kidB"))
 })
+
+test_that("a 'name@branch' child keeps its branch and takes the parent's account", {
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  mkRemoteModule(remote, "Acct/par@dev", childModules = "kidC@modsForX")
+  mkRemoteModule(remote, "Acct/kidC@modsForX", version = "2.0.0")
+  mkRemoteModule(remote, "Acct/kidC@dev", version = "3.0.0")
+  calls <- localFakeGitHub(remote)
+
+  out <- getModule("Acct/par@dev", modulePath = mp, verbose = -1)
+
+  expect_setequal(calls$specs, c("Acct/par@dev", "Acct/kidC@modsForX"))
+  expect_identical(versionOf(mp, "kidC"), "2.0.0")
+  expect_length(out$failed, 0L)
+})
+
+test_that("a module listed with its own branch overrides the parent's entry, and simInit gets the parent only", {
+  setupTest()
+  withr::local_options(spades.useRequire = FALSE, Require.updateRprofile = NULL)
+  remote <- withr::local_tempdir()
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "modules")
+  mkRemoteModule(remote, "Acct/par@dev", childModules = "kidB")
+  mkRemoteModule(remote, "Acct/kidB@dev", version = "2.0.0")
+  mkRemoteModule(remote, "Acct/kidB@testing", version = "4.0.0")
+  calls <- localFakeGitHub(remote)
+
+  out <- suppressMessages(
+    setupProject(modules = c("Acct/par@dev", "Acct/kidB@testing"),
+                 paths = list(modulePath = mp, projectPath = file.path(root, "proj"),
+                              packagePath = .libPaths()[1L]),
+                 useGit = FALSE, updateRprofile = FALSE, verbose = -1))
+
+  expect_true("Acct/kidB@testing" %in% calls$specs)
+  expect_false("Acct/kidB@dev" %in% calls$specs)
+  expect_identical(versionOf(mp, "kidB"), "4.0.0")
+  expect_identical(unname(out$modules), "par")
+})
+
+## A real (parsable, runnable) minimal SpaDES module in the fake remote.
+mkSpadesModule <- function(remote, spec, childModules = character()) {
+  name <- Require::extractPkgName(spec)
+  d <- file.path(remote, sub("/", "__", spec, fixed = TRUE), name)
+  dir.create(d, recursive = TRUE, showWarnings = FALSE)
+  writeLines(
+    c("defineModule(sim, list(",
+      sprintf('  name = "%s",', name),
+      '  description = "test", keywords = "test", authors = person("A", "B", role = c("aut", "cre")),',
+      sprintf('  childModules = %s,', paste(deparse(childModules), collapse = "")),
+      '  version = list(x = "1.0.0"), timeframe = as.POSIXlt(c(NA, NA)),',
+      '  timeunit = "year", citation = list(), documentation = list(),',
+      '  reqdPkgs = list(),',
+      '  parameters = bindrows(defineParameter(".plots", "character", "screen", NA, NA, "")),',
+      '  inputObjects = bindrows(), outputObjects = bindrows()',
+      "))",
+      sprintf("doEvent.%s <- function(sim, eventTime, eventType) {", name),
+      "  if (eventType == 'init') sim <- scheduleEvent(sim, time(sim) + 1, currentModule(sim), 'step')",
+      "  if (eventType == 'step') sim <- scheduleEvent(sim, time(sim) + 1, currentModule(sim), 'step')",
+      "  invisible(sim)",
+      "}"),
+    file.path(d, paste0(name, ".R"))
+  )
+}
+
+test_that("simInit on a fetched parent runs its leaf children only, as if they were listed", {
+  skip_if_not_installed("SpaDES.core")
+  skip_if(packageVersion("SpaDES.core") < "3.2.1.9026")
+  setupTest()
+  withr::local_options(spades.useRequire = FALSE, Require.updateRprofile = NULL)
+  remote <- withr::local_tempdir()
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "modules")
+  mkSpadesModule(remote, "Acct/par@dev", childModules = c("kidA", "kidB@feat", "Other/kidD@main"))
+  mkSpadesModule(remote, "Acct/kidA@dev")
+  mkSpadesModule(remote, "Acct/kidB@feat")
+  mkSpadesModule(remote, "Other/kidD@main")
+  calls <- localFakeGitHub(remote)
+
+  out <- suppressMessages(
+    setupProject(modules = "Acct/par@dev",
+                 paths = list(modulePath = mp, projectPath = file.path(root, "proj"),
+                              packagePath = .libPaths()[1L]),
+                 times = list(start = 0, end = 2),
+                 useGit = FALSE, updateRprofile = FALSE, verbose = -1))
+  expect_setequal(calls$specs, c("Acct/par@dev", "Acct/kidA@dev", "Acct/kidB@feat", "Other/kidD@main"))
+
+  kids <- c("kidA", "kidB", "kidD")
+  sim <- suppressMessages(SpaDES.core::simInit(modules = out$modules, times = out$times,
+                                               paths = list(modulePath = mp)))
+  simKids <- suppressMessages(SpaDES.core::simInit(modules = kids, times = out$times,
+                                                   paths = list(modulePath = mp)))
+
+  expect_setequal(unlist(SpaDES.core::modules(sim)), kids)
+  expect_false("par" %in% names(SpaDES.core::depends(sim)@dependencies))
+  expect_false("par" %in% names(SpaDES.core::params(sim)))
+  expect_false("par" %in% SpaDES.core::events(sim)$moduleName)
+  expect_setequal(names(SpaDES.core::depends(sim)@dependencies), kids)
+  expect_identical(SpaDES.core::events(sim), SpaDES.core::events(simKids))
+  expect_identical(sort(unlist(SpaDES.core::modules(sim))), sort(unlist(SpaDES.core::modules(simKids))))
+})
