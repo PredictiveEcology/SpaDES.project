@@ -37,3 +37,29 @@ test_that("a worker profile session does not segfault at exit after pak's proces
                                suppressWarnings(system2(rscript, shQuote(script), stdout = FALSE, stderr = FALSE)))
   expect_identical(status, 0L)
 })
+
+## The respawned worker (pane_mode = "killAndNewPane") runs `R_PROFILE_USER=worker_respawn.R R --interactive`, so its
+## profile needs the same head as the startup profile (FireSense held-out run, 2026-09-29: "object 'png' not found").
+test_that("the respawn profile starts with the profile head, so respawned workers see the default packages", {
+  skip_on_os("windows")
+  prof <- withr::local_tempfile(fileext = ".R")
+  out <- withr::local_tempfile(fileext = ".txt")
+  patFile <- withr::local_tempfile()
+  writeLines("test-pat", patFile)
+  SpaDES.project:::.write_respawn_profile(
+    sprintf("writeLines(c(search(), Sys.getenv('GITHUB_PAT')), %s)",
+            deparse(normalizePath(out, winslash = "/", mustWork = FALSE))), prof, patFile)
+  expect_identical(readLines(prof)[seq_along(SpaDES.project:::.tmux_profile_head())],
+                   SpaDES.project:::.tmux_profile_head())
+  rscript <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  withr::with_envvar(c(R_PROFILE_USER = prof, R_DEFAULT_PACKAGES = "NULL"),
+                     system2(rscript, c("-e", shQuote("invisible(0)")), stdout = FALSE, stderr = FALSE))
+  expect_true(file.exists(out), info = "the profile did not run")
+  expect_true(all(paste0("package:", c("grDevices", "graphics", "stats", "datasets", "utils", "methods")) %in%
+                    readLines(out)))
+  expect_true("test-pat" %in% readLines(out), info = "GITHUB_PAT was not set")
+})
+
+test_that("tmuxRunWorkerLoop writes its respawn profile with .write_respawn_profile()", {
+  expect_true(".write_respawn_profile" %in% all.names(body(SpaDES.project::tmuxRunWorkerLoop)))
+})
