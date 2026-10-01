@@ -2047,6 +2047,14 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 #'   `Require::Require` is printed, which can be copy-pasted to reproduce the install
 #'   call. If not supplied, defaults to `getOption("Require.verbose")`.
 #'
+#' @section Skipping `Require`:
+#' When a call asks for the same package specs as an earlier successful call, and
+#' those packages and all their Depends/Imports/LinkingTo dependencies are installed at
+#' the same versions (and, for GitHub packages, the same `RemoteSha`) in the same
+#' `libPaths`, `Require::Require` is skipped; `(HEAD)` packages are still passed to it.
+#' This needs `reproducible` and `qs2`. Turn it off with
+#' `options(SpaDES.project.skipIdenticalRequire = FALSE)`; the default is `TRUE`.
+#'
 #' @return
 #' `setupPackages` is run for its side effects, i.e., installing packages to
 #' `paths[["packagePath"]]`.
@@ -2116,36 +2124,33 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 
         warns <- list()
 
-        ip <- installed.packages()
         nonHEADs <- grep("\\(HEAD\\)", packagesToTry, value = TRUE, invert = TRUE)
         needToAssessPoss <- grep("\\(HEAD\\)", packagesToTry, value = TRUE)
-        # needToAssessPoss <- unique(c(needToAssessPoss, requirePkgNames))
-        needToAssessPoss <- c(needToAssessPoss, requirePkgNames[!requirePkgNames %in% ip[, "Package"]])
-        ll <- list(ip, nonHEADs, requirePkgNames, standAlone, libPaths, verbose)
         needToAssess <- unique(c(needToAssessPoss, nonHEADs))
-        # if (requireNamespace("reproducible", quietly = TRUE) &&
-        #      requireNamespace("qs2", quietly = TRUE)) {
-        #   # run annonymous function to see if it is new list; Cache needs a function
-        #   llCached <- tryCatch(
-        #     reproducible::Cache((function(x) {x})(ll), verbose = 1, .functionName = "checkIfNeedRequire"),
-        #     error = function(e) NULL
-        #   )
-        #   if (!is.null(llCached)) {
-        #     ll <- llCached
-        #     if (!isTRUE(attr(ll, ".Cache")$newCache)) {
-        #       message("Package requirements are identical to previous")
-        #       haveHEAD <- grepl("HEAD", needToAssessPoss)
-        #       if (any(haveHEAD)) {
-        #         message("...however, there are ", sum(haveHEAD), " packages with `HEAD` specification; ",
-        #                 "checking/installing if needed ...")
-        #       } else {
-        #         message("...skipping Require...")
-        #       }
-        #       needToAssess <- needToAssessPoss # revert to using the smaller list
-        #     }
-        #   }
-        # }
-        # needToAssess <- packagesToTry
+        requireKey <- NULL
+        if (isTRUE(getOption("SpaDES.project.skipIdenticalRequire", TRUE)) &&
+            requireNamespace("reproducible", quietly = TRUE) && requireNamespace("qs2", quietly = TRUE)) {
+          requireKey <- tryCatch(
+            .requireKey(nonHEADs, requirePkgNames, standAlone, libPaths),
+            error = function(e) NULL)
+          if (!is.null(requireKey)) {
+            identicalReq <- tryCatch(.requireKeyIsKnown(requireKey), error = function(e) FALSE)
+            if (isTRUE(identicalReq)) {
+              messageVerbose("Package requirements are identical to a previous successful call, and ",
+                             "all requested packages and their dependencies are installed at the same versions",
+                             verbose = verbose)
+              haveHEAD <- length(needToAssessPoss)
+              if (haveHEAD) {
+                messageVerbose("...however, there are ", haveHEAD, " packages with `HEAD` specification; ",
+                               "checking/installing if needed ...", verbose = verbose)
+              } else {
+                messageVerbose("...skipping Require...", verbose = verbose)
+              }
+              needToAssess <- needToAssessPoss # revert to using the smaller list
+              requireKey <- NULL # nothing to record after this call
+            }
+          }
+        }
 
         if (verbose >= 3) {
           messageVerbose("Packages passed to Require::Require:", verbose = verbose, verboseLevel = 3)
@@ -2190,6 +2195,14 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         } else {
           out <- vapply(requirePkgNames, base::require, character.only = TRUE, FUN.VALUE = logical(1))
           base::options("spades.useRequireOverride" = TRUE)
+        }
+
+        if (!is.null(requireKey) && !is(out, "try-error")) {
+          # record the library as it is now (Require may have installed things), so the next call can skip
+          tryCatch({
+            keyAfter <- .requireKey(nonHEADs, requirePkgNames, standAlone, libPaths)
+            if (!is.null(keyAfter)) .requireKeyRecord(keyAfter)
+          }, error = function(e) NULL)
         }
 
         if (length(warns)) {
@@ -4891,4 +4904,52 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
       }
     }
   }
+}
+
+
+#' Key for the "identical package requirements" shortcut in `setupPackages()`
+#'
+#' Digest inputs: the requested package specs as given, the name, version and (GitHub)
+#' `RemoteSha` of each requested package and its recursive hard dependencies
+#' (Depends, Imports, LinkingTo) as installed in `libPaths`, plus `libPaths`,
+#' `standAlone` and the R version. Unrelated packages in the library do not matter.
+#'
+#' @return A list, or `NULL` if any requested package or dependency is not installed
+#'   (Require must run).
+#' @keywords internal
+#' @noRd
+.requireKey <- function(specs, requirePkgNames, standAlone, libPaths) {
+  specs <- unique(c(as.character(unlist(specs)), as.character(unlist(requirePkgNames))))
+  specs <- specs[nzchar(specs)]
+  pkgs <- unique(Require::extractPkgName(specs))
+  libs <- unique(normalizePath(c(libPaths, .Library.site, .Library), mustWork = FALSE))
+  libs <- libs[dir.exists(libs)]
+  ip <- utils::installed.packages(lib.loc = libs, fields = "RemoteSha", noCache = TRUE)
+  ip <- ip[!duplicated(ip[, "Package"]), , drop = FALSE] # first library on the path wins
+  if (!all(pkgs %in% ip[, "Package"])) return(NULL)
+  deps <- tools::package_dependencies(pkgs, db = ip, which = c("Depends", "Imports", "LinkingTo"),
+                                      recursive = TRUE)
+  allPkgs <- sort(unique(c(pkgs, unlist(deps, use.names = FALSE))))
+  allPkgs <- setdiff(allPkgs, "R")
+  if (!all(allPkgs %in% ip[, "Package"])) return(NULL)
+  ipSub <- ip[match(allPkgs, ip[, "Package"]), c("Package", "Version", "RemoteSha"), drop = FALSE]
+  list(specs = sort(specs), installed = unname(ipSub), libPaths = libPaths, standAlone = standAlone,
+       R = R.version.string)
+}
+
+.requireKeyHash <- function(key)
+  reproducible::CacheDigest(list(key))$outputHash
+
+# TRUE if `key` was recorded by an earlier successful call. showCache() returns the whole
+# cache when no entry carries the tag, so the tag value is compared explicitly.
+.requireKeyIsKnown <- function(key) {
+  sc <- reproducible::showCache(userTags = .requireKeyHash(key), verbose = -1)
+  isTRUE(any(sc$tagKey %in% "requireKey" & sc$tagValue %in% .requireKeyHash(key)))
+}
+
+# Record `key` in the reproducible cache
+.requireKeyRecord <- function(key) {
+  reproducible::Cache((function(x) {x})(key), .functionName = "checkIfNeedRequire",
+                      userTags = paste0("requireKey:", .requireKeyHash(key)), verbose = -1)
+  invisible(NULL)
 }
