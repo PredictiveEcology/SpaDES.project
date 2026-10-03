@@ -19,12 +19,13 @@ test_that("every worker launch command disables package installation", {
 
     nLaunch <- lengths(regmatches(src, gregexpr("R_PROFILE_USER=%s", src, fixed = TRUE)))
     if (identical(nLaunch, 0L)) next
-    nGuard <- lengths(regmatches(src, gregexpr("SPADES_USE_REQUIRE=false", src, fixed = TRUE)))
+    nGuard <- lengths(regmatches(src, gregexpr(".workerEnvArg()", src, fixed = TRUE)))
 
     expect_gte(nGuard, nLaunch,
                label = paste0(fn, " has ", nLaunch, " worker launch command(s) and ",
-                              nGuard, " carrying SPADES_USE_REQUIRE=false"))
+                              nGuard, " built with .workerEnvArg()"))
   }
+  expect_identical(SpaDES.project:::.workerEnvArg(), "SPADES_USE_REQUIRE=false")
 })
 
 test_that("SPADES_USE_REQUIRE is the documented lever, so a user global.R needs no change", {

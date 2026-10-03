@@ -1451,7 +1451,7 @@ experimentTmux <- function(df,
         # R_PROFILE_USER: sources the worker script at startup (no shell quoting needed).
         r_run <- function(rpath) {
           inner <- sprintf(
-            "trap '' HUP; exec env SPADES_USE_REQUIRE=false R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+            paste0("trap '' HUP; exec env ", .workerEnvArg(), " R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive"),
             rpath)
           sprintf("BASH_ENV= ssh -t -o SendEnv=BASH_ENV -o ServerAliveInterval=60 -o ServerAliveCountMax=120 %s bash -c %s",
                   cores_full[i], shQuote(inner))
@@ -1483,7 +1483,7 @@ experimentTmux <- function(df,
         scp_cmd <- sprintf("scp -q %s %s:%s",
                            shQuote(remote_script), cores_full[i], remote_path)
         ssh_cmd <- sprintf(
-          "BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env SPADES_USE_REQUIRE=false R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive",
+          paste0("BASH_ENV= ssh -t -o SendEnv=BASH_ENV %s env ", .workerEnvArg(), " R_PROFILE_USER=%s R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R --no-save --no-restore --interactive"),
           cores_full[i], shQuote(remote_path)
         )
         remote_node2 <- tryCatch(
@@ -1512,7 +1512,7 @@ experimentTmux <- function(df,
         # tests time out with no output files. R_BROWSER / R_PDFVIEWER are
         # set to "false" by check and cause noise on first plot.
         .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf("env SPADES_USE_REQUIRE=false R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+                  sprintf(paste0("env ", .workerEnvArg(), " R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive"),
                           shQuote(local_script)), "C-m")
       }
     }  # end merged loop
@@ -2070,7 +2070,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       # a respawned pane re-enters R with R_TESTS pointing at the harness
       # startup script and never reaches the worker's profile.
       respawn_cmd <- sprintf(
-        "env SPADES_USE_REQUIRE=false R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive",
+        paste0("env ", .workerEnvArg(), " R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive"),
         shQuote(.respawn_script)
       )
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
@@ -3662,10 +3662,13 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
 ## the local pane launch, its respawn, and both remote (ssh) forms. test-workerEnv.R
 ## asserts that none of them loses it.
 
-## The environment every experiment* worker is started with, so it never installs packages.
-## Used by experimentFuture() (callr workers) and experimentSBATCH() (job script `export`);
-## experimentTmux() spells the same variable in its launch commands.
+## The environment every experiment* worker is started with, so it never installs packages:
+## experimentTmux() puts it on each launch command (.workerEnvArg()), experimentFuture() passes it to
+## callr, experimentSBATCH() exports it in the job script.
 .workerEnv <- c(SPADES_USE_REQUIRE = "false")
+
+## `.workerEnv` as `NAME=value` words for an `env` command
+.workerEnvArg <- function() paste0(names(.workerEnv), "=", .workerEnv, collapse = " ")
 
 ## Whether setupProject()/setupPackages() may run Require. An explicit
 ## `options(spades.useRequire=)` wins; otherwise the same rule SpaDES.core uses, because in a
