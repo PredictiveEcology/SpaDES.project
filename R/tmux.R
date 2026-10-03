@@ -3662,6 +3662,19 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
 ## the local pane launch, its respawn, and both remote (ssh) forms. test-workerEnv.R
 ## asserts that none of them loses it.
 
+## The environment every experiment* worker is started with, so it never installs packages.
+## Used by experimentFuture() (callr workers) and experimentSBATCH() (job script `export`);
+## experimentTmux() spells the same variable in its launch commands.
+.workerEnv <- c(SPADES_USE_REQUIRE = "false")
+
+## Whether setupProject()/setupPackages() may run Require. An explicit
+## `options(spades.useRequire=)` wins; otherwise the same rule SpaDES.core uses, because in a
+## worker setupProject() reaches the package step before SpaDES.core (which derives the
+## option from the variable) is loaded, so the option is still unset there.
+.useRequire <- function() {
+  getOption("spades.useRequire", !tolower(Sys.getenv("SPADES_USE_REQUIRE")) %in% "false")
+}
+
 ## One line of failure text for the queue row. A requeued job otherwise leaves NO trace
 ## of why it failed: with on_interrupt = "requeue" every failure silently rewrites the row
 ## to PENDING, so a whole fleet dying (a corrupted lazy-load database, say) looks exactly
