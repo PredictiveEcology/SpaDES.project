@@ -124,9 +124,9 @@ NULL
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
 #'   If a `.rep` dot (the replicate column of an experiment table) is supplied or
-#'   resolved from `defaultDots`, `params$.globals$rep` is set to it (as integer),
-#'   so modules with a `rep` parameter receive it. A `rep` set in `params$.globals`
-#'   is kept, and a module's own `params$<module>$rep` overrides `.globals`, as for
+#'   resolved from `defaultDots`, `params$.globals$.rep` is set to it (as integer),
+#'   so modules with a `.rep` parameter receive it. A `.rep` set in `params$.globals`
+#'   is kept, and a module's own `params$<module>$.rep` overrides `.globals`, as for
 #'   any global parameter. No other dot is passed on in this way.
 #'   See [setup].
 #' @param sideEffects Optional. This can be an expression or one or more file names or
@@ -2373,11 +2373,12 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
   }
 
   ## `.rep` (the replicate column of an experiment table) is the one dot that
-  ## becomes a default `.globals` parameter, `rep`; user-set values win
+  ## becomes a default `.globals` parameter, under the same SpaDES-aware name, as
+  ## `.studyAreaName` is; user-set values win
   globalsDefaults <- list(.studyAreaName = DEFAULT)
   .rep <- get0(".rep", envir = callingEnv, inherits = FALSE)
   if (!is.null(.rep))
-    globalsDefaults$rep <- as.integer(.rep)
+    globalsDefaults$.rep <- as.integer(.rep)
   params <- Require::modifyList2(list(.globals = globalsDefaults), params)
   return(params)
 }
