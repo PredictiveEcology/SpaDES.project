@@ -28,6 +28,11 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.
+If a \code{.rep} dot (the replicate column of an experiment table) is supplied or
+resolved from \code{defaultDots}, \code{params$.globals$.rep} is set to it (as integer),
+so modules with a \code{.rep} parameter receive it. A \code{.rep} set in \code{params$.globals}
+is kept, and a module's own \verb{params$<module>$.rep} overrides \code{.globals}, as for
+any global parameter. No other dot is passed on in this way.
 See \link{setup}.}
 
 \item{paths}{a list with named elements, specifically, \code{modulePath}, \code{projectPath},
