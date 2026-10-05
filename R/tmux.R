@@ -1120,97 +1120,96 @@ experimentTmux <- function(df,
     if (!is.null(queue_path)) {
       #   # tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel)
       #   
-      if (!is.null(ss_id)) {
-        #     isDir <- isGoogleDriveDirectory(ss_id)
-        #     if (isTRUE(isDir)) {
-        #       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
-        #       # googledrive::drive_auth()
-        #       
-        #       # 1. Derive the name from the local queue file
-        #       sheet_name <- gsub("\\.rds$", "", basename(queue_path))
-        #       
-        #       # 2. Check if it already exists in that folder to avoid duplicates
-        #       existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
-        #       
-        #       if (nrow(existing) > 0) {
-        #         ss_id <- existing$id[1]
-        #       } else {
-        #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
-        #         # googlesheets4::gs4_auth()
-        #         # 3. Create the sheet (defaults to root) then move it to the folder
-        #         googlesheets4::gs4_auth(email = email, cache = cache_path)
-        #         googledrive::drive_auth(email = email, cache = cache_path)
-        #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
-        #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
-        #         
-        #         new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
-        #         googledrive::drive_mv(file = googledrive::as_id(new_sheet),
-        #                               path = googledrive::as_id(ss_id))
-        #         ss_id <- as.character(googledrive::as_id(new_sheet))
-        #       }
-        #     }
-        
-        # 1. Create the Monitoring Pane (Detached)
-        mon_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-        
-        # 2. Label it for 2025 observability
-        .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
-        
-        # 3. Construct the R command
-        # We deparse the vector to ensure it's passed correctly as a character string
-        # workersToMonitor
-        # workersToMonitor <- c("birds", "biomass", "camas", "carbon", "caribou", "coco",
-        #                   "core", "dougfir", "fire", "mpb", "sbw", "mega",
-        #                   "acer", "abies", "pinus")
-        
-        mon_cmd <- sprintf(
-          "clusters::monitorCluster(cores = %s)",
-          deparse1(workersToMonitor)
-        )
-        
-        # 4. Launch in the new pane
+      # The cluster monitor needs only the queue; the Google Sheet sync pane (below) needs ss_id.
+      #     isDir <- isGoogleDriveDirectory(ss_id)
+      #     if (isTRUE(isDir)) {
+      #       reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
+      #       # googledrive::drive_auth()
+      #       
+      #       # 1. Derive the name from the local queue file
+      #       sheet_name <- gsub("\\.rds$", "", basename(queue_path))
+      #       
+      #       # 2. Check if it already exists in that folder to avoid duplicates
+      #       existing <- googledrive::drive_ls(googledrive::as_id(ss_id), pattern = sheet_name)
+      #       
+      #       if (nrow(existing) > 0) {
+      #         ss_id <- existing$id[1]
+      #       } else {
+      #         reproducible::.requireNamespace("googlesheets4", stopOnFALSE = TRUE)
+      #         # googlesheets4::gs4_auth()
+      #         # 3. Create the sheet (defaults to root) then move it to the folder
+      #         googlesheets4::gs4_auth(email = email, cache = cache_path)
+      #         googledrive::drive_auth(email = email, cache = cache_path)
+      #         # googledrive::drive_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+      #         # googlesheets4::gs4_auth(path = "~/genial-cycling-408722-788552a3ecac.json")
+      #         
+      #         new_sheet <- googlesheets4::gs4_create(name = sheet_name, sheets = "Status")
+      #         googledrive::drive_mv(file = googledrive::as_id(new_sheet),
+      #                               path = googledrive::as_id(ss_id))
+      #         ss_id <- as.character(googledrive::as_id(new_sheet))
+      #       }
+      #     }
+      
+      # 1. Create the Monitoring Pane (Detached)
+      mon_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
+      
+      # 2. Label it for 2025 observability
+      .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
+      
+      # 3. Construct the R command
+      # We deparse the vector to ensure it's passed correctly as a character string
+      # workersToMonitor
+      # workersToMonitor <- c("birds", "biomass", "camas", "carbon", "caribou", "coco",
+      #                   "core", "dougfir", "fire", "mpb", "sbw", "mega",
+      #                   "acer", "abies", "pinus")
+      
+      mon_cmd <- sprintf(
+        "clusters::monitorCluster(cores = %s)",
+        deparse1(workersToMonitor)
+      )
+      
+      # 4. Launch in the new pane
+      .tmux_run("select-layout", "-t", target_win, "tiled")
+      .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
+      
+      full_bash_mon_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(mon_cmd))
+      .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
+      
+
+      if (isTRUE(enableGSSync) && !is.null(ss_id)) {
+        # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
+        # This ensures the focus stays on the Master Pane
+        sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
         .tmux_run("select-layout", "-t", target_win, "tiled")
-        .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
-        
-        full_bash_mon_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(mon_cmd))
-        .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
-        
 
-        if (isTRUE(enableGSSync)) {
-          # 1. Create the sync pane DETACHED (-d) and capture its unique ID (%)
-          # This ensures the focus stays on the Master Pane
-          sync_pane_id <- .tmux_out("split-window", "-d", "-v", "-t", target_win, "-P", "-F", "#{pane_id}")
-          .tmux_run("select-layout", "-t", target_win, "tiled")
+        # 2. Prepare the command as a SINGLE line to prevent shell splitting
+        # Load ... args from RDS so complex objects (lists, etc.) reach statusCalculate
+        dots_preamble_sync <- if (file.exists(dots_path)) {
+          sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
+                  deparse1(dots_path), deparse1(dots_path))
+        } else ""
 
-          # 2. Prepare the command as a SINGLE line to prevent shell splitting
-          # Load ... args from RDS so complex objects (lists, etc.) reach statusCalculate
-          dots_preamble_sync <- if (file.exists(dots_path)) {
-            sprintf("if (file.exists(%s)) list2env(readRDS(%s), envir = .GlobalEnv); ",
-                    deparse1(dots_path), deparse1(dots_path))
-          } else ""
+        cache_path_norm <- .normalizeCachePath(cache_path)
 
-          cache_path_norm <- .normalizeCachePath(cache_path)
+        sync_cmd <- sprintf(
+          "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
+          dots_preamble_sync,
+          deparse1(email),
+          deparse1(cache_path_norm),
+          deparse1(normalizePath(queue_path)),
+          deparse1(as.character(ss_id)),
+          deparse1(email),
+          deparse1(runNameLabel),
+          deparse1(statusCalculate, collapse = "\n"),
+          deparse1(cache_path_norm)
+        )
 
-          sync_cmd <- sprintf(
-            "%soptions(gargle_oauth_email = %s, gargle_oauth_cache = %s); SpaDES.project:::.sync_loop_internal(queue_path=%s, ss_id=%s, email=%s, runNameLabel=quote(%s), statusCalculate=quote(%s), cache_path=%s)",
-            dots_preamble_sync,
-            deparse1(email),
-            deparse1(cache_path_norm),
-            deparse1(normalizePath(queue_path)),
-            deparse1(as.character(ss_id)),
-            deparse1(email),
-            deparse1(runNameLabel),
-            deparse1(statusCalculate, collapse = "\n"),
-            deparse1(cache_path_norm)
-          )
+        # 3. Send keys to the specific ID
+        full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
+        .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
 
-          # 3. Send keys to the specific ID
-          full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
-          .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
-
-          # 4. Label the pane for clarity
-          .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
-        }
+        # 4. Label the pane for clarity
+        .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
       }
     }
     
