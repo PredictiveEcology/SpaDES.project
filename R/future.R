@@ -409,7 +409,7 @@ experimentFuture <- function(
         # Unset TMUX/TMUX_PANE so workers don't emit OSC 2 escape bytes into log files.
         # callr workers inherit the parent's environment (including tmux vars), but
         # they have no tmux pane  -- their output goes to a file, not a terminal.
-        env     = c(TMUX = "", TMUX_PANE = ""),
+        env     = c(TMUX = "", TMUX_PANE = "", .workerEnv),
         package = TRUE
       )
     }
@@ -604,7 +604,7 @@ runWorkerLoopFuture <- function(
       ),
       stdout  = log_file,
       stderr  = log_file,
-      env     = c(TMUX = "", TMUX_PANE = ""),
+      env     = c(TMUX = "", TMUX_PANE = "", .workerEnv),
       package = TRUE
     )
     worker_id <- paste0(Sys.info()[["nodename"]], "-", proc$get_pid())

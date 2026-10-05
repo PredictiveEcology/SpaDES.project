@@ -425,6 +425,7 @@ experimentSBATCH <- function(
     user_dirs,
     "",
     "set -euo pipefail",
+    sprintf("export %s=%s", names(.workerEnv), .workerEnv),
     "",
     sprintf("%s -e %s", shQuote(r_cmd), shQuote(r_expr))
   )

@@ -2083,7 +2083,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
   if (missing(packages))
     packages <- character()
 
-  if (getOption("spades.useRequire", TRUE)) {
+  if (.useRequire()) {
     if (
       (length(packages) || length(unlist(modulePackages)) || length(require)) &&
       !is.null(packages)
