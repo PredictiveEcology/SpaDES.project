@@ -467,6 +467,8 @@ NULL
 #' will assign no value to `.mode`. We include `.nodes` which shows an example of
 #' passing a value that does exist. The non-existent `.mode` will be returned in the `out`,
 #' but as an unevaluated, captured list element.
+#' This applies only to a dot that is exactly its own name. Any other `...` argument
+#' that cannot be evaluated (e.g., `.b = .a + 1` when no `.a` exists) is an error.
 #'
 #' ```
 #' .nodes <- 2

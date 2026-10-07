@@ -50,20 +50,16 @@ test_that("book: a dot may reference `times` written above it (outputs = ... tim
 test_that("a dot referencing `times` written BELOW it is not resolved (sequential contract)", {
   ## The contract is "any argument written above another is available to it".
   ## The pre-rewrite code forced the `times` promise through a proxy and made
-  ## this work by accident; it is now a tolerated error, reported in the
-  ## end-of-call diagnostics, and the dot comes back as its expression.
+  ## this work by accident. It is an error naming the dot (it was a tolerated
+  ## error that returned the dot as its expression until the dot-referencing fix).
   setupTest(); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
-  msgs <- character()
-  out <- withCallingHandlers(
-    runIn(quote(setupProject(
+  expect_error(
+    suppressMessages(runIn(quote(setupProject(
       paths = list(packagePath = .libPaths()[1L]),
       outputs = data.frame(saveTime = seq(times$start, times$end)),
       times = list(start = 2001, end = 2003),
-      updateRprofile = FALSE))),
-    message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
-  expect_true(is.language(out$outputs))
-  expect_true(any(grepl("tolerated error \\[outputs\\]", msgs)))
-  expect_equal(out$times, list(start = 2001, end = 2003))
+      updateRprofile = FALSE)))),
+    "could not evaluate `outputs = ")
 })
 
 test_that("book: `options` may reference `paths` (reproducible.destinationPath = paths$inputPath)", {

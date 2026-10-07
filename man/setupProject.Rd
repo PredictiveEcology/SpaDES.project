@@ -500,6 +500,8 @@ is specified. When running this line without that batch script specification, th
 will assign no value to \code{.mode}. We include \code{.nodes} which shows an example of
 passing a value that does exist. The non-existent \code{.mode} will be returned in the \code{out},
 but as an unevaluated, captured list element.
+This applies only to a dot that is exactly its own name. Any other \code{...} argument
+that cannot be evaluated (e.g., \code{.b = .a + 1} when no \code{.a} exists) is an error.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{.nodes <- 2
 out <- setupProject(.mode = .mode,
