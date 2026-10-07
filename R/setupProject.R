@@ -1288,7 +1288,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #' tf <- tempfile(fileext = ".R")
 #' fnDefs <- c("fn <- function(x) x\n",
 #'             "fn2 <- function(x) x\n",
-#'             "fn3 <- function(x) terra::rast(x)")
+#'             "fn3 <- function(x) x * 2")
 #' cat(text = fnDefs, file = tf)
 #' funHere <- function(y) y
 #' out <- setupProject(functions = list(a = function(x) return(x),
@@ -1298,7 +1298,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'                     drr = 1,
 #'                     b = a(drr),
 #'                     q = funHere(22),
-#'                     ddd = fn3(terra::ext(0,b,0,b)))
+#'                     ddd = fn3(b))
 #' \dontshow{setwd(origDir)}
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
                            envir = parent.frame(), callingEnv = sys.frame(-2),
