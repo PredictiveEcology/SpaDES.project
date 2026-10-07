@@ -128,7 +128,7 @@ out <- setupProject(
 tf <- tempfile(fileext = ".R")
 fnDefs <- c("fn <- function(x) x\n",
             "fn2 <- function(x) x\n",
-            "fn3 <- function(x) x * 2")
+            "fn3 <- function(x) terra::rast(x)")
 cat(text = fnDefs, file = tf)
 funHere <- function(y) y
 out <- setupProject(functions = list(a = function(x) return(x),
@@ -138,7 +138,7 @@ out <- setupProject(functions = list(a = function(x) return(x),
                     drr = 1,
                     b = a(drr),
                     q = funHere(22),
-                    ddd = fn3(b))
+                    ddd = fn3(terra::ext(0,b,0,b)))
 \dontshow{setwd(origDir)}
 }
 \seealso{

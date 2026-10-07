@@ -467,8 +467,6 @@ NULL
 #' will assign no value to `.mode`. We include `.nodes` which shows an example of
 #' passing a value that does exist. The non-existent `.mode` will be returned in the `out`,
 #' but as an unevaluated, captured list element.
-#' This applies only to a dot that is exactly its own name. Any other `...` argument
-#' that cannot be evaluated (e.g., `.b = .a + 1` when no `.a` exists) is an error.
 #'
 #' ```
 #' .nodes <- 2
@@ -1288,7 +1286,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #' tf <- tempfile(fileext = ".R")
 #' fnDefs <- c("fn <- function(x) x\n",
 #'             "fn2 <- function(x) x\n",
-#'             "fn3 <- function(x) x * 2")
+#'             "fn3 <- function(x) terra::rast(x)")
 #' cat(text = fnDefs, file = tf)
 #' funHere <- function(y) y
 #' out <- setupProject(functions = list(a = function(x) return(x),
@@ -1298,7 +1296,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 #'                     drr = 1,
 #'                     b = a(drr),
 #'                     q = funHere(22),
-#'                     ddd = fn3(b))
+#'                     ddd = fn3(terra::ext(0,b,0,b)))
 #' \dontshow{setwd(origDir)}
 setupFunctions <- function(functions, name, sideEffects, paths, overwrite = FALSE,
                            envir = parent.frame(), callingEnv = sys.frame(-2),

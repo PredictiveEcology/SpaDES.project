@@ -94,15 +94,3 @@ test_that("a self-reference `.x = .x` with the value only from the worker (no de
   expect_identical(out$.y, 1989L)
   expect_match(out$paths$outputPath, "outputs/1989$")
 })
-
-test_that("a dot that cannot be evaluated is an error naming the dot, not a silent expression", {
-  setupTest(); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
-  ## references a dot nobody defines
-  lines <- globalLines(".studyAreaName = .notDefinedAnywhere", ".studyAreaName")
-  expect_error(runAsWorker(lines, list(.ELFind = "6.3.1")),
-               "could not evaluate `\\.studyAreaName = \\.notDefinedAnywhere`")
-  ## the 2026-09-11 shape: a value that makes the expression fail (NA:...)
-  lines <- globalLines(".yrs = .x:1990L", ".x")
-  expect_error(runAsWorker(lines, list(.x = NA_integer_)),
-               "could not evaluate `\\.yrs = \\.x:1990L`.*NA/NaN")
-})

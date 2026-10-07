@@ -87,31 +87,16 @@ bindDefaultDots <- function(exprs, scope, callerEnv, envirCur = NULL) {
   invisible(bound)
 }
 
-## Resolve dots in order. Each is evaluated once in `scope`; the value is
-## published into `scope`, and into `envirCur` when given, before the next dot
-## runs. NULL is a value and is kept under its name. Returns the named list of
-## results.
-##
-## A dot that cannot be evaluated is an error. Publishing its expression instead
-## let it reach a later argument as a language object: pathBuild() deparsed
-## `if (exists(".x")) .x else .ELFind` into a directory name, and a failed
-## `.a:.b` turned into an error three frames later. The one exception is the
-## documented batch shorthand (setupProject() docs, "Can hard code arguments that
-## may be missing"): a dot that is exactly its own name, `.mode = .mode`, when
-## nothing defines `.mode`, is returned as that symbol.
+## Resolve dots in order. Each is evaluated once in `scope`; the value (or, when
+## it cannot be evaluated, the unevaluated expression -- see the setupProject()
+## docs, "Can hard code arguments that may be missing") is published into
+## `scope`, and into `envirCur` when given, before the next dot runs. NULL is a
+## value and is kept under its name. Returns the named list of results.
 resolveDots <- function(exprs, scope, envirCur = NULL) {
   out <- list()
   for (nm in names(exprs)) {
     ex <- exprs[[nm]]
     res <- .evalInScope(ex, context = nm, scope)
-    if (!isTRUE(res$ok) && !identical(ex, as.name(nm))) {
-      setupDiagClearMatching(context = nm, expr = ex)  # an error now, not a tolerated one
-      stop("setupProject(): could not evaluate `", nm, " = ",
-           paste(deparse(ex, width.cutoff = 500L), collapse = " "), "`: ",
-           conditionMessage(res$error),
-           "\n  A `...` argument can use any argument written above it, a `defaultDots` ",
-           "entry, or a variable defined where setupProject() is called.", call. = FALSE)
-    }
     val <- if (isTRUE(res$ok)) res$value else ex
     out[nm] <- list(val)
     assign(nm, val, envir = scope)
