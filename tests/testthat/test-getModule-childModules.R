@@ -5,14 +5,15 @@
 
 ## remote/<acct>/<repo>@<br>/<repo>/<repo>.R
 mkRemoteModule <- function(remote, spec, childModules = character(), reqdPkgs = '"fs"',
-                           version = "1.0.0") {
+                           version = "1.0.0", childVersions = character()) {
   name <- Require::extractPkgName(spec)
   d <- file.path(remote, sub("/", "__", spec, fixed = TRUE), name)
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
+  vers <- c(setNames(version, name), childVersions)
   writeLines(
     c("defineModule(sim, list(",
       sprintf('  name = "%s",', name),
-      sprintf('  version = list(%s = "%s"),', name, version),
+      sprintf("  version = list(%s),", paste0(names(vers), ' = "', vers, '"', collapse = ", ")),
       sprintf("  childModules = %s,", paste(deparse(childModules), collapse = "")),
       sprintf("  reqdPkgs = list(%s)", reqdPkgs),
       "))"),
@@ -259,4 +260,57 @@ test_that("simInit on a fetched parent runs its leaf children only, as if they w
   expect_setequal(names(SpaDES.core::depends(sim)@dependencies), kids)
   expect_identical(SpaDES.core::events(sim), SpaDES.core::events(simKids))
   expect_identical(sort(unlist(SpaDES.core::modules(sim))), sort(unlist(SpaDES.core::modules(simKids))))
+})
+
+## A parent release: fetched at a version tag, its plain-named children come at the version
+## its own `version` list gives them, so "v1.1.0" of the parent means one set of child releases.
+mkReleasedFamily <- function(remote, parentRef) {
+  mkRemoteModule(remote, paste0("Acct/par@", parentRef), version = "1.1.0",
+                 childModules = c("kidA", "kidB", "kidC@modsForX", "kidD"),
+                 childVersions = c(kidA = "2.2.0", kidB = "1.2.0", kidC = "9.9.9"))
+  mkRemoteModule(remote, "Acct/kidA@v2.2.0", version = "2.2.0")
+  mkRemoteModule(remote, "Acct/kidB@v1.2.0", version = "1.2.0")
+  mkRemoteModule(remote, "Acct/kidC@modsForX", version = "5.0.0")
+  mkRemoteModule(remote, "Acct/kidD@v1.1.0", version = "0.3.0")
+  for (k in c("kidA", "kidB", "kidD")) mkRemoteModule(remote, paste0("Acct/", k, "@dev"), version = "7.0.0")
+}
+
+test_that("a parent at a version tag fetches each plain-named child at its version in the parent's list", {
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  mkReleasedFamily(remote, "v1.1.0")
+  calls <- localFakeGitHub(remote)
+
+  out <- getModule("Acct/par@v1.1.0", modulePath = mp, verbose = -1)
+
+  ## kidC keeps its own branch; kidD is not in the list, so it takes the parent's tag
+  expect_setequal(calls$specs, c("Acct/par@v1.1.0", "Acct/kidA@v2.2.0", "Acct/kidB@v1.2.0",
+                                 "Acct/kidC@modsForX", "Acct/kidD@v1.1.0"))
+  expect_identical(versionOf(mp, "kidA"), "2.2.0")
+  expect_identical(versionOf(mp, "kidB"), "1.2.0")
+  expect_identical(versionOf(mp, "kidC"), "5.0.0")
+  expect_length(out$failed, 0L)
+})
+
+test_that("a parent at a branch still passes its branch to its children, whatever its version list says", {
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  mkReleasedFamily(remote, "dev")
+  calls <- localFakeGitHub(remote)
+
+  out <- getModule("Acct/par@dev", modulePath = mp, verbose = -1)
+
+  expect_setequal(calls$specs, c("Acct/par@dev", "Acct/kidA@dev", "Acct/kidB@dev",
+                                 "Acct/kidC@modsForX", "Acct/kidD@dev"))
+  expect_identical(versionOf(mp, "kidA"), "7.0.0")
+})
+
+test_that(".isVersionTag tells a release tag from a branch", {
+  expect_true(.isVersionTag("v1.1.0"))
+  expect_true(.isVersionTag("v2"))
+  expect_false(.isVersionTag("development"))
+  expect_false(.isVersionTag("main"))
+  expect_false(.isVersionTag("fireSense-1.1.0"))
+  expect_false(.isVersionTag("v1.1.0-beta"))
+  expect_false(.isVersionTag(NA_character_))
 })

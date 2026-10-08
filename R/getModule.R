@@ -25,7 +25,12 @@ utils::globalVariables(c(
 #' A parent module lists its children in `childModules`. After a module is fetched (or
 #' found locally), its children are fetched too, recursively: an entry written as
 #' `"owner/repo@branch"` is fetched as written; a plain name (or `"name@branch"`) is fetched
-#' from the parent's GitHub account (and branch, unless one is given). A module also named in
+#' from the parent's GitHub account (and branch, unless one is given). When the parent is
+#' fetched at a version tag (e.g. `"owner/parent@v1.1.0"`), a plain-named child is fetched at
+#' `v<version>` instead, its version taken from the parent's own `version` list at that tag
+#' (e.g. `version = list(parent = "1.1.0", child = "2.2.0")` gives `child@v2.2.0`), so one
+#' parent release names the release of every child. A child missing from that list falls back
+#' to the parent's tag. A module also named in
 #' `modules` is fetched only as it is written there, never from a parent's entry.
 #'
 #' @return A list with `success` and `failed`, the module specifications (children included)
@@ -373,14 +378,38 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
 ## Where to fetch a child from: an "owner/repo..." entry as written; a plain name, or
 ## "name@branch", from the parent's account and (unless given) branch. A parent that is
 ## local only, or nested in another repository, leaves its plain children as they are.
-.childModuleSpec <- function(kid, parent) {
+.childModuleSpec <- function(kid, parent, versions = NULL) {
   if (grepl("/", sub("@.*$", "", kid))) return(kid)
   parent <- trimVersionNumber(parent)
   if (!isGitHub(parent)) return(kid)
   gr <- lapply(splitGitRepo(parent)[c("acct", "br", "subFolder")], unlist)
   if (!is.na(gr$subFolder)) return(kid)
-  br <- if (grepl("@", kid)) sub("^[^@]*@", "", kid) else gr$br
-  paste0(gr$acct, "/", sub("@.*$", "", kid), "@", br)
+  kidName <- sub("@.*$", "", kid)
+  br <- if (grepl("@", kid)) {
+    sub("^[^@]*@", "", kid)
+  } else if (.isVersionTag(gr$br) && kidName %in% names(versions)) {
+    ## a parent release names each child's release in its own `version` list
+    paste0("v", versions[[kidName]])
+  } else {
+    gr$br
+  }
+  paste0(gr$acct, "/", kidName, "@", br)
+}
+
+## A ref that is a release tag, "v" then a version ("v1.1.0"), rather than a branch.
+.isVersionTag <- function(br) isTRUE(grepl("^v[0-9]+([.-][0-9]+)*$", br))
+
+## The parent's `version` list as a named character vector (module name -> version), read
+## from its local copy. metadataInModules(metadataItem = "version") drops the names.
+.moduleVersions <- function(module, modulePath) {
+  module <- extractModName(module)
+  f <- file.path(whichModulePath(module, modulePath), module, paste0(module, ".R"))
+  if (!file.exists(f)) return(NULL)
+  pp <- parse(file = f, keep.source = FALSE)
+  dm <- pp[[grep("^defineModule", vapply(pp, function(x) deparse(x)[1], character(1)))[1]]]
+  v <- try(eval(as.list(dm[[3]])$version, envir = baseenv()), silent = TRUE)
+  if (inherits(v, "try-error") || !is.list(v) || is.null(names(v))) return(NULL)
+  vapply(v, function(x) as.character(x), character(1))
 }
 
 ## Fetch the children of `parents`, then theirs, and so on. `explicit` (the modules the
@@ -394,7 +423,8 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   while (length(parents)) {
     kids <- unlist(lapply(parents, function(par)
       vapply(.childModuleEntries(par, modulePath), .childModuleSpec, character(1),
-             parent = par, USE.NAMES = FALSE)), use.names = FALSE)
+             parent = par, versions = .moduleVersions(par, modulePath),
+             USE.NAMES = FALSE)), use.names = FALSE)
     if (!length(kids)) break
     kidNames <- extractModName(kids)
     keep <- !kidNames %in% seen & !duplicated(kidNames)

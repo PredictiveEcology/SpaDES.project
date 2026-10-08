@@ -44,7 +44,12 @@ Simple function to download a SpaDES module as GitHub repository
 A parent module lists its children in \code{childModules}. After a module is fetched (or
 found locally), its children are fetched too, recursively: an entry written as
 \code{"owner/repo@branch"} is fetched as written; a plain name (or \code{"name@branch"}) is fetched
-from the parent's GitHub account (and branch, unless one is given). A module also named in
+from the parent's GitHub account (and branch, unless one is given). When the parent is
+fetched at a version tag (e.g. \code{"owner/parent@v1.1.0"}), a plain-named child is fetched at
+\verb{v<version>} instead, its version taken from the parent's own \code{version} list at that tag
+(e.g. \code{version = list(parent = "1.1.0", child = "2.2.0")} gives \code{child@v2.2.0}), so one
+parent release names the release of every child. A child missing from that list falls back
+to the parent's tag. A module also named in
 \code{modules} is fetched only as it is written there, never from a parent's entry.
 }
 \seealso{
