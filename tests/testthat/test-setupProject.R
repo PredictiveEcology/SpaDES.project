@@ -318,7 +318,7 @@ test_that("test setupProject - nested modulePath scfm B_bDP", {
         paths = list(packagePath = .libPaths()[1L], projectPath = name,
                      modulePath = "m"),
         modules = c("PredictiveEcology/Biomass_borealDataPrep@development",
-                    file.path("PredictiveEcology/scfm@development/modules",
+                    file.path(scfmNotModule, "modules",
                               c("scfmLandcoverInit", "scfmRegime", "scfmDriver",
                                 "scfmIgnition", "scfmEscape", "scfmSpread"))),
         params = list(scfmRegime = list(a = 1),
@@ -416,8 +416,8 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
                     "bcgov/blockingCastor@main",
                     "PredictiveEcology/Biomass_borealDataPrep@development",
                     "PredictiveEcology/Biomass_core@development",
-                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit",
-                    "PredictiveEcology/scfm@development/modules/scfmRegime"),
+                    file.path(scfmNotModule, "modules", "scfmLandcoverInit"),
+                    file.path(scfmNotModule, "modules", "scfmRegime")),
         packages = NULL
       )
     })
@@ -436,7 +436,7 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
                      scratchPath = tempdir()),
         modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_core@development",
-                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit"),
+                    file.path(scfmNotModule, "modules", "scfmLandcoverInit")),
         packages = NULL
       )
     })
@@ -458,7 +458,7 @@ test_that("test setupProject - two types of nested GH modules + non-nested; reru
                      scratchPath = tempdir()),
         modules = c("bcgov/dataCastor@main",
                     "PredictiveEcology/Biomass_core@development",
-                    "PredictiveEcology/scfm@development/modules/scfmLandcoverInit"),
+                    file.path(scfmNotModule, "modules", "scfmLandcoverInit")),
         overwrite = TRUE,
         packages = NULL
       )
