@@ -66,8 +66,7 @@ test_that("nested GitHub modules are flattened into the modulePath they were dow
   root <- normPath(withr::local_tempdir())
   mps <- file.path(root, c("mp1", "mp2"))
   mkModule(mps[2], "localMod", '"fs"')
-  nested <- c("PredictiveEcology/scfm@development/modules/scfmLandcoverInit",
-              "PredictiveEcology/scfm@development/modules/scfmRegime")
+  nested <- file.path(scfmNotModule, "modules", c("scfmLandcoverInit", "scfmRegime"))
   warns <- capture_warnings(suppressMessages(
     out <- setupProject(modules = c("localMod", nested),
                         paths = list(modulePath = mps, projectPath = file.path(root, "proj"),
@@ -82,20 +81,26 @@ test_that("nested GitHub modules are flattened into the modulePath they were dow
   expect_false(any(grepl(file.path(mps[2], "scfm"), out$paths$modulePath, fixed = TRUE)))
 })
 
-test_that("a repository folder is kept after flattening only when it is itself a requested module", {
-  ## scfm's repository root is the scfm parent module. Listing scfm and one of its
-  ## nested children keeps the scfm folder; listing only children removes it (above).
+test_that("a repository folder that is a module is kept after flattening only when listed", {
+  ## At v2.1.0 scfm's repository root is the scfm parent module. Listing only nested
+  ## children removes the scfm folder; listing scfm too keeps it.
   skip_on_cran()
   skip_if_offline()
   setupTest()
   root <- normPath(withr::local_tempdir())
-  mp <- file.path(root, "m")
-  suppressWarnings(suppressMessages(
-    setupProject(modules = c("PredictiveEcology/scfm@development",
-                             "PredictiveEcology/scfm@development/modules/scfmRegime"),
-                 paths = list(modulePath = mp, projectPath = file.path(root, "proj"),
-                              packagePath = .libPaths()[1L]),
-                 packages = NULL, useGit = FALSE, updateRprofile = FALSE)))
+  run <- function(mp, modules)
+    suppressWarnings(suppressMessages(
+      setupProject(modules = modules,
+                   paths = list(modulePath = mp, projectPath = file.path(root, "proj"),
+                                packagePath = .libPaths()[1L]),
+                   packages = NULL, useGit = FALSE, updateRprofile = FALSE)))
+  kids <- file.path(scfmParent, "modules", c("scfmLandcoverInit", "scfmRegime"))
+  mp <- file.path(root, "kidsOnly")
+  run(mp, kids)
+  expect_true(all(dir.exists(file.path(mp, c("scfmLandcoverInit", "scfmRegime")))))
+  expect_false(dir.exists(file.path(mp, "scfm")))
+  mp <- file.path(root, "withParent")
+  run(mp, c(scfmParent, kids[2]))
   expect_true(file.exists(file.path(mp, "scfm", "scfm.R")))
   expect_true(dir.exists(file.path(mp, "scfmRegime")))
 })

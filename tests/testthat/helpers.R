@@ -1,3 +1,9 @@
+## Fixed scfm states for tests that download it, so changes on its branches cannot
+## change the results: before its root became a module (children nested in a plain
+## folder), and v2.1.0, where the root is the scfm parent module.
+scfmNotModule <- "PredictiveEcology/scfm@3c6d0ef709bc6312970a590e3aaa329acd3a797b"
+scfmParent <- "PredictiveEcology/scfm@v2.1.0"
+
 .rndstr <- function(n = 1, len = 8) {
   unlist(lapply(character(n), function(x) {
     x <-
