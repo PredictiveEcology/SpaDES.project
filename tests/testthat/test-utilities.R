@@ -236,6 +236,14 @@ test_that("fileRelPathFromFullGHpath extracts inner path", {
   expect_length(result, 1)
 })
 
+test_that("fileRelPathFromFullGHpath reads the folder of a module nested under a tag with dots", {
+  f <- SpaDES.project:::fileRelPathFromFullGHpath
+  expect_identical(f("PredictiveEcology/scfm@development/modules/scfmRegime"), "scfm/modules")
+  ## a release tag: the ref was only stripped when it had no "."
+  expect_identical(f("PredictiveEcology/scfm@v2.1.0/modules/scfmRegime"), "scfm/modules")
+  expect_identical(f("PredictiveEcology/scfm@v2.1.0"), "")
+})
+
 test_that("extractModName returns module name from GitHub path", {
   result <- SpaDES.project:::extractModName("PredictiveEcology/Biomass_borealDataPrep@development")
   expect_equal(result, "Biomass_borealDataPrep")
