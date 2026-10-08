@@ -305,6 +305,34 @@ test_that("a parent at a branch still passes its branch to its children, whateve
   expect_identical(versionOf(mp, "kidA"), "7.0.0")
 })
 
+test_that("a parent with no ref fetches its children at the releases its list names", {
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  mkReleasedFamily(remote, "HEAD")  # no ref is fetched as @HEAD, the default branch
+  mkRemoteModule(remote, "Acct/kidD@HEAD", version = "0.4.0")
+  calls <- localFakeGitHub(remote)
+
+  out <- getModule("Acct/par", modulePath = mp, verbose = -1)
+
+  expect_setequal(calls$specs, c("Acct/par@HEAD", "Acct/kidA@v2.2.0", "Acct/kidB@v1.2.0",
+                                 "Acct/kidC@modsForX", "Acct/kidD@HEAD"))
+  expect_identical(versionOf(mp, "kidA"), "2.2.0")
+  expect_length(out$failed, 0L)
+})
+
+test_that("a child listed at a development version falls back to the parent's ref", {
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  mkRemoteModule(remote, "Acct/par@v1.1.0", version = "1.1.0", childModules = "kidA",
+                 childVersions = c(kidA = "2.2.0.9000"))
+  mkRemoteModule(remote, "Acct/kidA@v1.1.0", version = "1.0.0")
+  calls <- localFakeGitHub(remote)
+
+  out <- getModule("Acct/par@v1.1.0", modulePath = mp, verbose = -1)
+
+  expect_setequal(calls$specs, c("Acct/par@v1.1.0", "Acct/kidA@v1.1.0"))
+})
+
 test_that(".isVersionTag tells a release tag from a branch", {
   expect_true(.isVersionTag("v1.1.0"))
   expect_true(.isVersionTag("v2"))
@@ -313,4 +341,8 @@ test_that(".isVersionTag tells a release tag from a branch", {
   expect_false(.isVersionTag("fireSense-1.1.0"))
   expect_false(.isVersionTag("v1.1.0-beta"))
   expect_false(.isVersionTag(NA_character_))
+  expect_true(.isReleaseVersion("2.2.0"))
+  expect_false(.isReleaseVersion("2.2.0.9000"))
+  expect_false(.isReleaseVersion(NA_character_))
+  expect_false(.isReleaseVersion(NULL))
 })
