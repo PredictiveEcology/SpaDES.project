@@ -29,8 +29,10 @@ utils::globalVariables(c(
 #' fetched at a version tag (e.g. `"owner/parent@v1.1.0"`), a plain-named child is fetched at
 #' `v<version>` instead, its version taken from the parent's own `version` list at that tag
 #' (e.g. `version = list(parent = "1.1.0", child = "2.2.0")` gives `child@v2.2.0`), so one
-#' parent release names the release of every child. A child missing from that list falls back
-#' to the parent's tag. A module also named in
+#' parent release names the release of every child. The same holds when the parent has no
+#' ref (`"owner/parent"`): it comes from its default branch, normally its latest release, and
+#' its children at the releases its list names. A child missing from that list, or listed at
+#' a development version (four components, e.g. `"2.2.0.9000"`), falls back to the parent's ref. A module also named in
 #' `modules` is fetched only as it is written there, never from a parent's entry.
 #'
 #' @return A list with `success` and `failed`, the module specifications (children included)
@@ -387,8 +389,10 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   kidName <- sub("@.*$", "", kid)
   br <- if (grepl("@", kid)) {
     sub("^[^@]*@", "", kid)
-  } else if (.isVersionTag(gr$br) && kidName %in% names(versions)) {
-    ## a parent release names each child's release in its own `version` list
+  } else if ((.isVersionTag(gr$br) || identical(unname(gr$br), "HEAD")) &&
+             .isReleaseVersion(versions[kidName])) {
+    ## a parent release (a version tag, or no ref: its default branch, i.e. its latest
+    ## release) names each child's release in its own `version` list
     paste0("v", versions[[kidName]])
   } else {
     gr$br
@@ -398,6 +402,12 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
 
 ## A ref that is a release tag, "v" then a version ("v1.1.0"), rather than a branch.
 .isVersionTag <- function(br) isTRUE(grepl("^v[0-9]+([.-][0-9]+)*$", br))
+
+## A release version ("2.2.0"), which has a `v` tag; a development version ("2.2.0.9000",
+## four or more components) does not.
+.isReleaseVersion <- function(v) {
+  length(v) == 1L && !is.na(v) && grepl("^[0-9]+([.-][0-9]+){0,2}$", v)
+}
 
 ## The parent's `version` list as a named character vector (module name -> version), read
 ## from its local copy. metadataInModules(metadataItem = "version") drops the names.
