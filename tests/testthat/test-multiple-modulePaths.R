@@ -82,6 +82,24 @@ test_that("nested GitHub modules are flattened into the modulePath they were dow
   expect_false(any(grepl(file.path(mps[2], "scfm"), out$paths$modulePath, fixed = TRUE)))
 })
 
+test_that("a repository folder is kept after flattening only when it is itself a requested module", {
+  ## scfm's repository root is the scfm parent module. Listing scfm and one of its
+  ## nested children keeps the scfm folder; listing only children removes it (above).
+  skip_on_cran()
+  skip_if_offline()
+  setupTest()
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "m")
+  suppressWarnings(suppressMessages(
+    setupProject(modules = c("PredictiveEcology/scfm@development",
+                             "PredictiveEcology/scfm@development/modules/scfmRegime"),
+                 paths = list(modulePath = mp, projectPath = file.path(root, "proj"),
+                              packagePath = .libPaths()[1L]),
+                 packages = NULL, useGit = FALSE, updateRprofile = FALSE)))
+  expect_true(file.exists(file.path(mp, "scfm", "scfm.R")))
+  expect_true(dir.exists(file.path(mp, "scfmRegime")))
+})
+
 test_that("useGit clones each GitHub module into the modulePath that holds it, else the first", {
   ## The git branch of setupModules() used `paths$modulePath` as one path:
   ## `dir.exists(localPath) && ...` failed with two. A clone (project repo with

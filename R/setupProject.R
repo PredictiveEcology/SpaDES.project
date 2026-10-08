@@ -2011,10 +2011,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       if (notUsingGit) {
         if (all(file.exists(newModFiles)) & all(dir.exists(wantedModPath2))) {
-          ## keep a repository that is itself a module (a parent at its root, e.g. scfm)
-          isModule <- file.exists(file.path(moduleSuperFolder,
-                                            paste0(basename(moduleSuperFolder), ".R")))
-          unlink(moduleSuperFolder[!isModule], recursive = TRUE)
+          ## keep a repository folder that is itself a requested module (a parent at its
+          ## root, e.g. both scfm and scfm/modules/scfmRegime listed); else remove it
+          isRequested <- moduleSuperFolder %in% wantedModPath[-isNested]
+          unlink(moduleSuperFolder[!isRequested], recursive = TRUE)
         } else {
           warnings("Could not copy module files to 'modulePath', leaving in original, potentially nested directory")
           unlink(dirname(newModFiles), recursive = TRUE)
