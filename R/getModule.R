@@ -25,7 +25,14 @@ utils::globalVariables(c(
 #' A parent module lists its children in `childModules`. After a module is fetched (or
 #' found locally), its children are fetched too, recursively: an entry written as
 #' `"owner/repo@branch"` is fetched as written; a plain name (or `"name@branch"`) is fetched
-#' from the parent's GitHub account (and branch, unless one is given). A module also named in
+#' from the parent's GitHub account (and branch, unless one is given). When the parent is
+#' fetched at a version tag (e.g. `"owner/parent@v1.1.0"`), a plain-named child is fetched at
+#' `v<version>` instead, its version taken from the parent's own `version` list at that tag
+#' (e.g. `version = list(parent = "1.1.0", child = "2.2.0")` gives `child@v2.2.0`), so one
+#' parent release names the release of every child. The same holds when the parent has no
+#' ref (`"owner/parent"`): it comes from its default branch, normally its latest release, and
+#' its children at the releases its list names. A child missing from that list, or listed at
+#' a development version (four components, e.g. `"2.2.0.9000"`), falls back to the parent's ref. A module also named in
 #' `modules` is fetched only as it is written there, never from a parent's entry.
 #'
 #' @return A list with `success` and `failed`, the module specifications (children included)
@@ -373,14 +380,69 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
 ## Where to fetch a child from: an "owner/repo..." entry as written; a plain name, or
 ## "name@branch", from the parent's account and (unless given) branch. A parent that is
 ## local only, or nested in another repository, leaves its plain children as they are.
-.childModuleSpec <- function(kid, parent) {
+.childModuleSpec <- function(kid, parent, versions = NULL) {
   if (grepl("/", sub("@.*$", "", kid))) return(kid)
   parent <- trimVersionNumber(parent)
   if (!isGitHub(parent)) return(kid)
   gr <- lapply(splitGitRepo(parent)[c("acct", "br", "subFolder")], unlist)
   if (!is.na(gr$subFolder)) return(kid)
-  br <- if (grepl("@", kid)) sub("^[^@]*@", "", kid) else gr$br
-  paste0(gr$acct, "/", sub("@.*$", "", kid), "@", br)
+  kidName <- sub("@.*$", "", kid)
+  br <- if (grepl("@", kid)) {
+    sub("^[^@]*@", "", kid)
+  } else if ((.isVersionTag(gr$br) || identical(unname(gr$br), "HEAD")) &&
+             .isReleaseVersion(versions[kidName])) {
+    ## a parent release (a version tag, or no ref: its default branch, i.e. its latest
+    ## release) names each child's release in its own `version` list
+    paste0("v", versions[[kidName]])
+  } else {
+    gr$br
+  }
+  paste0(gr$acct, "/", kidName, "@", br)
+}
+
+## A ref that is a release tag, "v" then a version ("v1.1.0"), rather than a branch.
+.isVersionTag <- function(br) isTRUE(grepl("^v[0-9]+([.-][0-9]+)*$", br))
+
+## A release version ("2.2.0"), which has a `v` tag; a development version ("2.2.0.9000",
+## four or more components) does not.
+.isReleaseVersion <- function(v) {
+  length(v) == 1L && !is.na(v) && grepl("^[0-9]+([.-][0-9]+){0,2}$", v)
+}
+
+## The parent's `version` list as a named character vector (module name -> version), read
+## from its local copy. metadataInModules(metadataItem = "version") drops the names.
+.moduleVersions <- function(module, modulePath) {
+  module <- extractModName(module)
+  f <- file.path(whichModulePath(module, modulePath), module, paste0(module, ".R"))
+  if (!file.exists(f)) return(NULL)
+  pp <- parse(file = f, keep.source = FALSE)
+  dm <- pp[[grep("^defineModule", vapply(pp, function(x) deparse(x)[1], character(1)))[1]]]
+  v <- try(eval(as.list(dm[[3]])$version, envir = baseenv()), silent = TRUE)
+  if (inherits(v, "try-error") || !is.list(v) || is.null(names(v))) return(NULL)
+  vapply(v, function(x) as.character(x), character(1))
+}
+
+## Children kept in the parent's own repository, in its `modules/` folder (as in
+## PredictiveEcology/scfm, whose root is the parent): the parent's copy already holds them
+## at the parent's ref, so each is placed beside the parent, where simInit() looks for it,
+## instead of being fetched. Returns the placed children as "<parent>/modules/<child>",
+## with the parent's ref, so each names where it came from.
+.placeInRepoChildren <- function(entries, parent, modulePath, overwrite = FALSE) {
+  parName <- extractModName(parent)
+  parPath <- whichModulePath(parName, modulePath)
+  src <- file.path(parPath, parName, "modules", entries)
+  inRepo <- !grepl("[/@]", entries) & dir.exists(src)
+  if (!any(inRepo)) return(character())
+  for (i in which(inRepo)) {
+    to <- file.path(parPath, entries[i])
+    if (dir.exists(to) && !isTRUE(overwrite)) next
+    files <- dir(src[i], recursive = TRUE, all.files = TRUE)
+    toFiles <- file.path(to, files)
+    lapply(unique(dirname(toFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+    unlink(toFiles)
+    linkOrCopy(file.path(src[i], files), toFiles)
+  }
+  paste0(trimVersionNumber(parent), "/modules/", entries[inRepo])
 }
 
 ## Fetch the children of `parents`, then theirs, and so on. `explicit` (the modules the
@@ -392,20 +454,32 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   seen <- if (length(explicit)) extractModName(explicit) else character()
   success <- failed <- character()
   while (length(parents)) {
-    kids <- unlist(lapply(parents, function(par)
-      vapply(.childModuleEntries(par, modulePath), .childModuleSpec, character(1),
-             parent = par, USE.NAMES = FALSE)), use.names = FALSE)
-    if (!length(kids)) break
+    kids <- placed <- character()
+    for (par in parents) {
+      entries <- .childModuleEntries(par, modulePath)
+      entries <- entries[!extractModName(entries) %in% seen]
+      here <- .placeInRepoChildren(entries, par, modulePath, overwrite = overwrite)
+      placed <- c(placed, here)
+      seen <- c(seen, extractModName(here))
+      entries <- entries[!entries %in% extractModName(here)]
+      kids <- c(kids, vapply(entries, .childModuleSpec, character(1), parent = par,
+                             versions = .moduleVersions(par, modulePath), USE.NAMES = FALSE))
+    }
+    if (length(placed))
+      messageVerbose("Child modules from the parent's repository: ",
+                     paste(placed, collapse = ", "), verbose = verbose)
     kidNames <- extractModName(kids)
     keep <- !kidNames %in% seen & !duplicated(kidNames)
     kids <- kids[keep]
-    if (!length(kids)) break
     seen <- c(seen, kidNames[keep])
-    messageVerbose("Child modules: ", paste(kids, collapse = ", "), verbose = verbose)
-    out <- .getModuleNoChildren(kids, modulePath, overwrite = overwrite, verbose = verbose)
-    success <- c(success, out$success)
+    out <- list(success = character(), failed = character())
+    if (length(kids)) {
+      messageVerbose("Child modules: ", paste(kids, collapse = ", "), verbose = verbose)
+      out <- .getModuleNoChildren(kids, modulePath, overwrite = overwrite, verbose = verbose)
+    }
+    success <- c(success, placed, out$success)
     failed <- c(failed, out$failed)
-    parents <- out$success
+    parents <- c(placed, out$success)
   }
   list(success = success, failed = failed)
 }
