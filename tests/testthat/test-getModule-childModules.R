@@ -389,6 +389,23 @@ test_that("an explicit module wins over the parent's in-repository copy of it", 
   expect_false("Acct/fam@v2.1.0/modules/kidX" %in% out$success)
 })
 
+test_that("a child written as a spec is fetched as written, even if the parent's repository has a copy", {
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  spec <- mkRepoFamily(remote)
+  ## the parent now names kidX by spec; its modules/kidX (2.1.0) must not be used
+  f <- file.path(remote, "Acct__fam@v2.1.0", "fam", "fam.R")
+  writeLines(sub('"kidX"', '"Other/kidX@dev"', readLines(f), fixed = TRUE), f)
+  mkRemoteModule(remote, "Other/kidX@dev", version = "5.0.0")
+  calls <- localFakeGitHub(remote)
+
+  out <- getModule(spec, modulePath = mp, verbose = -1)
+
+  expect_true("Other/kidX@dev" %in% calls$specs)
+  expect_identical(versionOf(mp, "kidX"), "5.0.0")
+  expect_true("Acct/fam@v2.1.0/modules/kidY" %in% out$success)
+})
+
 test_that(".isVersionTag tells a release tag from a branch", {
   expect_true(.isVersionTag("v1.1.0"))
   expect_true(.isVersionTag("v2"))
