@@ -422,6 +422,29 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   vapply(v, function(x) as.character(x), character(1))
 }
 
+## Children kept in the parent's own repository, in its `modules/` folder (as in
+## PredictiveEcology/scfm, whose root is the parent): the parent's copy already holds them
+## at the parent's ref, so each is placed beside the parent, where simInit() looks for it,
+## instead of being fetched. Returns the placed children as "<parent>/modules/<child>",
+## with the parent's ref, so each names where it came from.
+.placeInRepoChildren <- function(entries, parent, modulePath, overwrite = FALSE) {
+  parName <- extractModName(parent)
+  parPath <- whichModulePath(parName, modulePath)
+  src <- file.path(parPath, parName, "modules", entries)
+  inRepo <- !grepl("[/@]", entries) & dir.exists(src)
+  if (!any(inRepo)) return(character())
+  for (i in which(inRepo)) {
+    to <- file.path(parPath, entries[i])
+    if (dir.exists(to) && !isTRUE(overwrite)) next
+    files <- dir(src[i], recursive = TRUE, all.files = TRUE)
+    toFiles <- file.path(to, files)
+    lapply(unique(dirname(toFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
+    unlink(toFiles)
+    linkOrCopy(file.path(src[i], files), toFiles)
+  }
+  paste0(trimVersionNumber(parent), "/modules/", entries[inRepo])
+}
+
 ## Fetch the children of `parents`, then theirs, and so on. `explicit` (the modules the
 ## user asked for) are never refetched from a parent's entry; `seen` stops a cycle.
 .getChildModules <- function(parents, explicit, modulePath, overwrite = FALSE,
@@ -431,21 +454,32 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
   seen <- if (length(explicit)) extractModName(explicit) else character()
   success <- failed <- character()
   while (length(parents)) {
-    kids <- unlist(lapply(parents, function(par)
-      vapply(.childModuleEntries(par, modulePath), .childModuleSpec, character(1),
-             parent = par, versions = .moduleVersions(par, modulePath),
-             USE.NAMES = FALSE)), use.names = FALSE)
-    if (!length(kids)) break
+    kids <- placed <- character()
+    for (par in parents) {
+      entries <- .childModuleEntries(par, modulePath)
+      entries <- entries[!extractModName(entries) %in% seen]
+      here <- .placeInRepoChildren(entries, par, modulePath, overwrite = overwrite)
+      placed <- c(placed, here)
+      seen <- c(seen, extractModName(here))
+      entries <- entries[!entries %in% extractModName(here)]
+      kids <- c(kids, vapply(entries, .childModuleSpec, character(1), parent = par,
+                             versions = .moduleVersions(par, modulePath), USE.NAMES = FALSE))
+    }
+    if (length(placed))
+      messageVerbose("Child modules from the parent's repository: ",
+                     paste(placed, collapse = ", "), verbose = verbose)
     kidNames <- extractModName(kids)
     keep <- !kidNames %in% seen & !duplicated(kidNames)
     kids <- kids[keep]
-    if (!length(kids)) break
     seen <- c(seen, kidNames[keep])
-    messageVerbose("Child modules: ", paste(kids, collapse = ", "), verbose = verbose)
-    out <- .getModuleNoChildren(kids, modulePath, overwrite = overwrite, verbose = verbose)
-    success <- c(success, out$success)
+    out <- list(success = character(), failed = character())
+    if (length(kids)) {
+      messageVerbose("Child modules: ", paste(kids, collapse = ", "), verbose = verbose)
+      out <- .getModuleNoChildren(kids, modulePath, overwrite = overwrite, verbose = verbose)
+    }
+    success <- c(success, placed, out$success)
     failed <- c(failed, out$failed)
-    parents <- out$success
+    parents <- c(placed, out$success)
   }
   list(success = success, failed = failed)
 }
