@@ -21,6 +21,7 @@ experimentTmux(
   continue = TRUE,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
+  on_error = c("stop", "continue"),
   pane_mode = c("killAndNewPane", "reuse"),
   ss_id = NULL,
   forceLocalQueueToGS = FALSE,
@@ -88,6 +89,8 @@ Default: \code{file.path("logs/", basename(queue_path))}.}
 interrupted (Ctrl-C): requeue it for another worker, or mark it INTERRUPTED and stop this
 worker. A job that errors is marked "ERROR" and is not claimed again until its status is
 set back to "PENDING"; a status set by the user while the job ran (e.g. "HOLD") is kept.}
+
+\item{on_error}{\code{"stop"} (default) or \code{"continue"}. What a worker does after a job errors. \code{"stop"} leaves the worker at the prompt with the error, call stack and traceback (\code{lastTraceback()}) available. \code{"continue"} prints the error and goes on to the next claimable job. Either way the row is marked "ERROR" with \code{last_error}.}
 
 \item{pane_mode}{\code{"killAndNewPane"} (default) or \code{"reuse"}. See \strong{Worker loop modes}
 above.}

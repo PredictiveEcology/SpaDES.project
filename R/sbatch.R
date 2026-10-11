@@ -39,6 +39,9 @@
 #'   as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
 #'   errors (rather than being interrupted) is marked ERROR and is not claimed
 #'   again until its status is set back to PENDING.
+#' @param on_error \code{"stop"} (default) leaves a worker stopped after a job errors, with
+#'   the error visible in its log; \code{"continue"} goes on to the next claimable job. The
+#'   errored row is marked ERROR either way (see \code{on_interrupt}).
 #' @param ss_id Google Sheets ID (or Drive folder ID) for the shared queue.
 #'   When provided workers use the GS backend in addition to the local RDS
 #'   file (mirroring \code{experimentFuture}).
@@ -180,6 +183,7 @@ experimentSBATCH <- function(
   n_workers           = 4L,
   queue_path          = NULL,
   on_interrupt        = c("requeue", "fail"),
+  on_error            = c("stop", "continue"),
   ss_id               = NULL,
   forceLocalQueueToGS = FALSE,
   email               = getOption("gargle_oauth_email"),
@@ -197,6 +201,7 @@ experimentSBATCH <- function(
   ...
 ) {
   on_interrupt <- match.arg(on_interrupt)
+  on_error     <- match.arg(on_error)
 
   # -- 1. Normalize paths ----------------------------------------------------
   global_path <- normalizePath(global_path, mustWork = FALSE)
@@ -310,6 +315,7 @@ experimentSBATCH <- function(
       queue_path        = queue_path,
       global_path       = global_path,
       on_interrupt      = on_interrupt,
+      on_error          = on_error,
       ss_id             = ss_id,
       email             = email,
       cache_path        = cache_path,
@@ -376,7 +382,8 @@ experimentSBATCH <- function(
                                  queue_path, global_path, on_interrupt, ss_id,
                                  email, cache_path, runNameLabel,
                                  activeRunningPath, dots_path,
-                                 sbatch_opts, r_cmd, r_libs, snapshot_library = TRUE) {
+                                 sbatch_opts, r_cmd, r_libs, snapshot_library = TRUE,
+                                 on_error = "stop") {
   # SBATCH directives -- always set output / error / job-name; user-provided
   # opts come after and may NOT override these.
   reserved <- c("output", "error", "job-name", "job_name")
@@ -408,13 +415,13 @@ experimentSBATCH <- function(
     paste0(
       ".libPaths(%s); ",
       "SpaDES.project::tmuxRunWorkerLoop(",
-      "queue_path = %s, global_path = %s, on_interrupt = %s, ",
+      "queue_path = %s, global_path = %s, on_interrupt = %s, on_error = %s, ",
       "ss_id = %s, email = %s, cache_path = %s, ",
       "runNameLabel = %s, activeRunningPath = %s, ",
       "dots_path = %s, stop_file = %s, pane_mode = \"reuse\")"
     ),
     .deparse_one(r_libs),
-    .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt),
+    .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt), .deparse_one(on_error),
     .deparse_one(ss_id),       .deparse_one(email),       .deparse_one(cache_path),
     .deparse_one(runNameLabel),.deparse_one(activeRunningPath),
     .deparse_one(dots_path),   .deparse_one(stop_file)

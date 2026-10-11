@@ -10,6 +10,7 @@ experimentSBATCH(
   n_workers = 4L,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
+  on_error = c("stop", "continue"),
   ss_id = NULL,
   forceLocalQueueToGS = FALSE,
   email = getOption("gargle_oauth_email"),
@@ -47,6 +48,10 @@ storage so all worker nodes can read/write it.}
 as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
 errors (rather than being interrupted) is marked ERROR and is not claimed
 again until its status is set back to PENDING.}
+
+\item{on_error}{\code{"stop"} (default) leaves a worker stopped after a job errors, with
+the error visible in its log; \code{"continue"} goes on to the next claimable job. The
+errored row is marked ERROR either way (see \code{on_interrupt}).}
 
 \item{ss_id}{Google Sheets ID (or Drive folder ID) for the shared queue.
 When provided workers use the GS backend in addition to the local RDS
