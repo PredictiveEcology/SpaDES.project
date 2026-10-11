@@ -46,7 +46,9 @@ if it does not yet exist.  Defaults to
 \code{<dirname(global_path)>/future_queue.rds}.}
 
 \item{on_interrupt}{\code{"requeue"} (default) re-queues interrupted jobs
-as PENDING; \code{"fail"} marks them INTERRUPTED permanently.}
+as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
+errors (rather than being interrupted) is marked ERROR and is not claimed
+again until its status is set back to PENDING.}
 
 \item{ss_id}{Google Sheets ID (or Drive folder ID) for the shared queue.
 When provided workers use the GS backend instead of the local RDS file.}

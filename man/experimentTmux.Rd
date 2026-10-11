@@ -84,8 +84,10 @@ Default: \code{file.path("logs/", basename(queue_path))}.}
 \item{queue_path}{Character. Path to the \code{.rds} queue file. Defaults to
 \code{file.path(dirname(global_path), "tmux_queue.rds")}.}
 
-\item{on_interrupt}{\code{"requeue"} (default) or \code{"fail"}. Action when a job errors:
-requeue it for another worker, or mark it failed and stop this worker.}
+\item{on_interrupt}{\code{"requeue"} (default) or \code{"fail"}. Action when a job is
+interrupted (Ctrl-C): requeue it for another worker, or mark it INTERRUPTED and stop this
+worker. A job that errors is marked "ERROR" and is not claimed again until its status is
+set back to "PENDING"; a status set by the user while the job ran (e.g. "HOLD") is kept.}
 
 \item{pane_mode}{\code{"killAndNewPane"} (default) or \code{"reuse"}. See \strong{Worker loop modes}
 above.}

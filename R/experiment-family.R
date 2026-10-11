@@ -58,8 +58,11 @@
 #' `runName <- "trial1"; source(global_path)` and the second runs
 #' `runName <- "trial2"; source(global_path)`. The `status` column starts as
 #' "PENDING" for all rows; workers take the next "PENDING" (or "INTERRUPTED")
-#' row, skipping "DONE" rows, and mark a row "DONE" when it finishes without
-#' error before moving to the next.
+#' row, skipping "DONE" rows (and any other status, such as "HOLD"), and mark a
+#' row "DONE" when it finishes without error before moving to the next. A job
+#' that errors is marked "ERROR", which no worker takes; set its status back to
+#' "PENDING" to run it again. A worker never overwrites a status you set while
+#' its job ran.
 #'
 #' These three share the queue and the run-naming convention and differ only in
 #' *how* parallel workers are spawned:
@@ -149,8 +152,8 @@
 #'     once across all workers and machines.}
 #'   \item{Resume after crash / ctrl-C}{If a worker dies mid-job, the row is
 #'     stuck "in progress" with no record. The experimentXXX functions mark the row RUNNING
-#'     when claimed and DONE / INTERRUPTED when finished, so the next launch
-#'     skips DONE rows and (optionally, via [tmuxRefreshQueueStatus()] or
+#'     when claimed and DONE / ERROR / INTERRUPTED when finished, so the next launch
+#'     skips DONE and ERROR rows and (optionally, via [tmuxRefreshQueueStatus()] or
 #'     [experimentFutureList()] `(kill = TRUE)`) demotes orphaned RUNNING
 #'     rows back to PENDING for re-claim.}
 #'   \item{Worker-pool sizing}{`Rscript &; Rscript &; Rscript &` scales as

@@ -265,6 +265,18 @@
   invisible(NULL)
 }
 
+# Write the end of a job to the sheet and the local mirror; see .jobEndUpdates().
+# The row's status is read just before writing, so a status the user set meanwhile
+# is seen. An unreadable sheet is treated as still RUNNING.
+.gs_record_job_end <- function(ss_id, sheet_row, row_i, col_pos, queue_path,
+                               outcome, on_interrupt, lastErr = NULL) {
+  current <- tryCatch(.gs_read_queue(ss_id)$status[row_i], error = function(e) NA_character_)
+  upd <- .jobEndUpdates(outcome, on_interrupt, current, lastErr)
+  try(.gs_write_cells(ss_id, sheet_row, updates = upd, col_positions = col_pos))
+  try(.mirror_local_queue(queue_path, row_i, upd))
+  invisible(upd)
+}
+
 # Mirror a row-level update from the GS-backed queue to the local RDS file.
 # No-op if queue_path is NULL or missing; safe under concurrent workers via
 # filelock. Updates are matched against local column names (which are the
