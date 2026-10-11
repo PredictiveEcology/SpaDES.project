@@ -34,7 +34,8 @@ interrupt handler has a chance to update the queue.  Any jobs that were
 \code{RUNNING} at the time of the kill will remain as \code{RUNNING} in the
 queue until the next reclaim pass.  Call
 \code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to reset stale
-\code{RUNNING} entries to \code{INTERRUPTED}, or use the GS backend which
+\code{RUNNING} entries to \code{PENDING} (or \code{INTERRUPTED} if the run had
+already written a heartbeat), or use the GS backend which
 reclaims dead workers automatically before each new claim.
 }
 \seealso{
