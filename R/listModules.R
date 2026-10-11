@@ -160,6 +160,15 @@ listModules <- function(keywords, accounts, includeForks = FALSE,
   st
 }
 
+# For a parent module, SpaDES.core returns one table per child module, not one table;
+# stack them so the parent is described by all of its children's objects.
+.flattenChildIO <- function(x) {
+  if (length(x) && !is.data.frame(x) && is.list(x))
+    data.table::rbindlist(x, fill = TRUE)
+  else
+    x
+}
+
 #' @rdname listModules
 #' @param modulePath A character string indicating the path where the modules are located.
 #' @importFrom data.table := as.data.table
@@ -181,7 +190,7 @@ moduleDependencies <- function(modules, modulePath = getOption("reproducible.mod
     if (is(oo, "try-error")) {
       message(oo); oo = list(list()); names(oo) <- mod
     }
-    list(io = io[[mod]], oo = oo[[mod]], name = mod)
+    list(io = .flattenChildIO(io[[mod]]), oo = .flattenChildIO(oo[[mod]]), name = mod)
   })
 
   sim.in <- sim.out <- data.table(objectName = character(0),
