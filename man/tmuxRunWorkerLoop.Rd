@@ -62,3 +62,8 @@ invisibly TRUE
 \description{
 Run queued jobs repeatedly (pane-local loop).
 }
+\details{
+The worker keeps claiming jobs until none is claimable. A job that errors is
+marked "ERROR" (not claimable) and the worker goes on to the next one, so only
+PENDING and INTERRUPTED rows keep it busy.
+}

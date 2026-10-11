@@ -1731,7 +1731,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         else
           message("Error: ", conditionMessage(e))
         message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
-        message("\nq(status=1L) to retry  |  q() to stop the loop")
+        message("\nThe row is marked ERROR (set it back to PENDING to rerun); the worker goes on to the next job.")
         "error"
       },
       interrupt = function(e) {
@@ -1895,7 +1895,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       else
         message("Error: ", conditionMessage(e))
       message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
-      message("\nq(status=1L) to retry  |  q() to stop the loop")
+      message("\nThe row is marked ERROR (set it back to PENDING to rerun); the worker goes on to the next job.")
       "error"
     },
     interrupt = function(e) "interrupt"
@@ -1915,6 +1915,9 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #'
 #' @inheritParams tmuxRunNextWorker
 #' @param stop_file optional path; if present, stop after current iteration
+#' @details The worker keeps claiming jobs until none is claimable. A job that errors is
+#'   marked "ERROR" (not claimable) and the worker goes on to the next one, so only
+#'   PENDING and INTERRUPTED rows keep it busy.
 #' @param pane_mode Character. `"reuse"` (default) loops inside the same R session.
 #'   `"killAndNewPane"` runs one job, spawns a fresh replacement pane, retiles the
 #'   tmux window, then kills the current pane  -- freeing all R memory between jobs.
@@ -1986,9 +1989,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
 
-    should_continue <- !identical(res, "empty") &&
-                       !identical(res, "error") &&
-                       !(identical(res, "interrupt") && on_interrupt == "fail")
+    should_continue <- .workerContinues(res, on_interrupt)
 
     if (should_continue && nzchar(Sys.getenv("TMUX"))) {
       # Local tmux pane: respawn-pane replaces this process with a fresh R session.
@@ -2025,7 +2026,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
     if (should_continue) {
-      # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) ->
+      # Job ran OK (res=ok), errored (res=error, row left ERROR) or incomplete (res=interrupt+requeue) ->
       # exit 1 so the remote bash `while !` condition fails -> loop continues.
       message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
               "  -- restarting R session for next job")
@@ -2033,7 +2034,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       Sys.sleep(0.5)   # let PTY flush before SSH connection drops
       quit(save = "no", status = 1L)
     } else {
-      # Queue empty or interrupt+fail: stay at '>' so the user can debug.
+      # Queue has nothing claimable or interrupt+fail: stay at '>' so the user can debug.
       message("\nWorker idle: res=", res,
               "\n  q(status=1L) to retry  |  q() to stop the loop")
       return(invisible(res))
@@ -2048,9 +2049,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
     res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
-    if (identical(res, "empty")) break
-    if (identical(res, "error")) break
-    if (identical(res, "interrupt") && on_interrupt == "fail") break
+    if (!.workerContinues(res, on_interrupt)) break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
   }
   invisible(TRUE)
@@ -3663,6 +3662,11 @@ txtPending <- "PENDING"
 txtDone <- "DONE"
 txtRunning <- "RUNNING"
 txtError <- "ERROR"
+
+# Whether a worker claims another job after tmuxRunNextWorker() returned `res`. An errored
+# job is ERROR, which is not claimable, so carrying on takes the next row and ends at "empty".
+.workerContinues <- function(res, on_interrupt)
+  !identical(res, "empty") && !(identical(res, "interrupt") && on_interrupt == "fail")
 
 # What a worker writes to its row when the job ends. Only a row still RUNNING gets a
 # new status: if the user set it to something else while the job ran (HOLD, say), that

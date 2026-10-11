@@ -43,17 +43,48 @@ test_that("tmuxRunWorkerLoop keeps going until the queue reports empty", {
   expect_identical(i, 3L)
 })
 
-test_that("tmuxRunWorkerLoop stops on an error result", {
+test_that("tmuxRunWorkerLoop carries on after an error result, and ends when the queue is empty", {
   td <- withr::local_tempdir()
+  results <- c("error", "ok", "error", "empty")
   i <- 0L
   testthat::local_mocked_bindings(
-    tmuxRunNextWorker = function(...) { i <<- i + 1L; "error" })
+    tmuxRunNextWorker = function(...) { i <<- i + 1L; results[[i]] })
 
   suppressMessages(
     tmuxRunWorkerLoop(queue_path = file.path(td, "q.rds"),
                       global_path = mkGlobal(td)))
 
-  expect_identical(i, 1L)
+  expect_identical(i, 4L)
+})
+
+test_that("one worker on a queue [fails, ok] ends with rows ERROR and DONE", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  qp <- file.path(td, "queue.rds")
+  saveRDS(data.frame(.ELFind = c("bad", "good"), .rep = 1:2, status = "PENDING",
+                     stringsAsFactors = FALSE), qp)
+  g <- file.path(td, "global.R")
+  writeLines("if (.ELFind == 'bad') stop('boom')", g)
+
+  suppressMessages(tmuxRunWorkerLoop(queue_path = qp, global_path = g))
+
+  expect_identical(readRDS(qp)$status, c("ERROR", "DONE"))
+  expect_match(readRDS(qp)$last_error[1], "boom")
+})
+
+test_that("a worker whose only claimable row errors ends idle, with the row ERROR", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  qp <- file.path(td, "queue.rds")
+  saveRDS(data.frame(.ELFind = c("held", "bad"), .rep = 1:2, status = c("HOLD", "PENDING"),
+                     stringsAsFactors = FALSE), qp)
+  g <- file.path(td, "global.R")
+  writeLines("stop('boom')", g)
+
+  res <- suppressMessages(tmuxRunWorkerLoop(queue_path = qp, global_path = g))
+
+  expect_true(res)
+  expect_identical(readRDS(qp)$status, c("HOLD", "ERROR"))
 })
 
 test_that("tmuxRunWorkerLoop stops on interrupt when on_interrupt is 'fail'", {
