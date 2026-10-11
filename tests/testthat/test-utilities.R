@@ -363,3 +363,15 @@ test_that("spadesProjectOptions scratchPath uses tempdir()", {
     normalizePath(tempdir(), winslash = "/")
   )
 })
+
+test_that("moduleDependencies stacks the tables SpaDES.core returns for a parent module's children", {
+  skip_if_not_installed("SpaDES.core")
+  tbl <- function(nm) data.frame(objectName = nm, objectClass = "numeric", desc = "", sourceURL = NA_character_)
+  testthat::local_mocked_bindings(
+    inputObjects  = function(module, path) stats::setNames(list(list(childA = tbl("a"), childB = tbl("b"))), module),
+    outputObjects = function(module, path) stats::setNames(list(tbl("a")), module),
+    .package = "SpaDES.core")
+  DT <- moduleDependencies("parent", modulePath = tempdir())
+  expect_identical(DT$objName, "a")
+  expect_identical(DT$to, "parent")
+})

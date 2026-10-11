@@ -8,6 +8,7 @@ tmuxRunWorkerLoop(
   queue_path,
   global_path,
   on_interrupt = c("requeue", "fail"),
+  on_error = c("stop", "continue"),
   heartbeat_interval_s = 60,
   stop_file = NULL,
   activeRunningPath = getOption("spades.activeRunningPath"),
@@ -25,7 +26,12 @@ tmuxRunWorkerLoop(
 
 \item{global_path}{character; script to source for the job}
 
-\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as FAILED.}
+\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".}
+
+\item{on_error}{\code{"stop"} (default) or \code{"continue"}. After a job errors, \code{"stop"} leaves this
+worker at the prompt with the error and call stack available; \code{"continue"} goes on to the
+next claimable job. The errored row is marked "ERROR" either way, and a worker with nothing
+claimable left (only ERROR, DONE or HOLD rows) ends.}
 
 \item{heartbeat_interval_s}{numeric; seconds between heartbeats while the job runs}
 

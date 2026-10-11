@@ -679,12 +679,15 @@ tmuxSetMouse <- function(on = TRUE) {
 #' @param continue Logical. Reserved for future single-shot mode; currently ignored.
 #' @param queue_path Character. Path to the `.rds` queue file. Defaults to
 #'   `file.path(dirname(global_path), "tmux_queue.rds")`.
-#' @param on_interrupt `"requeue"` (default) or `"fail"`. Action when a job errors:
-#'   requeue it for another worker, or mark it failed and stop this worker.
+#' @param on_interrupt `"requeue"` (default) or `"fail"`. Action when a job is
+#'   interrupted (Ctrl-C): requeue it for another worker, or mark it INTERRUPTED and stop this
+#'   worker. A job that errors is marked "ERROR" and is not claimed again until its status is
+#'   set back to "PENDING"; a status set by the user while the job ran (e.g. "HOLD") is kept.
 #' @param ss_id Optional Google Drive spreadsheet/folder ID for live status syncing via
 #'   `googlesheets4`. `NULL` disables syncing.
 #' @param email Optional email address for gargle/Google OAuth authentication.
 #' @param cache_path Optional path to the gargle OAuth token cache directory.
+#' @param on_error `"stop"` (default) or `"continue"`. What a worker does after a job errors. `"stop"` leaves the worker at the prompt with the error, call stack and traceback (`lastTraceback()`) available. `"continue"` prints the error and goes on to the next claimable job. Either way the row is marked "ERROR" with `last_error`.
 #' @param pane_mode `"killAndNewPane"` (default) or `"reuse"`. See **Worker loop modes**
 #'   above.
 #' @param cores Character vector of machine hostnames, recycled to `n_workers`. Use
@@ -807,6 +810,7 @@ experimentTmux <- function(df,
                            continue = TRUE,
                            queue_path = NULL,
                            on_interrupt = c("requeue", "fail"),
+                           on_error = c("stop", "continue"),
                            pane_mode = c("killAndNewPane", "reuse"),
                            ss_id = NULL,
                            forceLocalQueueToGS = FALSE,
@@ -854,6 +858,7 @@ experimentTmux <- function(df,
   }
 
   on_interrupt <- match.arg(on_interrupt)
+  on_error     <- match.arg(on_error)
   pane_mode    <- match.arg(pane_mode)
   onExistingQueue <- match.arg(onExistingQueue)
   # on_error     <- match.arg(on_error)
@@ -1337,6 +1342,7 @@ experimentTmux <- function(df,
         queue_path        = qp,
         global_path       = gp,
         on_interrupt      = on_interrupt,
+        on_error          = on_error,
         runNameLabel      = runNameLabel,
         activeRunningPath = arp,
         ss_id             = ss_id,
@@ -1527,7 +1533,7 @@ experimentTmux <- function(df,
     pre_sleep <- 0
     payload <- .build_worker_r_expr(
       queue_path = queue_path, global_path = global_path,
-      on_interrupt = on_interrupt, runNameLabel = runNameLabel,
+      on_interrupt = on_interrupt, on_error = on_error, runNameLabel = runNameLabel,
       activeRunningPath = activeRunningPath, ss_id = ss_id,
       pane_mode = pane_mode, email = email,
       cache_path = .normalizeCachePath(cache_path),
@@ -1548,7 +1554,7 @@ experimentTmux <- function(df,
 #'
 #' @param queue_path character; path to the queue `.rds`
 #' @param global_path character; script to source for the job
-#' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as FAILED.
+#' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".
 #' @param heartbeat_interval_s numeric; seconds between heartbeats while the job runs
 #' @return "ok" | "interrupt" | "empty" (if no pending work found); used by tmuxRunWorkerLoop()
 #' @export
@@ -1669,19 +1675,9 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           "\n  Likely cause: quit() called inside source(global_path) (e.g. pak restart).",
           "\n  Marking INTERRUPTED in GS."
         ), silent = TRUE)
-        now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        upd <- list(status         = txtInterrupted,
-                    claimed_by     = NA_character_,
-                    interrupted_at = now,
-                    last_error     = "R exited before the job outcome was recorded (quit() inside global.R?)")
-        try(.gs_write_cells(
-          ge2$ss_id, ge2$sheet_row,
-          updates       = upd,
-          col_positions = ge2$col_pos
-        ), silent = TRUE)
-        try(.mirror_local_queue(
-          ge2$queue_path, ge2$row_i, upd
-        ), silent = TRUE)
+        .gs_record_job_end(ge2$ss_id, ge2$sheet_row, ge2$row_i, ge2$col_pos,
+                           ge2$queue_path, "quit", "fail",
+                           "R exited before the job outcome was recorded (quit() inside global.R?)")
       }, onexit = TRUE)
     })
 
@@ -1726,18 +1722,10 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         source(global_path, local = scn_env)
         "ok"
       }, error = function(e) {
-        # Capture call stack while frames are still intact, then mark INTERRUPTED.
+        # Capture call stack while frames are still intact, then mark ERROR.
         assign(".spades_tb", sys.calls(), envir = scn_env)
         lastErr <<- .errText(e)
-        now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        upd <- list(status         = txtInterrupted,
-                    claimed_by     = NA_character_,
-                    interrupted_at = now,
-                    last_error     = lastErr)
-        try(.gs_write_cells(ss_id, sheet_row,
-                            updates       = upd,
-                            col_positions = col_pos), silent = TRUE)
-        try(.mirror_local_queue(queue_path, row_i, upd), silent = TRUE)
+        .gs_record_job_end(ss_id, sheet_row, row_i, col_pos, queue_path, "error", on_interrupt, lastErr)
         # Return NULL so the error re-signals to the outer tryCatch below.
       }),
       error = function(e) {
@@ -1747,7 +1735,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         else
           message("Error: ", conditionMessage(e))
         message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
-        message("\nq(status=1L) to retry  |  q() to stop the loop")
+        message("\nThe row is marked ERROR (set it back to PENDING to rerun it).")
         "error"
       },
       interrupt = function(e) {
@@ -1761,26 +1749,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
     message("[", now, "] Job finished: ", runName, "  outcome=", outcome)
 
-    final <- if (isTRUE(outcome == "ok")) {
-      # Clear claimed_by on DONE -- the row is no longer claimed by the
-      # worker.  process_id / machine_name are preserved as a historical
-      # record of which worker on which machine produced the result.
-      list(status = txtDone, claimed_by = NA_character_, finished_at = now,
-           last_error = NA_character_)
-    } else if (on_interrupt == "requeue") {
-      ## The reason travels with the requeue. Without it a failed job is
-      ## indistinguishable from one that was never started.
-      list(status = txtPending, claimed_by = NA_character_, last_error = lastErr)
-    } else {
-      list(status = txtInterrupted, claimed_by = NA_character_, interrupted_at = now,
-           last_error = lastErr)
-    }
-    if (.trace) message(sprintf("[gs-worker] final outcome=%s row_i=%s -> %s",
-                                outcome, row_i,
-                                paste(sprintf("%s=%s", names(final), as.character(unlist(final))),
-                                      collapse = ", ")))
-    .gs_write_cells(ss_id, sheet_row, updates = final, col_positions = col_pos)
-    try(.mirror_local_queue(queue_path, row_i, final), silent = TRUE)
+    .gs_record_job_end(ss_id, sheet_row, row_i, col_pos, queue_path, outcome, on_interrupt, lastErr)
     .guard_env$done <- TRUE   # disarm the reg.finalizer quit() guard
     return(outcome)
   }
@@ -1904,22 +1873,20 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     }), silent = TRUE)
   }
 
+  lastErr <- NULL
   outcome <- tryCatch(
     withCallingHandlers({
       source(global_path, local = scn_env)
       "ok"
     }, error = function(e) {
-      # Capture call stack while frames are still intact, then mark INTERRUPTED.
+      # Capture call stack while frames are still intact, then mark ERROR.
       assign(".spades_tb", sys.calls(), envir = scn_env)
+      lastErr <<- .errText(e)
       lck2 <- try(filelock::lock(LOCKF, timeout = 10L), silent = TRUE)
       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
         try({
           q2 <- readRDS(queue_path)
-          q2$status[i]         <- txtInterrupted
-          q2$claimed_by[i]     <- NA_character_
-          q2$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          if ("last_error" %in% names(q2)) q2$last_error[i] <- .errText(e)
-          saveRDS(q2, queue_path)
+          saveRDS(.applyJobEnd(q2, i, "error", on_interrupt, lastErr), queue_path)
         }, silent = TRUE)
         try(filelock::unlock(lck2), silent = TRUE)
       }
@@ -1932,7 +1899,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       else
         message("Error: ", conditionMessage(e))
       message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
-      message("\nq(status=1L) to retry  |  q() to stop the loop")
+      message("\nThe row is marked ERROR (set it back to PENDING to rerun it).")
       "error"
     },
     interrupt = function(e) "interrupt"
@@ -1941,20 +1908,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
-  if (outcome == "ok") {
-    q$status[i]      <- txtDone
-    q$claimed_by[i]  <- NA_character_   # row no longer claimed
-    q$finished_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  } else if (outcome == "interrupt") {
-    if (on_interrupt == "requeue") {
-      q$status[i]     <- txtPending
-      q$claimed_by[i] <- NA_character_
-    } else {
-      q$status[i]         <- txtInterrupted
-      q$claimed_by[i]     <- NA_character_
-      q$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-    }
-  }
+  q <- .applyJobEnd(q, i, outcome, on_interrupt, lastErr)
   saveRDS(q, queue_path)
   filelock::unlock(lck)
   # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
@@ -1964,6 +1918,10 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' Run queued jobs repeatedly (pane-local loop).
 #'
 #' @inheritParams tmuxRunNextWorker
+#' @param on_error `"stop"` (default) or `"continue"`. After a job errors, `"stop"` leaves this
+#'   worker at the prompt with the error and call stack available; `"continue"` goes on to the
+#'   next claimable job. The errored row is marked "ERROR" either way, and a worker with nothing
+#'   claimable left (only ERROR, DONE or HOLD rows) ends.
 #' @param stop_file optional path; if present, stop after current iteration
 #' @param pane_mode Character. `"reuse"` (default) loops inside the same R session.
 #'   `"killAndNewPane"` runs one job, spawns a fresh replacement pane, retiles the
@@ -1980,6 +1938,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
                           on_interrupt = c("requeue", "fail"),
+                          on_error = c("stop", "continue"),
                           heartbeat_interval_s = 60,
                           stop_file = NULL,
                           activeRunningPath = getOption("spades.activeRunningPath"),
@@ -1991,6 +1950,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           dots_path = NULL,
                           snapshot_library = TRUE) {
   on_interrupt <- match.arg(on_interrupt)
+  on_error     <- match.arg(on_error)
   pane_mode    <- match.arg(pane_mode)
   # Library snapshots: drop those left by dead workers, and make sure this
   # session's own one (made by the startup script) goes when R exits.
@@ -2036,9 +1996,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
 
-    should_continue <- !identical(res, "empty") &&
-                       !identical(res, "error") &&
-                       !(identical(res, "interrupt") && on_interrupt == "fail")
+    should_continue <- .workerContinues(res, on_interrupt, on_error)
 
     if (should_continue && nzchar(Sys.getenv("TMUX"))) {
       # Local tmux pane: respawn-pane replaces this process with a fresh R session.
@@ -2053,6 +2011,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    queue_path        = queue_path,
                    global_path       = global_path,
                    on_interrupt      = on_interrupt,
+                   on_error          = on_error,
                    runNameLabel      = runNameLabel,
                    activeRunningPath = activeRunningPath,
                    ss_id             = ss_id,
@@ -2075,7 +2034,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
     if (should_continue) {
-      # Job ran OK (res=ok) or incomplete (res=interrupt+requeue) ->
+      # Job ran OK (res=ok), errored with on_error = "continue" (row left ERROR) or incomplete (res=interrupt+requeue) ->
       # exit 1 so the remote bash `while !` condition fails -> loop continues.
       message("[", format(Sys.time(), "%H:%M:%S"), "] res=", res,
               "  -- restarting R session for next job")
@@ -2083,7 +2042,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       Sys.sleep(0.5)   # let PTY flush before SSH connection drops
       quit(save = "no", status = 1L)
     } else {
-      # Queue empty or interrupt+fail: stay at '>' so the user can debug.
+      # Queue has nothing claimable or interrupt+fail: stay at '>' so the user can debug.
       message("\nWorker idle: res=", res,
               "\n  q(status=1L) to retry  |  q() to stop the loop")
       return(invisible(res))
@@ -2098,9 +2057,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
     res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
-    if (identical(res, "empty")) break
-    if (identical(res, "error")) break
-    if (identical(res, "interrupt") && on_interrupt == "fail") break
+    if (!.workerContinues(res, on_interrupt, on_error)) break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
   }
   invisible(TRUE)
@@ -2291,7 +2248,8 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
-                                  dots_path, lib_path = .libPaths(), snapshot_library = TRUE) {
+                                  dots_path, lib_path = .libPaths(), snapshot_library = TRUE,
+                                  on_error = "stop") {
   # Ensure project lib is first so correct package versions are loaded
   ## The worker starts a fresh R and must be able to load SpaDES.project, so it
   ## needs the whole library search path, not just its first entry. Under covr /
@@ -2325,11 +2283,11 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   else ""
   sprintf(
     paste0("%s%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
-           "queue_path=%s, global_path=%s, on_interrupt=%s,",
+           "queue_path=%s, global_path=%s, on_interrupt=%s, on_error=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
            " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s)"),
     lib_pre, snap_pre, wd_pre, dots_pre,
-    deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt),
+    deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt), deparse1(on_error),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path),
     deparse1(isTRUE(snapshot_library))
@@ -3712,6 +3670,53 @@ txtInterrupted <- "INTERRUPTED"
 txtPending <- "PENDING"
 txtDone <- "DONE"
 txtRunning <- "RUNNING"
+txtError <- "ERROR"
+
+# Whether a worker claims another job after tmuxRunNextWorker() returned `res`. An errored
+# job is ERROR, which is not claimable, so with on_error = "continue" the worker takes the next
+# row and ends at "empty".
+.workerContinues <- function(res, on_interrupt, on_error)
+  !identical(res, "empty") &&
+    !(identical(res, "interrupt") && on_interrupt == "fail") &&
+    !(identical(res, "error") && on_error == "stop")
+
+# What a worker writes to its row when the job ends. Only a row still RUNNING gets a
+# new status: if the user set it to something else while the job ran (HOLD, say), that
+# is theirs to change, so only the error text and timestamps are recorded.
+# `outcome`: "ok", "error", "interrupt" (Ctrl-C) or "quit" (R exited inside the job).
+# An errored job is ERROR, which no worker claims; set it back to PENDING to rerun it.
+.jobEndUpdates <- function(outcome, on_interrupt, currentStatus, lastErr = NULL) {
+  now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  status <- switch(outcome,
+    ok        = txtDone,
+    error     = txtError,
+    interrupt = if (on_interrupt == "requeue") txtPending else txtInterrupted,
+    quit      = txtInterrupted)
+  upd <- list(status = status, claimed_by = NA_character_)
+  if (outcome == "ok") {
+    upd$finished_at <- now
+    upd$last_error  <- NA_character_
+  } else {
+    if (status != txtPending) upd$interrupted_at <- now
+    upd$last_error <- lastErr
+  }
+  if (!is.na(currentStatus) && !identical(currentStatus, txtRunning))
+    upd$status <- NULL
+  upd
+}
+
+# File backend: apply .jobEndUpdates() to row `i` of the queue `q`.
+.applyJobEnd <- function(q, i, outcome, on_interrupt, lastErr = NULL) {
+  upd <- .jobEndUpdates(outcome, on_interrupt, q$status[i], lastErr)
+  for (nm in names(upd)) {
+    if (!nm %in% names(q)) {
+      if (is.na(upd[[nm]])) next
+      q[[nm]] <- NA_character_
+    }
+    q[[nm]][i] <- upd[[nm]]
+  }
+  q
+}
 
 #' Log path for default tmux status
 #' 

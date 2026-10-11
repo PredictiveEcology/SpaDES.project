@@ -21,7 +21,7 @@ tmuxRunNextWorker(
 
 \item{global_path}{character; script to source for the job}
 
-\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as FAILED.}
+\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".}
 
 \item{heartbeat_interval_s}{numeric; seconds between heartbeats while the job runs}
 

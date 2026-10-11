@@ -147,3 +147,116 @@ test_that("a claimed job is named by its queue value, so the pane title ends wit
   expect_true(any(grepl("Claimed job: 14.3", msgs, fixed = TRUE)))
   expect_identical(titles[1L], "A159568-42-14.3")
 })
+
+# --- How a worker records the end of a job ------------------------------------
+## 2026-10-10: a row the user set to HOLD while its job ran was written back to
+## INTERRUPTED when the job errored, and a job that always fails was re-claimed by
+## every worker in turn until the whole queue sat idle.
+
+queueStatus <- function(qp) readRDS(qp)$status
+
+## global.R that logs which job it got, then runs `body`.
+mkJobGlobal <- function(dir, body) {
+  f <- file.path(dir, "global.R")
+  writeLines(c(sprintf("cat(.ELFind, '\\n', sep = '', file = %s, append = TRUE)",
+                       deparse1(file.path(dir, "ran.txt"))), body), f)
+  f
+}
+
+test_that("a row set to HOLD while its job runs stays HOLD when the job errors", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  qp <- mkQueue(td, c("PENDING", "PENDING"))
+  g <- mkJobGlobal(td, c(
+    sprintf("q <- readRDS(%s); q$status[1] <- 'HOLD'; saveRDS(q, %s)", deparse1(qp), deparse1(qp)),
+    "stop('boom')"))
+
+  res <- suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g))
+
+  expect_identical(res, "error")
+  expect_identical(queueStatus(qp), c("HOLD", "PENDING"))
+  expect_match(readRDS(qp)$last_error[1], "boom")
+})
+
+test_that("a row set to HOLD while its job runs stays HOLD when the job finishes", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  qp <- mkQueue(td, "PENDING")
+  g <- mkJobGlobal(td, sprintf("q <- readRDS(%s); q$status[1] <- 'HOLD'; saveRDS(q, %s)",
+                               deparse1(qp), deparse1(qp)))
+
+  expect_identical(suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g)), "ok")
+  expect_identical(queueStatus(qp), "HOLD")
+})
+
+test_that("an errored row is marked ERROR and the next claim takes the next PENDING row", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  qp <- mkQueue(td, c("PENDING", "PENDING"))
+  g <- mkJobGlobal(td, "stop('always fails')")
+
+  run <- function() suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g))
+
+  expect_identical(run(), "error")
+  expect_identical(queueStatus(qp), c("ERROR", "PENDING"))
+  expect_identical(run(), "error")
+  expect_identical(queueStatus(qp), c("ERROR", "ERROR"))
+  expect_identical(readLines(file.path(td, "ran.txt")), c("job1", "job2"))
+  expect_identical(run(), "empty")
+})
+
+test_that("an ERROR row runs again once it is set back to PENDING", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  qp <- mkQueue(td, "PENDING")
+  g <- mkJobGlobal(td, "stop('always fails')")
+  suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g))
+  q <- readRDS(qp); q$status[1] <- "PENDING"; saveRDS(q, qp)
+
+  suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g))
+
+  expect_identical(readLines(file.path(td, "ran.txt")), c("job1", "job1"))
+})
+
+test_that("an interrupted job is requeued, or marked INTERRUPTED with on_interrupt = 'fail'", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  g <- mkJobGlobal(td, "signalCondition(structure(class = c('interrupt', 'condition'), list(message = '', call = NULL)))")
+
+  qp <- mkQueue(td, "PENDING")
+  expect_identical(suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g)), "interrupt")
+  expect_identical(queueStatus(qp), "PENDING")
+
+  qp <- mkQueue(td, "PENDING")
+  suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g, on_interrupt = "fail"))
+  expect_identical(queueStatus(qp), "INTERRUPTED")
+})
+
+test_that("Sheets backend: an errored job is ERROR, and a HOLD set meanwhile is not overwritten", {
+  td <- withr::local_tempdir()
+  qp <- mkQueue(td)
+  sheet <- data.frame(dotELFind = "job1", dotrep = "1", status = "PENDING", stringsAsFactors = FALSE)
+  writes <- list()
+  sheetStatus <- "RUNNING"
+  testthat::local_mocked_bindings(
+    .gs_claim_next_job = function(...)
+      list(row_index = 1L, sheet_row = 2L,
+           col_positions = stats::setNames(seq_along(sheet), names(sheet)),
+           data = sheet),
+    .gs_read_queue = function(...) data.frame(status = sheetStatus, stringsAsFactors = FALSE),
+    .gs_write_cells = function(ss_id, sheet_row, updates, ...) {
+      writes[[length(writes) + 1L]] <<- updates
+      invisible(NULL)
+    },
+    .mirror_local_queue = function(...) invisible(NULL))
+  g <- mkJobGlobal(td, "stop('boom')")
+  statuses <- function() unlist(lapply(writes, `[[`, "status"))
+
+  suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g, ss_id = "fake-sheet-id"))
+  expect_true(all(statuses() == "ERROR"))
+
+  writes <- list(); sheetStatus <- "HOLD"
+  suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g, ss_id = "fake-sheet-id"))
+  expect_length(statuses(), 0L)
+  expect_match(writes[[length(writes)]]$last_error, "boom")
+})

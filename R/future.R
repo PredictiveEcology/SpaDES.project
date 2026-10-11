@@ -44,7 +44,12 @@
 #'   if it does not yet exist.  Defaults to
 #'   \code{<dirname(global_path)>/future_queue.rds}.
 #' @param on_interrupt \code{"requeue"} (default) re-queues interrupted jobs
-#'   as PENDING; \code{"fail"} marks them INTERRUPTED permanently.
+#'   as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
+#'   errors (rather than being interrupted) is marked ERROR and is not claimed
+#'   again until its status is set back to PENDING.
+#' @param on_error \code{"stop"} (default) leaves a worker stopped after a job errors, with
+#'   the error visible in its log; \code{"continue"} goes on to the next claimable job. The
+#'   errored row is marked ERROR either way (see \code{on_interrupt}).
 #' @param ss_id Google Sheets ID (or Drive folder ID) for the shared queue.
 #'   When provided workers use the GS backend instead of the local RDS file.
 #' @param forceLocalQueueToGS If \code{TRUE}, overwrite the GS sheet with the
@@ -182,6 +187,7 @@ experimentFuture <- function(
   n_workers         = if (is.null(cores)) 4L else length(cores),
   queue_path        = NULL,
   on_interrupt      = c("requeue", "fail"),
+  on_error          = c("stop", "continue"),
   ss_id             = NULL,
   forceLocalQueueToGS = FALSE,
   email             = getOption("gargle_oauth_email"),
@@ -202,6 +208,7 @@ experimentFuture <- function(
          call. = FALSE)
 
   on_interrupt <- match.arg(on_interrupt)
+  on_error     <- match.arg(on_error)
 
   # -- 1. Normalize paths --------------------------------------------------
   global_path <- normalizePath(global_path, mustWork = FALSE)
@@ -364,6 +371,7 @@ experimentFuture <- function(
     queue_path        = queue_path,
     global_path       = global_path,
     on_interrupt      = on_interrupt,
+    on_error          = on_error,
     ss_id             = ss_id,
     email             = email,
     cache_path        = cache_path,
@@ -382,7 +390,7 @@ experimentFuture <- function(
     # This gives true streaming logs (visible via tail -f) without any sink() magic.
     for (i in seq_len(n_workers)) {
       procs[[i]] <- callr::r_bg(
-        func = function(queue_path, global_path, on_interrupt, ss_id,
+        func = function(queue_path, global_path, on_interrupt, on_error, ss_id,
                         email, cache_path, runNameLabel, activeRunningPath,
                         dots_path, stop_file, lib_paths, snap_code) {
           .libPaths(lib_paths)
@@ -392,6 +400,7 @@ experimentFuture <- function(
             queue_path        = queue_path,
             global_path       = global_path,
             on_interrupt      = on_interrupt,
+            on_error          = on_error,
             ss_id             = ss_id,
             email             = email,
             cache_path        = cache_path,
@@ -432,6 +441,7 @@ experimentFuture <- function(
           queue_path        = wa$queue_path,
           global_path       = wa$global_path,
           on_interrupt      = wa$on_interrupt,
+          on_error          = wa$on_error,
           ss_id             = wa$ss_id,
           email             = wa$email,
           cache_path        = wa$cache_path,
@@ -516,6 +526,9 @@ experimentFuture <- function(
 #' @param queue_path Path to the local RDS queue file.
 #' @param global_path Path to the R script sourced for each job.
 #' @param on_interrupt \code{"requeue"} or \code{"fail"}.
+#' @param on_error \code{"stop"} (default) leaves a worker stopped after a job errors, with
+#'   the error visible in its log; \code{"continue"} goes on to the next claimable job. The
+#'   errored row is marked ERROR either way (see \code{on_interrupt}).
 #' @param ss_id Google Sheets ID for the shared queue (or \code{NULL} for
 #'   file-based queue).
 #' @param email Gargle OAuth e-mail.
@@ -540,6 +553,7 @@ runWorkerLoopFuture <- function(
   queue_path,
   global_path,
   on_interrupt      = c("requeue", "fail"),
+  on_error          = c("stop", "continue"),
   ss_id             = NULL,
   email             = NULL,
   cache_path        = NULL,
@@ -551,6 +565,7 @@ runWorkerLoopFuture <- function(
   snapshot_library = TRUE
 ) {
   on_interrupt <- match.arg(on_interrupt)
+  on_error     <- match.arg(on_error)
 
   # When `log_file` is supplied (the cluster path always supplies one),
   # spawn the worker loop as a callr::r_bg subprocess so stdout/stderr are
@@ -568,7 +583,7 @@ runWorkerLoopFuture <- function(
            call. = FALSE)
 
     proc <- callr::r_bg(
-      func = function(queue_path, global_path, on_interrupt,
+      func = function(queue_path, global_path, on_interrupt, on_error,
                       ss_id, email, cache_path, runNameLabel,
                       activeRunningPath, dots_path, stop_file, lib_paths, snap_code) {
         .libPaths(lib_paths)
@@ -577,6 +592,7 @@ runWorkerLoopFuture <- function(
           queue_path        = queue_path,
           global_path       = global_path,
           on_interrupt      = on_interrupt,
+          on_error          = on_error,
           ss_id             = ss_id,
           email             = email,
           cache_path        = cache_path,
@@ -591,6 +607,7 @@ runWorkerLoopFuture <- function(
         queue_path        = queue_path,
         global_path       = global_path,
         on_interrupt      = on_interrupt,
+        on_error          = on_error,
         ss_id             = ss_id,
         email             = email,
         cache_path        = cache_path,
@@ -622,6 +639,7 @@ runWorkerLoopFuture <- function(
     queue_path        = queue_path,
     global_path       = global_path,
     on_interrupt      = on_interrupt,
+    on_error          = on_error,
     ss_id             = ss_id,
     email             = email,
     cache_path        = cache_path,
@@ -716,7 +734,8 @@ awaitExperimentFuture <- function(ef, verbose = TRUE) {
 #' \code{RUNNING} at the time of the kill will remain as \code{RUNNING} in the
 #' queue until the next reclaim pass.  Call
 #' \code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to reset stale
-#' \code{RUNNING} entries to \code{INTERRUPTED}, or use the GS backend which
+#' \code{RUNNING} entries to \code{PENDING} (or \code{INTERRUPTED} if the run had
+#' already written a heartbeat), or use the GS backend which
 #' reclaims dead workers automatically before each new claim.
 #'
 #' @param ef An \code{"experimentFuture"} object returned by

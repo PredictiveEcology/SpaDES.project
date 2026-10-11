@@ -8,6 +8,7 @@ runWorkerLoopFuture(
   queue_path,
   global_path,
   on_interrupt = c("requeue", "fail"),
+  on_error = c("stop", "continue"),
   ss_id = NULL,
   email = NULL,
   cache_path = NULL,
@@ -25,6 +26,10 @@ runWorkerLoopFuture(
 \item{global_path}{Path to the R script sourced for each job.}
 
 \item{on_interrupt}{\code{"requeue"} or \code{"fail"}.}
+
+\item{on_error}{\code{"stop"} (default) leaves a worker stopped after a job errors, with
+the error visible in its log; \code{"continue"} goes on to the next claimable job. The
+errored row is marked ERROR either way (see \code{on_interrupt}).}
 
 \item{ss_id}{Google Sheets ID for the shared queue (or \code{NULL} for
 file-based queue).}
