@@ -123,6 +123,7 @@ Collate:
     'tmux.R'
     'txt.R'
     'upload.R'
+    'workerResources.R'
     'zzz.R'
 Remotes:
     PredictiveEcology/Require@development,

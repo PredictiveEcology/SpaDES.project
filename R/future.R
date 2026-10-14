@@ -318,7 +318,7 @@ experimentFuture <- function(
 
   # -- 5. Remote machine setup -----------------------------------------------
   unique_hosts <- if (!is.null(cores)) {
-    setdiff(unique(cores), c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+    setdiff(unique(cores), .localHostNames())
   } else {
     character(0)
   }
@@ -355,7 +355,7 @@ experimentFuture <- function(
 
   # -- 6. Determine effective worker hosts -----------------------------------
   is_local <- is.null(cores) ||
-              all(cores %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+              all(cores %in% .localHostNames())
 
   # -- 7. Build log and stop-file paths --------------------------------------
   log_files  <- file.path(log_dir, sprintf("worker_%02d.log",      seq_len(n_workers)))
@@ -379,6 +379,7 @@ experimentFuture <- function(
     activeRunningPath = activeRunningPath,
     dots_path         = dots_path
   )
+  workersOnHost <- .workersPerHost(cores, n_workers)
 
   if (!is.null(sync_library))
     syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
@@ -392,7 +393,7 @@ experimentFuture <- function(
       procs[[i]] <- callr::r_bg(
         func = function(queue_path, global_path, on_interrupt, on_error, ss_id,
                         email, cache_path, runNameLabel, activeRunningPath,
-                        dots_path, stop_file, lib_paths, snap_code) {
+                        dots_path, stop_file, lib_paths, snap_code, n_workers_on_host) {
           .libPaths(lib_paths)
           # hardlinked per-job library, before anything is loaded from it
           if (nzchar(snap_code)) eval(parse(text = snap_code))
@@ -408,11 +409,13 @@ experimentFuture <- function(
             activeRunningPath = activeRunningPath,
             dots_path         = dots_path,
             stop_file         = stop_file,
-            pane_mode         = "reuse"
+            pane_mode         = "reuse",
+            n_workers_on_host = n_workers_on_host
           )
         },
         args    = c(worker_args, list(stop_file = stop_files[[i]], lib_paths = .libPaths(),
-                                      snap_code = snap_code)),
+                                      snap_code = snap_code,
+                                      n_workers_on_host = workersOnHost[[i]])),
         stdout  = log_files[[i]],
         stderr  = log_files[[i]],
         # Unset TMUX/TMUX_PANE so workers don't emit OSC 2 escape bytes into log files.
@@ -436,6 +439,7 @@ experimentFuture <- function(
       lf <- log_files[[i]]
       sf <- stop_files[[i]]
       wa <- worker_args
+      nh <- workersOnHost[[i]]
       procs[[i]] <- future::future(seed = TRUE, {
         .fn(
           queue_path        = wa$queue_path,
@@ -449,7 +453,8 @@ experimentFuture <- function(
           activeRunningPath = wa$activeRunningPath,
           dots_path         = wa$dots_path,
           stop_file         = sf,
-          log_file          = lf
+          log_file          = lf,
+          n_workers_on_host = nh
         )
       })
     }
@@ -549,6 +554,8 @@ experimentFuture <- function(
 #'   hardlinked snapshot of the project library before loading anything from it,
 #'   so an install into the shared library cannot corrupt a running job. See
 #'   [librarySnapshot].
+#' @param n_workers_on_host Number of workers the launcher runs on this host; passed
+#'   to [tmuxRunWorkerLoop()].
 runWorkerLoopFuture <- function(
   queue_path,
   global_path,
@@ -562,7 +569,8 @@ runWorkerLoopFuture <- function(
   dots_path         = NULL,
   stop_file         = NULL,
   log_file          = NULL,
-  snapshot_library = TRUE
+  snapshot_library = TRUE,
+  n_workers_on_host = 1L
 ) {
   on_interrupt <- match.arg(on_interrupt)
   on_error     <- match.arg(on_error)
@@ -585,7 +593,8 @@ runWorkerLoopFuture <- function(
     proc <- callr::r_bg(
       func = function(queue_path, global_path, on_interrupt, on_error,
                       ss_id, email, cache_path, runNameLabel,
-                      activeRunningPath, dots_path, stop_file, lib_paths, snap_code) {
+                      activeRunningPath, dots_path, stop_file, lib_paths, snap_code,
+                      n_workers_on_host) {
         .libPaths(lib_paths)
         if (nzchar(snap_code)) eval(parse(text = snap_code))
         SpaDES.project::tmuxRunWorkerLoop(
@@ -600,7 +609,8 @@ runWorkerLoopFuture <- function(
           activeRunningPath = activeRunningPath,
           dots_path         = dots_path,
           stop_file         = stop_file,
-          pane_mode         = "reuse"
+          pane_mode         = "reuse",
+          n_workers_on_host = n_workers_on_host
         )
       },
       args = list(
@@ -615,6 +625,7 @@ runWorkerLoopFuture <- function(
         activeRunningPath = activeRunningPath,
         dots_path         = dots_path,
         stop_file         = stop_file,
+        n_workers_on_host = n_workers_on_host,
         lib_paths         = .libPaths(),
         snap_code         = if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
           .librarySnapshotCode(.libPaths()[1L], activeRunningPath) else ""
@@ -647,7 +658,8 @@ runWorkerLoopFuture <- function(
     activeRunningPath = activeRunningPath,
     dots_path         = dots_path,
     stop_file         = stop_file,
-    pane_mode         = "reuse"
+    pane_mode         = "reuse",
+    n_workers_on_host = n_workers_on_host
   )
 
   message("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ",

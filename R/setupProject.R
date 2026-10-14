@@ -2379,7 +2379,10 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
   ## becomes a default `.globals` parameter, under the same SpaDES-aware name, as
   ## `.studyAreaName` is; user-set values win
   globalsDefaults <- list(.studyAreaName = DEFAULT)
-  .rep <- get0(".rep", envir = callingEnv, inherits = FALSE)
+  ## looked up as a dot is: in the resolution scope (explicit dot, defaultDots) or
+  ## anywhere the caller can see it (see .userEnvOf)
+  .repEnv <- .userEnvOf(".rep", callingEnv)
+  .rep <- if (!is.null(.repEnv)) get(".rep", envir = .repEnv, inherits = FALSE)
   if (!is.null(.rep))
     globalsDefaults$.rep <- as.integer(.rep)
   params <- Require::modifyList2(list(.globals = globalsDefaults), params)
@@ -2405,9 +2408,11 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
                      function(objInner)
                        parseFileLists(objInner, paths, namedList, overwrite,
                                       envir, verbose, dots, rCodeFor = rCodeFor, ...))
-      # check which ones changed; the ones that don't are files that don't exist
+      # check which ones changed; the ones that don't are files that don't exist.
+      # A list (or NULL, e.g. `if (FALSE) list()`) is content to merge, not a file
       isChanged <- mapply(SIMPLIFY = TRUE, oldObj = obj[notNamed], newObj = newObjs,
-                          function(newObj, oldObj) !identical(newObj, oldObj))
+                          function(newObj, oldObj)
+                            is.list(newObj) || is.null(newObj) || !identical(newObj, oldObj))
       obj[notNamed] <- newObjs
 
       if (any(named))
@@ -2437,7 +2442,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       } else {
         obj <- Filter(is.list, obj)
         if (length(obj) > 1)
-          obj <- Reduce(f = modifyList, obj)
+          obj <- do.call(Require::modifyList2, unname(obj))
         else if (length(obj) == 1)
           obj <- obj[[1]]
         else

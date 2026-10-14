@@ -18,7 +18,8 @@ tmuxRunWorkerLoop(
   email = getOption("gargle_oauth_email"),
   cache_path = getOption("gargle_oauth_cache"),
   dots_path = NULL,
-  snapshot_library = TRUE
+  snapshot_library = TRUE,
+  n_workers_on_host = 1L
 )
 }
 \arguments{
@@ -61,6 +62,10 @@ replacement panes so they can reload complex objects before sourcing.}
 session takes a hardlinked snapshot of the project library before loading
 anything from it (see \link{librarySnapshot}). This session's own snapshot, if the
 startup script made one, is released when R exits.}
+
+\item{n_workers_on_host}{Number of workers the launcher runs on this host. This
+session's GDAL block cache is capped at its share of the host's RAM, and terra
+results go to disk, unless the user set these; see \code{.workerResourceDefaults()}.}
 }
 \value{
 invisibly TRUE

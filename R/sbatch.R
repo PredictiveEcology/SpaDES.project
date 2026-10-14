@@ -306,6 +306,10 @@ experimentSBATCH <- function(
   for (sf in stop_files) if (file.exists(sf)) unlink(sf)
 
   # -- 6. Generate SBATCH scripts --------------------------------------------
+  # Workers that share a node: as many as one node's tasks (--ntasks-per-node),
+  # at most all of them; 1 when the user did not say.
+  nWorkersOnNode <- min(n_workers, max(1L, suppressWarnings(as.integer(
+    c(sbatch_opts[["ntasks-per-node"]], sbatch_opts[["ntasks_per_node"]])[1L])), na.rm = TRUE))
   for (i in seq_len(n_workers)) {
     .sbatch_write_script(
       script_path       = job_scripts[[i]],
@@ -325,7 +329,8 @@ experimentSBATCH <- function(
       sbatch_opts       = sbatch_opts,
       r_cmd             = r_cmd,
       r_libs            = r_libs,
-      snapshot_library  = snapshot_library
+      snapshot_library  = snapshot_library,
+      n_workers_on_host = nWorkersOnNode
     )
   }
 
@@ -383,7 +388,7 @@ experimentSBATCH <- function(
                                  email, cache_path, runNameLabel,
                                  activeRunningPath, dots_path,
                                  sbatch_opts, r_cmd, r_libs, snapshot_library = TRUE,
-                                 on_error = "stop") {
+                                 on_error = "stop", n_workers_on_host = 1L) {
   # SBATCH directives -- always set output / error / job-name; user-provided
   # opts come after and may NOT override these.
   reserved <- c("output", "error", "job-name", "job_name")
@@ -418,13 +423,15 @@ experimentSBATCH <- function(
       "queue_path = %s, global_path = %s, on_interrupt = %s, on_error = %s, ",
       "ss_id = %s, email = %s, cache_path = %s, ",
       "runNameLabel = %s, activeRunningPath = %s, ",
-      "dots_path = %s, stop_file = %s, pane_mode = \"reuse\")"
+      "dots_path = %s, stop_file = %s, pane_mode = \"reuse\", ",
+      "n_workers_on_host = %s)"
     ),
     .deparse_one(r_libs),
     .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt), .deparse_one(on_error),
     .deparse_one(ss_id),       .deparse_one(email),       .deparse_one(cache_path),
     .deparse_one(runNameLabel),.deparse_one(activeRunningPath),
-    .deparse_one(dots_path),   .deparse_one(stop_file)
+    .deparse_one(dots_path),   .deparse_one(stop_file),
+    .deparse_one(as.integer(n_workers_on_host))
   )
   r_expr <- sub("^(.libPaths\\([^;]*\\); )", paste0("\\1", gsub("\\\\", "\\\\\\\\", snap_code)), r_expr)
 
