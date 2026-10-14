@@ -69,6 +69,12 @@
 #'   `SpaDES.project.fast` \tab `FALSE` \tab
 #'      If `TRUE`, use `fastOptions()` and skip package/git checks (see `setupProject`) \cr
 #'
+#'   `SpaDES.project.checkProject` \tab `TRUE` \tab
+#'      If `FALSE`, `setupProject()` does not run `checkProject()` at its end \cr
+#'
+#'   `SpaDES.project.checkProject.minFreeGB` \tab `50` \tab
+#'      Free disk space (GB) below which `checkProject()` warns \cr
+#'
 #' }
 #'
 spadesProjectOptions <- function() {
@@ -96,7 +102,9 @@ spadesProjectOptions <- function() {
     SpaDES.project.standAlone = TRUE,
     SpaDES.project.updateRprofile = TRUE,
     SpaDES.project.overwrite = FALSE,
-    SpaDES.project.fast = FALSE
+    SpaDES.project.fast = FALSE,
+    SpaDES.project.checkProject = TRUE,
+    SpaDES.project.checkProject.minFreeGB = 50
   )
   defaults <- Map(def = defaults, function(def) normPath(def))
   defaults <- append(defaults, defaults2)

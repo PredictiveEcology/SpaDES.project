@@ -91,6 +91,8 @@ Collate:
     'SpaDES.projectOptions.R'
     'simLists-class.R'
     'as.data.table-simLists.R'
+    'checkProject.R'
+    'dataInventory.R'
     'diagnostics.R'
     'download.R'
     'environment.R'

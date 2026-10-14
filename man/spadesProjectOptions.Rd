@@ -75,5 +75,11 @@ Whether \code{setupProject} manages a \code{.gitignore} for the project \cr
 \code{SpaDES.project.fast} \tab \code{FALSE} \tab
 If \code{TRUE}, use \code{fastOptions()} and skip package/git checks (see \code{setupProject}) \cr
 
+\code{SpaDES.project.checkProject} \tab \code{TRUE} \tab
+If \code{FALSE}, \code{setupProject()} does not run \code{checkProject()} at its end \cr
+
+\code{SpaDES.project.checkProject.minFreeGB} \tab \code{50} \tab
+Free disk space (GB) below which \code{checkProject()} warns \cr
+
 }
 }
