@@ -21,7 +21,7 @@ regular expression when no exact match exists (it must then match one row).}
 pass it when reading several members so the index is downloaded once.}
 
 \item{file}{Optional path to write the raw member to. When \code{NULL} (default)
-the member is read back with \code{\link[=readRDS]{readRDS()}} and returned.}
+the member is read back with \code{\link[base:readRDS]{base::readRDS()}} and returned.}
 
 \item{progress}{Logical or \code{NULL}. Show a transfer progress bar. \code{NULL}
 (default) shows one in an interactive session for members over ~5 MB,
