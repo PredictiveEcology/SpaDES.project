@@ -838,7 +838,7 @@ experimentTmux <- function(df,
   # Without a scope, a local logout / session end can SIGHUP the tmux server and
   # kill the bash while-loops that drive remote workers.
   # Start tmux with:  tmuxs='systemd-run --user --scope tmux'  to avoid this.
-  has_remote <- !is.null(cores) && any(!cores %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+  has_remote <- !is.null(cores) && any(!cores %in% .localHostNames())
   if (has_remote && .Platform$OS.type == "unix") {
     tmux_pid <- tryCatch(
       as.integer(trimws(system2("tmux", c("display-message", "-p", "#{pid}"),
@@ -1098,9 +1098,10 @@ experimentTmux <- function(df,
 
   # Resolve cores. Setup runs in parallel inside each pane (see below).
   if (is.null(cores)) cores <- rep("localhost", n_workers)
+  workersOnHost <- .workersPerHost(cores, n_workers)
 
   # Clean up any stale ready-flags from a previous run
-  .unique_remote_hosts <- setdiff(unique(cores), c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+  .unique_remote_hosts <- setdiff(unique(cores), .localHostNames())
   for (.host in .unique_remote_hosts) {
     flag <- .setup_flag_path(.host)
     if (file.exists(flag)) unlink(flag)
@@ -1351,7 +1352,8 @@ experimentTmux <- function(df,
         cache_path        = .normalizeCachePath(cache_path),
         dots_path         = if (file.exists(dots_path)) dp else NULL,
         lib_path          = .libPaths(),
-        snapshot_library  = snapshot_library
+        snapshot_library  = snapshot_library,
+        n_workers_on_host = workersOnHost[i]
       )
 
       # 3. Send startup command immediately to the freshly created pane
@@ -1373,7 +1375,7 @@ experimentTmux <- function(df,
       .pat_reader_line  <- .pat_reader_code(.remote_pat_file)
 
         .make_script <- function(expr, pre_sleep = 0, host_label = NULL) {
-          hl <- if (!is.null(host_label) && !host_label %in% c("localhost", "127.0.0.1", Sys.info()[["nodename"]]))
+          hl <- if (!is.null(host_label) && !host_label %in% .localHostNames())
             host_label
           else
             trimws(system("hostname -s", intern = TRUE, ignore.stderr = TRUE)[1L])
@@ -1538,7 +1540,7 @@ experimentTmux <- function(df,
       pane_mode = pane_mode, email = email,
       cache_path = .normalizeCachePath(cache_path),
       dots_path = if (file.exists(dots_path)) dots_path else NULL,
-      lib_path = .libPaths()
+      lib_path = .libPaths(), n_workers_on_host = workersOnHost[1L]
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     message("running:\n")
@@ -1934,6 +1936,9 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #'   session takes a hardlinked snapshot of the project library before loading
 #'   anything from it (see [librarySnapshot]). This session's own snapshot, if the
 #'   startup script made one, is released when R exits.
+#' @param n_workers_on_host Number of workers the launcher runs on this host. This
+#'   session's GDAL block cache is capped at its share of the host's RAM, and terra
+#'   results go to disk, unless the user set these; see `.workerResourceDefaults()`.
 #' @return invisibly TRUE
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
@@ -1948,7 +1953,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           email = getOption("gargle_oauth_email"),
                           cache_path = getOption("gargle_oauth_cache"),
                           dots_path = NULL,
-                          snapshot_library = TRUE) {
+                          snapshot_library = TRUE,
+                          n_workers_on_host = 1L) {
   on_interrupt <- match.arg(on_interrupt)
   on_error     <- match.arg(on_error)
   pane_mode    <- match.arg(pane_mode)
@@ -1969,6 +1975,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
   # only speeds up a later interactive showCache(). A queue worker never makes
   # that call, so the fork is an idle extra process for the whole job.
   options(reproducible.showCachePreWarm = FALSE)
+  # terra / GDAL / PROJ settings for one of several workers on this host
+  .workerResourceDefaults(n_workers_on_host)
   # Authenticate with Google before any sheet access.
   # Setting options alone is not sufficient in a non-interactive Rscript session;
   # gs4_auth() must be called explicitly so gargle loads the cached token.
@@ -2020,7 +2028,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    cache_path        = cache_path,
                    dots_path         = dots_path,
                    lib_path          = .libPaths(),
-                   snapshot_library  = snapshot_library
+                   snapshot_library  = snapshot_library,
+                   n_workers_on_host = n_workers_on_host
                  ), .respawn_script, file.path(.libPaths()[1L], ".spades_github_pat"))
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
       # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
@@ -2249,7 +2258,7 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths(), snapshot_library = TRUE,
-                                  on_error = "stop") {
+                                  on_error = "stop", n_workers_on_host = 1L) {
   # Ensure project lib is first so correct package versions are loaded
   ## The worker starts a fresh R and must be able to load SpaDES.project, so it
   ## needs the whole library search path, not just its first entry. Under covr /
@@ -2285,12 +2294,13 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
     paste0("%s%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s, on_error=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
-           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s)"),
+           " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s,",
+           " n_workers_on_host=%s)"),
     lib_pre, snap_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt), deparse1(on_error),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path),
-    deparse1(isTRUE(snapshot_library))
+    deparse1(isTRUE(snapshot_library)), deparse1(as.integer(n_workers_on_host))
   )
 }
 

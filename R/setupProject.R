@@ -123,9 +123,12 @@ NULL
 #'   See [setup].
 #' @param params Optional. Similar to `options`, however, this named list will be
 #'   returned, i.e., there are no side effects.
-#'   If a `.rep` dot (the replicate column of an experiment table) is supplied or
-#'   resolved from `defaultDots`, `params$.globals$.rep` is set to it (as integer),
-#'   so modules with a `.rep` parameter receive it. A `.rep` set in `params$.globals`
+#'   If the project declares a `.rep` dot (the replicate column of an experiment
+#'   table), as an argument or in `defaultDots`, `params$.globals$.rep` is set to its
+#'   value (as integer), so modules with a `.rep` parameter receive it. The value is the
+#'   one a dot resolves to: an object `.rep` the caller can see (e.g. the queue's
+#'   column in a worker) wins over the `defaultDots` entry. A `.rep` the project does
+#'   not declare, e.g. one left over in an interactive session, is ignored. A `.rep` set in `params$.globals`
 #'   is kept, and a module's own `params$<module>$.rep` overrides `.globals`, as for
 #'   any global parameter. No other dot is passed on in this way.
 #'   See [setup].
@@ -618,6 +621,9 @@ setupProject <- function(name, paths, modules, packages,
     if (!missing(defaultDots))
       bindDefaultDots(defaultDotExprs(defaultDotsSUB, function() defaultDots),
                       scope = envir, callerEnv = callerEnv, envirCur = envirCur)
+    ## `.rep` reaches params$.globals only when the project declares it (explicit dot or defaultDots)
+    repDeclared <- ".rep" %in% c(names(dotsSUB), if (!missing(dots)) names(dots),
+                                 if (!missing(defaultDots)) names(defaultDotExprs(defaultDotsSUB, function() defaultDots)))
     if (!missing(dots) && length(dots)) {
       # both, so the restore at the top of a second fullAttempt keeps them
       dotsSUB <- dotsSUBOrig <- append(dots, dotsSUB)
@@ -801,7 +807,7 @@ setupProject <- function(name, paths, modules, packages,
       if (identical(ar, "params")) {
         params <- setupParams(name, paramsSUB, paths, modules, times, options = opts[["newOptions"]],
                               overwrite = isTRUE(overwrite), envir = envirCur,
-                              callingEnv = envir, verbose = verbose)
+                              callingEnv = envir, verbose = verbose, repDeclared = repDeclared)
         assign("params", params, envir = envir)
       } else if (identical(ar, "studyArea")){
         studyAreaSUB <- substitute(studyArea)
@@ -2277,6 +2283,10 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 #'
 #' @inheritParams setupProject
 #' @inheritParams setupPaths
+#' @param repDeclared Logical. `TRUE` when the project declares a `.rep` dot (an
+#'   argument or a `defaultDots` entry of [setupProject()], which sets it); then a
+#'   `.rep` the caller can see becomes `params$.globals$.rep` even when the default was
+#'   not bound. `FALSE` (default, for direct calls) only uses a `.rep` in `callingEnv`.
 #' @return
 #' `setupParams` prepares a named list of named lists, suitable to be passed to
 #' the `params` argument of `simInit`.
@@ -2288,7 +2298,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
 setupParams <- function(name, params, paths, modules, times, options, overwrite = FALSE,
                         envir = parent.frame(), callingEnv = sys.frame(-2),
                         verbose = getOption("Require.verbose", 1L), dots, defaultDots,
-                        ...) {
+                        repDeclared = FALSE, ...) {
 
   envirCur <- environment()
   dotsSUB <- as.list(substitute(list(...)))[-1]
@@ -2380,7 +2390,14 @@ setupParams <- function(name, params, paths, modules, times, options, overwrite 
   ## becomes a default `.globals` parameter, under the same SpaDES-aware name, as
   ## `.studyAreaName` is; user-set values win
   globalsDefaults <- list(.studyAreaName = DEFAULT)
+  ## only a declared `.rep` (an explicit dot, or a defaultDots entry): its value is the
+  ## resolution scope's, or, when the caller has its own `.rep` (so the default was not
+  ## bound), the caller's. A stray `.rep` the project never declared is ignored.
   .rep <- get0(".rep", envir = callingEnv, inherits = FALSE)
+  if (is.null(.rep) && isTRUE(repDeclared)) {
+    .repEnv <- .userEnvOf(".rep", callingEnv)
+    if (!is.null(.repEnv)) .rep <- get(".rep", envir = .repEnv, inherits = FALSE)
+  }
   if (!is.null(.rep))
     globalsDefaults$.rep <- as.integer(.rep)
   params <- Require::modifyList2(list(.globals = globalsDefaults), params)
@@ -2406,9 +2423,11 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
                      function(objInner)
                        parseFileLists(objInner, paths, namedList, overwrite,
                                       envir, verbose, dots, rCodeFor = rCodeFor, ...))
-      # check which ones changed; the ones that don't are files that don't exist
+      # check which ones changed; the ones that don't are files that don't exist.
+      # A list (or NULL, e.g. `if (FALSE) list()`) is content to merge, not a file
       isChanged <- mapply(SIMPLIFY = TRUE, oldObj = obj[notNamed], newObj = newObjs,
-                          function(newObj, oldObj) !identical(newObj, oldObj))
+                          function(newObj, oldObj)
+                            is.list(newObj) || is.null(newObj) || !identical(newObj, oldObj))
       obj[notNamed] <- newObjs
 
       if (any(named))
@@ -2438,7 +2457,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
       } else {
         obj <- Filter(is.list, obj)
         if (length(obj) > 1)
-          obj <- Reduce(f = modifyList, obj)
+          obj <- do.call(Require::modifyList2, unname(obj))
         else if (length(obj) == 1)
           obj <- obj[[1]]
         else

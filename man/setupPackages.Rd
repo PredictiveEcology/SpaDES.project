@@ -116,6 +116,16 @@ install all of them into \code{paths[["packagePath"]]} via \code{Require::Instal
 these with any packages passed manually by the user to \code{packages}, and pass all
 these packages to \code{Require::Install(...)}.
 }
+\section{Skipping \code{Require}}{
+
+When a call asks for the same package specs as an earlier successful call, and
+those packages and all their Depends/Imports/LinkingTo dependencies are installed at
+the same versions (and, for GitHub packages, the same \code{RemoteSha}) in the same
+\code{libPaths}, \code{Require::Require} is skipped; \code{(HEAD)} packages are still passed to it.
+This needs \code{reproducible} and \code{qs2}. Turn it off with
+\code{options(SpaDES.project.skipIdenticalRequire = FALSE)}; the default is \code{TRUE}.
+}
+
 \seealso{
 \code{\link[=setupProject]{setupProject()}} for the high-level wrapper, \link{setup_family} for an overview.
 }

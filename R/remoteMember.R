@@ -43,7 +43,7 @@ reIndex <- function(gFile, destDir = tempdir()) {
 #' @param index Optional `data.frame` from [reIndex()]. Fetched if not supplied;
 #'   pass it when reading several members so the index is downloaded once.
 #' @param file Optional path to write the raw member to. When `NULL` (default)
-#'   the member is read back with [readRDS()] and returned.
+#'   the member is read back with [base::readRDS()] and returned.
 #' @param progress Logical or `NULL`. Show a transfer progress bar. `NULL`
 #'   (default) shows one in an interactive session for members over ~5 MB,
 #'   where the wait is long enough to look like a hang.

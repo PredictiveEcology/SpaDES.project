@@ -17,7 +17,8 @@ runWorkerLoopFuture(
   dots_path = NULL,
   stop_file = NULL,
   log_file = NULL,
-  snapshot_library = TRUE
+  snapshot_library = TRUE,
+  n_workers_on_host = 1L
 )
 }
 \arguments{
@@ -56,6 +57,9 @@ output goes to the current connection.}
 hardlinked snapshot of the project library before loading anything from it,
 so an install into the shared library cannot corrupt a running job. See
 \link{librarySnapshot}.}
+
+\item{n_workers_on_host}{Number of workers the launcher runs on this host; passed
+to \code{\link[=tmuxRunWorkerLoop]{tmuxRunWorkerLoop()}}.}
 }
 \value{
 Invisibly returns the worker identifier string.

@@ -37,3 +37,31 @@ test_that("setupProject - a .rep dot becomes params$.globals$.rep", {
   expect_identical(out$params$modA$.rep, 7L)
   expect_identical(out$params$.globals$.rep, 3L)
 })
+
+test_that("setupProject - a .rep in the caller's environment becomes params$.globals$.rep", {
+  skip_on_cran()
+  setupTest()
+  pp <- list(packagePath = .libPaths()[1L])
+  nm <- paste0("test_SpaDES_project_", .rndstr(1))
+  quietly <- function(x) suppressWarnings(suppressMessages(x))
+
+  ## a .rep only in the caller's environment that the project does not declare is ignored
+  ## (e.g. one left over in an interactive session)
+  callerEnv <- new.env(parent = globalenv())
+  callerEnv$.rep <- 7L
+  out <- quietly(eval(bquote(setupProject(name = .(nm), paths = .(pp), packages = NULL,
+                                         params = list(.globals = list(.studyAreaName = "x")))),
+                      callerEnv))
+  expect_false(".rep" %in% names(out$params$.globals))
+  ## declared in defaultDots: the caller's .rep wins over the default, with no `.rep = .rep` argument
+  out <- quietly(eval(bquote(setupProject(name = .(nm), paths = .(pp), packages = NULL, defaultDots = list(.rep = 1),
+                                         params = list(.globals = list(.studyAreaName = "x")))),
+                      callerEnv))
+  expect_identical(out$params$.globals$.rep, 7L)
+
+  ## a user-set .globals$.rep still wins
+  out <- quietly(eval(bquote(setupProject(name = .(nm), paths = .(pp), packages = NULL, defaultDots = list(.rep = 1),
+                                         params = list(.globals = list(.rep = 9L)))),
+                      callerEnv))
+  expect_identical(out$params$.globals$.rep, 9L)
+})
