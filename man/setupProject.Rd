@@ -93,9 +93,12 @@ See \link{setup}.}
 
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.
-If a \code{.rep} dot (the replicate column of an experiment table) is supplied or
-resolved from \code{defaultDots}, \code{params$.globals$.rep} is set to it (as integer),
-so modules with a \code{.rep} parameter receive it. A \code{.rep} set in \code{params$.globals}
+If the project declares a \code{.rep} dot (the replicate column of an experiment
+table), as an argument or in \code{defaultDots}, \code{params$.globals$.rep} is set to its
+value (as integer), so modules with a \code{.rep} parameter receive it. The value is the
+one a dot resolves to: an object \code{.rep} the caller can see (e.g. the queue's
+column in a worker) wins over the \code{defaultDots} entry. A \code{.rep} the project does
+not declare, e.g. one left over in an interactive session, is ignored. A \code{.rep} set in \code{params$.globals}
 is kept, and a module's own \verb{params$<module>$.rep} overrides \code{.globals}, as for
 any global parameter. No other dot is passed on in this way.
 See \link{setup}.}

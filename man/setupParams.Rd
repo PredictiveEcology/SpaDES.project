@@ -17,6 +17,7 @@ setupParams(
   verbose = getOption("Require.verbose", 1L),
   dots,
   defaultDots,
+  repDeclared = FALSE,
   ...
 )
 }
@@ -28,9 +29,12 @@ repository and branch name, e.g., \code{"PredictiveEcology/WBI_forecasts@Chubaty
 
 \item{params}{Optional. Similar to \code{options}, however, this named list will be
 returned, i.e., there are no side effects.
-If a \code{.rep} dot (the replicate column of an experiment table) is supplied or
-resolved from \code{defaultDots}, \code{params$.globals$.rep} is set to it (as integer),
-so modules with a \code{.rep} parameter receive it. A \code{.rep} set in \code{params$.globals}
+If the project declares a \code{.rep} dot (the replicate column of an experiment
+table), as an argument or in \code{defaultDots}, \code{params$.globals$.rep} is set to its
+value (as integer), so modules with a \code{.rep} parameter receive it. The value is the
+one a dot resolves to: an object \code{.rep} the caller can see (e.g. the queue's
+column in a worker) wins over the \code{defaultDots} entry. A \code{.rep} the project does
+not declare, e.g. one left over in an interactive session, is ignored. A \code{.rep} set in \code{params$.globals}
 is kept, and a module's own \verb{params$<module>$.rep} overrides \code{.globals}, as for
 any global parameter. No other dot is passed on in this way.
 See \link{setup}.}
@@ -110,6 +114,11 @@ the \code{defaultDots} will be overridden. This can be particularly useful if th
 arguments passed to \code{...} do not always exist, but rely on external e.g., batch
 processing to optionally fill them. In a literal \code{list(...)} an entry may
 reference an entry written above it. See examples.}
+
+\item{repDeclared}{Logical. \code{TRUE} when the project declares a \code{.rep} dot (an
+argument or a \code{defaultDots} entry of \code{\link[=setupProject]{setupProject()}}, which sets it); then a
+\code{.rep} the caller can see becomes \code{params$.globals$.rep} even when the default was
+not bound. \code{FALSE} (default, for direct calls) only uses a \code{.rep} in \code{callingEnv}.}
 
 \item{...}{further named arguments that acts like \code{objects}, but a different
 way to specify them. These can be anything. The general use case
