@@ -262,6 +262,58 @@ test_that("simInit on a fetched parent runs its leaf children only, as if they w
   expect_identical(sort(unlist(SpaDES.core::modules(sim))), sort(unlist(SpaDES.core::modules(simKids))))
 })
 
+## A parent of parents: top -> midA (a1, a2), midB (b1, b2)
+test_that("setupProject on a parent of parents passes the top only, with params for every leaf, and simInit runs the leaves", {
+  skip_if_not_installed("SpaDES.core")
+  skip_if(packageVersion("SpaDES.core") < "3.2.1.9026")
+  setupTest()
+  withr::local_options(spades.useRequire = FALSE, Require.updateRprofile = NULL)
+  remote <- withr::local_tempdir()
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "modules")
+  mkSpadesModule(remote, "Acct/top@dev", childModules = c("midA", "midB"))
+  mkSpadesModule(remote, "Acct/midA@dev", childModules = c("a1", "a2"))
+  mkSpadesModule(remote, "Acct/midB@dev", childModules = c("b1", "b2"))
+  leaves <- c("a1", "a2", "b1", "b2")
+  for (k in leaves) mkSpadesModule(remote, paste0("Acct/", k, "@dev"))
+  calls <- localFakeGitHub(remote)
+
+  ## b2, a grandchild, is also listed: it reaches simInit through top, once
+  out <- suppressMessages(
+    setupProject(modules = c("Acct/top@dev", "Acct/b2@dev"),
+                 paths = list(modulePath = mp, projectPath = file.path(root, "proj"),
+                              packagePath = .libPaths()[1L]),
+                 params = list(a2 = list(.plots = NA), b1 = list(.plots = NA)),
+                 times = list(start = 0, end = 2),
+                 useGit = FALSE, updateRprofile = FALSE, verbose = -1))
+  expect_setequal(dir(mp), c("top", "midA", "midB", leaves))
+  expect_identical(unname(out$modules), "top")
+  expect_setequal(setdiff(names(out$params), ".globals"), c("a2", "b1"))
+
+  sim <- suppressMessages(SpaDES.core::simInit(modules = out$modules, times = out$times,
+                                               params = out$params, paths = list(modulePath = mp)))
+  expect_setequal(unlist(SpaDES.core::modules(sim)), leaves)
+  expect_setequal(names(SpaDES.core::depends(sim)@dependencies), leaves)
+  expect_true(is.na(SpaDES.core::params(sim)$b1$.plots))
+})
+
+test_that("setupModules gives a parent of parents its grandchildren's packages", {
+  withr::local_options(Require.updateRprofile = NULL)
+  remote <- withr::local_tempdir()
+  mp <- withr::local_tempdir()
+  proj <- withr::local_tempdir()
+  mkRemoteModule(remote, "Acct/top@dev", childModules = "mid", reqdPkgs = "")
+  mkRemoteModule(remote, "Acct/mid@dev", childModules = "leaf", reqdPkgs = "")
+  mkRemoteModule(remote, "Acct/leaf@dev", reqdPkgs = '"data.table"')
+  calls <- localFakeGitHub(remote)
+
+  pkgs <- setupModules(paths = list(modulePath = mp, projectPath = proj),
+                       modules = "Acct/top@dev", inProject = TRUE, useGit = FALSE,
+                       updateRprofile = FALSE, verbose = -1)
+  expect_identical(names(pkgs), "Acct/top@dev")
+  expect_identical(unique(pkgs[["Acct/top@dev"]]), "data.table")
+})
+
 ## A parent release: fetched at a version tag, its plain-named children come at the version
 ## its own `version` list gives them, so "v1.1.0" of the parent means one set of child releases.
 mkReleasedFamily <- function(remote, parentRef) {
