@@ -5,10 +5,14 @@ utils::globalVariables(c("object", "event", "where", "observed", "cacheId", "not
 #' Looks at what [setupProject()] returned (the modules, paths, `params` and `times`) and
 #' reports the things that are likely to go wrong in `simInit()` or `spades()`, so a new user
 #' who passes little more than `modules` learns about them first. It reads module metadata
-#' and code only: it downloads nothing and does not run any module. [setupProject()] calls it
-#' at its end and only prints messages; it never stops and never changes what
-#' [setupProject()] returns. `options(SpaDES.project.checkProject = FALSE)` switches that
-#' call off. A check that cannot decide (a module file that does not parse, a missing tool)
+#' and code only: it downloads nothing and does not run any module. The metadata is read from
+#' the module files without `simInit()` (see [dataInventory()]) and kept for the session, so a
+#' repeated call is fast; the checks always run against the current `inSim`. [setupProject()]
+#' calls it at its end, only printing messages, when `options(SpaDES.project.checkProject = TRUE)`
+#' (default `FALSE`); it never stops and never changes what [setupProject()] returns. Each
+#' finding is printed once per session (the same check, module and message is not repeated)
+#' unless `forceShow = TRUE`; the returned table always has all of them. A check that cannot
+#' decide (a module file that does not parse, a missing tool)
 #' says nothing.
 #'
 #' @details
@@ -55,9 +59,11 @@ utils::globalVariables(c("object", "event", "where", "observed", "cacheId", "not
 #' effective value of a module is its own value in `params`, else the one in
 #' `params$.globals`, else its default in the metadata. Modules that share a parameter
 #' usually need the same value (for example `refitExisting`, `heldOutFold`,
-#' `spreadFitFilename`). A name a module checks against the others with
-#' `SpaDES.core::paramCheckOtherMods()` (found by scanning its code) is marked in the
-#' message. The standard SpaDES parameters (`.plots`, `.useCache`, `.saveInterval` and
+#' `spreadFitFilename`). Only a conflict that matters is reported: a value given in `params`
+#' for one module, or a name that a module checks against the others with
+#' `SpaDES.core::paramCheckOtherMods()` (found by scanning its code, and marked in the
+#' message). Modules differing only in their own defaults are not reported. Numbers that are
+#' equal count as equal (`10L` and `10`). The standard SpaDES parameters (`.plots`, `.useCache`, `.saveInterval` and
 #' similar) are not compared. Fix: set the value once in `params$.globals`, or per module.
 #'
 #' ## fallbackStudyArea (`check = "fallbackStudyArea"`)
@@ -72,6 +78,7 @@ utils::globalVariables(c("object", "event", "where", "observed", "cacheId", "not
 #'   `params`, `times` and `objects`. A module that is not in `paths$modulePath` is skipped.
 #' @param ... Elements that replace those of `inSim` (e.g. `times = list(start = 2020, end = 2030)`).
 #' @param verbose Numeric. Above 0 prints the summary.
+#' @param forceShow Logical. `TRUE` prints findings already printed earlier in the session.
 #'
 #' @return Invisibly, a `data.table` with columns `check`, `severity`, `module`, `message`
 #'   and `fix`, one row per finding (zero rows when nothing was found).
@@ -97,7 +104,8 @@ utils::globalVariables(c("object", "event", "where", "observed", "cacheId", "not
 #'   res <- checkProject(inSim)
 #'   res$check
 #' }
-checkProject <- function(inSim, ..., verbose = getOption("Require.verbose", 1L)) {
+checkProject <- function(inSim, ..., verbose = getOption("Require.verbose", 1L),
+                         forceShow = FALSE) {
   if (!requireNamespace("SpaDES.core", quietly = TRUE))
     stop("checkProject() needs the SpaDES.core package")
   inSim <- utils::modifyList(as.list(inSim), list(...))
@@ -112,25 +120,33 @@ checkProject <- function(inSim, ..., verbose = getOption("Require.verbose", 1L))
     function(f) if (length(mods)) tryCatch(f(ctx), error = function(e) NULL)),
     use.names = TRUE)
   if (!NROW(res)) res <- .cpRows()[0L, ]
-  .cpReport(res, verbose)
+  .cpReport(res, verbose, forceShow)
   invisible(res)
 }
 
 ## The call made at the end of setupProject(): messages only, never an error.
 .checkProjectOnSetup <- function(out, verbose = 1L) {
-  if (isTRUE(getOption("SpaDES.project.checkProject", TRUE)))
+  if (isTRUE(getOption("SpaDES.project.checkProject", FALSE)))
     try(checkProject(out, verbose = verbose), silent = TRUE)
   invisible()
 }
+
+## Findings already printed in this session, by check + module + message.
+.cpShown <- new.env(parent = emptyenv())
 
 .cpRows <- function(check = character(), severity = character(), module = character(),
                     message = character(), fix = character())
   data.table::data.table(check = check, severity = severity, module = module,
                          message = message, fix = fix)
 
-.cpReport <- function(res, verbose) {
+.cpReport <- function(res, verbose, forceShow = FALSE) {
   if (verbose <= 0) return(invisible())
   if (!NROW(res)) return(message("checkProject: no problems found"))
+  key <- paste(res$check, res$module, res$message, sep = "\r")
+  new <- forceShow | !vapply(key, exists, logical(1), envir = .cpShown, inherits = FALSE)
+  for (k in key[new]) assign(k, TRUE, envir = .cpShown)
+  if (!any(new)) return(message("checkProject: ", NROW(res), " finding(s), all shown earlier in this session"))
+  res <- res[new, ]
   n <- table(factor(res$severity, c("error-likely", "warning", "note")))
   message("checkProject: ", paste(n[n > 0], names(n)[n > 0], collapse = ", "),
           " (silence with options(SpaDES.project.checkProject = FALSE))")
@@ -340,9 +356,15 @@ checkProject <- function(inSim, ..., verbose = getOption("Require.verbose", 1L))
       else if (nm %in% names(params$.globals)) params$.globals[[nm]]
       else x$default[[i]]
     })
-    txt <- vapply(vals, function(v) paste(deparse(v), collapse = ""), "")
+    ## 10L and 10, and NA of any type, are the same value
+    norm <- function(v) if (is.numeric(v)) as.numeric(v) else if (length(v) == 1L && is.na(v)) NA else v
+    txt <- vapply(vals, function(v) paste(deparse(norm(v)), collapse = ""), "")
     if (length(unique(txt)) < 2L) next
     by <- names(checkers)[vapply(checkers, function(z) nm %in% z, logical(1))]
+    ## modules differ in their own defaults for many names; only a value the user set for one
+    ## module, or a name a module checks with paramCheckOtherMods(), is a conflict
+    userSet <- any(vapply(x$module, function(m) nm %in% names(params[[m]]), logical(1)))
+    if (!userSet && !length(by)) next
     rows[[length(rows) + 1L]] <- .cpRows(
       "linkedParams", "warning", paste(x$module, collapse = ", "),
       paste0("parameter '", nm, "' differs between modules: ", paste0(x$module, "=", txt, collapse = ", "),

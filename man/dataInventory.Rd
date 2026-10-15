@@ -42,8 +42,10 @@ code does, and, if a finished run is given, what the run downloaded.
 \details{
 \subsection{Layer 1: metadata}{
 
-Every \code{expectsInput(..., sourceURL = )} in a module's metadata, as read by
-\code{\link[SpaDES.core:moduleMetadata]{SpaDES.core::moduleMetadata()}}, is a row (a \code{sourceURL} that is \code{NA} or empty is skipped).
+Every \code{expectsInput(..., sourceURL = )} in a module's metadata is a row (a \code{sourceURL} that is
+\code{NA} or empty is skipped). The metadata is read from the parsed \code{defineModule()} call of the
+module file, without \code{simInit()}; a \code{sourceURL} that cannot be worked out without a \code{simList}
+counts as \code{NA}. The read is kept for the session and redone when the file changes.
 \code{role} is \code{"fallback"} when another module in \code{modules} lists the same object name in
 \code{createsOutput}, because that is what \code{suppliedElsewhere()} tests at run time: the
 module's own download then only runs if no other module supplies the object. Otherwise
@@ -126,6 +128,6 @@ if (requireNamespace("SpaDES.core", quietly = TRUE)) {
 }
 }
 \seealso{
-\code{\link[SpaDES.core:moduleMetadata]{SpaDES.core::moduleMetadata()}}, \code{reproducible::urlLog()},
+\code{\link[SpaDES.core:moduleMetadata]{SpaDES.core::moduleMetadata()}}, \code{\link[=metadataInModules]{metadataInModules()}}, \code{reproducible::urlLog()},
 \code{reproducible::prepInputsLog()}
 }

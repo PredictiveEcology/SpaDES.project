@@ -32,6 +32,9 @@ diInput <- function(obj, url) {
 diOutput <- function(obj) sprintf("createsOutput(\"%s\", \"character\", \"d\")", obj)
 
 diFakeSim <- function(records) {
+  testthat::skip_if(is.null(utils::getS3method("urlLog", "simList", optional = TRUE,
+                                               envir = asNamespace("reproducible"))),
+                    "SpaDES.core without a urlLog() method for a simList")
   sim <- methods::new(methods::getClass("simList", where = asNamespace("SpaDES.core")))
   log <- new.env(parent = emptyenv())
   log$records <- records

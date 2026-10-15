@@ -4,7 +4,12 @@
 \alias{checkProject}
 \title{Preflight check of a project set up by \code{setupProject()}}
 \usage{
-checkProject(inSim, ..., verbose = getOption("Require.verbose", 1L))
+checkProject(
+  inSim,
+  ...,
+  verbose = getOption("Require.verbose", 1L),
+  forceShow = FALSE
+)
 }
 \arguments{
 \item{inSim}{A list as returned by \code{\link[=setupProject]{setupProject()}}; the elements used are \code{modules},
@@ -14,6 +19,8 @@ checkProject(inSim, ..., verbose = getOption("Require.verbose", 1L))
 \item{...}{Elements that replace those of \code{inSim} (e.g. \code{times = list(start = 2020, end = 2030)}).}
 
 \item{verbose}{Numeric. Above 0 prints the summary.}
+
+\item{forceShow}{Logical. \code{TRUE} prints findings already printed earlier in the session.}
 }
 \value{
 Invisibly, a \code{data.table} with columns \code{check}, \code{severity}, \code{module}, \code{message}
@@ -23,10 +30,14 @@ and \code{fix}, one row per finding (zero rows when nothing was found).
 Looks at what \code{\link[=setupProject]{setupProject()}} returned (the modules, paths, \code{params} and \code{times}) and
 reports the things that are likely to go wrong in \code{simInit()} or \code{spades()}, so a new user
 who passes little more than \code{modules} learns about them first. It reads module metadata
-and code only: it downloads nothing and does not run any module. \code{\link[=setupProject]{setupProject()}} calls it
-at its end and only prints messages; it never stops and never changes what
-\code{\link[=setupProject]{setupProject()}} returns. \code{options(SpaDES.project.checkProject = FALSE)} switches that
-call off. A check that cannot decide (a module file that does not parse, a missing tool)
+and code only: it downloads nothing and does not run any module. The metadata is read from
+the module files without \code{simInit()} (see \code{\link[=dataInventory]{dataInventory()}}) and kept for the session, so a
+repeated call is fast; the checks always run against the current \code{inSim}. \code{\link[=setupProject]{setupProject()}}
+calls it at its end, only printing messages, when \code{options(SpaDES.project.checkProject = TRUE)}
+(default \code{FALSE}); it never stops and never changes what \code{\link[=setupProject]{setupProject()}} returns. Each
+finding is printed once per session (the same check, module and message is not repeated)
+unless \code{forceShow = TRUE}; the returned table always has all of them. A check that cannot
+decide (a module file that does not parse, a missing tool)
 says nothing.
 }
 \details{
@@ -81,9 +92,11 @@ A parameter name defined by two or more modules whose effective values differ. T
 effective value of a module is its own value in \code{params}, else the one in
 \code{params$.globals}, else its default in the metadata. Modules that share a parameter
 usually need the same value (for example \code{refitExisting}, \code{heldOutFold},
-\code{spreadFitFilename}). A name a module checks against the others with
-\code{SpaDES.core::paramCheckOtherMods()} (found by scanning its code) is marked in the
-message. The standard SpaDES parameters (\code{.plots}, \code{.useCache}, \code{.saveInterval} and
+\code{spreadFitFilename}). Only a conflict that matters is reported: a value given in \code{params}
+for one module, or a name that a module checks against the others with
+\code{SpaDES.core::paramCheckOtherMods()} (found by scanning its code, and marked in the
+message). Modules differing only in their own defaults are not reported. Numbers that are
+equal count as equal (\code{10L} and \code{10}). The standard SpaDES parameters (\code{.plots}, \code{.useCache}, \code{.saveInterval} and
 similar) are not compared. Fix: set the value once in \code{params$.globals}, or per module.
 }
 

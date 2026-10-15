@@ -122,6 +122,20 @@ test_that("checkProject flags a parameter two modules define with different effe
 
 })
 
+test_that("checkProject does not report modules that only differ in their own defaults", {
+  skip_if_not_installed("SpaDES.core")
+  mp <- withr::local_tempdir()
+  p <- function(nm, cls, v) sprintf("defineParameter(\"%s\", \"%s\", %s, NA, NA, \"d\")", nm, cls, v)
+  diWriteModule(mp, "modA", params = c(p("mode", "character", "\"fit\""), p("n", "numeric", "10L")))
+  diWriteModule(mp, "modB", params = c(p("mode", "character", "\"single\""), p("n", "numeric", "10")))
+  expect_identical(nrow(cpFlag(checkProject(cpSim(mp, c("modA", "modB")), verbose = 0), "linkedParams")), 0L)
+  ## a value the user sets for one module is a conflict
+  r <- cpFlag(checkProject(cpSim(mp, c("modA", "modB"), params = list(modA = list(mode = "x"))),
+                           verbose = 0), "linkedParams")
+  expect_match(r$message, "mode")
+  expect_false(grepl("'n'", r$message))
+})
+
 test_that("checkProject agrees when .globals sets the shared parameter", {
   skip_if_not_installed("SpaDES.core")
   mp <- withr::local_tempdir()
@@ -151,15 +165,79 @@ test_that("checkProject notes a default study area that will be used", {
                                             verbose = 0), "fallbackStudyArea")), 0L)
 })
 
-test_that("option SpaDES.project.checkProject = FALSE silences the check run by setupProject", {
+test_that("setupProject runs checkProject() only when options(SpaDES.project.checkProject = TRUE)", {
   skip_if_not_installed("SpaDES.core")
   mp <- withr::local_tempdir()
   diWriteModule(mp, "needs", inputs = diInput("studyArea", "https://example.org/sa.shp"))
   out <- cpSim(mp, "needs")
+  rm(list = ls(.cpShown, all.names = TRUE), envir = .cpShown)
+
+  withr::local_options(SpaDES.project.checkProject = NULL)       # the default is FALSE
+  expect_silent(.checkProjectOnSetup(out, verbose = 1))
   withr::local_options(SpaDES.project.checkProject = FALSE)
   expect_silent(.checkProjectOnSetup(out, verbose = 1))
   withr::local_options(SpaDES.project.checkProject = TRUE)
   expect_message(.checkProjectOnSetup(out, verbose = 1), "checkProject")
-  ## never an error, never changes the object
+  ## never an error
   expect_no_error(.checkProjectOnSetup(list(modules = "nope"), verbose = 1))
+})
+
+test_that("a finding is printed once per session, unless forceShow = TRUE; the table always has it", {
+  skip_if_not_installed("SpaDES.core")
+  mp <- withr::local_tempdir()
+  diWriteModule(mp, "needs", inputs = diInput("studyArea", "https://example.org/sa.shp"))
+  out <- cpSim(mp, "needs")
+  rm(list = ls(.cpShown, all.names = TRUE), envir = .cpShown)
+
+  expect_message(r1 <- checkProject(out), "fallbackStudyArea")
+  expect_message(r2 <- checkProject(out), "shown earlier")
+  expect_identical(r1, r2)
+  expect_message(checkProject(out, forceShow = TRUE), "fallbackStudyArea")
+  expect_identical(nrow(r2), 1L)
+})
+
+test_that("module metadata is read statically; a sim-dependent default becomes NA", {
+  skip_if_not_installed("SpaDES.core")
+  mp <- withr::local_tempdir()
+  f <- diWriteModule(mp, "stat",
+                     inputs = c(diInput("x", "https://example.org/x.tif"),
+                                "expectsInput(\"y\", \"character\", \"d\", sourceURL = someVariable)"),
+                     outputs = diOutput("z"),
+                     params = c("defineParameter(\"a\", \"numeric\", start(sim), NA, NA, \"d\")",
+                                "defineParameter(\"b\", \"numeric\", 5, NA, NA, \"d\")"),
+                     children = "kid")
+  spec <- .moduleSpec(f)
+
+  expect_identical(spec$inputObjects$objectName, c("x", "y"))
+  expect_identical(spec$inputObjects$sourceURL, c("https://example.org/x.tif", NA))
+  expect_identical(spec$outputObjects$objectName, "z")
+  expect_identical(spec$childModules, "kid")
+  p <- spec$parameters
+  expect_true(is.na(p$default[[match("a", p$paramName)]]))
+  expect_identical(p$default[[match("b", p$paramName)]], 5)
+  expect_length(spec$notes, 2L)
+  ## no simInit(): this needs no SpaDES.core simulation machinery to have run
+  expect_identical(.moduleSpec(f), spec)
+})
+
+test_that(".moduleSpec is kept per file digest and read again when the file changes", {
+  skip_if_not_installed("SpaDES.core")
+  mp <- withr::local_tempdir()
+  f <- diWriteModule(mp, "memo", inputs = diInput("x", "https://example.org/x.tif"))
+  s1 <- .moduleSpec(f)
+  expect_identical(.moduleSpecCache[[f]]$spec, s1)
+  .moduleSpecCache[[f]]$spec <- list(marker = TRUE)        # an unchanged file is not read again
+  expect_identical(.moduleSpec(f), list(marker = TRUE))
+  diWriteModule(mp, "memo", inputs = diInput("x", "https://example.org/other.tif"))
+  expect_identical(.moduleSpec(f)$inputObjects$sourceURL, "https://example.org/other.tif")
+})
+
+test_that("a trailing comma in the metadata tables does not lose the rows", {
+  skip_if_not_installed("SpaDES.core")
+  mp <- withr::local_tempdir()
+  f <- diWriteModule(mp, "comma", inputs = c(diInput("x", "https://example.org/x.tif"), ""),
+                     params = c("defineParameter(\"b\", \"numeric\", 5, NA, NA, \"d\")", ""))
+  spec <- .moduleSpec(f)
+  expect_identical(spec$inputObjects$objectName, "x")
+  expect_true("b" %in% spec$parameters$paramName)
 })

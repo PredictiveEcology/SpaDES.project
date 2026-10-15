@@ -7,8 +7,10 @@
 #'
 #' @details
 #' ## Layer 1: metadata
-#' Every `expectsInput(..., sourceURL = )` in a module's metadata, as read by
-#' [SpaDES.core::moduleMetadata()], is a row (a `sourceURL` that is `NA` or empty is skipped).
+#' Every `expectsInput(..., sourceURL = )` in a module's metadata is a row (a `sourceURL` that is
+#' `NA` or empty is skipped). The metadata is read from the parsed `defineModule()` call of the
+#' module file, without `simInit()`; a `sourceURL` that cannot be worked out without a `simList`
+#' counts as `NA`. The read is kept for the session and redone when the file changes.
 #' `role` is `"fallback"` when another module in `modules` lists the same object name in
 #' `createsOutput`, because that is what `suppliedElsewhere()` tests at run time: the
 #' module's own download then only runs if no other module supplies the object. Otherwise
@@ -76,7 +78,7 @@
 #'   (`file:line` for rows from code), `role` (`"default"` or `"fallback"`), `observed`
 #'   (`TRUE` if the run's ledger has it), `cacheId` (from the run) and `note`.
 #'
-#' @seealso [SpaDES.core::moduleMetadata()], `reproducible::urlLog()`,
+#' @seealso [SpaDES.core::moduleMetadata()], [metadataInModules()], `reproducible::urlLog()`,
 #'   `reproducible::prepInputsLog()`
 #' @export
 #' @examples
@@ -139,8 +141,8 @@ dataInventory <- function(modules, paths, sim = NULL,
 }
 
 ## The metadata of each module in `modules` ("owner/repo@ref/modules/child" -> "child") and of
-## the children of each parent, recursively: a named list of SpaDES.core::moduleMetadata()
-## results (inputObjects, outputObjects, parameters, childModules). A module without a
+## the children of each parent, recursively: a named list of .moduleSpec() results (inputObjects,
+## outputObjects, parameters, childModules). A module without a
 ## folder in `modulePath` is skipped, with a warning if `warn`.
 .diReadModules <- function(modules, modulePath, warn = TRUE) {
   todo <- unique(basename(sub("@[^/]*", "", unlist(modules))))
@@ -156,10 +158,7 @@ dataInventory <- function(modules, paths, sim = NULL,
                 "; skipped", call. = FALSE)
       next
     }
-    md <- tryCatch(SpaDES.core::moduleMetadata(
-      module = m, path = mp,
-      defineModuleListItems = c("inputObjects", "outputObjects", "parameters", "childModules")),
-      error = function(e) NULL)
+    md <- .moduleSpec(file.path(mp, m, paste0(m, ".R")))
     if (is.null(md)) next
     out[[m]] <- md
     todo <- c(todo, basename(sub("@[^/]*", "", as.character(md$childModules))))
@@ -210,11 +209,23 @@ dataInventory <- function(modules, paths, sim = NULL,
   if (is.character(v) && length(v) == 1L) v else NA_character_
 }
 
-## getParseData() of a file, NULL if it does not parse.
+## getParseData() of a file, NULL if it does not parse. Kept for the session by the file's md5
+## sum, like .moduleSpec(): an unchanged file is parsed once.
+.parseCache <- new.env(parent = emptyenv())
+
 .diParse <- function(file) {
+  md5 <- unname(tools::md5sum(file))
+  hit <- .parseCache[[file]]
+  if (!is.null(hit) && identical(hit$md5, md5)) return(hit$pd)
   ex <- tryCatch(parse(file = file, keep.source = TRUE), error = function(e) NULL)
-  if (is.null(ex)) return(NULL)
-  utils::getParseData(ex, includeText = TRUE)
+  pd <- NULL
+  if (!is.null(ex)) {
+    pd <- utils::getParseData(ex)
+    attr(pd, "kids") <- split(seq_len(nrow(pd)), pd$parent) # row index by parent, for .diKids()
+    attr(pd, "asg") <- .diAssignments(pd)
+  }
+  .parseCache[[file]] <- list(md5 = md5, pd = pd)
+  pd
 }
 
 ## Functions whose call downloads: the argument that holds the address, and the function's
@@ -254,17 +265,35 @@ dataInventory <- function(modules, paths, sim = NULL,
 }
 
 ## Children of an expr node `id`.
-.diKids <- function(pd, id) pd[pd$parent == id, ]
+.diKids <- function(pd, id) {
+  idx <- attr(pd, "kids")
+  if (is.null(idx)) pd[pd$parent == id, ] else pd[idx[[as.character(id)]], ]
+}
 
-## For each assignment `name <- <rhs>` / `name = <rhs>`: the lhs expr id, name, rhs id.
+## The text of expr node `id` when it is a single symbol or string, else NA (full text of an
+## expression is read with getParseText() only where needed: includeText = TRUE is slow).
+.diSymbolText <- function(pd, id) {
+  r <- attr(pd, "kids")[[as.character(id)]]
+  if (length(r) == 1L && pd$token[r] %in% c("SYMBOL", "STR_CONST")) pd$text[r] else NA_character_
+}
+
+## For each assignment `name <- <rhs>` / `name = <rhs>`: the node, lhs expr id, lhs text, rhs id.
 .diAssignments <- function(pd) {
-  asg <- pd[pd$token %in% c("LEFT_ASSIGN", "EQ_ASSIGN"), ]
-  data.table::rbindlist(lapply(seq_len(nrow(asg)), function(i) {
-    k <- .diKids(pd, asg$parent[i])
-    k <- k[k$token != "COMMENT", ]
-    if (nrow(k) != 3L || k$token[2L] != "LEFT_ASSIGN" && k$token[2L] != "EQ_ASSIGN") return(NULL)
-    data.table::data.table(node = k$parent[1L], lhsId = k$id[1L], lhs = k$text[1L], rhsId = k$id[3L])
-  }))
+  if (!is.null(attr(pd, "asg"))) return(attr(pd, "asg"))
+  idx <- attr(pd, "kids")
+  nodes <- unique(pd$parent[pd$token %in% c("LEFT_ASSIGN", "EQ_ASSIGN")])
+  out <- list(node = integer(), lhsId = integer(), lhs = character(), rhsId = integer())
+  for (n in nodes) {
+    r <- idx[[as.character(n)]]
+    r <- r[pd$token[r] != "COMMENT"]
+    r <- r[order(pd$line1[r], pd$col1[r])]
+    if (length(r) != 3L || !pd$token[r[2L]] %in% c("LEFT_ASSIGN", "EQ_ASSIGN")) next
+    out$node <- c(out$node, n)
+    out$lhsId <- c(out$lhsId, pd$id[r[1L]])
+    out$lhs <- c(out$lhs, .diSymbolText(pd, pd$id[r[1L]]))
+    out$rhsId <- c(out$rhsId, pd$id[r[3L]])
+  }
+  as.data.frame(out)
 }
 
 .diAssigned <- function(pd, functionsOnly = FALSE) {
@@ -353,7 +382,9 @@ dataInventory <- function(modules, paths, sim = NULL,
 .diScanFile <- function(pd, file, m, defined, events, metaUrls) {
   asg <- .diAssignments(pd)
   rows <- list()
-  for (i in which(pd$token == "SYMBOL_FUNCTION_CALL")) {
+  cand <- pd$token == "SYMBOL_FUNCTION_CALL" &
+    (pd$text %in% c(names(.diDownloaders), "Cache", "extractURL") | .diIsHelper(pd$text))
+  for (i in which(cand)) {
     fnExpr <- pd$parent[i]
     callId <- pd$parent[match(fnExpr, pd$id)]
     cl <- .diCallOf(pd, callId)
@@ -363,7 +394,10 @@ dataInventory <- function(modules, paths, sim = NULL,
       if (pd$text[i] != "extractURL") next
       ## an extractURL() inside a downloading call is reported by that call
       inside <- vapply(.diAncestors(pd, callId), function(a) {
-        ca <- if ("'('" %in% .diKids(pd, a)$token) .diCallOf(pd, a) else NULL
+        callee <- .diCalleeName(pd, a)
+        if (is.na(callee) || !(callee %in% c(names(.diDownloaders), "Cache") || .diIsHelper(callee)))
+          return(FALSE)
+        ca <- .diCallOf(pd, a)
         !is.null(ca) && !is.null(.diTarget(ca, defined))
       }, logical(1))
       if (any(inside)) next
@@ -372,6 +406,16 @@ dataInventory <- function(modules, paths, sim = NULL,
     rows[[length(rows) + 1L]] <- .diCallRows(pd, tg, callId, pd$line1[i], file, m, asg, events, metaUrls)
   }
   data.table::rbindlist(rows)
+}
+
+## The function name of the call at expr node `a` (without `pkg::`), NA if it is not a call.
+.diCalleeName <- function(pd, a) {
+  k <- .diKids(pd, a)
+  k <- k[order(k$line1, k$col1), ]
+  if (nrow(k) < 3L || k$token[2L] != "'('") return(NA_character_)
+  f <- .diKids(pd, k$id[1L])
+  nm <- f$text[f$token == "SYMBOL_FUNCTION_CALL"]
+  if (length(nm)) nm[1L] else NA_character_
 }
 
 ## The call at expr node `id` as an R call, NULL if its text does not parse to one.
@@ -459,7 +503,8 @@ dataInventory <- function(modules, paths, sim = NULL,
     if (is.na(p) || p == 0L) return(NA_character_)
     hit <- asg[asg$node == p & asg$rhsId == id, ]
     if (nrow(hit)) {
-      lhs <- tryCatch(parse(text = hit$lhs[1L], keep.source = FALSE)[[1L]], error = function(e) NULL)
+      lhs <- tryCatch(parse(text = utils::getParseText(pd, hit$lhsId[1L]), keep.source = FALSE)[[1L]],
+                      error = function(e) NULL)
       if (is.call(lhs) && identical(lhs[[1L]], quote(`$`))) return(as.character(lhs[[3L]]))
       if (is.call(lhs) && identical(lhs[[1L]], quote(`[[`)) && is.character(lhs[[3L]])) return(lhs[[3L]])
       return(NA_character_)
