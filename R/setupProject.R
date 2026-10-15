@@ -929,6 +929,7 @@ setupProject <- function(name, paths, modules, packages,
     }
   })
 
+  .checkProjectOnSetup(out, verbose = verbose)
   return(out)
 }
 
