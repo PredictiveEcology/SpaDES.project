@@ -2,6 +2,7 @@
 ## mocked, so nothing here changes the test session's own settings.
 
 mockTerra <- function(gdalCurrent = 51480, env = parent.frame()) {
+  testthat::skip_if_not_installed("terra")   # a Suggests; absent in the nosuggests check
   rec <- new.env()
   rec$todisk <- NULL; rec$cache <- NULL; rec$proj <- NULL
   testthat::local_mocked_bindings(
