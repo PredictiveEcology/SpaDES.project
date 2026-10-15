@@ -88,14 +88,12 @@ option.
 
 \subsection{linkedParams (\code{check = "linkedParams"})}{
 
-A parameter name defined by two or more modules whose effective values differ. The
-effective value of a module is its own value in \code{params}, else the one in
-\code{params$.globals}, else its default in the metadata. Modules that share a parameter
-usually need the same value (for example \code{refitExisting}, \code{heldOutFold},
-\code{spreadFitFilename}). Only a conflict that matters is reported: a value given in \code{params}
-for one module, or a name that a module checks against the others with
-\code{SpaDES.core::paramCheckOtherMods()} (found by scanning its code, and marked in the
-message). Modules differing only in their own defaults are not reported. Numbers that are
+A parameter that a module reads from the other modules with
+\code{SpaDES.core::paramCheckOtherMods()} (found by scanning its code), defined by two or more
+modules whose effective values differ. The effective value of a module is its own value in
+\code{params}, else the one in \code{params$.globals}, else its default in the metadata. It is
+reported only when a value was supplied in \code{params} for at least one of them: modules'
+own defaults are never compared with each other. Numbers that are
 equal count as equal (\code{10L} and \code{10}). The standard SpaDES parameters (\code{.plots}, \code{.useCache}, \code{.saveInterval} and
 similar) are not compared. Fix: set the value once in \code{params$.globals}, or per module.
 }

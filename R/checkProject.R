@@ -55,14 +55,12 @@ utils::globalVariables(c("object", "event", "where", "observed", "cacheId", "not
 #' option.
 #'
 #' ## linkedParams (`check = "linkedParams"`)
-#' A parameter name defined by two or more modules whose effective values differ. The
-#' effective value of a module is its own value in `params`, else the one in
-#' `params$.globals`, else its default in the metadata. Modules that share a parameter
-#' usually need the same value (for example `refitExisting`, `heldOutFold`,
-#' `spreadFitFilename`). Only a conflict that matters is reported: a value given in `params`
-#' for one module, or a name that a module checks against the others with
-#' `SpaDES.core::paramCheckOtherMods()` (found by scanning its code, and marked in the
-#' message). Modules differing only in their own defaults are not reported. Numbers that are
+#' A parameter that a module reads from the other modules with
+#' `SpaDES.core::paramCheckOtherMods()` (found by scanning its code), defined by two or more
+#' modules whose effective values differ. The effective value of a module is its own value in
+#' `params`, else the one in `params$.globals`, else its default in the metadata. It is
+#' reported only when a value was supplied in `params` for at least one of them: modules'
+#' own defaults are never compared with each other. Numbers that are
 #' equal count as equal (`10L` and `10`). The standard SpaDES parameters (`.plots`, `.useCache`, `.saveInterval` and
 #' similar) are not compared. Fix: set the value once in `params$.globals`, or per module.
 #'
@@ -361,10 +359,10 @@ checkProject <- function(inSim, ..., verbose = getOption("Require.verbose", 1L),
     txt <- vapply(vals, function(v) paste(deparse(norm(v)), collapse = ""), "")
     if (length(unique(txt)) < 2L) next
     by <- names(checkers)[vapply(checkers, function(z) nm %in% z, logical(1))]
-    ## modules differ in their own defaults for many names; only a value the user set for one
-    ## module, or a name a module checks with paramCheckOtherMods(), is a conflict
-    userSet <- any(vapply(x$module, function(m) nm %in% names(params[[m]]), logical(1)))
-    if (!userSet && !length(by)) next
+    ## only a name some module checks with paramCheckOtherMods() is a conflict, and only when the
+    ## user supplied a value: modules' own defaults are never compared with each other
+    set <- vapply(x$module, function(m) nm %in% c(names(params[[m]]), names(params$.globals)), logical(1))
+    if (!length(by) || !any(set)) next
     rows[[length(rows) + 1L]] <- .cpRows(
       "linkedParams", "warning", paste(x$module, collapse = ", "),
       paste0("parameter '", nm, "' differs between modules: ", paste0(x$module, "=", txt, collapse = ", "),

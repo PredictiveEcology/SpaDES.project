@@ -112,7 +112,9 @@ test_that("checkProject flags a parameter two modules define with different effe
   diWriteModule(mp, "fitB", params = c(p("refitExisting", "TRUE"), p("same", "TRUE")),
                 code = "chk <- function(sim) SpaDES.core::paramCheckOtherMods(sim, \"refitExisting\")")
 
-  r <- cpFlag(checkProject(cpSim(mp, c("fitA", "fitB")), verbose = 0), "linkedParams")
+  expect_identical(nrow(cpFlag(checkProject(cpSim(mp, c("fitA", "fitB")), verbose = 0), "linkedParams")), 0L) # defaults only
+  r <- cpFlag(checkProject(cpSim(mp, c("fitA", "fitB"), params = list(fitA = list(refitExisting = FALSE))),
+                           verbose = 0), "linkedParams")
   expect_identical(nrow(r), 1L)
   expect_match(r$message, "refitExisting")
   expect_match(r$message, "fitA=FALSE")
@@ -122,18 +124,20 @@ test_that("checkProject flags a parameter two modules define with different effe
 
 })
 
-test_that("checkProject does not report modules that only differ in their own defaults", {
+test_that("checkProject reports only parameters read with paramCheckOtherMods()", {
   skip_if_not_installed("SpaDES.core")
   mp <- withr::local_tempdir()
-  p <- function(nm, cls, v) sprintf("defineParameter(\"%s\", \"%s\", %s, NA, NA, \"d\")", nm, cls, v)
-  diWriteModule(mp, "modA", params = c(p("mode", "character", "\"fit\""), p("n", "numeric", "10L")))
-  diWriteModule(mp, "modB", params = c(p("mode", "character", "\"single\""), p("n", "numeric", "10")))
-  expect_identical(nrow(cpFlag(checkProject(cpSim(mp, c("modA", "modB")), verbose = 0), "linkedParams")), 0L)
-  ## a value the user sets for one module is a conflict
+  p <- function(nm, v) sprintf("defineParameter(\"%s\", \"character\", \"%s\", NA, NA, \"d\")", nm, v)
+  diWriteModule(mp, "modA", params = c(p("mode", "fit"), p("other", "a")))
+  diWriteModule(mp, "modB", params = c(p("mode", "single"), p("other", "b")),
+                code = "chk <- function(sim) SpaDES.core::paramCheckOtherMods(sim, \"other\")")
+  ## differing defaults, and an unchecked name set for one module: nothing
   r <- cpFlag(checkProject(cpSim(mp, c("modA", "modB"), params = list(modA = list(mode = "x"))),
                            verbose = 0), "linkedParams")
-  expect_match(r$message, "mode")
-  expect_false(grepl("'n'", r$message))
+  expect_identical(nrow(r), 0L)
+  r <- cpFlag(checkProject(cpSim(mp, c("modA", "modB"), params = list(modA = list(other = "x"))),
+                           verbose = 0), "linkedParams")
+  expect_match(r$message, "'other'")
 })
 
 test_that("checkProject agrees when .globals sets the shared parameter", {
@@ -141,7 +145,8 @@ test_that("checkProject agrees when .globals sets the shared parameter", {
   mp <- withr::local_tempdir()
   p <- function(v) sprintf("defineParameter(\"refitExisting\", \"logical\", %s, NA, NA, \"d\")", v)
   diWriteModule(mp, "fitA", params = p("FALSE"))
-  diWriteModule(mp, "fitB", params = p("TRUE"))
+  diWriteModule(mp, "fitB", params = p("TRUE"),
+                code = "chk <- function(sim) SpaDES.core::paramCheckOtherMods(sim, \"refitExisting\")")
   g <- cpSim(mp, c("fitA", "fitB"), params = list(.globals = list(refitExisting = TRUE)))
   expect_identical(nrow(cpFlag(checkProject(g, verbose = 0), "linkedParams")), 0L)
   g <- cpSim(mp, c("fitA", "fitB"),
