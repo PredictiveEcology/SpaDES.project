@@ -27,13 +27,16 @@ test_that("the last screen of a pane survives respawn-pane", {
     "Sys.sleep(60)"), script)
 
   r <- tm("-f", "/dev/null", "new-session", "-d", "-x", "80", "-y", "10", "-s", "t",
-          paste("Rscript", shQuote(script)))
+          ## R_TESTS= as the package does for its panes: R CMD check's relative R_TESTS would stop R at startup
+          ## the trailing sleep keeps the pane (and any startup error) on screen if the script stops early
+          paste("env R_TESTS= Rscript", shQuote(script), "2>&1; sleep 60"))
   expect_equal(r$status, 0L)
   pane <- trimws(tm("display", "-p", "-t", "t", "#{pane_id}")$stdout)
   ## the pane is done pushing once its screen no longer shows the first lines
   ok <- wait_for(function() any(grepl("line30", tm("capture-pane", "-p", "-S", "-", "-t", pane)$stdout)) &&
                    !any(grepl("^line30", tm("capture-pane", "-p", "-t", pane)$stdout)),
                  timeout_s = 60)
+  if (!ok) cat(tm("capture-pane", "-p", "-S", "-", "-t", pane)$stdout) # shows why, in the check log
   expect_true(ok)
 
   tm("respawn-pane", "-k", "-t", pane, "sleep 60")

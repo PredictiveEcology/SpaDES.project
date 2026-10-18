@@ -62,7 +62,7 @@ test_that("last_error is set when the error is a C stack overflow", {
                          "g(1, 1)"))
   expect_identical(out$res, "error")
   expect_identical(out$q$status, "ERROR")
-  expect_match(out$q$last_error, "C stack usage|nested too deeply|infinite recursion")
+  expect_match(out$q$last_error, "C stack usage|nested too deeply|infinite recursion|protection stack overflow")
 })
 
 test_that("last_error is set when the error message is invalid UTF-8", {
