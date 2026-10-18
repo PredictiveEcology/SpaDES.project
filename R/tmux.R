@@ -1731,6 +1731,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         # Return NULL so the error re-signals to the outer tryCatch below.
       }),
       error = function(e) {
+        lastErr <<- .errTextIfMissing(lastErr, e)
         .cl <- conditionCall(e)
         if (!is.null(.cl))
           message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
@@ -1895,6 +1896,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       # Return NULL so the error re-signals to the outer tryCatch below.
     }),
     error = function(e) {
+      lastErr <<- .errTextIfMissing(lastErr, e)
       .cl <- conditionCall(e)
       if (!is.null(.cl))
         message("Error in ", deparse(.cl, nlines = 1L), " :\n  ", conditionMessage(e))
@@ -2040,6 +2042,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
         paste0("env ", .workerEnvArg(), " R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive"),
         shQuote(.respawn_script)
       )
+      .pushScreenToHistory(PANE)
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
     if (should_continue) {
@@ -2388,6 +2391,22 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
     stop("Package 'processx' is required. Install it with install.packages('processx').", call. = FALSE)
   }
   processx::run("tmux", c(...), echo_cmd = FALSE, echo = FALSE, error_on_status = TRUE)
+}
+
+#' @keywords internal
+#' @noRd
+.pushScreenToHistory <- function(pane = Sys.getenv("TMUX_PANE")) {
+  ## `respawn-pane -k` throws away the visible screen without adding it to the scrollback,
+  ## so the job's last lines (the error, "Job finished") would be lost. Printing as many
+  ## newlines as the pane has rows scrolls the whole screen into history first.
+  rows <- suppressWarnings(as.integer(try(.tmux_out("display-message", "-p", "-t", pane,
+                                                    "#{pane_height}"), silent = TRUE)))
+  if (length(rows) == 1L && !is.na(rows)) {
+    cat(strrep("\n", rows))
+    flush(stdout())
+    Sys.sleep(0.2)   # let the terminal process the scroll before the pane is replaced
+  }
+  invisible(rows)
 }
 
 #' @keywords internal
@@ -3653,11 +3672,20 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
   msg <- tryCatch(conditionMessage(e), error = function(...) "")
   cl  <- tryCatch(conditionCall(e), error = function(...) NULL)
   txt <- paste(msg, collapse = " ")
+  txt <- iconv(txt, to = "UTF-8", sub = "byte")   # invalid bytes would make gsub() fail
   if (!is.null(cl))
     txt <- paste0(txt, "  [in ", paste(deparse(cl, nlines = 1L), collapse = " "), "]")
   txt <- gsub("[[:space:]]+", " ", trimws(txt))
   if (nchar(txt) > n) txt <- paste0(substr(txt, 1L, n - 1L), "\u2026")
   if (!nzchar(txt)) NA_character_ else txt
+}
+
+## The calling handler in tmuxRunNextWorker() runs at the failing depth, so it cannot
+## set `lastErr` when the error is a C stack overflow or too-deep nesting, or when
+## .errText() itself fails. The outer tryCatch handler runs after the stack has unwound:
+## fill `lastErr` there if the calling handler did not.
+.errTextIfMissing <- function(lastErr, e) {
+  if (length(lastErr) == 1L && !is.na(lastErr)) lastErr else .errText(e)
 }
 
 meta_cols <- c("status","claimed_by","started_at","finished_at",
