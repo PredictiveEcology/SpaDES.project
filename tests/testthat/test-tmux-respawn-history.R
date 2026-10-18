@@ -6,7 +6,7 @@
 test_that("the last screen of a pane survives respawn-pane", {
   skip_on_cran()
   skip_on_os("windows")
-  skip_if(!nzchar(Sys.which("tmux")), "tmux not available")
+  skip_if_no_tmux() # as the other tmux tests: a private server dies at once on CI runners
   skip_if_not_installed("processx")
   skip_if_not_installed("pkgload")
 
