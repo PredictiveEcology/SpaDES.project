@@ -42,3 +42,36 @@ test_that(".mirror_local_queue records a failure reason, adding the column if th
   .mirror_local_queue(qp, 1L, list(.someScenarioColumn = "invented"))
   expect_false(".someScenarioColumn" %in% names(readRDS(qp)))
 })
+
+## A job that dies where the calling handler cannot run (C stack exhausted) or whose message
+## .errText() cannot process must still leave its message in last_error.
+runFailingJob <- function(code) {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir(.local_envir = parent.frame())
+  writeLines(code, file.path(td, "global.R"))
+  qp <- file.path(td, "queue.rds")
+  saveRDS(data.frame(.ELFind = "job1", .rep = 1L, status = "PENDING",
+                     stringsAsFactors = FALSE), qp)
+  res <- suppressMessages(tmuxRunNextWorker(qp, file.path(td, "global.R")))
+  list(res = res, q = readRDS(qp))
+}
+
+test_that("last_error is set when the error is a C stack overflow", {
+  out <- runFailingJob(c("options(expressions = 500000)",
+                         "g <- function(n, x) g(n + 1, list(x))",
+                         "g(1, 1)"))
+  expect_identical(out$res, "error")
+  expect_identical(out$q$status, "ERROR")
+  expect_match(out$q$last_error, "C stack usage|nested too deeply|infinite recursion")
+})
+
+test_that("last_error is set when the error message is invalid UTF-8", {
+  out <- runFailingJob("stop(rawToChar(as.raw(c(0x62, 0x61, 0x64, 0xff, 0xfe, 0x20, 0x62, 0x79, 0x74, 0x65, 0x73))))")
+  expect_identical(out$res, "error")
+  expect_match(out$q$last_error, "bad.*bytes")
+})
+
+test_that(".errText copes with invalid UTF-8", {
+  e <- simpleError(rawToChar(as.raw(c(0x61, 0xff, 0x62))))
+  expect_match(.errText(e), "^a.*b$")
+})
