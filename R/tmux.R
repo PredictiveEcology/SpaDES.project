@@ -1178,8 +1178,7 @@ experimentTmux <- function(df,
       .tmux_run("select-layout", "-t", target_win, "tiled")
       .tmux_run("select-pane", "-t", mon_id, "-T", "Cluster_Monitor")
       
-      full_bash_mon_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(mon_cmd))
-      .tmux_run("send-keys", "-t", mon_id, full_bash_mon_cmd, "C-m")
+      .tmux_send_rscript(mon_id, mon_cmd, file.path(activeRunningPath, "cluster_monitor.R"))
       
 
       if (isTRUE(enableGSSync) && !is.null(ss_id)) {
@@ -1211,8 +1210,7 @@ experimentTmux <- function(df,
         )
 
         # 3. Send keys to the specific ID
-        full_bash_cmd <- sprintf("env R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods Rscript -e %s", shQuote(sync_cmd))
-        .tmux_run("send-keys", "-t", sync_pane_id, full_bash_cmd, "C-m")
+        .tmux_send_rscript(sync_pane_id, sync_cmd, file.path(activeRunningPath, "gsheet_sync.R"))
 
         # 4. Label the pane for clarity
         .tmux_run("select-pane", "-t", sync_pane_id, "-T", "GSheet_Sync")
@@ -1356,7 +1354,11 @@ experimentTmux <- function(df,
         n_workers_on_host = workersOnHost[i]
       )
 
-      # 3. Send startup command immediately to the freshly created pane
+      # 3. Send startup command immediately to the freshly created pane.
+      # The pane is typed ONE short command, `bash <launcher>`: a long typed line was garbled or
+      # dropped under load. The launcher (and the worker's R profile) are files, so up-arrow, Enter
+      # in the pane starts the same worker again.
+      launcher <- file.path(activeRunningPath, sprintf("worker_launch_%02d.sh", i))
       # Build a multi-line R script sourced via R_PROFILE_USER that:
       #  1. Loads the worker call into readline history (up-arrow to re-run)
       #  2. Echoes it so it is visible in the pane
@@ -1443,7 +1445,8 @@ experimentTmux <- function(df,
         if (first_for_host) setup_assigned <- c(setup_assigned, cores_full[i])
         setup_pre <- paste0(setup_bash_for(cores_full[i], first_for_host), " && ")
 
-        first_script <- tempfile(fileext = ".R")
+        ## beside the launcher (not in tempdir): up-arrow re-runs the launcher after this R session has ended
+        first_script <- tempfile(tmpdir = activeRunningPath, fileext = ".R")
         writeLines(.make_script(payload, pre_sleep = pre_sleep, host_label = cores_full[i]), first_script)
         remote_first <- paste0("/tmp/", basename(first_script))
         remote_loop  <- remote_first
@@ -1476,12 +1479,12 @@ experimentTmux <- function(df,
         else
           cores_full[i]
         .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title)
-        .tmux_run("send-keys", "-t", worker_ids[i], bash_cmd, "C-m")
+        .tmux_send_launcher(worker_ids[i], bash_cmd, launcher)
       } else if (is_remote) {
         # Remote + reuse mode: single SSH session; R loops internally.
         # Write a minimal R script and run it via R_PROFILE_USER so the session
         # is interactive (OSC 2 title updates work, errors stay at '>').
-        remote_script  <- tempfile(fileext = ".R")
+        remote_script  <- tempfile(tmpdir = activeRunningPath, fileext = ".R")
         remote_path    <- paste0("/tmp/", basename(remote_script))
         writeLines(c(
           if (pre_sleep > 0) sprintf("Sys.sleep(%g)", pre_sleep) else NULL,
@@ -1502,8 +1505,7 @@ experimentTmux <- function(df,
         else
           cores_full[i]
         .tmux_run("select-pane", "-t", worker_ids[i], "-T", pane_title2)
-        .tmux_run("send-keys", "-t", worker_ids[i],
-                  paste(scp_cmd, "&&", ssh_cmd), "C-m")
+        .tmux_send_launcher(worker_ids[i], paste(scp_cmd, "&&", ssh_cmd), launcher)
       } else {
         # Local worker: use R --interactive with R_PROFILE_USER so that on error
         # tmuxRunWorkerLoop returns to the '>' prompt instead of exiting (Rscript exits
@@ -1518,9 +1520,7 @@ experimentTmux <- function(df,
         # new pane's R reads it the session never reaches global.R and the
         # tests time out with no output files. R_BROWSER / R_PDFVIEWER are
         # set to "false" by check and cause noise on first plot.
-        .tmux_run("send-keys", "-t", worker_ids[i],
-                  sprintf(paste0("env ", .workerEnvArg(), " R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive"),
-                          shQuote(local_script)), "C-m")
+        .tmux_send_launcher(worker_ids[i], paste("exec", .localWorkerRCmd(local_script)), launcher)
       }
     }  # end merged loop
 
@@ -2038,10 +2038,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
       # local-worker startup at the top of experimentTmux(). Without this,
       # a respawned pane re-enters R with R_TESTS pointing at the harness
       # startup script and never reaches the worker's profile.
-      respawn_cmd <- sprintf(
-        paste0("env ", .workerEnvArg(), " R_TESTS= R_BROWSER= R_PDFVIEWER= R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive"),
-        shQuote(.respawn_script)
-      )
+      respawn_cmd <- .localWorkerRCmd(.respawn_script)
       .pushScreenToHistory(PANE)
       .tmux_run("respawn-pane", "-k", "-t", PANE, respawn_cmd)
     }
@@ -2382,6 +2379,35 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 #' @noRd
 .setup_flag_path <- function(host) {
   file.path(tempdir(), paste0(".spades_ready_", gsub("[^a-zA-Z0-9]", "_", host)))
+}
+
+.workerDefaultPackagesEnv <- "R_DEFAULT_PACKAGES=datasets,utils,grDevices,graphics,stats,methods"
+
+## The shell command that starts an interactive R whose R_PROFILE_USER is `profile`: the local
+## worker's R, both at first start and after respawn-pane. R_TESTS / R_BROWSER / R_PDFVIEWER are
+## cleared because `R CMD check` / `R CMD test` set them and R would then never reach the profile.
+.localWorkerRCmd <- function(profile) {
+  sprintf(paste0("env ", .workerEnvArg(), " R_TESTS= R_BROWSER= R_PDFVIEWER= ", .workerDefaultPackagesEnv,
+                 " R_PROFILE_USER=%s R --quiet --no-save --no-restore --interactive"),
+          shQuote(profile))
+}
+
+## Start something in a pane by typing ONE short command that runs a file. `cmd` goes in the file
+## `path`; the pane gets `bash '<path>'`, which the user can recall with up-arrow to start it again.
+## Returns the typed command.
+.tmux_send_launcher <- function(pane, cmd, path) {
+  writeLines(cmd, path)
+  sent <- paste("bash", shQuote(path))
+  .tmux_run("send-keys", "-t", pane, sent, "C-m")
+  invisible(sent)
+}
+
+## The same for an Rscript: `code` is written to `path` and the pane runs it with Rscript.
+.tmux_send_rscript <- function(pane, code, path) {
+  writeLines(code, path)
+  sent <- paste("env", .workerDefaultPackagesEnv, "Rscript", shQuote(path))
+  .tmux_run("send-keys", "-t", pane, sent, "C-m")
+  invisible(sent)
 }
 
 #' @keywords internal
