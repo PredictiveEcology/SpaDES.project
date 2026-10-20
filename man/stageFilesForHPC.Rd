@@ -15,7 +15,8 @@ folders in \code{files$folder}, values the \code{rsync} destinations, e.g.
 \code{c("/mnt/fast/inputs" = "gpsc:/project/x/inputs")}.}
 
 \item{dryRun}{Logical (default \code{TRUE}). Add \code{--dry-run} to each command and
-only print it; \code{FALSE} runs the commands with \code{\link[=system2]{system2()}}.}
+only print it; \code{FALSE} runs the commands with \code{\link[=system2]{system2()}} (Linux or macOS: \code{rsync} reads
+the colon in a Windows path such as \verb{C:/...} as a remote host).}
 }
 \value{
 Invisibly, a list with one element per folder: \code{folder}, \code{dest},

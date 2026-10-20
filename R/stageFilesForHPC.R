@@ -14,7 +14,8 @@
 #'   folders in `files$folder`, values the `rsync` destinations, e.g.
 #'   `c("/mnt/fast/inputs" = "gpsc:/project/x/inputs")`.
 #' @param dryRun Logical (default `TRUE`). Add `--dry-run` to each command and
-#'   only print it; `FALSE` runs the commands with [system2()].
+#'   only print it; `FALSE` runs the commands with [system2()] (Linux or macOS: `rsync` reads
+#'   the colon in a Windows path such as `C:/...` as a remote host).
 #'
 #' @return Invisibly, a list with one element per folder: `folder`, `dest`,
 #'   `listFile` (the `--files-from` file), `files` (its relative paths) and

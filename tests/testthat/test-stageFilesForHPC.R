@@ -56,6 +56,7 @@ test_that("stageFilesForHPC groups by folder and needs a destination for each", 
 
 test_that("stageFilesForHPC copies with rsync when dryRun = FALSE", {
   skip_if(!nzchar(Sys.which("rsync")), "rsync not available")
+  skip_on_os("windows") # rsync reads the colon in "C:/..." as a remote host
   folder <- mkFolder(withr::local_tempdir())
   dest <- file.path(withr::local_tempdir(), "staged")
   names(dest) <- folder
