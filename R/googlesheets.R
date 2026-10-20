@@ -282,7 +282,7 @@
 # filelock. Updates are matched against local column names (which are the
 # .dotted form used by tmuxPrepareQueueFromDF / setupProject), not the GS
 # dotXxx form.
-.mirror_local_queue <- function(queue_path, row_i, updates) {
+.mirror_local_queue <- function(queue_path, row_i, updates, lockTries = 3L) {
   trace <- isTRUE(getOption("spades.mirror.trace", FALSE)) ||
            nzchar(Sys.getenv("SPADES_MIRROR_TRACE"))
   if (is.null(queue_path) || !nzchar(queue_path) || !file.exists(queue_path)) {
@@ -292,9 +292,15 @@
   }
   if (!requireNamespace("filelock", quietly = TRUE)) return(invisible(NULL))
   LOCKF <- paste0(queue_path, ".lock")
-  lck <- try(filelock::lock(LOCKF, timeout = 10000L), silent = TRUE)
+  ## A timed-out lock used to return silently, so the claim never reached the local rds.
+  ## Try again, and say so if it still fails.
+  for (attempt in seq_len(lockTries)) {
+    lck <- try(filelock::lock(LOCKF, timeout = 10000L), silent = TRUE)
+    if (!inherits(lck, "try-error") && !is.null(lck)) break
+  }
   if (inherits(lck, "try-error") || is.null(lck)) {
-    if (trace) message(sprintf("[mirror] LOCK_FAIL row=%s", row_i))
+    message(sprintf("[mirror] could not lock %s after %d tries; row %s was NOT updated in the local queue (%s)",
+                    LOCKF, lockTries, row_i, paste(names(updates), collapse = ", ")))
     return(invisible(NULL))
   }
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
