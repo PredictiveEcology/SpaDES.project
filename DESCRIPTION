@@ -119,6 +119,7 @@ Collate:
     'scenario.R'
     'setupProject.R'
     'spades-project-package.R'
+    'stageFilesForHPC.R'
     'status-calculators.R'
     'studyAreaPlotting.R'
     'tmux-queue.R'
