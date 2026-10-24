@@ -303,7 +303,7 @@ experimentFuture <- function(
         }
       }
       q <- revertDotNames(data.table::setDT(gs_q))
-      saveRDS(q, queue_path)
+      .queue_write(q, queue_path)
     } else {
       # Push local queue to GS
       q         <- readRDS(queue_path)

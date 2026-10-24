@@ -287,7 +287,7 @@ experimentSBATCH <- function(
         }
       }
       q <- data.table::setDT(gs_q)
-      saveRDS(q, queue_path)
+      .queue_write(q, queue_path)
     } else {
       q         <- readRDS(queue_path)
       q_sync    <- as.data.frame(lapply(q, as.character))

@@ -25,11 +25,11 @@ test_that(".gs_restore_types gives the sheet's text back the queue's column type
   expect_identical(out$status, q$status)
 })
 
-test_that(".gs_restore_types without a template keeps text and rebuilds only constructors", {
+test_that(".gs_restore_types with a template lacking the columns keeps text and rebuilds only constructors", {
   s <- data.frame(dotELFind = c("14.3", "4.10"), dotrange = c("1991:2020", "2001:2010"),
                   dotexpr = c("10-1", "Sys.time()"), stringsAsFactors = FALSE)
 
-  out <- SpaDES.project:::.gs_restore_types(s)
+  out <- SpaDES.project:::.gs_restore_types(s, data.frame())
 
   expect_identical(out$dotELFind, c("14.3", "4.10"))
   expect_identical(out$dotrange, list(1991:2020, 2001:2010))

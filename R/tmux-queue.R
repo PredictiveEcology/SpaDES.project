@@ -14,7 +14,7 @@ tmuxPrepareQueueFromDF <- function(df, queue_path) {
     started_at  = as.character(NA),
     finished_at = as.character(NA)
   )
-  saveRDS(q, queue_path)
+  .queue_write(q, queue_path)
    invisible(queue_path)
 }
 #' Reconcile an existing file-backed queue with a freshly built `df`
@@ -92,7 +92,7 @@ tmuxReconcileQueueWithDF <- function(df, queue_path,
     qNew <- tmuxPrepareQueueFromDF(newRows, tempfile(fileext = ".rds"))
     added <- readRDS(qNew); unlink(qNew)
     ## rbind tolerantly: the existing queue may carry meta columns this one lacks.
-    saveRDS(data.table::rbindlist(list(q, added), fill = TRUE, use.names = TRUE), queue_path)
+    .queue_write(data.table::rbindlist(list(q, added), fill = TRUE, use.names = TRUE), queue_path)
     message("Appended ", sum(isNew), " row(s) from `df` to the existing queue at ",
             basename(queue_path), ": ", label)
     return(invisible(queue_path))

@@ -19,9 +19,13 @@
 #     read as the number 14.3 or 4.1;
 #   * numeric, integer, logical: coerced to that class;
 #   * list: each cell rebuilt from the `c(...)` / `list(...)` text as.character() wrote.
-# A column the template lacks stays text unless every cell is such a constructor.
+# A NULL template is an error. A column the template lacks stays text unless every cell is such a constructor.
 # Meta columns (status, timestamps, ...) are left as the sheet has them.
-.gs_restore_types <- function(gs, template = NULL) {
+.gs_restore_types <- function(gs, template) {
+  ## Without a template every value would silently stay text ("2016" for an integer
+  ## column), so a job could run with the wrong types. Refuse instead.
+  if (is.null(template))
+    stop(".gs_restore_types needs a template with the queue's column types; got NULL")
   wasDT <- data.table::is.data.table(gs)
   gs <- as.data.frame(gs, stringsAsFactors = FALSE)
   for (nm in names(gs)) {
@@ -335,7 +339,7 @@
       skipped <- c(skipped, nm)
     }
   }
-  try(saveRDS(q, queue_path), silent = TRUE)
+  try(.queue_write(q, queue_path), silent = TRUE)
   if (trace) {
     msg <- sprintf("[mirror] WROTE row=%s [%s]", row_i, paste(applied, collapse = ", "))
     if (length(skipped))
@@ -477,7 +481,7 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
   if (!file.exists(queue_path)) return(FALSE)
   
   # Read the current local state
-  q <- readRDS(queue_path)
+  q <- .queue_read(queue_path)
   
   # Convert any POSIXct to character for cleaner Sheet display if preferred
   # googlesheets4 handles them natively, but character is safer for "read-only" views
@@ -522,7 +526,7 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
       tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel,
                                 statusCalculate = statusCalculate,
                                 activeRunningPath = activeRunningPath, ...)
-      q <- try(readRDS(queue_path), silent = TRUE)
+      q <- try(.queue_read(queue_path), silent = TRUE)
       if (inherits(q, "try-error")) { Sys.sleep(2); next }
 
       # ---- GS → local: merge GS state into local RDS ----
@@ -577,7 +581,7 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
           q <- rbind(q, new_gs[, names(q), drop = FALSE])
         }
 
-        saveRDS(q, queue_path)
+        .queue_write(q, queue_path)
       }
 
       # ---- local → GS: push current status for display ----
@@ -624,4 +628,39 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
     googlesheets4::range_write(ss = ss_id, data = q_sync, sheet = sheet,
                                range = "A1", reformat = FALSE))
   invisible(q_sync)
+}
+
+# ----------------------------------------------------------------------
+# Queue file I/O. Many workers rewrite the queue .rds while others read it.
+# ----------------------------------------------------------------------
+
+# Write the queue so a reader sees the old file or the new one, never half of one:
+# save to a temp file in the same directory, then rename over `queue_path`.
+.queue_write <- function(q, queue_path) {
+  tmp <- tempfile(pattern = paste0(basename(queue_path), "."), tmpdir = dirname(queue_path),
+                  fileext = ".tmp")
+  on.exit(unlink(tmp), add = TRUE)
+  saveRDS(q, tmp)
+  if (!file.rename(tmp, queue_path))
+    stop("Could not move the new queue into place at ", queue_path)
+  invisible(queue_path)
+}
+
+# Read the queue under the same `.lock` that writers take, retrying; stop if it still
+# cannot be read. Never returns NULL. Do not call it while holding that lock.
+.queue_read <- function(queue_path, tries = 5L, wait = 1, timeout = 10000L) {
+  LOCKF <- paste0(queue_path, ".lock")
+  err <- NULL
+  for (attempt in seq_len(tries)) {
+    lck <- try(filelock::lock(LOCKF, timeout = timeout), silent = TRUE)
+    if (!inherits(lck, "try-error") && !is.null(lck)) {
+      q <- tryCatch(readRDS(queue_path), error = function(e) {err <<- conditionMessage(e); NULL})
+      try(filelock::unlock(lck), silent = TRUE)
+      if (!is.null(q)) return(q)
+    } else {
+      err <- paste("could not take", LOCKF)
+    }
+    if (attempt < tries) Sys.sleep(wait)
+  }
+  stop("Could not read the queue ", queue_path, " after ", tries, " tries (", err, ")")
 }
