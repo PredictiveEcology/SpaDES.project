@@ -948,7 +948,7 @@ experimentTmux <- function(df,
     # reconciled with `df` above); the merge branch replaces it with the merged
     # sheet contents when the sheet already holds rows. Without this a fresh
     # sheet left `q` unassigned and the push serialised base::q instead.
-    q <- readRDS(queue_path)
+    q <- .queue_read(queue_path)
 
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
       # Validate GS column names against df before using GS data.
@@ -1032,7 +1032,7 @@ experimentTmux <- function(df,
       #   q <- rbind(q, gs_extra[, names(q), drop = FALSE])
       # }
 
-      saveRDS(q, queue_path)
+      .queue_write(q, queue_path)
     }
 
     # Push merged (or fresh) queue to GS. Not a silent try: a failed push leaves
@@ -1628,7 +1628,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     ## local queue rather than evaluating each cell as R code: eval(parse(text = "14.3"))
     ## turned the ELF name "14.3" into the number 14.3 (and would turn "4.10" into 4.1),
     ## while "5.3.1", which does not parse, stayed a string.
-    q <- .gs_restore_types(q, tryCatch(readRDS(queue_path), error = function(e) NULL))
+    q <- .gs_restore_types(q, .queue_read(queue_path))
     scn_env <- new.env(parent = globalenv())
     for (nm in data_cols)
       assign(nm, q[[nm]][[1L]], envir = scn_env)
@@ -1834,7 +1834,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   startedFile <- file.path(activeRunningPath, paste0("Running_", runName, "_", Sys.getpid(), "_.rds"))
   dir.create(dirname(startedFile), recursive = TRUE, showWarnings = FALSE)
   saveRDS(runName, file = startedFile)
-  saveRDS(q, queue_path)
+  .queue_write(q, queue_path)
   filelock::unlock(lck)
 
   on.exit(try(unlink(startedFile), silent = TRUE), add = TRUE)
@@ -1868,7 +1868,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
           if (length(idx)) {
             q2$heartbeat_at[idx]   <- hb_vals$ts
             q2$heartbeat_iter[idx] <- hb_vals$iter
-            saveRDS(q2, queue_path)
+            .queue_write(q2, queue_path)
           }
           filelock::unlock(l2)
         }
@@ -1889,7 +1889,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       if (!inherits(lck2, "try-error") && !is.null(lck2)) {
         try({
           q2 <- readRDS(queue_path)
-          saveRDS(.applyJobEnd(q2, i, "error", on_interrupt, lastErr), queue_path)
+          .queue_write(.applyJobEnd(q2, i, "error", on_interrupt, lastErr), queue_path)
         }, silent = TRUE)
         try(filelock::unlock(lck2), silent = TRUE)
       }
@@ -1913,7 +1913,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   q <- .applyJobEnd(q, i, outcome, on_interrupt, lastErr)
-  saveRDS(q, queue_path)
+  .queue_write(q, queue_path)
   filelock::unlock(lck)
   # if (!is.null(hb_thread)) try(tools::pskill(hb_thread$pid), silent = TRUE)
   outcome
@@ -2972,7 +2972,7 @@ tmuxPrepareQueueFromDF <- function(df, queue_path) {
     interrupted_at = as.character(NA),
     last_error     = as.character(NA)
   )
-  saveRDS(q, queue_path)
+  .queue_write(q, queue_path)
   invisible(queue_path)
 }
 
@@ -3482,7 +3482,7 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
     
     #q <- as.data.frame(q)
     
-    saveRDS(q, queue_path)
+    .queue_write(q, queue_path)
     filelock::unlock(lck)
     invisible(q)
   }
