@@ -15,7 +15,6 @@
 \alias{fileRenameOrMove}
 \alias{linkOrCopy}
 \alias{.basePkgs}
-\alias{DESCRIPTIONFileDeps}
 \alias{getVersionOnRepos}
 \alias{substitutePackages}
 \alias{toPkgDTFull}
@@ -63,14 +62,6 @@ fileRenameOrMove(from, to)
 linkOrCopy(from, to, allowSymlink = FALSE)
 
 .basePkgs
-
-DESCRIPTIONFileDeps(
-  desc_path,
-  which = c("Depends", "Imports", "LinkingTo"),
-  keepVersionNumber = TRUE,
-  purge = getOption("Require.purge", FALSE),
-  keepSeparate = FALSE
-)
 
 getVersionOnRepos(
   pkgInstall,

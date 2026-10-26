@@ -1171,13 +1171,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
   deps <- NULL
   if (isTRUE(changedLibPaths)) {
-    deps <- lapply(c("SpaDES.project", "Require"), function(pkg) {
-      PackagePath <- getNamespaceInfo(pkg, "path")
-      DESCinLibPaths <- file.path(PackagePath, "DESCRIPTION")
-      DESCRIPTIONFileDeps(DESCinLibPaths)
-    })
-
-    deps <- unique(c("SpaDES.project", Require::extractPkgName(unlist(deps))))
+    # setupSpaDES.ProjectDeps() closes this under hard dependencies
+    deps <- c("SpaDES.project", "Require")
     needTryInstall <- TRUE
     # setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
     needSetLibPaths <- TRUE
@@ -3610,6 +3605,13 @@ setupSpaDES.ProjectDeps <- function(paths,
   # the library to the isolated project lib; we need it to find packages that
   # live in the user's default library.
   searchLibs <- unique(c(.libPaths(), prevLibPaths))
+  # Close `deps` under its hard dependencies (recursively), using only what is
+  # already installed: nothing can be installed into the new library yet, and
+  # this must work offline. Copying e.g. processx without ps left the next
+  # step failing with ".onLoad failed in loadNamespace() for 'processx'".
+  deps <- unique(c(deps, unlist(tools::package_dependencies(
+    deps, db = installed.packages(lib.loc = searchLibs),
+    which = c("Depends", "Imports", "LinkingTo"), recursive = TRUE))))
   nsPaths <- vapply(deps, FUN.VALUE = character(1),
                     function(pkg) {
                       path <- tryCatch(
