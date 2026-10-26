@@ -51,9 +51,6 @@ linkOrCopy <- getFromNamespace("linkOrCopy", ns = "Require")
 .basePkgs <- getFromNamespace(".basePkgs", ns = "Require")
 
 #' @rdname imports
-DESCRIPTIONFileDeps <- getFromNamespace("DESCRIPTIONFileDeps", ns = "Require")
-
-#' @rdname imports
 getVersionOnRepos <- getFromNamespace("getVersionOnRepos", ns = "Require")
 
 #' @rdname imports
