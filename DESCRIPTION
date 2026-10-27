@@ -18,7 +18,7 @@ Authors@R: c(
            role = c("ctb"), comment = c(ORCID = ""))
     )
 Depends:
-    R (>= 4.3)
+    R (>= 4.4)
 Imports:
     data.table,
     filelock,
