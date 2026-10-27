@@ -23,6 +23,9 @@ jobs:
     # See test-coverage.yaml: inherit the org-level Drive credential.
     secrets: inherit
     with:
+      ## oldrel-2 is the oldest R tested, so it sets the R floor in DESCRIPTION;
+      ## raise the floor when oldrel-2 rolls forward each April.
+      extra-config: '[{"config":{"os":"ubuntu-latest","nosuggests":false,"r":"oldrel-2"}},{"config":{"os":"windows-latest","nosuggests":false,"r":"oldrel-2"}}]'
       extra-packages: |
         any::rematch2
         fastshp=?ignore
