@@ -19,11 +19,16 @@ test_that(".deparse_one round-trips values through Rscript -e", {
   expect_false(grepl("^quote", dp("mean(x)")))
 })
 
-test_that(".sbatch_parse_jobid pulls the trailing job id", {
+test_that(".sbatch_parse_jobid pulls the job id", {
   pj <- SpaDES.project:::.sbatch_parse_jobid
 
   expect_identical(pj("Submitted batch job 12345"), 12345L)
   expect_identical(pj("Submitted batch job 12345\n"), 12345L)
+
+  # multi-cluster sites append the cluster name; the id is not the last number
+  expect_identical(pj("Submitted batch job 1953798 on cluster gpsc8"), 1953798L)
+  expect_identical(pj(c("sbatch: note", "Submitted batch job 1953798 on cluster gpsc8")),
+                   1953798L)
 
   # no trailing digits -> NA rather than an error
   expect_true(is.na(pj("sbatch: error: invalid partition")))

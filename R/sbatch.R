@@ -362,8 +362,10 @@ experimentSBATCH <- function(
   message(
     "\nWorkers will write logs to:\n", log_cmds, "\n",
     "  -- or --\n  tail -f ", log_dir, "/worker_*.log\n",
-    if (!isTRUE(dry_run)) paste0("Live Slurm status:  squeue -j ",
-                                 paste(job_ids, collapse = ","), "\n") else ""
+    if (!isTRUE(dry_run)) paste0("Live Slurm status:  squeue ",
+                                 if (!is.null(sbatch_opts$clusters))
+                                   paste0("-M ", sbatch_opts$clusters, " "),
+                                 "-j ", paste(job_ids, collapse = ","), "\n") else ""
   )
 
   structure(
@@ -459,10 +461,11 @@ experimentSBATCH <- function(
 }
 
 .sbatch_parse_jobid <- function(out) {
-  # sbatch typically prints "Submitted batch job 12345"
-  m <- regmatches(out, regexpr("[0-9]+\\s*$", out))
+  # sbatch prints "Submitted batch job 12345", and on multi-cluster sites
+  # "Submitted batch job 12345 on cluster gpsc8"
+  m <- regmatches(out, regexpr("Submitted batch job\\s+[0-9]+", out))
   if (length(m) == 0L) return(NA_integer_)
-  suppressWarnings(as.integer(m[[length(m)]]))
+  suppressWarnings(as.integer(sub("^\\D+", "", m[[1L]])))
 }
 
 
