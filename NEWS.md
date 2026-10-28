@@ -1,5 +1,7 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- On multi-cluster Slurm sites `awaitExperimentSBATCH()`, `print()` of an `experimentSBATCH` handle and `killExperimentSBATCH(force = TRUE)` now pass `-M <cluster>` (from `sbatch_opts$clusters`, kept in the handle as `$clusters`) to `squeue` and `scancel`; jobs on another cluster were invisible to a plain `squeue -j`, so `awaitExperimentSBATCH()` returned at once.
+
 - `experimentSBATCH()` read the wrong job ID on multi-cluster Slurm sites, where sbatch prints "Submitted batch job 1953798 on cluster gpsc8" (it took `8`). `.sbatch_parse_jobid()` now takes the number after "Submitted batch job", and the printed `squeue` hint adds `-M <cluster>` when `sbatch_opts` has `clusters`.
 
 - `setupProject()` now copies the whole hard-dependency tree (Depends, Imports, LinkingTo, recursively) of SpaDES.project and Require into a new project library, from the packages already installed, so it works offline. Only their direct dependencies were copied, so on a fresh library the next step failed with ".onLoad failed in loadNamespace() for 'processx' ... there is no package called 'ps'".

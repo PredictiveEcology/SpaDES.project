@@ -362,10 +362,10 @@ experimentSBATCH <- function(
   message(
     "\nWorkers will write logs to:\n", log_cmds, "\n",
     "  -- or --\n  tail -f ", log_dir, "/worker_*.log\n",
-    if (!isTRUE(dry_run)) paste0("Live Slurm status:  squeue ",
-                                 if (!is.null(sbatch_opts$clusters))
-                                   paste0("-M ", sbatch_opts$clusters, " "),
-                                 "-j ", paste(job_ids, collapse = ","), "\n") else ""
+    if (!isTRUE(dry_run)) paste0("Live Slurm status:  ",
+                                 paste(c("squeue", .sbatch_cluster_args(sbatch_opts$clusters),
+                                         "-j", paste(job_ids, collapse = ",")),
+                                       collapse = " "), "\n") else ""
   )
 
   structure(
@@ -376,7 +376,8 @@ experimentSBATCH <- function(
       stop_files  = stop_files,
       log_dir     = log_dir,
       queue_path  = queue_path,
-      sbatch_cmd  = sbatch_cmd
+      sbatch_cmd  = sbatch_cmd,
+      clusters    = sbatch_opts$clusters
     ),
     class = "experimentSBATCH"
   )
@@ -478,7 +479,7 @@ print.experimentSBATCH <- function(x, ...) {
   cat(sprintf("experimentSBATCH  --  %d worker(s)\n", n))
   cat(sprintf("  Queue  : %s\n", x$queue_path))
   cat(sprintf("  Log dir: %s\n", x$log_dir))
-  alive <- .sbatch_squeue_alive(x$job_ids)
+  alive <- .sbatch_squeue_alive(x$job_ids, x$clusters)
   for (i in seq_len(n)) {
     jid <- x$job_ids[[i]]
     status <- if (is.na(jid))         "dry-run"
@@ -519,7 +520,7 @@ awaitExperimentSBATCH <- function(es, interval_s = 30, verbose = TRUE) {
   message("Waiting for ", length(ids), " SBATCH job(s) to finish (poll ",
           interval_s, "s)...")
   repeat {
-    alive <- .sbatch_squeue_alive(ids)
+    alive <- .sbatch_squeue_alive(ids, es$clusters)
     if (!any(alive, na.rm = TRUE)) break
     Sys.sleep(interval_s)
   }
@@ -581,7 +582,8 @@ killExperimentSBATCH <- function(es, force = FALSE, scancel_cmd = "scancel") {
     if (Sys.which(scancel_cmd) == "" && !file.exists(scancel_cmd))
       stop("Could not find scancel executable: '", scancel_cmd, "'.",
            call. = FALSE)
-    out <- system2(scancel_cmd, args = as.character(ids),
+    out <- system2(scancel_cmd,
+                   args = c(.sbatch_cluster_args(es$clusters), as.character(ids)),
                    stdout = TRUE, stderr = TRUE)
     message("scancel sent for job(s): ", paste(ids, collapse = ", "),
             "\nStale RUNNING queue entries can be reset with:",
@@ -592,14 +594,24 @@ killExperimentSBATCH <- function(es, force = FALSE, scancel_cmd = "scancel") {
 }
 
 
+# -- Internal: -M <cluster> for squeue/scancel on multi-cluster Slurm sites ---
+# Jobs on another cluster are invisible to a plain squeue/scancel.
+.sbatch_cluster_args <- function(clusters) {
+  if (length(clusters) && nzchar(clusters[[1L]]))
+    c("-M", paste(clusters, collapse = ","))
+  else character(0)
+}
+
+
 # -- Internal: live job IDs from squeue --------------------------------------
 # Returns a logical vector aligned with `ids`: TRUE if still in squeue, FALSE
 # otherwise. NA entries in `ids` map to NA. If `squeue` is unavailable, all
 # entries are NA (caller decides what to do).
-.sbatch_squeue_alive <- function(ids) {
+.sbatch_squeue_alive <- function(ids, clusters = NULL) {
   if (Sys.which("squeue") == "") return(rep(NA, length(ids)))
   live_ids <- tryCatch(
-    suppressWarnings(system2("squeue", args = c("-h", "-o", "%i"),
+    suppressWarnings(system2("squeue", args = c(.sbatch_cluster_args(clusters),
+                                      "-h", "-o", "%i"),
                              stdout = TRUE, stderr = FALSE)),
     error = function(e) character(0)
   )

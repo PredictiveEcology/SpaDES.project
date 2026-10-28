@@ -107,7 +107,7 @@ test_that("awaitExperimentSBATCH returns straight away for a dry-run handle", {
 test_that("awaitExperimentSBATCH polls until nothing is alive", {
   calls <- 0L
   testthat::local_mocked_bindings(
-    .sbatch_squeue_alive = function(ids) {
+    .sbatch_squeue_alive = function(ids, clusters = NULL) {
       calls <<- calls + 1L
       if (calls < 3L) rep(TRUE, length(ids)) else rep(FALSE, length(ids))
     }
@@ -119,6 +119,51 @@ test_that("awaitExperimentSBATCH polls until nothing is alive", {
 
   expect_identical(calls, 3L)
   expect_true(any(grepl("All SBATCH job\\(s\\) finished", msgs)))
+})
+
+test_that("awaitExperimentSBATCH asks squeue about the handle's cluster", {
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .sbatch_squeue_alive = function(ids, clusters = NULL) {
+      seen <<- clusters; rep(FALSE, length(ids))
+    }
+  )
+  es <- structure(list(job_ids = list(1L), queue_path = NULL, clusters = "gpsc8"),
+                  class = "experimentSBATCH")
+
+  suppressMessages(awaitExperimentSBATCH(es, interval_s = 0))
+
+  expect_identical(seen, "gpsc8")
+})
+
+test_that("experimentSBATCH keeps sbatch_opts$clusters in the handle", {
+  td <- withr::local_tempdir()
+
+  es <- suppressMessages(experimentSBATCH(
+    df = mkDf(1), global_path = mkGlobal(td), n_workers = 1L,
+    queue_path = file.path(td, "q.rds"), log_dir = file.path(td, "logs"),
+    sbatch_opts = list(clusters = "gpsc8"), dry_run = TRUE))
+
+  expect_identical(es$clusters, "gpsc8")
+})
+
+test_that(".sbatch_squeue_alive passes -M <cluster> to squeue", {
+  cap <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    Sys.which = function(...) "/usr/bin/squeue",
+    system2 = function(command, args, ...) {
+      cap$args <- args; c("1953798", "5")
+    },
+    .package = "base"
+  )
+
+  res <- SpaDES.project:::.sbatch_squeue_alive(c(1953798L, 7L), clusters = "gpsc8")
+
+  expect_identical(cap$args[1:2], c("-M", "gpsc8"))
+  expect_identical(res, c(TRUE, FALSE))
+
+  SpaDES.project:::.sbatch_squeue_alive(1L)
+  expect_false("-M" %in% cap$args)
 })
 
 # --- killExperimentSBATCH -----------------------------------------------------
@@ -176,6 +221,21 @@ test_that("killExperimentSBATCH force sends every live id to scancel", {
   expect_identical(cap$command, "scancel")
   # NA ids are dropped, live ones passed through
   expect_setequal(cap$args, c("11", "22"))
+})
+
+test_that("killExperimentSBATCH force passes -M <cluster> to scancel", {
+  cap <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    Sys.which = function(...) "/usr/bin/scancel",
+    system2 = function(command, args, ...) { cap$args <- args; "" },
+    .package = "base"
+  )
+  es <- structure(list(job_ids = list(11L), stop_files = list(), clusters = "gpsc8"),
+                  class = "experimentSBATCH")
+
+  suppressMessages(killExperimentSBATCH(es, force = TRUE))
+
+  expect_identical(cap$args, c("-M", "gpsc8", "11"))
 })
 
 test_that("killExperimentSBATCH force reports when there is nothing to cancel", {
