@@ -1,5 +1,7 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- `experimentSBATCH()` read the wrong job ID on multi-cluster Slurm sites, where sbatch prints "Submitted batch job 1953798 on cluster gpsc8" (it took `8`). `.sbatch_parse_jobid()` now takes the number after "Submitted batch job", and the printed `squeue` hint adds `-M <cluster>` when `sbatch_opts` has `clusters`.
+
 - `setupProject()` now copies the whole hard-dependency tree (Depends, Imports, LinkingTo, recursively) of SpaDES.project and Require into a new project library, from the packages already installed, so it works offline. Only their direct dependencies were copied, so on a fresh library the next step failed with ".onLoad failed in loadNamespace() for 'processx' ... there is no package called 'ps'".
 - Queue files are now written atomically (`.queue_write()`: temp file, then rename) and read under the queue's `.lock` with retries (`.queue_read()`). With many workers, a worker could read the queue while another was rewriting it, lose the column types, and run a job with `.hindcastYear = "2016"` (text). `.gs_restore_types()` now errors on a `NULL` template instead of returning text.
 - New `stageFilesForHPC(files, dest, dryRun = TRUE)` copies just the files a run used (a data.frame with `path` and `folder`, e.g. from `reproducible::filesUsedTrace()`) to an HPC system with one `rsync -aH --files-from` command per folder, adding each file's sidecars (`CHECKSUMS.txt`, `<file>.aux.xml`, `.<basename>_*.hash`), so a Slurm job can run with no internet.
