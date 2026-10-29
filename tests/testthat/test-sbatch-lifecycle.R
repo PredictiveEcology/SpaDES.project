@@ -212,6 +212,7 @@ runSbatchScript <- function(td, globalCode) {
 
 test_that("an sbatch job whose row ends in ERROR exits non-zero, so afterok dependents do not start", {
   skip_on_cran()
+  skip_on_os("windows") # the job script runs under bash with POSIX paths, as on a Slurm node
   skip_if_not_installed("filelock")
   td <- withr::local_tempdir()
   out <- runSbatchScript(td, "stop('boom')")
@@ -221,6 +222,7 @@ test_that("an sbatch job whose row ends in ERROR exits non-zero, so afterok depe
 
 test_that("an sbatch job whose row succeeds exits 0", {
   skip_on_cran()
+  skip_on_os("windows") # the job script runs under bash with POSIX paths, as on a Slurm node
   skip_if_not_installed("filelock")
   td <- withr::local_tempdir()
   out <- runSbatchScript(td, "invisible(NULL)")
