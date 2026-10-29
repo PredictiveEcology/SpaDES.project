@@ -1941,6 +1941,10 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' @param n_workers_on_host Number of workers the launcher runs on this host. This
 #'   session's GDAL block cache is capped at its share of the host's RAM, and terra
 #'   results go to disk, unless the user set these; see `.workerResourceDefaults()`.
+#' @param exitOnError Logical. If `TRUE`, the R process exits with status 1 when
+#'   the loop ends and any job it ran ended in `ERROR`, so that a batch scheduler
+#'   (Slurm `--dependency=afterok`) sees the failure. `experimentSBATCH()` sets it.
+#'   Default `FALSE`: the loop returns, as the tmux workers expect.
 #' @return invisibly TRUE
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
@@ -1956,7 +1960,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           cache_path = getOption("gargle_oauth_cache"),
                           dots_path = NULL,
                           snapshot_library = TRUE,
-                          n_workers_on_host = 1L) {
+                          n_workers_on_host = 1L,
+                          exitOnError = FALSE) {
   on_interrupt <- match.arg(on_interrupt)
   on_error     <- match.arg(on_error)
   pane_mode    <- match.arg(pane_mode)
@@ -2061,14 +2066,17 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
   # ------------------------------------------------------------------
   # reuse (default): loop inside the same R session
   # ------------------------------------------------------------------
+  anyError <- FALSE
   repeat {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
     res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
                          heartbeat_interval_s, runNameLabel = runNameLabel,
                          activeRunningPath = activeRunningPath, ss_id = ss_id)
+    anyError <- anyError || identical(res, "error")
     if (!.workerContinues(res, on_interrupt, on_error)) break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
   }
+  if (isTRUE(exitOnError) && anyError) quit(save = "no", status = 1L)
   invisible(TRUE)
 }
 

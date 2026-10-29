@@ -187,3 +187,43 @@ test_that("killExperimentSBATCH force reports when there is nothing to cancel", 
   expect_true(any(grepl("No live job IDs to cancel", msgs)))
   expect_identical(res, es)
 })
+
+# --- the job script's exit status ----------------------------------------------
+
+# Run the generated job script for a one-row queue under bash (as Slurm would) and
+# return its exit status. `globalCode` is the body of the row's global.R.
+runSbatchScript <- function(td, globalCode) {
+  qp <- file.path(td, "queue.rds")
+  saveRDS(data.frame(.ELFind = "a", .rep = 1L, status = "PENDING",
+                     stringsAsFactors = FALSE), qp)
+  gp <- file.path(td, "global.R")
+  writeLines(globalCode, gp)
+  sp <- file.path(td, "job.sh")
+  SpaDES.project:::.sbatch_write_script(
+    script_path = sp, worker_idx = 1L, log_file = file.path(td, "w.log"),
+    stop_file = file.path(td, "stop"), queue_path = qp, global_path = gp,
+    on_interrupt = "requeue", ss_id = NULL, email = NULL, cache_path = NULL,
+    runNameLabel = quote(colnames(q)[1:2]), activeRunningPath = NULL,
+    dots_path = NULL, sbatch_opts = list(), r_cmd = file.path(R.home("bin"), "Rscript"),
+    r_libs = .libPaths(), snapshot_library = FALSE)
+  status <- suppressWarnings(system2("bash", sp, stdout = FALSE, stderr = FALSE))
+  list(status = status, queue = readRDS(qp)$status)
+}
+
+test_that("an sbatch job whose row ends in ERROR exits non-zero, so afterok dependents do not start", {
+  skip_on_cran()
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  out <- runSbatchScript(td, "stop('boom')")
+  expect_identical(out$queue, "ERROR")
+  expect_identical(out$status, 1L)
+})
+
+test_that("an sbatch job whose row succeeds exits 0", {
+  skip_on_cran()
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  out <- runSbatchScript(td, "invisible(NULL)")
+  expect_identical(out$queue, "DONE")
+  expect_identical(out$status, 0L)
+})

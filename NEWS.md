@@ -1,5 +1,7 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- A Slurm worker started by `experimentSBATCH()` now exits with status 1 when a row it ran ended in `ERROR` (new `tmuxRunWorkerLoop(exitOnError = )`, off by default, so tmux workers are unchanged). The loop returned normally after marking the row `ERROR`, so Slurm recorded the job COMPLETED (0:0) and a job submitted with `--dependency=afterok` started anyway.
+
 - `experimentSBATCH()` read the wrong job ID on multi-cluster Slurm sites, where sbatch prints "Submitted batch job 1953798 on cluster gpsc8" (it took `8`). `.sbatch_parse_jobid()` now takes the number after "Submitted batch job", and the printed `squeue` hint adds `-M <cluster>` when `sbatch_opts` has `clusters`.
 
 - `setupProject()` now copies the whole hard-dependency tree (Depends, Imports, LinkingTo, recursively) of SpaDES.project and Require into a new project library, from the packages already installed, so it works offline. Only their direct dependencies were copied, so on a fresh library the next step failed with ".onLoad failed in loadNamespace() for 'processx' ... there is no package called 'ps'".
