@@ -1,6 +1,7 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
 - A Slurm worker started by `experimentSBATCH()` now exits with status 1 when a row it ran ended in `ERROR` (new `tmuxRunWorkerLoop(exitOnError = )`, off by default, so tmux workers are unchanged). The loop returned normally after marking the row `ERROR`, so Slurm recorded the job COMPLETED (0:0) and a job submitted with `--dependency=afterok` started anyway.
+- On multi-cluster Slurm sites `awaitExperimentSBATCH()`, `print()` of an `experimentSBATCH` handle and `killExperimentSBATCH(force = TRUE)` now pass `-M <cluster>` (from `sbatch_opts$clusters`, kept in the handle as `$clusters`) to `squeue` and `scancel`; jobs on another cluster were invisible to a plain `squeue -j`, so `awaitExperimentSBATCH()` returned at once.
 
 - `experimentSBATCH()` read the wrong job ID on multi-cluster Slurm sites, where sbatch prints "Submitted batch job 1953798 on cluster gpsc8" (it took `8`). `.sbatch_parse_jobid()` now takes the number after "Submitted batch job", and the printed `squeue` hint adds `-M <cluster>` when `sbatch_opts` has `clusters`.
 
