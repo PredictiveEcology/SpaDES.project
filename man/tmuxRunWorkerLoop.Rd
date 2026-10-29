@@ -19,7 +19,8 @@ tmuxRunWorkerLoop(
   cache_path = getOption("gargle_oauth_cache"),
   dots_path = NULL,
   snapshot_library = TRUE,
-  n_workers_on_host = 1L
+  n_workers_on_host = 1L,
+  exitOnError = FALSE
 )
 }
 \arguments{
@@ -66,6 +67,11 @@ startup script made one, is released when R exits.}
 \item{n_workers_on_host}{Number of workers the launcher runs on this host. This
 session's GDAL block cache is capped at its share of the host's RAM, and terra
 results go to disk, unless the user set these; see \code{.workerResourceDefaults()}.}
+
+\item{exitOnError}{Logical. If \code{TRUE}, the R process exits with status 1 when
+the loop ends and any job it ran ended in \code{ERROR}, so that a batch scheduler
+(Slurm \code{--dependency=afterok}) sees the failure. \code{experimentSBATCH()} sets it.
+Default \code{FALSE}: the loop returns, as the tmux workers expect.}
 }
 \value{
 invisibly TRUE

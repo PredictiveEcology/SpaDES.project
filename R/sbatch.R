@@ -427,7 +427,7 @@ experimentSBATCH <- function(
       "ss_id = %s, email = %s, cache_path = %s, ",
       "runNameLabel = %s, activeRunningPath = %s, ",
       "dots_path = %s, stop_file = %s, pane_mode = \"reuse\", ",
-      "n_workers_on_host = %s)"
+      "n_workers_on_host = %s, exitOnError = TRUE)"
     ),
     .deparse_one(r_libs),
     .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt), .deparse_one(on_error),

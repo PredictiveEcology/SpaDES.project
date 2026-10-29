@@ -166,3 +166,17 @@ test_that("tmuxRunWorkerLoop turns off the showCache pre-warm before running a j
 
   expect_identical(seen, FALSE)
 })
+
+test_that("exitOnError = TRUE does not exit when no row errored", {
+  td <- withr::local_tempdir()
+  results <- c("ok", "empty")
+  i <- 0L
+  testthat::local_mocked_bindings(
+    tmuxRunNextWorker = function(...) { i <<- i + 1L; results[[i]] })
+
+  res <- suppressMessages(
+    tmuxRunWorkerLoop(queue_path = file.path(td, "q.rds"),
+                      global_path = mkGlobal(td), exitOnError = TRUE))
+
+  expect_true(res)
+})
