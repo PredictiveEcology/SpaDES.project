@@ -1,5 +1,6 @@
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- `experimentSBATCH()` job scripts now raise the open-file limit to the hard limit (`ulimit -n "$(ulimit -Hn)"`). Slurm gives a job the submitting shell's soft limit (1024 on the GPSC), and long `terra` runs stopped with "cannot open 6 files. The number of files already open is 1019 and the OS limit is 1024".
 - A Slurm worker started by `experimentSBATCH()` now exits with status 1 when a row it ran ended in `ERROR` (new `tmuxRunWorkerLoop(exitOnError = )`, off by default, so tmux workers are unchanged). The loop returned normally after marking the row `ERROR`, so Slurm recorded the job COMPLETED (0:0) and a job submitted with `--dependency=afterok` started anyway.
 - On multi-cluster Slurm sites `awaitExperimentSBATCH()`, `print()` of an `experimentSBATCH` handle and `killExperimentSBATCH(force = TRUE)` now pass `-M <cluster>` (from `sbatch_opts$clusters`, kept in the handle as `$clusters`) to `squeue` and `scancel`; jobs on another cluster were invisible to a plain `squeue -j`, so `awaitExperimentSBATCH()` returned at once.
 

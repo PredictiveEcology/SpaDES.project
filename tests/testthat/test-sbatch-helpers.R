@@ -67,6 +67,7 @@ test_that(".sbatch_write_script writes an executable script with the reserved di
   expect_true("#SBATCH --output=/tmp/w.log" %in% body)
   expect_true("#SBATCH --error=/tmp/w.log" %in% body)
   expect_true("set -euo pipefail" %in% body)
+  expect_true("ulimit -n \"$(ulimit -Hn)\" || true" %in% body) # open-file limit raised to the hard limit
 
   # 0755 -- the submit path execs this directly. Windows has no POSIX mode bits
   # (Sys.chmod leaves 666 there) and SLURM submission is Unix-only, so assert

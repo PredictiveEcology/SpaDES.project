@@ -444,6 +444,7 @@ experimentSBATCH <- function(
     user_dirs,
     "",
     "set -euo pipefail",
+    "ulimit -n \"$(ulimit -Hn)\" || true", # the job's open-file soft limit is the login shell's (1024 on the GPSC): terra runs died at it
     sprintf("export %s=%s", names(.workerEnv), .workerEnv),
     "",
     sprintf("%s -e %s", shQuote(r_cmd), shQuote(r_expr))
