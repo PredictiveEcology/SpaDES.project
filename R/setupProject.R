@@ -692,7 +692,7 @@ setupProject <- function(name, paths, modules, packages,
                                 verbose = verbose - 1)
 
       if (isTRUE(getOption("SpaDES.project.fast"))) {
-        base::options(fastOptions())
+        base::options(optionsFast())
         packages <- NULL
         useGit <- FALSE
       }
@@ -775,7 +775,7 @@ setupProject <- function(name, paths, modules, packages,
 
       if (isTRUE(getOption("SpaDES.project.fast"))) {
         message("Using fast options:")
-        df <- fastOptions()[!names(fastOptions()) %in% names(opts[["newOptions"]])]
+        df <- optionsFast()[!names(optionsFast()) %in% names(opts[["newOptions"]])]
         df <- df[!sapply(df, is.null)]
         if (requireNamespace("reproducible", quietly = TRUE) &&
             requireNamespace("qs2", quietly = TRUE))
@@ -1470,6 +1470,8 @@ setupOptions <- function(name, options, paths, times, overwrite = FALSE,
       if (any(unnamedOptions)) {
         options <- options[!unnamedOptions]
       }
+      if (anyDuplicated(names(options)))
+        options <- options[!duplicated(names(options), fromLast = TRUE)] # a name given twice: the later one wins
       newValuesComplete <- options
       oldValuesComplete <- Map(nam = names(options), function(nam) NULL)
       oldValuesComplete[names(options)] <- preOptions[names(options)]
@@ -4114,26 +4116,6 @@ checkGitRemote <- function(useGit, name, paths, verbose = getOption("Require.ver
   return(gitUserName)
 }
 
-
-fastOptions <- function() {
-  list(reproducible.useMemoise = TRUE,                 # For caching
-       reproducible.inputPaths = getOption("reproducible.inputPaths"),
-       reproducible.objSize = FALSE,
-       Require.cloneFrom = Sys.getenv("R_LIBS_USER"),  # For package installs
-       spades.recoveryMode = FALSE,
-       spades.moduleCodeChecks = FALSE,
-       spades.sessionInfo = FALSE,
-       spades.testMemoryLeaks = FALSE,
-       spades.useRequire = FALSE,
-       spades.allowSequentialCaching = FALSE,
-       reproducible.memoisePersist = TRUE,
-       reproducible.cacheSaveFormat = "qs2",
-       LandR.assertions = FALSE,
-       reproducible.cacheSpeed = "fast",
-       reproducible.gdalwarp = TRUE,
-       spades.recoveryMode = 1
-  )
-}
 
 makeUpdateRprofileSticky <- function(updateRprofile) {
   if (isTRUE(updateRprofile) && !getOption("Require.updateRprofile") %in% TRUE)
