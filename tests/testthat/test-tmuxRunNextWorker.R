@@ -260,3 +260,19 @@ test_that("Sheets backend: an errored job is ERROR, and a HOLD set meanwhile is 
   expect_length(statuses(), 0L)
   expect_match(writes[[length(writes)]]$last_error, "boom")
 })
+
+test_that("a list column reaches global.R as the list itself, not wrapped in another list", {
+  skip_if_not_installed("filelock")
+  td <- withr::local_tempdir()
+  q <- data.frame(.ELFind = "job1", status = "PENDING", stringsAsFactors = FALSE)
+  q$.params <- list(list(fireSense_spreadFit = list(spreadLink = "ceiling")))
+  qp <- file.path(td, "queue.rds")
+  saveRDS(q, qp)
+  out <- file.path(td, "params.rds")
+  g <- file.path(td, "global.R")
+  writeLines(sprintf("saveRDS(.params, '%s')", out), g)
+
+  suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g))
+
+  expect_identical(readRDS(out), list(fireSense_spreadFit = list(spreadLink = "ceiling")))
+})
