@@ -23,7 +23,7 @@ libraryInUse(activeRunningPath = getOption("spades.activeRunningPath"))
 snapshotLibrary(
   libPath = .libPaths()[1],
   where = getOption("spades.activeRunningPath"),
-  id = paste0(Sys.info()[["nodename"]], "_", Sys.getpid()),
+  id = .snapshotId(),
   setLibPaths = TRUE
 )
 
@@ -53,8 +53,12 @@ defaults to \code{Require::Install()}. Exposed for tests.}
 
 \item{where}{Directory holding snapshots; defaults to \code{activeRunningPath}.}
 
-\item{id}{Snapshot id; defaults to \verb{<nodename>_<pid>} so
-\code{sweepLibrarySnapshots()} can tell a live owner from a dead one.}
+\item{id}{Snapshot id; defaults to \verb{<nodename>_<pid>-<token>} (see
+\code{.snapshotId()}), where the token is \verb{j<SLURM_JOB_ID>[s<SLURM_PROCID>]} under
+Slurm and \verb{r<random hex>} otherwise. The token keeps two processes that share
+a nodename and a pid (jobs in separate PID namespaces) apart, and
+\code{sweepLibrarySnapshots()} reads the pid to tell a live owner from a dead one.
+An id whose directory already exists is never reused: a random suffix is added.}
 
 \item{setLibPaths}{Logical. Put the snapshot first on \code{.libPaths()} in place
 of \code{libPath}, and record it in \code{SPADES_PROJECT_LIB_SNAPSHOT} so the worker

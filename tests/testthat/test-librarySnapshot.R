@@ -160,3 +160,60 @@ test_that(".pidsAlive knows this process is alive and a wild pid is not", {
   f <- SpaDES.project:::.pidsAlive
   expect_identical(f(c(Sys.getpid(), 999999L, NA_integer_)), c(TRUE, FALSE, FALSE))
 })
+
+test_that("two jobs with the same nodename and pid get separate snapshots, and the second leaves the first alone", {
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  withr::local_envvar(SLURM_JOB_ID = "1001", SLURM_PROCID = NA)
+  s1 <- SpaDES.project:::.snapshotLibraryBase(lib, where)
+  withr::local_envvar(SLURM_JOB_ID = "1002")
+  s2 <- SpaDES.project:::.snapshotLibraryBase(lib, where)
+  expect_false(identical(s1, s2))
+  expect_match(basename(s1), paste0("^lib_", Sys.info()[["nodename"]], "_", Sys.getpid(), "-j1001$"))
+  expect_true(file.exists(file.path(s1, "pkgA", "DESCRIPTION")))
+  expect_true(file.exists(file.path(s2, "pkgA", "DESCRIPTION")))
+  # without Slurm the token is random
+  withr::local_envvar(SLURM_JOB_ID = NA)
+  r1 <- SpaDES.project:::.snapshotLibraryBase(lib, where); r2 <- SpaDES.project:::.snapshotLibraryBase(lib, where)
+  expect_false(identical(r1, r2))
+})
+
+test_that("a snapshot directory that already exists is never removed or reused", {
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  s1 <- snapshotLibrary(lib, where = where, id = "host_5", setLibPaths = FALSE)
+  writeLines("live", file.path(s1, "pkgA", "extra"))
+  s2 <- snapshotLibrary(lib, where = where, id = "host_5", setLibPaths = FALSE)
+  expect_false(identical(s1, s2))
+  expect_true(file.exists(file.path(s1, "pkgA", "extra")))
+  expect_true(file.exists(file.path(s2, "pkgA", "DESCRIPTION")))
+})
+
+test_that("sweepLibrarySnapshots leaves a snapshot from another PID namespace, even with a dead pid", {
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  me    <- Sys.info()[["nodename"]]
+  foreign <- snapshotLibrary(lib, where = where, id = paste0(me, "_", 999999L, "-j7"), setLibPaths = FALSE)
+  marker <- file.path(foreign, ".snapshot_of")
+  writeLines(c(readLines(marker)[1:3], "pidns=pid:[1]"), marker)   # not this sweeper's namespace
+  mine <- snapshotLibrary(lib, where = where, id = paste0(me, "_", 999998L, "-j8"), setLibPaths = FALSE)
+  writeLines(c(readLines(file.path(mine, ".snapshot_of"))[1:3],
+               paste0("pidns=", if (is.na(SpaDES.project:::.pidNamespace())) "NA" else SpaDES.project:::.pidNamespace())),
+             file.path(mine, ".snapshot_of"))
+  removed <- sweepLibrarySnapshots(where)
+  expect_true(dir.exists(foreign))
+  expect_identical(normalizePath(removed, mustWork = FALSE), normalizePath(mine, mustWork = FALSE))
+})
+
+test_that("old-format snapshot names and markers are swept as before", {
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  me    <- Sys.info()[["nodename"]]
+  old <- snapshotLibrary(lib, where = where, id = paste0(me, "_", 999997L), setLibPaths = FALSE)
+  writeLines(readLines(file.path(old, ".snapshot_of"))[1:3], file.path(old, ".snapshot_of"))   # no pidns line
+  live <- snapshotLibrary(lib, where = where, id = paste0(me, "_", Sys.getpid()), setLibPaths = FALSE)
+  writeLines(readLines(file.path(live, ".snapshot_of"))[1:3], file.path(live, ".snapshot_of"))
+  removed <- sweepLibrarySnapshots(where)
+  expect_identical(normalizePath(removed, mustWork = FALSE), normalizePath(old, mustWork = FALSE))
+  expect_true(dir.exists(live))
+})

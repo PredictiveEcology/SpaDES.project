@@ -2,7 +2,7 @@
 
 testthat::test_that("tmuxKillPanes returns targeted panes", {
   testthat::skip_on_cran()
-  skip_if_no_tmux()
+  local_private_tmux()
 
   td <- tempfile("tmux_kill")
   dir.create(td)
