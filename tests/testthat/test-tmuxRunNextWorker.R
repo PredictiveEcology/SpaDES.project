@@ -270,7 +270,7 @@ test_that("a list column reaches global.R as the list itself, not wrapped in ano
   saveRDS(q, qp)
   out <- file.path(td, "params.rds")
   g <- file.path(td, "global.R")
-  writeLines(sprintf("saveRDS(.params, '%s')", out), g)
+  writeLines(sprintf("saveRDS(.params, %s)", deparse1(out)), g)
 
   suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = g))
 
