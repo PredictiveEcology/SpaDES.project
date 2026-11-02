@@ -22,14 +22,16 @@ libraryInUse(activeRunningPath = getOption("spades.activeRunningPath"))
 
 snapshotLibrary(
   libPath = .libPaths()[1],
-  where = getOption("spades.activeRunningPath"),
+  where = NULL,
   id = .snapshotId(),
   setLibPaths = TRUE
 )
 
 releaseLibrarySnapshot(snapshot = Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"))
 
-sweepLibrarySnapshots(where = getOption("spades.activeRunningPath"))
+sweepLibrarySnapshots(
+  where = c(getOption("spades.activeRunningPath"), .snapshotDirs())
+)
 }
 \arguments{
 \item{packages}{Character vector of package specifications as accepted by
@@ -40,8 +42,10 @@ declared there are the single source of truth.}
 
 \item{libPath}{The shared library. Defaults to \code{.libPaths()[1]}.}
 
-\item{activeRunningPath}{Where the experiment keeps its \verb{Running_*} sentinels;
-snapshots are created there as \verb{lib_<id>/} unless \code{where} says otherwise.}
+\item{activeRunningPath}{Where the experiment keeps its \verb{Running_*} sentinels.
+Snapshots made before they moved beside the library are still found there,
+and it is where a snapshot goes when the directory beside the library
+cannot be created.}
 
 \item{requireIdle}{Logical. Refuse to install while \code{libraryInUse()} finds a
 worker. Set to \code{FALSE} only when you know the workers are idle.}
@@ -51,7 +55,16 @@ defaults to \code{Require::Install()}. Exposed for tests.}
 
 \item{verbose}{Numeric.}
 
-\item{where}{Directory holding snapshots; defaults to \code{activeRunningPath}.}
+\item{where}{Directory holding snapshots. For \code{snapshotLibrary()} the default
+(\code{NULL}) is \verb{<dirname(libPath)>/<basename(libPath)>_snapshots/}, beside the
+library and so on its filesystem, where hardlinks work; with the snapshots in
+the experiment's directory on another filesystem (an HPC library on NFS, the
+run directory on GPFS) every file was copied, about 2 GB per job. When that
+directory is not writable the snapshot goes to
+\code{getOption("spades.activeRunningPath")} instead, with a message.
+For \code{sweepLibrarySnapshots()} the default is every place a snapshot can be:
+that option, the directory beside the library, and the directory of this
+session's own snapshot.}
 
 \item{id}{Snapshot id; defaults to \verb{<nodename>_<pid>-<token>} (see
 \code{.snapshotId()}), where the token is \verb{j<SLURM_JOB_ID>[s<SLURM_PROCID>]} under

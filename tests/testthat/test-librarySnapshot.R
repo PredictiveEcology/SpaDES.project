@@ -116,7 +116,7 @@ test_that(".librarySnapshotCode runs in a bare session, before any package, and 
     list(lib1 = .libPaths()[1], env = Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"), loaded = loadedNamespaces())
   }, args = list(code = code))
   expect_true(startsWith(basename(out$lib1), "lib_"))
-  expect_identical(normalizePath(dirname(out$lib1)), normalizePath(where))
+  expect_identical(normalizePath(dirname(out$lib1)), normalizePath(SpaDES.project:::.snapshotDir(lib)))
   expect_identical(normalizePath(out$env), normalizePath(out$lib1))
   expect_false("SpaDES.project" %in% out$loaded)
   expect_true(file.exists(file.path(out$lib1, "pkgA", "DESCRIPTION")))
@@ -216,4 +216,52 @@ test_that("old-format snapshot names and markers are swept as before", {
   removed <- sweepLibrarySnapshots(where)
   expect_identical(normalizePath(removed, mustWork = FALSE), normalizePath(old, mustWork = FALSE))
   expect_true(dir.exists(live))
+})
+
+test_that("the default snapshot directory is beside the library, and its files are hardlinks", {
+  lib  <- mkFakeLib()
+  snap <- snapshotLibrary(lib, setLibPaths = FALSE)
+  expect_identical(normalizePath(dirname(snap)),
+                   normalizePath(file.path(dirname(lib), paste0(basename(lib), "_snapshots"))))
+  expect_false(startsWith(normalizePath(snap), paste0(normalizePath(lib), "/")))   # not inside the library
+  skip_on_os("windows")
+  skip_if_not_installed("fs")
+  i1 <- inode(file.path(lib, "pkgA", "R", "pkgA.rdb")); i2 <- inode(file.path(snap, "pkgA", "R", "pkgA.rdb"))
+  skip_if(is.na(i1) || is.na(i2), "no inodes on this platform")
+  expect_identical(i1, i2)
+  expect_gt(as.numeric(fs::file_info(file.path(lib, "pkgA", "R", "pkgA.rdb"))$hard_links), 1)
+})
+
+test_that("`where` overrides the default location", {
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  snap  <- snapshotLibrary(lib, where = where, setLibPaths = FALSE)
+  expect_identical(normalizePath(dirname(snap)), normalizePath(where))
+  expect_false(dir.exists(SpaDES.project:::.snapshotDir(lib)))
+})
+
+test_that("an unwritable directory beside the library falls back to activeRunningPath, with a message", {
+  skip_on_os("windows")
+  skip_if(Sys.info()[["user"]] == "root", "root can write anywhere")
+  root <- withr::local_tempdir(); lib <- mkFakeLib(root)
+  Sys.chmod(root, "555"); withr::defer(Sys.chmod(root, "755"))
+  arp <- withr::local_tempdir()
+  withr::local_options(spades.activeRunningPath = arp)
+  expect_message(snap <- snapshotLibrary(lib, setLibPaths = FALSE), "cannot write")
+  expect_identical(normalizePath(dirname(snap)), normalizePath(arp))
+  expect_true(file.exists(file.path(snap, "pkgA", "DESCRIPTION")))
+})
+
+test_that("sweepLibrarySnapshots finds dead snapshots in the new and in the old location", {
+  lib <- mkFakeLib()
+  arp <- withr::local_tempdir()
+  withr::local_options(spades.activeRunningPath = arp)
+  me   <- Sys.info()[["nodename"]]
+  newd <- snapshotLibrary(lib, id = paste0(me, "_999996"), setLibPaths = FALSE)
+  oldd <- snapshotLibrary(lib, where = arp, id = paste0(me, "_999995"), setLibPaths = FALSE)
+  withr::local_envvar(SPADES_PROJECT_LIB_SNAPSHOT = file.path(dirname(newd), "lib_unrelated"))   # this session's snapshot dir
+  removed <- sweepLibrarySnapshots()
+  # other dead snapshots beside the session's library (made by earlier tests' workers) may go too
+  expect_true(all(normalizePath(c(newd, oldd), mustWork = FALSE) %in% normalizePath(removed, mustWork = FALSE)))
+  expect_false(dir.exists(newd)); expect_false(dir.exists(oldd))
 })
