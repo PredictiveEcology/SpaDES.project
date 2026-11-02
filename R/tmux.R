@@ -1967,7 +1967,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
   pane_mode    <- match.arg(pane_mode)
   # Library snapshots: drop those left by dead workers, and make sure this
   # session's own one (made by the startup script) goes when R exits.
-  try(sweepLibrarySnapshots(activeRunningPath), silent = TRUE)
+  try(sweepLibrarySnapshots(c(activeRunningPath, .snapshotDirs())), silent = TRUE)
   if (nzchar(Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT"))) .registerSnapshotRelease()
   # A parallel worker that reached here inherited a worker profile through
   # R_PROFILE_USER. It must connect back to its parent, not claim a job: the

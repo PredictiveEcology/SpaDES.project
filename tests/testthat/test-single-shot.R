@@ -16,7 +16,7 @@ testthat::test_that("experimentTmux single-shot assigns all columns and sources 
   # part that does survive -- so the diagnosis rides on the assertion instead.
 
   testthat::skip_on_cran()
-  skip_if_no_tmux()
+  local_private_tmux()
   td <- tempfile("tmux_single"); unlink(td, recursive = TRUE); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
   global <- file.path(td, "global.R")

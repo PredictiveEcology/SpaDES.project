@@ -1,7 +1,7 @@
 
 testthat::test_that("experimentTmux queue mode continues until DONE", {
   testthat::skip_on_cran()
-  skip_if_no_tmux()
+  local_private_tmux()
   td <- tempfile("tmux_queue"); unlink(td, recursive = TRUE); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
   global <- file.path(td, "global.R")
