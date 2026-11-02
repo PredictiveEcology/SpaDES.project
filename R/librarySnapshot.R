@@ -32,15 +32,30 @@
 #'   the vector given to `setupProject(packages = )`, so the version floors
 #'   declared there are the single source of truth.
 #' @param libPath The shared library. Defaults to `.libPaths()[1]`.
-#' @param activeRunningPath Where the experiment keeps its `Running_*` sentinels;
-#'   snapshots are created there as `lib_<id>/` unless `where` says otherwise.
+#' @param activeRunningPath Where the experiment keeps its `Running_*` sentinels.
+#'   Snapshots made before they moved beside the library are still found there,
+#'   and it is where a snapshot goes when the directory beside the library
+#'   cannot be created.
 #' @param requireIdle Logical. Refuse to install while `libraryInUse()` finds a
 #'   worker. Set to `FALSE` only when you know the workers are idle.
 #' @param installFun Function of `(packages, libPath)` performing the install;
 #'   defaults to `Require::Install()`. Exposed for tests.
-#' @param where Directory holding snapshots; defaults to `activeRunningPath`.
-#' @param id Snapshot id; defaults to `<nodename>_<pid>` so
-#'   `sweepLibrarySnapshots()` can tell a live owner from a dead one.
+#' @param where Directory holding snapshots. For `snapshotLibrary()` the default
+#'   (`NULL`) is `<dirname(libPath)>/<basename(libPath)>_snapshots/`, beside the
+#'   library and so on its filesystem, where hardlinks work; with the snapshots in
+#'   the experiment's directory on another filesystem (an HPC library on NFS, the
+#'   run directory on GPFS) every file was copied, about 2 GB per job. When that
+#'   directory is not writable the snapshot goes to
+#'   `getOption("spades.activeRunningPath")` instead, with a message.
+#'   For `sweepLibrarySnapshots()` the default is every place a snapshot can be:
+#'   that option, the directory beside the library, and the directory of this
+#'   session's own snapshot.
+#' @param id Snapshot id; defaults to `<nodename>_<pid>-<token>` (see
+#'   `.snapshotId()`), where the token is `j<SLURM_JOB_ID>[s<SLURM_PROCID>]` under
+#'   Slurm and `r<random hex>` otherwise. The token keeps two processes that share
+#'   a nodename and a pid (jobs in separate PID namespaces) apart, and
+#'   `sweepLibrarySnapshots()` reads the pid to tell a live owner from a dead one.
+#'   An id whose directory already exists is never reused: a random suffix is added.
 #' @param setLibPaths Logical. Put the snapshot first on `.libPaths()` in place
 #'   of `libPath`, and record it in `SPADES_PROJECT_LIB_SNAPSHOT` so the worker
 #'   loop can release it at exit.
@@ -172,13 +187,10 @@ libraryInUse <- function(activeRunningPath = getOption("spades.activeRunningPath
 #' @export
 #' @rdname librarySnapshot
 snapshotLibrary <- function(libPath = .libPaths()[1],
-                            where = getOption("spades.activeRunningPath"),
-                            id = paste0(Sys.info()[["nodename"]], "_", Sys.getpid()),
+                            where = NULL,
+                            id = .snapshotId(),
                             setLibPaths = TRUE) {
-  if (is.null(where))
-    stop("snapshotLibrary(): `where` is required (usually the experiment's activeRunningPath)",
-         call. = FALSE)
-  snap <- .snapshotLibraryBase(libPath, where, id)
+  snap <- .snapshotLibraryBase(libPath, where, id, fallback = getOption("spades.activeRunningPath"))
   if (isTRUE(setLibPaths)) {
     .libPaths(c(snap, setdiff(.libPaths(), normalizePath(libPath, mustWork = FALSE))))
     Sys.setenv(SPADES_PROJECT_LIB_SNAPSHOT = snap)
@@ -186,13 +198,59 @@ snapshotLibrary <- function(libPath = .libPaths()[1],
   snap
 }
 
+# Base R only (these helpers and `.snapshotLibraryBase()` are deparsed into worker
+# startup scripts). The id is `<nodename>_<pid>-<token>`: the pid and host are what
+# `sweepLibrarySnapshots()` parses, the token is what tells apart two processes that
+# have the same nodename and pid, as jobs in separate PID namespaces do (Slurm on
+# the GPSC). tempfile() supplies the random part without touching the RNG stream.
+.snapshotId <- function() {
+  job <- Sys.getenv("SLURM_JOB_ID")
+  proc <- Sys.getenv("SLURM_PROCID")
+  token <- if (nzchar(job)) paste0("j", gsub("[^A-Za-z0-9]", "", job),
+                                   if (nzchar(proc)) paste0("s", gsub("[^A-Za-z0-9]", "", proc)))
+           else paste0("r", sub("^file", "", basename(tempfile())))
+  paste0(Sys.info()[["nodename"]], "_", Sys.getpid(), "-", token)
+}
+
+# Beside the library, so on its filesystem and file.link() works; never inside it,
+# where R would take the folder for a package.
+.snapshotDir <- function(libPath) {
+  libPath <- normalizePath(libPath, mustWork = FALSE)
+  file.path(dirname(libPath), paste0(basename(libPath), "_snapshots"))
+}
+
+# Where snapshots may be: beside the library, and beside this session's own snapshot
+# (a worker's .libPaths()[1] is that snapshot, whose parent is the directory).
+.snapshotDirs <- function(libPath = .libPaths()[1]) {
+  own <- Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT")
+  unique(c(.snapshotDir(libPath), if (nzchar(own)) dirname(own)))
+}
+
+# The PID namespace of this process (Linux), NA where there is none to read.
+.pidNamespace <- function() {
+  ns <- tryCatch(suppressWarnings(Sys.readlink("/proc/self/ns/pid")), error = function(e) NA_character_)
+  if (length(ns) != 1L || is.na(ns) || !nzchar(ns)) NA_character_ else ns
+}
+
 # Base R only, on purpose: this body is deparsed into the worker startup scripts
 # (`.librarySnapshotCode()`), where it must run before any package -- this one
 # included -- has been loaded from the library being copied.
-.snapshotLibraryBase <- function(libPath, where, id) {
+.snapshotLibraryBase <- function(libPath, where = NULL, id = .snapshotId(), fallback = NULL) {
   libPath <- normalizePath(libPath, mustWork = TRUE)
+  if (is.null(where)) {
+    where <- .snapshotDir(libPath)
+    if (!(dir.exists(where) || dir.create(where, recursive = TRUE, showWarnings = FALSE)) ||
+        file.access(where, 2) != 0) {
+      if (is.null(fallback))
+        stop("library snapshot: cannot write to ", where, " and no fallback directory is set")
+      message("library snapshot: cannot write to ", where, "; using ", fallback, " (files will be copied, not linked)")
+      where <- fallback
+    }
+  }
   snap <- file.path(where, paste0("lib_", id))
-  if (dir.exists(snap)) unlink(snap, recursive = TRUE)
+  # never remove a directory this call did not create: it may be a live job's library
+  if (dir.exists(snap) || file.exists(snap))
+    snap <- paste0(snap, "x", sub("^file", "", basename(tempfile())))
   dir.create(snap, recursive = TRUE, showWarnings = FALSE)
   files <- list.files(libPath, recursive = TRUE, all.files = TRUE, no.. = TRUE, include.dirs = FALSE)
   dirs <- setdiff(unique(dirname(files)), ".")
@@ -207,7 +265,9 @@ snapshotLibrary <- function(libPath = .libPaths()[1],
     unlink(snap, recursive = TRUE)
     stop("library snapshot: could not replicate ", sum(!ok), " file(s) from ", libPath, " into ", snap)
   }
-  writeLines(c(libPath, format(Sys.time(), "%Y-%m-%d %H:%M:%S"), as.character(Sys.getpid())),
+  # lines: library, time, pid, PID namespace. Older markers stop at the pid.
+  writeLines(c(libPath, format(Sys.time(), "%Y-%m-%d %H:%M:%S"), as.character(Sys.getpid()),
+               paste0("pidns=", .pidNamespace())),
              file.path(snap, ".snapshot_of"))
   # normalised, so it compares equal to what .libPaths() reports (/private/var on
   # macOS, drive-letter forms on Windows)
@@ -230,30 +290,43 @@ releaseLibrarySnapshot <- function(snapshot = Sys.getenv("SPADES_PROJECT_LIB_SNA
 
 #' @export
 #' @rdname librarySnapshot
-sweepLibrarySnapshots <- function(where = getOption("spades.activeRunningPath")) {
-  if (is.null(where) || !dir.exists(where)) return(invisible(character()))
+sweepLibrarySnapshots <- function(where = c(getOption("spades.activeRunningPath"), .snapshotDirs())) {
+  where <- where[dir.exists(where)]
+  if (!length(where)) return(invisible(character()))
   snaps <- list.files(where, pattern = "^lib_", full.names = TRUE)
   snaps <- snaps[dir.exists(snaps) & file.exists(file.path(snaps, ".snapshot_of"))]
   if (!length(snaps)) return(invisible(character()))
-  pids <- suppressWarnings(as.integer(sub(".*_([0-9]+)$", "\\1", basename(snaps))))
-  # The owner is the id's last field; a snapshot made on another host cannot be
-  # judged from here, so it is left alone.
-  host <- sub("^lib_(.*)_[0-9]+$", "\\1", basename(snaps))
-  dead <- host == Sys.info()[["nodename"]] & !is.na(pids) & !.pidsAlive(pids)
+  # The id is `<host>_<pid>` or `<host>_<pid>-<token>`. A snapshot made on another
+  # host, or in another PID namespace, cannot be judged from here (its pid means
+  # nothing in this process's namespace), so it is left alone. A marker with no
+  # `pidns=` line is from before namespaces were recorded and is judged by pid.
+  idRx <- "^lib_(.*)_([0-9]+)(-[A-Za-z0-9.]+)?$"
+  pids <- suppressWarnings(as.integer(sub(idRx, "\\2", basename(snaps))))
+  host <- sub(idRx, "\\1", basename(snaps))
+  me <- .pidNamespace()
+  judgeable <- vapply(snaps, function(s) {
+    ns <- grep("^pidns=", readLines(file.path(s, ".snapshot_of"), warn = FALSE), value = TRUE)
+    !length(ns) || identical(sub("^pidns=", "", ns[1L]), if (is.na(me)) "NA" else me)
+  }, logical(1))
+  dead <- grepl(idRx, basename(snaps)) & host == Sys.info()[["nodename"]] & judgeable &
+    !is.na(pids) & !.pidsAlive(pids)
   # normalised before unlinking, so the return value matches what snapshotLibrary() gave out
   gone <- normalizePath(snaps[dead], mustWork = FALSE)
   for (s in snaps[dead]) unlink(s, recursive = TRUE)
   invisible(gone)
 }
 
+.deparseAs <- function(name, fun) paste0(name, " <- ", paste(deparse(fun, control = "useSource"), collapse = "\n"), "\n")
+
 # The startup snippet for a worker script. Base R only: nothing may be loaded
 # from the library being copied before the copy exists. A failed snapshot is
 # reported and the worker runs on the shared library, which is the old behaviour.
-.librarySnapshotCode <- function(libPath, where) {
+.librarySnapshotCode <- function(libPath, fallback = NULL) {
   paste0(
-    "local({ .snapBase <- ", paste(deparse(.snapshotLibraryBase, control = "useSource"), collapse = "\n"), "\n",
-    "  .lib <- ", deparse1(libPath), "; .where <- ", deparse1(where), "\n",
-    "  .snap <- tryCatch(.snapBase(.lib, .where, paste0(Sys.info()[['nodename']], '_', Sys.getpid())),\n",
+    "local({ ", .deparseAs(".snapshotId", .snapshotId), .deparseAs(".pidNamespace", .pidNamespace),
+    .deparseAs(".snapshotDir", .snapshotDir), .deparseAs(".snapBase", .snapshotLibraryBase),
+    "  .lib <- ", deparse1(libPath), "; .fallback <- ", deparse1(fallback), "\n",
+    "  .snap <- tryCatch(.snapBase(.lib, fallback = .fallback),\n",
     "                    error = function(e) { message('library snapshot failed; running on the shared library: ', conditionMessage(e)); NULL })\n",
     "  if (!is.null(.snap)) { .libPaths(c(.snap, setdiff(.libPaths(), normalizePath(.lib, mustWork = FALSE)))); Sys.setenv(SPADES_PROJECT_LIB_SNAPSHOT = .snap) }\n",
     "}); "
