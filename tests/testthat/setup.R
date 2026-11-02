@@ -28,7 +28,3 @@ withr::defer(unlink(testLib, recursive = TRUE), teardown_env())
 # clean_pids() exists only where parallel can fork (not on Windows: CI failed there with "object 'clean_pids' not found").
 withr::defer(if ("parallel" %in% loadedNamespaces() && exists("clean_pids", envir = asNamespace("parallel")))
   parallel:::clean_pids(NULL), teardown_env())
-
-# checkProject() warns when the host disk has < 50 GB free; a nearly full CI runner would then fail every
-# test that expects "no findings". The disk test in test-checkProject.R sets its own threshold.
-withr::local_options(SpaDES.project.checkProject.minFreeGB = 0, .local_envir = teardown_env())
