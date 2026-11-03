@@ -180,7 +180,7 @@ test_that("tarIndex offsets and sizes match the members, long paths included", {
   suppressWarnings(suppressMessages(utils::tar(tarball, files = files, extra_flags = "")))
 
   idxFile <- tarIndex(tarball)
-  expect_identical(idxFile, file.path(td, "myrun_index.rds"))
+  expect_identical(normalizePath(idxFile), normalizePath(file.path(td, "myrun_index.rds")))
   idx <- readRDS(idxFile)
   expect_named(idx, c("name", "offset", "size"))
   ## names as stored: GNU tar drops the leading "/", R's internal tar keeps it
@@ -221,6 +221,7 @@ test_that("outTar writes the index beside the tarball", {
 })
 
 test_that("outUpload uploads the index beside the tarball and returns the tarball's dribble", {
+  skip_if_not_installed("googledrive")
   td <- withr::local_tempdir()
   simFile <- file.path(td, "runU.rds"); saveRDS(1, simFile)
   tarball <- suppressMessages(outTar(simFile, runName = "runU", verbose = FALSE))
@@ -242,7 +243,7 @@ test_that("outUpload uploads the index beside the tarball and returns the tarbal
 ## outSaveTarUpload(ledger =): a row per upload, written only after the upload.
 
 .ledgerFixture <- function(env = parent.frame()) {
-  skip_if_not_installed("sf")
+  skip_if_not_installed("sf"); skip_if_not_installed("SpaDES.core")
   skip_if(!exists("CacheGeoWrite", asNamespace("reproducible")), "reproducible lacks CacheGeoWrite")
   td <- withr::local_tempdir(.local_envir = env)
   simFile <- file.path(td, "runL.rds"); saveRDS(1, simFile)

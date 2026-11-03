@@ -132,6 +132,7 @@ test_that("a fetch announces itself before transferring, and can be silenced", {
 ## outputsPattern: with remote = TRUE only matching output files come down.
 
 .mockRemote <- function(env = parent.frame()) {
+  skip_if_not_installed("googledrive"); skip_if_not_installed("SpaDES.core")
   idx <- data.frame(
     name = c("o/run.rds", "o/run_lazy/_manifest.rds", "o/run_lazy/0001-x.rds",
              "o/cohortData_year2020.rds", "o/cohortData_year2030.rds",
