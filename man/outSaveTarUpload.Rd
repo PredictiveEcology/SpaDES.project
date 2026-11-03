@@ -14,7 +14,10 @@ outSaveTarUpload(
   overwrite = TRUE,
   cleanup = FALSE,
   verbose = TRUE,
-  lazy = TRUE
+  lazy = TRUE,
+  ledger = NULL,
+  area = NULL,
+  scenario = list()
 )
 }
 \arguments{
@@ -53,6 +56,17 @@ Default \code{FALSE}.}
 in \code{sim@.xData$.modObjs} are written to their own file in a sibling
 \verb{<simFilename sans ext>_lazy/} directory, and lazily restored on load via
 \code{delayedAssign}. \code{\link[=outTar]{outTar()}} picks up that directory automatically.}
+
+\item{ledger}{Optional \code{reproducible::CacheGeoLedger()} whose \code{key} is
+\code{"runName"}. When given, after a successful upload one row is written with
+\code{\link[reproducible:CacheGeoWrite]{reproducible::CacheGeoWrite()}} (see \code{\link[=outLedgerRow]{outLedgerRow()}}), so the archive can
+be found by study area. The upload comes first, so a row never names a
+missing file. \code{NULL} (default) writes nothing.}
+
+\item{area}{The study area (an \code{sf}, \code{sfc} or \code{SpatVector} object) used as
+the row's geometry. Required when \code{ledger} is given.}
+
+\item{scenario}{Named list; each element becomes a column of the ledger row.}
 }
 \value{
 Invisibly returns the \code{dribble} from \code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}.
@@ -64,5 +78,5 @@ files into a \code{.tar.gz} archive, and the archive is uploaded to a Google
 Drive folder.
 }
 \seealso{
-\code{\link[=outSave]{outSave()}}, \code{\link[=outTar]{outTar()}}, \code{\link[=outUpload]{outUpload()}}
+\code{\link[=outSave]{outSave()}}, \code{\link[=outTar]{outTar()}}, \code{\link[=outUpload]{outUpload()}}, \code{\link[=outLedgerRow]{outLedgerRow()}}
 }
