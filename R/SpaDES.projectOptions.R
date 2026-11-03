@@ -67,7 +67,7 @@
 #'      Whether `setupProject` manages a `.gitignore` for the project \cr
 #'
 #'   `SpaDES.project.fast` \tab `FALSE` \tab
-#'      If `TRUE`, use `fastOptions()` and skip package/git checks (see `setupProject`) \cr
+#'      If `TRUE`, use [optionsFast()] and skip package/git checks (see `setupProject`) \cr
 #'
 #'   `SpaDES.project.checkProject` \tab `FALSE` \tab
 #'      If `TRUE`, `setupProject()` runs `checkProject()` at its end (messages only) \cr

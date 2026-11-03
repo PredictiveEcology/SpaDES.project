@@ -1805,7 +1805,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   # state out of .GlobalEnv. lastTraceback() exposes the captured traceback.
   scn_env <- new.env(parent = globalenv())
   for (nm in data_cols)
-    assign(nm, q[[nm]][i], envir = scn_env)
+    assign(nm, q[[nm]][[i]], envir = scn_env) # [[ ]]: a list column's cell is the list, not a list of it
   .pkgEnv$lastScn <- scn_env
 
   q$status[i]       <- txtRunning

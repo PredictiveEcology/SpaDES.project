@@ -1,5 +1,10 @@
 ## checkProject() from R/checkProject.R, on tiny temp modules. No network, no simInit.
 
+# checkProject() warns when the host disk has < 50 GB free, and other test files reset this option to its
+# default of 50; a nearly full CI runner would then fail every test that expects no findings. The disk test
+# below sets its own threshold.
+withr::local_options(SpaDES.project.checkProject.minFreeGB = 0, .local_envir = teardown_env())
+
 cpPaths <- function(mp, root = withr::local_tempdir(.local_envir = parent.frame())) {
   list(modulePath = mp, inputPath = file.path(root, "inputs"), cachePath = file.path(root, "cache"),
        outputPath = file.path(root, "outputs"), scratchPath = file.path(root, "scratch"))
