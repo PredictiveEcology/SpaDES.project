@@ -25,9 +25,10 @@ outLedgerRow(
 \item{area}{The study area: an \code{sf}, \code{sfc} or \code{SpatVector} object. Several
 features are merged into one geometry.}
 
-\item{outputPath}{Character scalar; \code{outputPath(sim)} of the run, as an
-absolute path on the machine that made it. A reader uses it to build the
-\code{pathRemap} that moves the archive's members under its own folder.}
+\item{outputPath}{Character scalar; the folder of the archive's members, as
+stored in the tar (\code{dirname(simFilename)}; \code{outputPath(sim)} can be relative
+in a saved simList). A reader uses it to build the \code{pathRemap} that moves the
+members under its own folder.}
 
 \item{scenario}{Named list; each element becomes a column.}
 

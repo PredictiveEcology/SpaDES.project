@@ -288,7 +288,7 @@ outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
       ledger,
       outLedgerRow(runName, driveId = result$id,
                    saveTimes = SpaDES.core::outputs(sim)$saveTime,
-                   area = area, outputPath = SpaDES.core::outputPath(sim),
+                   area = area, outputPath = dirname(simFilename),
                    scenario = scenario))
   total <- t1[["elapsed"]] + t2[["elapsed"]] + t3[["elapsed"]]
   .fmt_elapsed <- function(s) {
@@ -318,9 +318,10 @@ outSaveTarUpload <- function(runName, sim, gFolder = NULL, simFilename = NULL,
 #'   (`outputs(sim)$saveTime`). Stored sorted and unique, in a list-column.
 #' @param area The study area: an `sf`, `sfc` or `SpatVector` object. Several
 #'   features are merged into one geometry.
-#' @param outputPath Character scalar; `outputPath(sim)` of the run, as an
-#'   absolute path on the machine that made it. A reader uses it to build the
-#'   `pathRemap` that moves the archive's members under its own folder.
+#' @param outputPath Character scalar; the folder of the archive's members, as
+#'   stored in the tar (`dirname(simFilename)`; `outputPath(sim)` can be relative
+#'   in a saved simList). A reader uses it to build the `pathRemap` that moves the
+#'   members under its own folder.
 #' @param scenario Named list; each element becomes a column.
 #' @param uploaded Time of the upload. Default [Sys.time()].
 #'

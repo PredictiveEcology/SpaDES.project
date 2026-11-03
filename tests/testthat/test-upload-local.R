@@ -271,7 +271,7 @@ test_that("outSaveTarUpload writes one ledger row after a successful upload", {
   expect_equal(nrow(rows), 1L)
   expect_identical(rows$runName, "runL")
   expect_identical(rows$driveId, "DRIVEID")
-  expect_identical(rows$outputPath, "/some/outputs")
+  expect_identical(rows$outputPath, dirname(fx$simFile)) # as stored in the tar, not outputPath(sim)
   expect_identical(rows$saveTimes[[1]], c(2020, 3020))
   expect_identical(rows$SSP, "ssp245")
   expect_identical(rows$rep, 3L)
