@@ -10,7 +10,7 @@
 #' whole tarball and reading the one object you want: measured on a 4.63 GB
 #' archive, one 6.2 MB object took **0.83 s** against ~304 s for the whole file.
 #'
-#' [reIndex()] fetches the `<runName>_index.rds` written beside the tarball;
+#' [reIndex()] fetches the `<runName>_index.rds` written beside the tarball by [tarIndex()];
 #' [reGetMember()] uses it to fetch a single member.
 #'
 #' @param gFile A Google Drive `dribble` row, file id, or URL for the **tarball**.
@@ -24,7 +24,7 @@
 reIndex <- function(gFile, destDir = tempdir()) {
   reproducible::.requireNamespace("googledrive", stopOnFALSE = TRUE)
   d <- .driveFile(gFile)
-  idxName <- paste0(tools::file_path_sans_ext(tools::file_path_sans_ext(d$name)), "_index.rds")
+  idxName <- .indexName(d$name)
   parent <- googledrive::drive_reveal(d, "parent")$id_parent[[1]]
   hits <- googledrive::drive_ls(googledrive::as_id(parent), pattern = idxName, n_max = Inf)
   if (!NROW(hits))
@@ -126,7 +126,7 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
 ## because `outputs(sim)$file` must point at real paths for downstream code.
 ## Every sidecar object is left to `fetch`, so it moves only if touched.
 .reLoadRemoteOne <- function(gFile, pathRemap = NULL, projectPath = getwd(),
-                             parse = TRUE, verbose = TRUE) {
+                             parse = TRUE, verbose = TRUE, outputsPattern = NULL) {
   idx <- reIndex(gFile)
   ## outTar() writes the simList first, and reUntar() relies on that too.
   ## Derive the sidecar directory from the shell's own name, exactly as
@@ -144,8 +144,10 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
     stop("No lazy manifest in the archive; it was not saved with lazy = TRUE.",
          call. = FALSE)
 
-  ## shell + manifest + every output file
-  eager <- which(!isSide) 
+  ## shell + manifest + every output file (or those matching `outputsPattern`)
+  eager <- which(!isSide)
+  if (!is.null(outputsPattern))
+    eager <- eager[eager == shellIx | grepl(outputsPattern, basename(idx$name[eager]))]
   eager <- union(eager, which(isMan))
   for (i in eager) {
     dest <- .localPathFor(idx$name[i], pathRemap)
@@ -155,7 +157,7 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
   }
   shell <- .localPathFor(idx$name[shellIx], pathRemap)
   if (isTRUE(verbose))
-    message("  fetched shell + manifest + ", sum(!isSide) - 1L, " output file(s); ",
+    message("  fetched shell + manifest + ", length(eager) - sum(isMan) - 1L, " output file(s); ",
             sum(isSide) - sum(isMan), " object(s) left remote")
 
   ## Objects: `fetch` is handed the path loadSimList expects; find the member

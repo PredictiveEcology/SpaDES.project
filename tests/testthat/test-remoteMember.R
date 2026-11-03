@@ -128,3 +128,52 @@ test_that("a fetch announces itself before transferring, and can be silenced", {
   expect_message(fetchLike("d/0007-big.rds", idx, TRUE), "fetching 'big' \\(2 MB\\)")
   expect_silent(fetchLike("d/0007-big.rds", idx, FALSE))
 })
+
+## outputsPattern: with remote = TRUE only matching output files come down.
+
+.mockRemote <- function(env = parent.frame()) {
+  skip_if_not_installed("googledrive"); skip_if_not_installed("SpaDES.core")
+  idx <- data.frame(
+    name = c("o/run.rds", "o/run_lazy/_manifest.rds", "o/run_lazy/0001-x.rds",
+             "o/cohortData_year2020.rds", "o/cohortData_year2030.rds",
+             "o/pixelGroupMap_year2020.tif", "o/burnMap_year2020.tif"),
+    offset = seq(512, by = 1024, length.out = 7), size = rep(100, 7), stringsAsFactors = FALSE)
+  fetched <- new.env(); fetched$m <- character()
+  local_mocked_bindings(reIndex = function(...) idx, .env = env)
+  local_mocked_bindings(drive_get = function(...) data.frame(id = "ID", name = "run.tar.gz"),
+                        .package = "googledrive", .env = env)
+  local_mocked_bindings(reGetMember = function(gFile, member, ...) {
+    fetched$m <- c(fetched$m, member); invisible(NULL) }, .env = env)
+  local_mocked_bindings(loadSimList = function(...) "sim",
+                        outputs = function(...) data.frame(), .package = "SpaDES.core", .env = env)
+  fetched
+}
+
+test_that("outputsPattern fetches only matching output files, plus shell and manifest", {
+  fetched <- .mockRemote()
+  rm <- c(old = "/o", new = withr::local_tempdir())
+  suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm,
+                                  outputsPattern = "^(cohortData|pixelGroupMap)_year2020"))
+  expect_setequal(fetched$m, c("o/run.rds", "o/run_lazy/_manifest.rds",
+                               "o/cohortData_year2020.rds", "o/pixelGroupMap_year2020.tif"))
+})
+
+test_that("outputsPattern = NULL still fetches every output file", {
+  fetched <- .mockRemote()
+  rm <- c(old = "/o", new = withr::local_tempdir())
+  suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm))
+  expect_length(fetched$m, 6L)                       # all but the one lazy object
+  expect_false("o/run_lazy/0001-x.rds" %in% fetched$m)
+})
+
+test_that("outputsPattern needs remote = TRUE", {
+  expect_error(reGetUntarLoad("id", destDir = tempdir(), outputsPattern = "x"),
+               "outputsPattern.*remote = TRUE")
+})
+
+test_that("a bare Drive id works with remote = TRUE and names the result by the file", {
+  .mockRemote()
+  rm <- c(old = "/o", new = withr::local_tempdir())
+  sims <- suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm))
+  expect_identical(names(sims), "run")
+})

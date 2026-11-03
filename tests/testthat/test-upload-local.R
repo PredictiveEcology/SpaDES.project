@@ -159,3 +159,149 @@ test_that("outSave forwards verbose to saveSimList", {
   suppressMessages(outSave(sim, runName = "x", simFilename = target, lazy = FALSE))
   expect_identical(captured$verbose, 1)
 })
+
+## tarIndex(): offsets of every member of an uncompressed tar, found by seeking.
+
+.tarBytes <- function(tarball, offset, size) {
+  con <- file(tarball, "rb"); on.exit(close(con))
+  seek(con, offset); readBin(con, "raw", size)
+}
+
+test_that("tarIndex offsets and sizes match the members, long paths included", {
+  td <- withr::local_tempdir()
+  deep <- file.path(td, paste(rep("a-long-directory-name", 6), collapse = "/"))  # > 100 chars
+  dir.create(deep, recursive = TRUE)
+  expect_gt(nchar(deep), 100)
+  files <- c(file.path(td, "first.rds"), file.path(deep, "deep.rds"),
+             file.path(td, "empty.txt"), file.path(td, "big.bin"))
+  saveRDS(1:10, files[[1]]); saveRDS(letters, files[[2]])
+  file.create(files[[3]]); writeBin(as.raw(rep(1:255, 40)), files[[4]])
+  tarball <- file.path(td, "myrun.tar.gz")             # uncompressed, as outTar() makes it
+  suppressWarnings(suppressMessages(utils::tar(tarball, files = files, extra_flags = "")))
+
+  idxFile <- tarIndex(tarball)
+  expect_identical(normalizePath(idxFile), normalizePath(file.path(td, "myrun_index.rds")))
+  idx <- readRDS(idxFile)
+  expect_named(idx, c("name", "offset", "size"))
+  ## names as stored: GNU tar drops the leading "/", R's internal tar keeps it
+  idx$name <- sub("^/", "", idx$name)
+  expect_identical(idx$name[[1]], sub("^/", "", files[[1]]))
+  expect_true(sub("^/", "", files[[2]]) %in% idx$name)         # the >100-char path, whole
+  expect_equal(nrow(idx), length(files))                       # members only: no directories
+  for (i in seq_len(nrow(idx))) {
+    f <- files[match(idx$name[[i]], sub("^/", "", files))]
+    expect_identical(.tarBytes(tarball, idx$offset[[i]], idx$size[[i]]),
+                     readBin(f, "raw", file.size(f)))
+  }
+})
+
+test_that("tarIndex reads pax headers", {
+  skip_if(Sys.which("tar") == "")
+  td <- withr::local_tempdir()
+  deep <- file.path(td, paste(rep("pax-directory-name", 8), collapse = "/"))
+  dir.create(deep, recursive = TRUE)
+  f <- file.path(deep, "p.rds"); saveRDS(runif(50), f)
+  tarball <- file.path(td, "pax.tar.gz")
+  withr::with_dir(td, system2("tar", c("--format=pax", "-cf", shQuote(tarball), "-C", shQuote(td),
+                                       shQuote(sub(paste0(td, "/"), "", f, fixed = TRUE)))))
+  idx <- readRDS(tarIndex(tarball))
+  expect_equal(nrow(idx), 1L)
+  expect_true(grepl("p.rds$", idx$name) && nchar(idx$name) > 100)
+  expect_identical(.tarBytes(tarball, idx$offset, idx$size), readBin(f, "raw", file.size(f)))
+})
+
+test_that("outTar writes the index beside the tarball", {
+  td <- withr::local_tempdir()
+  simFile <- file.path(td, "runI.rds"); saveRDS(1, simFile)
+  tarball <- suppressMessages(outTar(simFile, runName = "runI", verbose = FALSE))
+  idx <- readRDS(file.path(td, "runI_index.rds"))
+  expect_identical(sub("^/", "", idx$name[[1]]), sub("^/", "", simFile))
+  expect_identical(.tarBytes(tarball, idx$offset[[1]], idx$size[[1]]),
+                   readBin(simFile, "raw", file.size(simFile)))
+})
+
+test_that("outUpload uploads the index beside the tarball and returns the tarball's dribble", {
+  skip_if_not_installed("googledrive")
+  td <- withr::local_tempdir()
+  simFile <- file.path(td, "runU.rds"); saveRDS(1, simFile)
+  tarball <- suppressMessages(outTar(simFile, runName = "runU", verbose = FALSE))
+  sent <- character()
+  testthat::local_mocked_bindings(
+    drive_upload = function(media, ...) {
+      sent <<- c(sent, basename(media)); data.frame(id = paste0("id-", basename(media)))
+    }, .package = "googledrive")
+  res <- suppressMessages(outUpload(tarball, "folder"))
+  expect_identical(sent, c("runU.tar.gz", "runU_index.rds"))
+  expect_identical(res$id, "id-runU.tar.gz")
+
+  ## no index beside the tarball: as before, one upload
+  unlink(file.path(td, "runU_index.rds")); sent <- character()
+  suppressMessages(outUpload(tarball, "folder"))
+  expect_identical(sent, "runU.tar.gz")
+})
+
+## outSaveTarUpload(ledger =): a row per upload, written only after the upload.
+
+.ledgerFixture <- function(env = parent.frame()) {
+  skip_if_not_installed("sf"); skip_if_not_installed("SpaDES.core")
+  skip_if(!exists("CacheGeoWrite", asNamespace("reproducible")), "reproducible lacks CacheGeoWrite")
+  td <- withr::local_tempdir(.local_envir = env)
+  simFile <- file.path(td, "runL.rds"); saveRDS(1, simFile)
+  area <- sf::st_sfc(sf::st_polygon(list(rbind(c(0, 0), c(1, 0), c(1, 1), c(0, 1), c(0, 0)))),
+                     crs = 4326)
+  list(td = td, simFile = simFile, area = area,
+       ledger = reproducible::CacheGeoLedger("ledger.rds", destinationPath = file.path(td, "led"),
+                                             key = "runName"))
+}
+.mockSaveTar <- function(fx, env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    outSave = function(...) fx$simFile,
+    outTar = function(...) file.path(fx$td, "runL.tar.gz"),
+    .env = env)
+  testthat::local_mocked_bindings(outputs = function(...) data.frame(saveTime = c(3020, 2020, 3020)),
+                                  outputPath = function(...) "/some/outputs",
+                                  .package = "SpaDES.core", .env = env)
+}
+
+test_that("outSaveTarUpload writes one ledger row after a successful upload", {
+  fx <- .ledgerFixture(); .mockSaveTar(fx)
+  testthat::local_mocked_bindings(outUpload = function(...) data.frame(id = "DRIVEID"))
+  suppressMessages(outSaveTarUpload("runL", sim = NULL, gFolder = "f", ledger = fx$ledger,
+                                    area = fx$area, scenario = list(SSP = "ssp245", rep = 3L)))
+  rows <- reproducible::CacheGeoRead(fx$ledger, area = NULL)
+  expect_equal(nrow(rows), 1L)
+  expect_identical(rows$runName, "runL")
+  expect_identical(rows$driveId, "DRIVEID")
+  expect_identical(rows$outputPath, dirname(fx$simFile)) # as stored in the tar, not outputPath(sim)
+  expect_identical(rows$saveTimes[[1]], c(2020, 3020))
+  expect_identical(rows$SSP, "ssp245")
+  expect_identical(rows$rep, 3L)
+  expect_s3_class(rows$uploaded, "POSIXct")
+})
+
+test_that("outSaveTarUpload writes no ledger row when the upload fails", {
+  fx <- .ledgerFixture(); .mockSaveTar(fx)
+  testthat::local_mocked_bindings(outUpload = function(...) stop("drive down"))
+  expect_error(suppressMessages(outSaveTarUpload("runL", sim = NULL, gFolder = "f",
+                                                 ledger = fx$ledger, area = fx$area)),
+               "drive down")
+  expect_false(file.exists(fx$ledger$path))
+})
+
+test_that("a ledger needs an area, and its key must be runName", {
+  fx <- .ledgerFixture()
+  expect_error(outSaveTarUpload("runL", sim = NULL, ledger = fx$ledger), "area")
+  bad <- reproducible::CacheGeoLedger("b.rds", destinationPath = fx$td, key = "other")
+  expect_error(outSaveTarUpload("runL", sim = NULL, ledger = bad, area = fx$area), "runName")
+})
+
+test_that("outLedgerRow builds the row a backfill writes, without a sim", {
+  skip_if_not_installed("sf")
+  area <- sf::st_sfc(sf::st_point(c(1, 2)), crs = 4326)
+  r <- outLedgerRow("old", "ID1", saveTimes = c(30, 10, 10), area = area,
+                    outputPath = "/p/out", scenario = list(GCM = "x"), uploaded = as.POSIXct("2026-01-01", tz = "UTC"))
+  expect_s3_class(r, "sf")
+  expect_identical(r$runName, "old"); expect_identical(r$driveId, "ID1")
+  expect_identical(r$saveTimes[[1]], c(10, 30)); expect_identical(r$GCM, "x")
+  expect_identical(r$outputPath, "/p/out")
+})

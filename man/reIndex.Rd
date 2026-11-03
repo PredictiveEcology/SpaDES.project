@@ -44,7 +44,7 @@ For a lazily saved \code{simList} this is the difference between downloading the
 whole tarball and reading the one object you want: measured on a 4.63 GB
 archive, one 6.2 MB object took \strong{0.83 s} against ~304 s for the whole file.
 
-\code{\link[=reIndex]{reIndex()}} fetches the \verb{<runName>_index.rds} written beside the tarball;
+\code{\link[=reIndex]{reIndex()}} fetches the \verb{<runName>_index.rds} written beside the tarball by \code{\link[=tarIndex]{tarIndex()}};
 \code{\link[=reGetMember]{reGetMember()}} uses it to fetch a single member.
 }
 \seealso{

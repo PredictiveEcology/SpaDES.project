@@ -21,7 +21,8 @@ Default \code{FALSE}.}
 }
 \value{
 Invisibly returns the \code{dribble} returned by
-\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}}.
+\code{\link[googledrive:drive_upload]{googledrive::drive_upload()}} for the tarball. If \verb{<runName>_index.rds}
+(from \code{\link[=tarIndex]{tarIndex()}}) is beside the tarball it is uploaded to the same folder.
 }
 \description{
 Uploads a local file (typically a tarball produced by \code{\link[=outTar]{outTar()}}) to a

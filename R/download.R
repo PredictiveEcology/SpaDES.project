@@ -277,7 +277,7 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 
 ## Accept either the archives themselves or the folder holding them. Supplying
 ## `pattern` means `gFiles` is a folder to list; without it, `gFiles` is used
-## as given. Either way the `_index.rds` sidecars written by reIndex() are
+## as given. Either way the `_index.rds` sidecars written by tarIndex() are
 ## dropped: they are not archives, so passing one on can only be a mistake.
 .resolveGFiles <- function(gFiles, pattern = NULL, verbose = TRUE) {
   if (!is.null(pattern))
@@ -289,7 +289,7 @@ reLoad <- function(simFilenames, projectPath = getwd(),
   isIdx <- grepl("_index\\.rds$", gFiles$name)
   if (any(isIdx)) {
     if (isTRUE(verbose))
-      message("ignoring ", sum(isIdx), " reIndex() sidecar(s)")
+      message("ignoring ", sum(isIdx), " tarIndex() sidecar(s)")
     gFiles <- gFiles[!isIdx, , drop = FALSE]
   }
   if (!NROW(gFiles))
@@ -313,8 +313,13 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #'   HTTP range request, and each object is fetched only when something touches
 #'   it. Output files are fetched either way, since downstream code reads them
 #'   through `outputs(sim)$file` and they are mostly needed. Requires an
-#'   archive with an index beside it (see [reIndex()]) and
+#'   archive with an index beside it (written by [tarIndex()], which [outTar()] calls) and
 #'   `method = "loadSimList"`.
+#' @param outputsPattern Optional regex, for `remote = TRUE` only. Only output
+#'   files whose basename matches it are fetched (the `simList` shell and its
+#'   manifest always are; objects stay remote). `NULL` (default) fetches every
+#'   output file. Use it to download, say, `"^(cohortData|pixelGroupMap)_year20"`
+#'   rather than a multi-GB set of outputs.
 #' @inheritParams reGet
 #' @inheritParams reUntar
 #' @inheritParams reLoad
@@ -332,7 +337,7 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #' @param pattern Optional regex. When supplied, `gFiles` is taken to be the
 #'   *folder* holding the archives and is listed with [outList()] using this
 #'   pattern, rather than being the archives themselves. Either way, the
-#'   `_index.rds` sidecars written by [reIndex()] are excluded.
+#'   `_index.rds` sidecars written by [tarIndex()] are excluded.
 #'
 #' @return A named list of `simList` objects, one per row of `gFiles`,
 #'   named by the archive's `name` (sans `.tar.gz`).
@@ -345,8 +350,11 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
                            parse = TRUE, remote = FALSE,
                            overwrite = FALSE, verbose = TRUE,
                            skipExisting = TRUE, useCache = FALSE,
-                           pattern = NULL) {
+                           pattern = NULL, outputsPattern = NULL) {
   method <- match.arg(method)
+  if (!is.null(outputsPattern) && !isTRUE(remote))
+    stop("outputsPattern is only used with remote = TRUE; a local download fetches the whole archive.",
+         call. = FALSE)
   gFiles <- .resolveGFiles(gFiles, pattern = pattern, verbose = verbose)
 
   ## Remote: never download the archive. Fetch the shell, the manifest and the
@@ -354,14 +362,16 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
   if (isTRUE(remote)) {
     if (!identical(method, "loadSimList"))
       stop("remote = TRUE requires method = 'loadSimList'.", call. = FALSE)
-    gf <- if (inherits(gFiles, "dribble")) gFiles else googledrive::as_id(as.character(gFiles))
-    nms <- if (inherits(gFiles, "dribble")) gFiles$name else rep(NA_character_, length(gf))
+    ## A bare id or URL is looked up, so the sims are named by the Drive file's name.
+    if (!inherits(gFiles, "dribble"))
+      gFiles <- do.call(rbind, lapply(as.character(gFiles), .driveFile))
+    nms <- gFiles$name
     t0 <- system.time(
       sims <- lapply(seq_along(nms), function(i) {
-        g <- if (inherits(gFiles, "dribble")) gFiles[i, ] else gf[[i]]
+        g <- gFiles[i, ]
         if (isTRUE(verbose)) message("remote: ", nms[[i]])
         .reLoadRemoteOne(g, pathRemap = pathRemap, projectPath = projectPath,
-                         parse = parse, verbose = verbose)
+                         parse = parse, verbose = verbose, outputsPattern = outputsPattern)
       })
     )
     names(sims) <- sub("\\.tar\\.gz$", "", nms)

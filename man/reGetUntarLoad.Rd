@@ -16,7 +16,8 @@ reGetUntarLoad(
   verbose = TRUE,
   skipExisting = TRUE,
   useCache = FALSE,
-  pattern = NULL
+  pattern = NULL,
+  outputsPattern = NULL
 )
 }
 \arguments{
@@ -54,7 +55,7 @@ manifest and the output files are fetched from within the remote archive by
 HTTP range request, and each object is fetched only when something touches
 it. Output files are fetched either way, since downstream code reads them
 through \code{outputs(sim)$file} and they are mostly needed. Requires an
-archive with an index beside it (see \code{\link[=reIndex]{reIndex()}}) and
+archive with an index beside it (written by \code{\link[=tarIndex]{tarIndex()}}, which \code{\link[=outTar]{outTar()}} calls) and
 \code{method = "loadSimList"}.}
 
 \item{overwrite}{Logical. Force re-download even if the local file
@@ -76,7 +77,13 @@ archive re-uploaded under the same id.}
 \item{pattern}{Optional regex. When supplied, \code{gFiles} is taken to be the
 \emph{folder} holding the archives and is listed with \code{\link[=outList]{outList()}} using this
 pattern, rather than being the archives themselves. Either way, the
-\verb{_index.rds} sidecars written by \code{\link[=reIndex]{reIndex()}} are excluded.}
+\verb{_index.rds} sidecars written by \code{\link[=tarIndex]{tarIndex()}} are excluded.}
+
+\item{outputsPattern}{Optional regex, for \code{remote = TRUE} only. Only output
+files whose basename matches it are fetched (the \code{simList} shell and its
+manifest always are; objects stay remote). \code{NULL} (default) fetches every
+output file. Use it to download, say, \code{"^(cohortData|pixelGroupMap)_year20"}
+rather than a multi-GB set of outputs.}
 }
 \value{
 A named list of \code{simList} objects, one per row of \code{gFiles},

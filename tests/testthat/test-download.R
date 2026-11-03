@@ -562,5 +562,5 @@ test_that(".resolveGFiles errors when nothing matches", {
 test_that(".resolveGFiles reports the sidecars it ignores", {
   d <- .fakeDribble(c("a_lazy.tar.gz", "a_lazy_index.rds"))
 
-  expect_message(.resolveGFiles(d, verbose = TRUE), "ignoring 1 reIndex")
+  expect_message(.resolveGFiles(d, verbose = TRUE), "ignoring 1 tarIndex")
 })
