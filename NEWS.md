@@ -1,5 +1,6 @@
 # SpaDES.project (development version)
 
+- New `projectLibrary(name)` returns the default project library `setupProject()` uses (`getOption("spades.packagePath", .libPathDefault(name))`), and `setupPaths()` calls it, so a run script can get that path before `setupProject()` has run.
 - `paths$packagePath` may be one string of several library paths separated by `;` (or `:` where that is `.Platform$path.sep`), as `R_LIBS` is; `setupPaths()` splits it into the ordered vector first, so a queue can carry a job's libraries as one value.
 - New `newDevLibrary()`, `currentDevLibrary()` and `sweepDevLibraries()`: an install builds a new dev library in `<stable>_dev/<id>` (the current one hardlinked, then the packages installed there) and a job runs on `setupProject(paths = list(packagePath = c(<dev>, <stable>)))`, so no install writes to a library a running job uses. A `packagePath` of several paths becomes `.libPaths()` as given, is not installed into, is not written to `.Rprofile`, and worker launchers take no library snapshot of it.
 

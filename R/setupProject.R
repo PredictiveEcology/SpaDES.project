@@ -1062,7 +1062,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   }
   #if (is.null(libPaths) || is.call(libPaths)) {
   if (is.null(paths[["packagePath"]])) {
-    paths[["packagePath"]] <- getOption("spades.packagePath", .libPathDefault(name))
+    paths[["packagePath"]] <- projectLibrary(name)
   }
   paths[["packagePath"]] <- splitPathList(paths[["packagePath"]])
 
@@ -4191,6 +4191,22 @@ extractModName <- function(modules) {
 }
 
 
+
+#' The project library `setupProject()` uses by default
+#'
+#' Returns `getOption("spades.packagePath", .libPathDefault(name))`, the library
+#' `setupPaths()` uses when `paths$packagePath` is not given. Use it in a run
+#' script that needs this path before `setupProject()` has run (e.g., as the stable
+#' base of a dev library); `.libPaths()[1]` is the personal library in a fresh
+#' project with no `.Rprofile` yet.
+#'
+#' @param name A text string, the project name. Default is the name of the
+#'   current working directory.
+#' @export
+#' @return A path.
+projectLibrary <- function(name = basename(getwd())) {
+  getOption("spades.packagePath", .libPathDefault(name))
+}
 
 msgNeedGitUserName <- function(gitUserNamePoss) {
   paste0("Please provide the github account if an organization, or press enter ",

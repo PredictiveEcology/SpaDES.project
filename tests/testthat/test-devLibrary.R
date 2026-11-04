@@ -171,6 +171,22 @@ test_that("splitPathList keeps a single path and drops empty pieces", {
   expect_identical(splitPathList("C:/a;D:/b"), c("C:/a", "D:/b"))
 })
 
+test_that("projectLibrary is the setupPaths default and honours spades.packagePath", {
+  setupTest()
+  prj <- withr::local_tempdir()
+  withr::local_dir(prj)
+  withr::local_libpaths(.libPaths())
+  withr::local_options(spades.packagePath = NULL)
+  expect_identical(projectLibrary("zzProj"), .libPathDefault("zzProj"))
+  expect_identical(projectLibrary(), .libPathDefault(basename(getwd())))
+  paths <- suppressWarnings(setupPaths(name = basename(prj), paths = list(projectPath = prj),
+                                       updateRprofile = FALSE, verbose = -2))
+  expect_identical(normalizePath(paths$packagePath), normalizePath(projectLibrary(basename(prj))))
+  opt <- file.path(prj, "optLib")
+  withr::local_options(spades.packagePath = opt)
+  expect_identical(projectLibrary("zzProj"), opt)
+})
+
 test_that("worker launchers take no library snapshot of a dev library", {
   stable <- mkStable()
   dev <- file.path(paste0(stable, "_dev"), "20261104-000000-abc")
