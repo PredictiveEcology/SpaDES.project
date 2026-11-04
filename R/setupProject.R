@@ -989,7 +989,9 @@ setupProject <- function(name, paths, modules, packages,
 #'                                                         the stable one; see [newDevLibrary()])
 #'                                                         become `.libPaths()` in that order; nothing
 #'                                                         is installed into them and they are not
-#'                                                         written to the `.Rprofile` \cr
+#'                                                         written to the `.Rprofile`. They may also be
+#'                                                         one string separated by `;` or, except on
+#'                                                         Windows, `:`, like `R_LIBS` \cr
 #' ------       \tab -----------                 \tab  -----         \cr
 #'              \tab *Module Level Paths*                 \tab \cr
 #' `cachePath`  \tab `file.path(projectPath, "cache")` \tab `options(reproducible.cachePath = cachePath)`\cr
@@ -1062,6 +1064,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   if (is.null(paths[["packagePath"]])) {
     paths[["packagePath"]] <- getOption("spades.packagePath", .libPathDefault(name))
   }
+  paths[["packagePath"]] <- splitPathList(paths[["packagePath"]])
 
   defaultsSPO <- spadesProjectOptions() # uses projectPath
   if (is.null(paths[["modulePath"]]))

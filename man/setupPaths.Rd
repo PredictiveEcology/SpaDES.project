@@ -205,7 +205,9 @@ Several paths (a job's dev library, then
 the stable one; see \code{\link[=newDevLibrary]{newDevLibrary()}})
 become \code{.libPaths()} in that order; nothing
 is installed into them and they are not
-written to the \code{.Rprofile} \cr
+written to the \code{.Rprofile}. They may also be
+one string separated by \verb{;} or, except on
+Windows, \code{:}, like \code{R_LIBS} \cr
 ------       \tab -----------                 \tab  -----         \cr
 \tab \emph{Module Level Paths}                 \tab \cr
 \code{cachePath}  \tab \code{file.path(projectPath, "cache")} \tab \code{options(reproducible.cachePath = cachePath)}\cr

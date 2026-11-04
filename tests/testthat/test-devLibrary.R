@@ -141,6 +141,36 @@ test_that("a vector packagePath becomes .libPaths() and is not written to .Rprof
   expect_identical(readLines(file.path(prj, ".Rprofile")), rprof)
 })
 
+test_that("packagePath given as one separated string equals the vector", {
+  setupTest()
+  stable <- mkStable()
+  dev <- file.path(paste0(stable, "_dev"), "20261104-000000-abc")
+  dir.create(dev, recursive = TRUE)
+  prj <- withr::local_tempdir()
+  rprof <- c("# project profile", "options(foo = 1)")
+  writeLines(rprof, file.path(prj, ".Rprofile"))
+  withr::local_dir(prj)
+  withr::local_libpaths(.libPaths())
+  seps <- c(";", if (.Platform$path.sep == ":") ":")
+  for (sep in seps) {
+    withr::local_libpaths(.libPaths())
+    paths <- suppressWarnings(setupPaths(
+      paths = list(projectPath = prj, packagePath = paste0(dev, sep, stable, sep),
+                   modulePath = "modules"),
+      updateRprofile = TRUE, verbose = -2))
+    expect_identical(normalizePath(.libPaths()), normalizePath(c(dev, stable, .Library)))
+    expect_identical(normalizePath(paths$packagePath), normalizePath(c(dev, stable)))
+    expect_identical(readLines(file.path(prj, ".Rprofile")), rprof)
+  }
+})
+
+test_that("splitPathList keeps a single path and drops empty pieces", {
+  expect_identical(splitPathList("a"), "a")
+  expect_identical(splitPathList(c("a", "b")), c("a", "b"))
+  expect_identical(splitPathList(";a;;b;"), c("a", "b"))
+  expect_identical(splitPathList("C:/a;D:/b"), c("C:/a", "D:/b"))
+})
+
 test_that("worker launchers take no library snapshot of a dev library", {
   stable <- mkStable()
   dev <- file.path(paste0(stable, "_dev"), "20261104-000000-abc")

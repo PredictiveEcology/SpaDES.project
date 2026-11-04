@@ -171,3 +171,18 @@ teardownProject <- function(x, origLibPaths) {
 #' @usage NULL
 #' @export
 .teardownProject <- teardownProject
+
+#' Split a string of paths into a vector, the way R reads `R_LIBS`
+#'
+#' Splits on `;` always, and on `.Platform$path.sep` where that is `:` (so never
+#' on Windows, where `:` is in drive letters). Empty pieces are dropped. A vector
+#' is split element by element.
+#' @param x Character vector of paths, each possibly several separated paths.
+#' @return A character vector of paths.
+#' @keywords internal
+splitPathList <- function(x) {
+  if (is.null(x)) return(x)
+  pattern <- if (.Platform$path.sep == ":") "[;:]" else ";"
+  pieces <- unlist(strsplit(x, pattern))
+  pieces[nzchar(pieces)]
+}
