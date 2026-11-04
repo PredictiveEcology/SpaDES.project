@@ -206,7 +206,8 @@ NULL
 #'   using `Rstudio` and the `paths$projectPath` is not the root of the current
 #'   Rstudio project, then a warning will be given, indicating the .Rprofile may not
 #'   be read upon restart. Default is `getOption("SpaDES.project.updateRprofile", TRUE)`,
-#'   i.e., `TRUE` unless that option is set.
+#'   i.e., `TRUE` unless that option is set. A `packagePath` of several paths is
+#'   never written to the `.Rprofile`, which every job of the project reads.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows). Default is
 #'   `getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)`, i.e., `TRUE` unless that
@@ -983,7 +984,12 @@ setupProject <- function(name, paths, modules, packages,
 #'                                                    \tab appends this path to `.libPaths(packagePath)`,
 #'                                                         unless `standAlone = TRUE`, in which case,
 #'                                                         it will set `.libPaths(packagePath,
-#'                                                         include.site = FALSE)` to this path \cr
+#'                                                         include.site = FALSE)` to this path.
+#'                                                         Several paths (a job's dev library, then
+#'                                                         the stable one; see [newDevLibrary()])
+#'                                                         become `.libPaths()` in that order; nothing
+#'                                                         is installed into them and they are not
+#'                                                         written to the `.Rprofile` \cr
 #' ------       \tab -----------                 \tab  -----         \cr
 #'              \tab *Module Level Paths*                 \tab \cr
 #' `cachePath`  \tab `file.path(projectPath, "cache")` \tab `options(reproducible.cachePath = cachePath)`\cr
@@ -1061,16 +1067,13 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   if (is.null(paths[["modulePath"]]))
     paths[["modulePath"]] <- basename(defaultsSPO$spades.modulePath) # "modules"
 
-  isAbs <- unlist(lapply(paths, isAbsolutePath))
-  toMakeAbsolute <- isAbs %in% FALSE & rep(names(paths), lengths(paths)) != "projectPath"
+  # One value per element of `paths`: an element may hold several paths (packagePath, modulePath).
+  # Flattened, the logical index no longer lined up with the list once any element had two.
+  toMakeAbsolute <- vapply(paths, function(p) !any(isAbsolutePath(p)), logical(1)) &
+    names(paths) != "projectPath"
   if (isTRUE(any(toMakeAbsolute))) {
     firstPart <- paste0("^", paths[["projectPath"]], "(/|\\\\)")
-    alreadyHasProjectPath <- unlist(lapply(paths[toMakeAbsolute], grepl, # value = TRUE,
-                                           pattern = firstPart))
-    if (isTRUE(any(alreadyHasProjectPath)))
-      paths[toMakeAbsolute][alreadyHasProjectPath] <-
-      gsub(firstPart, replacement = "", paths[toMakeAbsolute][alreadyHasProjectPath])
-
+    paths[toMakeAbsolute] <- lapply(paths[toMakeAbsolute], gsub, pattern = firstPart, replacement = "")
   }
   if (inProject) {
     paths[["projectPath"]] <- normPath(".") # checkPaths will make an absolute
@@ -1166,14 +1169,22 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     Require::setupOff(verbose = verbose)
   }
 
-  changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
-                        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
+  # Several libraries (a job's dev library, then the stable one; see ?devLibrary) become
+  # .libPaths() exactly as given, and are never written to the .Rprofile, which every job shares.
+  multiLib <- length(paths[["packagePath"]]) > 1L
+  changedLibPaths <- if (multiLib) {
+    !identical(normPath(.libPaths()[seq_along(paths[["packagePath"]])]), paths[["packagePath"]])
+  } else {
+    (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+       (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
+  }
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
   deps <- NULL
   if (isTRUE(changedLibPaths)) {
     # setupSpaDES.ProjectDeps() closes this under hard dependencies
     deps <- c("SpaDES.project", "Require")
-    needTryInstall <- TRUE
+    # setupSpaDES.ProjectDeps() copies into packagePath; libraries given as a vector may be in use
+    needTryInstall <- !multiLib
     # setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
     needSetLibPaths <- TRUE
   } else {
@@ -1184,8 +1195,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   prevLibPaths <- .libPaths()
   if (needSetLibPaths) {
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
-                                            updateRprofile = updateRprofile,
-                                            exact = FALSE, verbose = verbose))
+                                            updateRprofile = if (multiLib) FALSE else updateRprofile,
+                                            exact = multiLib, verbose = verbose))
     prevLibPaths <- if (verbose < 0) {
       out <- capture.output(type = "message", ret <- eval(setLPCall))
       ret
@@ -1212,7 +1223,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       # the just-completed setLibPaths above already wrote correctly.
       on.exit(Require::setLibPaths(prevLibPaths, updateRprofile = FALSE),
               add = TRUE)
-    paths[["packagePath"]] <- .libPaths()[1]
+    paths[["packagePath"]] <- .libPaths()[seq_along(paths[["packagePath"]])]
     if (isTRUE(needTryInstall))
       setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps,
                               prevLibPaths = prevLibPaths)
@@ -2170,11 +2181,18 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
                          verbose = verbose, verboseLevel = 3)
         }
 
+        # Several libraries (a job's dev library, then the stable one; see ?devLibrary): any of them
+        # may be in use by running jobs, so nothing is installed; newDevLibrary() makes a new one.
+        multiLib <- length(libPaths) > 1L
+        if (multiLib)
+          messageVerbose("packagePath is several libraries; not installing into any of them ",
+                         "(use newDevLibrary())", verbose = verbose)
         if (sum(nzchar(needToAssess))) {
           withCallingHandlers(
             out <-
               Require::Require(needToAssess, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                               standAlone = standAlone,
+                               standAlone = if (multiLib) FALSE else standAlone,
+                               install = if (multiLib) FALSE else getOption("Require.install", TRUE),
                                libPaths = libPaths,
                                verbose = verbose)
             , warning = function(w) {
@@ -2913,9 +2931,9 @@ setupGitIgnore <- function(paths, gitignore = getOption("SpaDES.project.gitignor
       # gitIgnoreInitials() already uses.
       pkgPrel <- as.character(fs::path_rel(pkgP, prjP))
       isPackagePathInside <- !startsWith(pkgPrel, "..")
-      if (isTRUE(isPackagePathInside)) {
+      # packagePath may be several libraries (?devLibrary)
+      for (pkgP in pkgPrel[isPackagePathInside]) {
         updatedPP <- TRUE
-        pkgP <- pkgPrel
         lineWithPkgPath <- which(gif == pkgP)
         insertLine <- if (length(lineWithPkgPath)) lineWithPkgPath[1] else length(gif) + 1
         gif[insertLine] <- file.path(pkgP, "*")
@@ -4262,17 +4280,17 @@ gitIgnoreInitials <- function(paths) {
               ".Rdata", ".RData", ".secret", ".secrets", ".Rprofile", ".Restart*")
     prjP <- paths[["projectPath"]]
     igs <- c("cachePath", "inputPath", "outputPath", "packagePath", "rasterPath", "terraPath", "scratchPath")
-    igs <- vapply(igs, FUN.VALUE = character(1), function(ig) {
+    # unlist(lapply()), not vapply(): packagePath may be several libraries (?devLibrary)
+    igs <- unlist(lapply(igs, function(ig) {
       igRel <- if (!is.null(paths[[ig]])) {
-        rel <- fs::path_rel(paths[[ig]], prjP)
-        if (startsWith(rel, ".."))
-          rel <- ""
+        rel <- as.character(fs::path_rel(paths[[ig]], prjP))
+        rel[startsWith(rel, "..")] <- ""
         rel
       } else {
         ig
       }
       igRel
-    })
+    }))
     igs <- igs[nzchar(igs)]
     igs <- c(igs, igs1)
   } else {

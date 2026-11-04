@@ -57,6 +57,7 @@ Suggests:
     knitr,
     leaflet,
     leafem,
+    pak,
     parallelly,
     pkgload,
     processx,
@@ -93,6 +94,7 @@ Collate:
     'as.data.table-simLists.R'
     'checkProject.R'
     'dataInventory.R'
+    'devLibrary.R'
     'diagnostics.R'
     'download.R'
     'environment.R'

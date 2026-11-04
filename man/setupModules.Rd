@@ -119,7 +119,8 @@ then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
 be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
-i.e., \code{TRUE} unless that option is set.}
+i.e., \code{TRUE} unless that option is set. A \code{packagePath} of several paths is
+never written to the \code{.Rprofile}, which every job of the project reads.}
 
 \item{...}{further named arguments that acts like \code{objects}, but a different
 way to specify them. These can be anything. The general use case
