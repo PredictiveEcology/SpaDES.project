@@ -57,6 +57,7 @@ Suggests:
     knitr,
     leaflet,
     leafem,
+    pak,
     parallelly,
     pkgload,
     processx,
