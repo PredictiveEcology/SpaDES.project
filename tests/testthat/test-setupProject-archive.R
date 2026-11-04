@@ -16,17 +16,22 @@ archiveLedger <- function(dir) {
 }
 
 ranModules <- function(...) data.frame(module = c(...), version = "1.0.0")
+## the saved simList shell stands in as a list; its "fetchOutputs" attribute is what simInit() gets
+archiveShell <- function() structure(list("shell"), fetchOutputs = function(files) files)
 
 test_that("archive$scenario chooses one ledger run; none or several stop, listing them", {
   skip_if_not_installed("sf")
   skip_if_not_installed("reproducible")
   d <- withr::local_tempdir()
   archiveLedger(d)
-  local_mocked_bindings(.archiveRanModules = function(run, destDir) ranModules("k1"))
+  local_mocked_bindings(.archiveShell = function(run, destDir) archiveShell(),
+                        .archiveRanModules = function(sim) ranModules("k1"))
 
   out <- .archiveRun(list(ledger = "runs.rds", scenario = list(ELF = "A", rep = 2)), destDir = d, verbose = 0)
   expect_identical(out$run$runName, "A_NRV_2")
   expect_identical(out$modules$module, "k1")
+  expect_identical(out$sim, archiveShell(), ignore_attr = TRUE)
+  expect_identical(out$fetch, attr(out$sim, "fetchOutputs"))
 
   expect_error(.archiveRun(list(ledger = "runs.rds", scenario = list(ELF = "A")), destDir = d, verbose = 0),
                "matches 2.*A_NRV_1.*A_NRV_2")
@@ -104,7 +109,8 @@ test_that("setupProject(archive = NULL) is unchanged; with an archive it returns
   expect_false("archive" %in% names(plain))
 
   archiveLedger(file.path(root, "inputs", "archive"))
-  local_mocked_bindings(.archiveRanModules = function(run, destDir) ranModules("k1", "k2"))
+  local_mocked_bindings(.archiveShell = function(run, destDir) archiveShell(),
+                        .archiveRanModules = function(sim) ranModules("k1", "k2"))
   out <- suppressMessages(setupProject(modules = c("par", "birds"), paths = paths,
                                        archive = list(ledger = "runs.rds", scenario = list(ELF = "B")),
                                        useGit = FALSE, updateRprofile = FALSE, verbose = -1))
@@ -112,4 +118,7 @@ test_that("setupProject(archive = NULL) is unchanged; with an archive it returns
   expect_identical(out$archive$run$runName, "B_NRV_1")
   expect_identical(out$archive$modules$module, c("k1", "k2"))
   expect_identical(out$archive$matched, "par")
+  ## what SpaDES.core::simInit(archive = ) replays from
+  expect_true(is.function(out$archive$fetch))
+  expect_false(is.null(out$archive$sim))
 })

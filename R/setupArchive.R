@@ -9,7 +9,9 @@
                                          destinationPath = destDir, key = "runName")
   rows <- reproducible::CacheGeoRead(ledger, area = NULL, verbose = verbose - 1)
   run <- .archiveSelectScenario(rows, archive$scenario, archive$ledger)
-  list(run = run, modules = .archiveRanModules(run, destDir))
+  sim <- .archiveShell(run, destDir)
+  ## `sim` and `fetch` are what SpaDES.core::simInit(archive = ) replays the run from
+  list(run = run, modules = .archiveRanModules(sim), sim = sim, fetch = attr(sim, "fetchOutputs"))
 }
 
 ## The one row of `rows` whose columns match every element of `scenario`; else an error
@@ -32,13 +34,18 @@
   rows[keep, ]
 }
 
-## The modules the archived run ran, with their versions, from its saved simList. Only the
-## simList shell and its manifest are fetched (no object, no output file: `outputsPattern`
-## matches no file name). A parent module is not in a simList, only its children.
-.archiveRanModules <- function(run, destDir) {
-  sim <- reGetUntarLoad(run$driveId, destDir = destDir, projectPath = destDir,
-                        pathRemap = c(old = run$outputPath, new = file.path(destDir, run$runName)),
-                        remote = TRUE, parse = FALSE, outputsPattern = "^$", verbose = FALSE)[[1]]
+## The archived run's saved simList. Only the simList shell and its manifest are fetched (no
+## object, no output file: `outputsPattern` matches no file name); its "fetchOutputs"
+## attribute fetches output files on request.
+.archiveShell <- function(run, destDir) {
+  reGetUntarLoad(run$driveId, destDir = destDir, projectPath = destDir,
+                 pathRemap = c(old = run$outputPath, new = file.path(destDir, run$runName)),
+                 remote = TRUE, parse = FALSE, outputsPattern = "^$", verbose = FALSE)[[1]]
+}
+
+## The modules the archived run ran, with their versions, from its saved simList. A parent
+## module is not in a simList, only its children.
+.archiveRanModules <- function(sim) {
   deps <- SpaDES.core::depends(sim)@dependencies
   data.frame(module = names(deps),
              version = vapply(deps, function(d) as.character(d@version), character(1)),

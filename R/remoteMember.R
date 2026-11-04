@@ -162,12 +162,14 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
 
   ## Objects: `fetch` is handed the path loadSimList expects; find the member
   ## with that basename among the sidecar entries and range-fetch it there.
-  sideNames <- idx$name[isSide]
-  fetch <- function(path) {
-    m <- sideNames[basename(sideNames) == basename(path)]
+  ## The output files not fetched above are fetched the same way, on request,
+  ## by the function in the simList's "fetchOutputs" attribute (simInit(archive = )).
+  fetchFrom <- function(members) function(path) {
+    m <- members[basename(members) == basename(path)]
     if (length(m) != 1L)
       stop("Cannot resolve '", basename(path), "' in the remote archive.", call. = FALSE)
     sz <- idx$size[idx$name == m][[1L]]
+    if (file.exists(path) && file.size(path) == sz) return(invisible(path))
     ## Announce BEFORE transferring: a promise forced deep inside other code
     ## otherwise looks like the session has hung. The object name is the one
     ## the user asked for, so they can see what they touched and how big it is.
@@ -182,10 +184,13 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
               .fmtBytes(sz / max(el, 1e-9)), "/s)")
     invisible(path)
   }
-  args <- list(shell, projectPath = projectPath, fetch = fetch)
+  args <- list(shell, projectPath = projectPath, fetch = fetchFrom(idx$name[isSide]))
   if ("parse" %in% names(formals(SpaDES.core::loadSimList)))
     args$parse <- parse
-  do.call(SpaDES.core::loadSimList, args)
+  sim <- do.call(SpaDES.core::loadSimList, args)
+  fetchOutput <- fetchFrom(idx$name[!isSide])
+  attr(sim, "fetchOutputs") <- function(files) vapply(files, fetchOutput, character(1), USE.NAMES = FALSE)
+  sim
 }
 
 .fmtBytes <- function(b) {

@@ -237,7 +237,11 @@ NULL
 #'   there, matched by name, or that is a parent all of whose descendants ran there, is not
 #'   fetched, its packages are not installed, and it is not in the returned `modules`. The
 #'   result gains an `archive` element: `run` (the ledger row), `modules` (the run's modules
-#'   and versions) and `matched` (those of `modules` taken from the archive). Default `NULL`.
+#'   and versions), `matched` (those of `modules` taken from the archive), `sim` (the run's
+#'   saved `simList` shell) and `fetch` (fetches output files of the run from the remote
+#'   archive). [SpaDES.core::simInit()] takes it as its `archive` argument and loads the
+#'   archived outputs the new modules expect, so `simInitAndSpades2(out)` replays the run.
+#'   Default `NULL`.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects, written as a
 #'   literal `list(...)` or as a variable holding one.
