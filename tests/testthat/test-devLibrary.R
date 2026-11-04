@@ -168,6 +168,7 @@ test_that("splitPathList keeps a single path and drops empty pieces", {
   expect_identical(splitPathList("a"), "a")
   expect_identical(splitPathList(c("a", "b")), c("a", "b"))
   expect_identical(splitPathList(";a;;b;"), c("a", "b"))
+  skip_if(.Platform$path.sep == ":", "drive letters only exist on Windows")
   expect_identical(splitPathList("C:/a;D:/b"), c("C:/a", "D:/b"))
 })
 
