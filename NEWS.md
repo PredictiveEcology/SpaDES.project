@@ -1,3 +1,7 @@
+# SpaDES.project (development version)
+
+- New `newDevLibrary()`, `currentDevLibrary()` and `sweepDevLibraries()`: an install builds a new dev library in `<stable>_dev/<id>` (the current one hardlinked, then the packages installed there) and a job runs on `setupProject(paths = list(packagePath = c(<dev>, <stable>)))`, so no install writes to a library a running job uses. A `packagePath` of several paths becomes `.libPaths()` as given, is not installed into, is not written to `.Rprofile`, and worker launchers take no library snapshot of it.
+
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
 - New `tarIndex()` writes `<runName>_index.rds` (member `name`, `offset`, `size`) beside an uncompressed tar by seeking from header to header, and `outTar()` calls it. Nothing wrote this file before, although `reIndex()` and `reGetUntarLoad(remote = TRUE)` need it. `outUpload()` now uploads it beside the tarball.
