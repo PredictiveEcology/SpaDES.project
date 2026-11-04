@@ -5,6 +5,7 @@
 
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 
+- New `setupProject(archive = list(ledger, remote, scenario))`: the same `modules` as an archived run can be given, and the modules that run already ran (matched by name, or a parent whose descendants all ran) are neither fetched nor have their packages installed; only the others are. The run is the one ledger row `scenario` matches, and its modules come from its saved `simList` shell (about 0.5 MB; no objects or outputs are fetched). The result gains an `archive` element (the run, its modules, the matched modules). The default `archive = NULL` changes nothing.
 - New `tarIndex()` writes `<runName>_index.rds` (member `name`, `offset`, `size`) beside an uncompressed tar by seeking from header to header, and `outTar()` calls it. Nothing wrote this file before, although `reIndex()` and `reGetUntarLoad(remote = TRUE)` need it. `outUpload()` now uploads it beside the tarball.
 - `reGetUntarLoad(remote = TRUE, outputsPattern = )` fetches only the output files whose name matches the regex, instead of all of them (about 2.4 GB of a 4.5 GB archive). The default `NULL` is unchanged.
 - `outSaveTarUpload(ledger = , area = , scenario = )` writes one row per uploaded archive to a `reproducible::CacheGeoLedger()` (key `runName`) after the upload succeeds, so archives can be found by study area. `outLedgerRow()` builds the same row for a backfill. The default `ledger = NULL` changes nothing.
