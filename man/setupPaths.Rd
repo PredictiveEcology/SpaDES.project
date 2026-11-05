@@ -51,8 +51,7 @@ then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
 be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
-i.e., \code{TRUE} unless that option is set. A \code{packagePath} of several paths is
-never written to the \code{.Rprofile}, which every job of the project reads.}
+i.e., \code{TRUE} unless that option is set.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
 and if the \code{projectPath} is not the current path, and the session is
@@ -200,12 +199,7 @@ open in the same Rstudio session, unless
 \code{packagePath}\tab \code{getOption("spades.packagePath", file.path(tools::R_user_dir("data"), name, "packages", version$platform, substr(getRversion(), 1, 3)))}
 \tab appends this path to \code{.libPaths(packagePath)},
 unless \code{standAlone = TRUE}, in which case,
-it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path.
-Several paths (a job's dev library, then
-the stable one; see \code{\link[=newDevLibrary]{newDevLibrary()}})
-become \code{.libPaths()} in that order; nothing
-is installed into them and they are not
-written to the \code{.Rprofile} \cr
+it will set \code{.libPaths(packagePath, include.site = FALSE)} to this path \cr
 ------       \tab -----------                 \tab  -----         \cr
 \tab \emph{Module Level Paths}                 \tab \cr
 \code{cachePath}  \tab \code{file.path(projectPath, "cache")} \tab \code{options(reproducible.cachePath = cachePath)}\cr

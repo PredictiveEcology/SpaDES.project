@@ -44,17 +44,19 @@ Exposed for tests.}
 }
 \value{
 \code{newDevLibrary()} and \code{currentDevLibrary()} return \verb{c(<dev>, stable)},
-or \code{stable} alone when there is no dev library yet: the value to give
-\code{setupProject(paths = list(packagePath = ))}. \code{sweepDevLibraries()} returns
+or \code{stable} alone when there is no dev library yet. \code{sweepDevLibraries()} returns
 the directories it removed, invisibly.
 }
 \description{
 The project library (\code{.libPathDefault(name)}, e.g. \verb{.../packages/<platform>/4.6})
 is the frozen \emph{stable} library: nothing installs into it. An update instead
 builds a new \emph{dev} library beside it, in \verb{<stable>_dev/<id>}, and each job is
-given the pair as its library path:
-\verb{setupProject(paths = list(packagePath = c(<dev>, <stable>)))}. A running job's
-libraries are therefore never written to.
+given the pair as its library path. The \verb{experiment*} launchers do this:
+\code{experimentTmux(devPackages = )}, \code{experimentSBATCH(devPackages = )} and
+\code{experimentFuture(devPackages = )} call \code{newDevLibrary()} once, before any worker
+starts, and start every worker with \verb{options(spades.packagePath = c(<dev>, <stable>), SpaDES.project.updateRprofile = FALSE)} and \verb{.libPaths(c(<dev>, <stable>))}, so the job's
+own \code{setupProject()} needs no \code{packagePath}. A running job's libraries are therefore
+never written to.
 \itemize{
 \item \code{newDevLibrary()} makes \verb{<devRoot>/<id>} (\code{id} is the UTC time,
 \code{yyyymmdd-HHMMSS}, and a short random suffix), hardlinks every package of the
@@ -73,9 +75,9 @@ is updated (written to a temporary file, then renamed).
 \dontrun{
 # before queueing jobs (no job reads a library this writes):
 libs <- newDevLibrary(c("PredictiveEcology/reproducible@development (>= 3.2.1.9063)"))
-# each job, in its own R session:
-setupProject(paths = list(packagePath = libs), ...)
-# later, keeping what the queue's pending and running rows name:
-sweepDevLibraries(keep = unique(queue$libPath))
+# or let the launcher do it, and start its workers on the result:
+experimentTmux(df, devPackages = "PredictiveEcology/reproducible@development (>= 3.2.1.9063)")
+# later, keeping the libraries that pending and running jobs name:
+sweepDevLibraries(keep = libs)
 }
 }

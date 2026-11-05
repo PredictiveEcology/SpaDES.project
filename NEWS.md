@@ -1,6 +1,7 @@
 # SpaDES.project (development version)
 
-- New `newDevLibrary()`, `currentDevLibrary()` and `sweepDevLibraries()`: an install builds a new dev library in `<stable>_dev/<id>` (the current one hardlinked, then the packages installed there) and a job runs on `setupProject(paths = list(packagePath = c(<dev>, <stable>)))`, so no install writes to a library a running job uses. A `packagePath` of several paths becomes `.libPaths()` as given, is not installed into, is not written to `.Rprofile`, and worker launchers take no library snapshot of it.
+- New `newDevLibrary()`, `currentDevLibrary()` and `sweepDevLibraries()`: an install builds a new dev library in `<stable>_dev/<id>` (the current one hardlinked, then the packages installed there), so no install writes to a library a running job uses. `experimentTmux()`, `experimentSBATCH()` and `experimentFuture()` take `devPackages` (and `devInstallFun`): the launcher builds the dev library before any worker starts and starts every worker with `options(spades.packagePath = c(<dev>, <stable>), SpaDES.project.updateRprofile = FALSE)` and `.libPaths(c(<dev>, <stable>))`, so the job script knows nothing of it and no library snapshot is taken.
+- `setupProject()` with `SPADES_USE_REQUIRE=false` (a worker) no longer copies SpaDES.project and Require into `paths$packagePath`, and uses the libraries as given, without appending the R version. A `packagePath` of two paths again means what it did before 1.2.0.9030: it goes whole to `Require::setLibPaths()`, is written to the `.Rprofile`, and `paths$packagePath` is the first path. A dev library's id no longer repeats within a second (its random part was the process id).
 
 Known issues: <https://github.com/PredictiveEcology/SpaDES.project/issues>
 

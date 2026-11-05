@@ -791,6 +791,7 @@ tmuxSetMouse <- function(on = TRUE) {
 #'   hardlinked snapshot of the project library before loading anything from it,
 #'   so an install into the shared library cannot corrupt a running job. See
 #'   [librarySnapshot].
+#' @inheritParams .workerDevLibrary
 experimentTmux <- function(df,
                            global_path = "global.R",
                            cores = NULL,
@@ -823,6 +824,8 @@ experimentTmux <- function(df,
                            copyModules = FALSE,
                            sync_library = NULL,
                            snapshot_library = TRUE,
+                           devPackages = NULL,
+                           devInstallFun = NULL,
                            ...) {
   
   # -- dependency check
@@ -833,6 +836,10 @@ experimentTmux <- function(df,
   # -- shared library: sync once now, with no worker alive, never per job
   if (!is.null(sync_library))
     syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
+
+  # -- dev library: built once, now, with no worker alive; it is not written to, so no snapshot
+  dev_library <- .workerDevLibrary(devPackages, devInstallFun)
+  if (!is.null(dev_library)) snapshot_library <- FALSE
 
   # -- warn if any cores are remote and local tmux is not in a systemd scope.
   # Without a scope, a local logout / session end can SIGHUP the tmux server and
@@ -1351,6 +1358,7 @@ experimentTmux <- function(df,
         dots_path         = if (file.exists(dots_path)) dp else NULL,
         lib_path          = .libPaths(),
         snapshot_library  = snapshot_library,
+        dev_library       = dev_library,
         n_workers_on_host = workersOnHost[i]
       )
 
@@ -1540,7 +1548,7 @@ experimentTmux <- function(df,
       pane_mode = pane_mode, email = email,
       cache_path = .normalizeCachePath(cache_path),
       dots_path = if (file.exists(dots_path)) dots_path else NULL,
-      lib_path = .libPaths(), n_workers_on_host = workersOnHost[1L]
+      lib_path = .libPaths(), dev_library = dev_library, n_workers_on_host = workersOnHost[1L]
     )
     code <- sprintf("Sys.sleep(%s); %s", pre_sleep, payload)
     message("running:\n")
@@ -1938,6 +1946,9 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #'   session takes a hardlinked snapshot of the project library before loading
 #'   anything from it (see [librarySnapshot]). This session's own snapshot, if the
 #'   startup script made one, is released when R exits.
+#' @param dev_library `NULL`, or `c(<dev>, <stable>)` when the launcher was given
+#'   `devPackages`. Forwarded to replacement panes, which start with the same options
+#'   and `.libPaths()`.
 #' @param n_workers_on_host Number of workers the launcher runs on this host. This
 #'   session's GDAL block cache is capped at its share of the host's RAM, and terra
 #'   results go to disk, unless the user set these; see `.workerResourceDefaults()`.
@@ -1960,6 +1971,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           cache_path = getOption("gargle_oauth_cache"),
                           dots_path = NULL,
                           snapshot_library = TRUE,
+                          dev_library = NULL,
                           n_workers_on_host = 1L,
                           exitOnError = FALSE) {
   on_interrupt <- match.arg(on_interrupt)
@@ -2036,6 +2048,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    dots_path         = dots_path,
                    lib_path          = .libPaths(),
                    snapshot_library  = snapshot_library,
+                   dev_library       = dev_library,
                    n_workers_on_host = n_workers_on_host
                  ), .respawn_script, file.path(.libPaths()[1L], ".spades_github_pat"))
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
@@ -2266,7 +2279,7 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths(), snapshot_library = TRUE,
-                                  on_error = "stop", n_workers_on_host = 1L) {
+                                  dev_library = NULL, on_error = "stop", n_workers_on_host = 1L) {
   # Ensure project lib is first so correct package versions are loaded
   ## The worker starts a fresh R and must be able to load SpaDES.project, so it
   ## needs the whole library search path, not just its first entry. Under covr /
@@ -2291,6 +2304,7 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   # running job (see ?librarySnapshot).
   snap_pre <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
     .librarySnapshotCode(lib_path[1L], activeRunningPath) else ""
+  dev_pre <- .devLibraryStartup(dev_library)
   # setwd so Rscript -e "..." launched from ~ finds relative-to-project files
   wd      <- dirname(normalizePath(queue_path, mustWork = FALSE))
   wd_pre  <- sprintf("setwd(%s); ", deparse1(wd))
@@ -2299,16 +2313,16 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
             deparse1(dots_path), deparse1(dots_path))
   else ""
   sprintf(
-    paste0("%s%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
+    paste0("%s%s%s%s%sSpaDES.project::tmuxRunWorkerLoop(",
            "queue_path=%s, global_path=%s, on_interrupt=%s, on_error=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
            " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s,",
-           " n_workers_on_host=%s)"),
-    lib_pre, snap_pre, wd_pre, dots_pre,
+           " dev_library=%s, n_workers_on_host=%s)"),
+    lib_pre, snap_pre, dev_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt), deparse1(on_error),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path),
-    deparse1(isTRUE(snapshot_library)), deparse1(as.integer(n_workers_on_host))
+    deparse1(isTRUE(snapshot_library)), deparse1(dev_library), deparse1(as.integer(n_workers_on_host))
   )
 }
 

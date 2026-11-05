@@ -121,54 +121,96 @@ test_that("sweepDevLibraries removes dev libraries not kept, never the current o
   expect_identical(currentDevLibrary(stable, devRoot), d3)
 })
 
-test_that("a vector packagePath becomes .libPaths() and is not written to .Rprofile", {
-  setupTest()
-  stable <- mkStable()
+## A dev library as newDevLibrary() makes it, without installing anything into it
+mkDevDir <- function(stable, envir = parent.frame()) {
   dev <- file.path(paste0(stable, "_dev"), "20261104-000000-abc")
   dir.create(dev, recursive = TRUE)
-  writeLines(stable, file.path(dev, ".devLibrary_of"))
+  dev
+}
+filesIn <- function(...) sort(list.files(c(...), recursive = TRUE, all.files = TRUE, full.names = TRUE))
+
+test_that("a packagePath of two paths is written to .Rprofile and paths$packagePath is the first one", {
+  setupTest()
+  stable <- mkStable()
+  dev <- mkDevDir(stable)
   prj <- withr::local_tempdir()
-  rprof <- c("# project profile", "options(foo = 1)")
-  writeLines(rprof, file.path(prj, ".Rprofile"))
+  writeLines("# project profile", file.path(prj, ".Rprofile"))
   withr::local_dir(prj)
   withr::local_libpaths(.libPaths())
   paths <- suppressWarnings(setupPaths(paths = list(projectPath = prj, packagePath = c(dev, stable),
                                                     modulePath = "modules"),
                                        updateRprofile = TRUE, verbose = -2))
-  expect_identical(normalizePath(.libPaths()), normalizePath(c(dev, stable, .Library)))
-  expect_identical(normalizePath(paths$packagePath), normalizePath(c(dev, stable)))
-  expect_identical(normalizePath(paths$modulePath), normalizePath(file.path(prj, "modules")))
-  expect_identical(readLines(file.path(prj, ".Rprofile")), rprof)
+  expect_true(any(grepl("setLibPaths", readLines(file.path(prj, ".Rprofile")))))
+  expect_identical(normalizePath(paths$packagePath), normalizePath(dev))
 })
 
-test_that("worker launchers take no library snapshot of a dev library", {
+test_that("a worker's spades.packagePath is its .libPaths(); nothing is written to the libraries or .Rprofile", {
+  setupTest()
   stable <- mkStable()
-  dev <- file.path(paste0(stable, "_dev"), "20261104-000000-abc")
-  dir.create(dev, recursive = TRUE)
-  writeLines(stable, file.path(dev, ".devLibrary_of"))
-  mk <- function(lib) SpaDES.project:::.build_worker_r_expr(
+  dev <- mkDevDir(stable)
+  prj <- withr::local_tempdir()
+  rprof <- c("# project profile", "options(foo = 1)")
+  writeLines(rprof, file.path(prj, ".Rprofile"))
+  withr::local_dir(prj)
+  withr::local_libpaths(.libPaths())
+  ## what the launcher's worker start-up lines set (.devLibraryStartup()), and the worker's environment
+  withr::local_options(spades.packagePath = c(dev, stable), SpaDES.project.updateRprofile = FALSE,
+                       spades.useRequire = NULL)
+  withr::local_envvar(SPADES_USE_REQUIRE = "false")
+  before <- filesIn(dev, stable)
+  paths <- suppressWarnings(setupPaths(paths = list(projectPath = prj, modulePath = "modules"), verbose = -2))
+  expect_identical(normalizePath(.libPaths()[1:2]), normalizePath(c(dev, stable)))
+  expect_identical(normalizePath(paths$packagePath), normalizePath(dev))
+  expect_identical(readLines(file.path(prj, ".Rprofile")), rprof)
+  expect_identical(filesIn(dev, stable), before)
+})
+
+test_that("worker start-up lines carry the dev library: options and .libPaths()", {
+  stable <- mkStable()
+  dev <- mkDevDir(stable)
+  libs <- c(dev, stable)
+  expect_identical(SpaDES.project:::.devLibraryStartup(NULL), "")
+  expect_identical(SpaDES.project:::.devLibraryStartup(stable), "")
+  code <- SpaDES.project:::.devLibraryStartup(libs)
+  withr::local_libpaths(.libPaths())
+  withr::local_options(spades.packagePath = NULL, SpaDES.project.updateRprofile = NULL)
+  eval(parse(text = code))
+  expect_identical(getOption("spades.packagePath"), libs)
+  expect_false(getOption("SpaDES.project.updateRprofile"))
+  expect_identical(normalizePath(.libPaths()[1:2]), normalizePath(libs))
+
+  ## tmux: first start and respawn go through .build_worker_r_expr()
+  mk <- function(...) SpaDES.project:::.build_worker_r_expr(
     queue_path = "q.rds", global_path = "global.R", on_interrupt = "requeue",
     runNameLabel = quote(colnames(q)[1]), activeRunningPath = "logs/q",
     ss_id = NULL, pane_mode = "killAndNewPane", email = NULL, cache_path = NULL,
-    dots_path = NULL, lib_path = lib, snapshot_library = TRUE)
-  expect_false(grepl(".snapBase", mk(c(dev, stable)), fixed = TRUE))
-  expect_true(grepl(".snapBase", mk(stable), fixed = TRUE))
+    dots_path = NULL, ...)
+  expect_true(grepl("spades.packagePath", mk(dev_library = libs, snapshot_library = FALSE), fixed = TRUE))
+  expect_false(grepl("spades.packagePath", mk(), fixed = TRUE))
+  expect_true(grepl("dev_library", mk(dev_library = libs), fixed = TRUE)) # so a respawned pane has it too
 })
 
-test_that("setupPackages installs into no library when packagePath is several", {
-  seen <- list()
-  testthat::local_mocked_bindings(
-    Require = function(packages, ...) { seen[[length(seen) + 1L]] <<- list(...); seq_along(packages) },
-    .package = "Require")
-  withr::local_options(spades.useRequire = TRUE, spades.useRequireOverride = NULL,
-                       SpaDES.project.skipIdenticalRequire = FALSE)
-  sp <- function(libPaths) setupPackages("tinyA", modulePackages = list(), require = list(), paths = list(),
-                                         libPaths = libPaths, standAlone = TRUE, setLinuxBinaryRepo = FALSE,
-                                         envir = new.env(), callingEnv = new.env(), verbose = -1)
-  sp(c("/dev", "/stable"))
-  expect_false(seen[[1]]$install)
-  expect_false(seen[[1]]$standAlone)
-  sp("/stable")                      # one library: as before
-  expect_identical(seen[[2]]$install, getOption("Require.install", TRUE))
-  expect_true(seen[[2]]$standAlone)
+test_that("a launcher with devPackages builds a new dev library and its sbatch scripts carry it", {
+  skip_if_not_installed("callr")
+  skip_on_os("windows")
+  stable <- mkStable()
+  withr::local_libpaths(c(stable, .libPaths()))
+  td <- withr::local_tempdir()
+  g <- file.path(td, "global.R"); writeLines("invisible(NULL)", g)
+  df <- data.frame(.ELFind = "job1", .rep = 1L, check.names = FALSE)
+  go <- function(...) suppressMessages(experimentSBATCH(
+    df = df, global_path = g, n_workers = 1L, queue_path = file.path(td, "q.rds"),
+    log_dir = file.path(td, "logs"), dry_run = TRUE, ...))
+
+  es <- go()  # no devPackages: as before
+  expect_false(grepl("spades.packagePath", paste(readLines(unlist(es$job_scripts)[[1]]), collapse = "\n")))
+  expect_false(dir.exists(paste0(stable, "_dev")))
+
+  es <- go(devPackages = mkTinyPkg("tinyA", "1.0.0"), devInstallFun = installTiny)
+  dev <- currentDevLibrary(stable)
+  expect_length(dev, 2L)
+  expect_true(dir.exists(file.path(dev[1], "tinyA")))
+  expect_false(dir.exists(file.path(stable, "tinyA")))
+  body <- paste(readLines(unlist(es$job_scripts)[[1]]), collapse = "\n")
+  expect_true(grepl(SpaDES.project:::.devLibraryStartup(dev), body, fixed = TRUE))
 })

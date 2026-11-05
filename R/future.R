@@ -180,6 +180,7 @@
 #'   hardlinked snapshot of the project library before loading anything from it,
 #'   so an install into the shared library cannot corrupt a running job. See
 #'   [librarySnapshot].
+#' @inheritParams .workerDevLibrary
 experimentFuture <- function(
   df,
   global_path       = "global.R",
@@ -200,6 +201,8 @@ experimentFuture <- function(
   copyModules       = FALSE,
   sync_library = NULL,
   snapshot_library = TRUE,
+  devPackages = NULL,
+  devInstallFun = NULL,
   ...
 ) {
 
@@ -383,6 +386,11 @@ experimentFuture <- function(
 
   if (!is.null(sync_library))
     syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
+  if (!is.null(devPackages) && !is_local)
+    stop("devPackages: the dev library is built on this host; workers on other hosts (`cores`) cannot use it",
+         call. = FALSE)
+  dev_library <- .workerDevLibrary(devPackages, devInstallFun) # built now, before any worker; not written to
+  if (!is.null(dev_library)) snapshot_library <- FALSE
   snap_code <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
     .librarySnapshotCode(.libPaths()[1L], activeRunningPath) else ""
 
@@ -393,8 +401,9 @@ experimentFuture <- function(
       procs[[i]] <- callr::r_bg(
         func = function(queue_path, global_path, on_interrupt, on_error, ss_id,
                         email, cache_path, runNameLabel, activeRunningPath,
-                        dots_path, stop_file, lib_paths, snap_code, n_workers_on_host) {
+                        dots_path, stop_file, lib_paths, snap_code, dev_code, n_workers_on_host) {
           .libPaths(lib_paths)
+          if (nzchar(dev_code)) eval(parse(text = dev_code))
           # hardlinked per-job library, before anything is loaded from it
           if (nzchar(snap_code)) eval(parse(text = snap_code))
           SpaDES.project::tmuxRunWorkerLoop(
@@ -414,7 +423,7 @@ experimentFuture <- function(
           )
         },
         args    = c(worker_args, list(stop_file = stop_files[[i]], lib_paths = .libPaths(),
-                                      snap_code = snap_code,
+                                      snap_code = snap_code, dev_code = .devLibraryStartup(dev_library),
                                       n_workers_on_host = workersOnHost[[i]])),
         stdout  = log_files[[i]],
         stderr  = log_files[[i]],

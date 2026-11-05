@@ -34,6 +34,8 @@ experimentTmux(
   copyModules = FALSE,
   sync_library = NULL,
   snapshot_library = TRUE,
+  devPackages = NULL,
+  devInstallFun = NULL,
   ...
 )
 }
@@ -135,6 +137,15 @@ worker starts. Never sync per job.}
 hardlinked snapshot of the project library before loading anything from it,
 so an install into the shared library cannot corrupt a running job. See
 \link{librarySnapshot}.}
+
+\item{devPackages}{\code{NULL} (default: no dev library) or a character vector of package
+specifications as for \code{newDevLibrary(packages = )}. If given, the launcher builds a new dev
+library with them, in the project library's \verb{<stable>_dev} folder, before any worker starts. Every
+worker then starts with \verb{options(spades.packagePath = c(<dev>, <stable>), SpaDES.project.updateRprofile = FALSE)} and \verb{.libPaths(c(<dev>, <stable>))}, so the job's own
+\code{setupProject()} needs no \code{packagePath}, installs nothing and leaves the \code{.Rprofile} alone. No
+library snapshot is taken (\code{snapshot_library} is ignored): the libraries are not written to.}
+
+\item{devInstallFun}{\code{NULL} (default) or the \code{installFun} of \code{\link[=newDevLibrary]{newDevLibrary()}}.}
 
 \item{...}{Additional arguments passed to \code{.setup_remote_machine()}.}
 }
