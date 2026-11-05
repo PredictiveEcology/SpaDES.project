@@ -16,8 +16,11 @@ alreadyRunLedger <- function(dir) {
 }
 
 ranModules <- function(...) data.frame(module = c(...), version = "1.0.0")
-## the saved simList shell stands in as a list; its "fetchOutputs" attribute is what simInit() gets
-alreadyRunShell <- function() structure(list("shell"), fetchOutputs = function(files) files)
+## the saved simList shell stands in as a list, with the parent map SpaDES.core's simInit()
+## records; its "fetchOutputs" attribute is what simInit() gets
+alreadyRunShell <- function()
+  structure(list(shell = "shell", ._modulesGiven = list(parents = list(top = "mid", mid = c("k1", "k2")))),
+            fetchOutputs = function(files) files)
 
 test_that("alreadyRun$scenario chooses one ledger run; none or several stop, listing them", {
   skip_if_not_installed("sf")
@@ -32,6 +35,7 @@ test_that("alreadyRun$scenario chooses one ledger run; none or several stop, lis
   expect_identical(out$modules$module, "k1")
   expect_identical(out$sim, alreadyRunShell(), ignore_attr = TRUE)
   expect_identical(out$fetch, attr(out$sim, "fetchOutputs"))
+  expect_identical(out$parents, list(top = "mid", mid = c("k1", "k2")))
 
   expect_error(.alreadyRunRead(list(ledger = "runs.rds", scenario = list(ELF = "A")), destDir = d, verbose = 0),
                "matches 2.*A_NRV_1.*A_NRV_2")
@@ -90,6 +94,31 @@ test_that("a parent not held locally is judged from its .R file, fetched outside
   expect_identical(attr(pkgs, "alreadyRun"), "Acct/top@dev")
   expect_identical(asked$files, c("Acct/top@dev/top.R", "Acct/mid@dev/mid.R"))
   expect_identical(dir(mp), "birds")
+})
+
+test_that("a parent not held locally is judged from the run's record of its children, not fetched", {
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "modules")
+  diWriteModule(mp, "birds")
+  local_mocked_bindings(
+    getGithubFile = function(gitRepoFile, ...) stop("fetched ", gitRepoFile),
+    downloadGHRepoOuter = function(modToDL, ...) stop("fetched ", modToDL))
+  arch <- list(run = data.frame(runName = "r1"), modules = ranModules("k1", "k2"),
+               parents = alreadyRunShell()$._modulesGiven$parents)
+
+  pkgs <- setupModules(paths = list(modulePath = mp, projectPath = root),
+                       modules = c("Acct/top@dev", "birds"), inProject = TRUE,
+                       useGit = FALSE, updateRprofile = FALSE, verbose = -1, alreadyRun = arch)
+  expect_identical(names(pkgs), "birds")
+  expect_identical(attr(pkgs, "alreadyRun"), "Acct/top@dev")
+  expect_identical(dir(mp), "birds")
+
+  ## a parent the record does not name is still fetched (a run saved before the record)
+  arch$parents <- list(other = "k1")
+  expect_error(setupModules(paths = list(modulePath = mp, projectPath = root),
+                            modules = c("Acct/top@dev", "birds"), inProject = TRUE,
+                            useGit = FALSE, updateRprofile = FALSE, verbose = -1, alreadyRun = arch),
+               "fetched Acct/top@dev/top.R")
 })
 
 test_that("setupProject(alreadyRun = NULL) is unchanged; with a run already done it returns the run and the rest", {

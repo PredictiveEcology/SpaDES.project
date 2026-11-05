@@ -146,11 +146,13 @@ saved \code{simList} shell is read (not its objects or outputs) for the modules 
 \code{modules} that ran there, matched by name, or that is a parent all of whose descendants
 ran there, is not fetched, its packages are not installed, and it is not in the returned
 \code{modules}. The result gains an \code{alreadyRun} element: \code{run} (the ledger row), \code{modules}
-(the run's modules and versions), \code{matched} (those of \code{modules} taken from the run),
-\code{sim} (the run's saved \code{simList} shell) and \code{fetch} (fetches output files of the run from
-the remote archive). \code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}} takes it as its \code{alreadyRun} argument and
-loads the saved outputs the new modules expect, so \code{simInitAndSpades2(out)} replays the
-run. Default \code{NULL}.}
+(the run's modules and versions), \code{parents} (each parent module's children, as the run
+recorded them; \code{NULL} for a run saved before SpaDES.core recorded them), \code{matched}
+(those of \code{modules} taken from the run), \code{sim} (the run's saved \code{simList} shell) and
+\code{fetch} (fetches output files of the run from the remote archive).
+\code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}} takes it as its \code{alreadyRun} argument and loads the saved
+outputs the new modules expect, so \code{simInitAndSpades2(out)} replays the run. Default
+\code{NULL}.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
 and if the \code{projectPath} is not the current path, and the session is

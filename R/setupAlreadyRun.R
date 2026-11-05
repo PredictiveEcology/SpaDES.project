@@ -10,8 +10,11 @@
   rows <- reproducible::CacheGeoRead(ledger, area = NULL, verbose = verbose - 1)
   run <- .alreadyRunScenario(rows, alreadyRun$scenario, alreadyRun$ledger)
   sim <- .alreadyRunShell(run, destDir)
-  ## `sim` and `fetch` are what SpaDES.core::simInit(alreadyRun = ) replays the run from
-  list(run = run, modules = .alreadyRunModules(sim), sim = sim, fetch = attr(sim, "fetchOutputs"))
+  ## `sim` and `fetch` are what SpaDES.core::simInit(alreadyRun = ) replays the run from.
+  ## `parents`: each parent module's children, as SpaDES.core's simInit() recorded them in
+  ## sim$._modulesGiven; NULL for a run saved before it did.
+  list(run = run, modules = .alreadyRunModules(sim), parents = sim$._modulesGiven$parents,
+       sim = sim, fetch = attr(sim, "fetchOutputs"))
 }
 
 ## The one row of `rows` whose columns match every element of `scenario`; else an error
@@ -53,26 +56,33 @@
 }
 
 ## Which of `modules` the run already ran: a module by name (versions are not
-## compared), a parent when every module below it was. A parent's `childModules` are read from
-## its local copy, else from its own .R file fetched from GitHub into `scratch`, never into
-## `modulePath`.
-.isAlreadyRunModule <- function(module, ran, modulePath, scratch, seen = character()) {
+## compared), a parent when every module below it was. A parent's children are read from its
+## local copy; else from `parents`, the run's own record of them; else from the parent's .R
+## file fetched from GitHub into `scratch`, never into `modulePath`.
+.isAlreadyRunModule <- function(module, ran, modulePath, scratch, parents = NULL, seen = character()) {
   name <- extractModName(module)
   if (name %in% ran) return(TRUE)
   if (name %in% seen) return(FALSE)
-  mp <- modulePath
-  if (!dir.exists(file.path(whichModulePath(name, modulePath), name))) {
-    if (!isGitHub(module) || nzchar(fileRelPathFromFullGHpath(module))) return(FALSE)
-    mp <- scratch
-    spec <- trimVersionNumber(module)
-    if (!grepl("@", spec)) spec <- paste0(spec, "@HEAD")
-    getGithubFile(paste0(spec, "/", name, ".R"), destDir = file.path(scratch, name),
-                  overwrite = TRUE, verbose = -1)
+  isLocal <- dir.exists(file.path(whichModulePath(name, modulePath), name))
+  if (!isLocal && name %in% names(parents)) {
+    kids <- parents[[name]]
+    versions <- NULL
+  } else {
+    mp <- modulePath
+    if (!isLocal) {
+      if (!isGitHub(module) || nzchar(fileRelPathFromFullGHpath(module))) return(FALSE)
+      mp <- scratch
+      spec <- trimVersionNumber(module)
+      if (!grepl("@", spec)) spec <- paste0(spec, "@HEAD")
+      getGithubFile(paste0(spec, "/", name, ".R"), destDir = file.path(scratch, name),
+                    overwrite = TRUE, verbose = -1)
+    }
+    kids <- .childModuleEntries(name, mp)
+    versions <- .moduleVersions(name, mp)
   }
-  kids <- .childModuleEntries(name, mp)
   if (!length(kids)) return(FALSE)
   kids <- vapply(kids, .childModuleSpec, character(1), parent = module,
-                 versions = .moduleVersions(name, mp), USE.NAMES = FALSE)
+                 versions = versions, USE.NAMES = FALSE)
   all(vapply(kids, .isAlreadyRunModule, logical(1), ran = ran, modulePath = modulePath,
-             scratch = scratch, seen = c(seen, name)))
+             scratch = scratch, parents = parents, seen = c(seen, name)))
 }

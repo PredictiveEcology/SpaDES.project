@@ -237,11 +237,13 @@ NULL
 #'   `modules` that ran there, matched by name, or that is a parent all of whose descendants
 #'   ran there, is not fetched, its packages are not installed, and it is not in the returned
 #'   `modules`. The result gains an `alreadyRun` element: `run` (the ledger row), `modules`
-#'   (the run's modules and versions), `matched` (those of `modules` taken from the run),
-#'   `sim` (the run's saved `simList` shell) and `fetch` (fetches output files of the run from
-#'   the remote archive). [SpaDES.core::simInit()] takes it as its `alreadyRun` argument and
-#'   loads the saved outputs the new modules expect, so `simInitAndSpades2(out)` replays the
-#'   run. Default `NULL`.
+#'   (the run's modules and versions), `parents` (each parent module's children, as the run
+#'   recorded them; `NULL` for a run saved before SpaDES.core recorded them), `matched`
+#'   (those of `modules` taken from the run), `sim` (the run's saved `simList` shell) and
+#'   `fetch` (fetches output files of the run from the remote archive).
+#'   [SpaDES.core::simInit()] takes it as its `alreadyRun` argument and loads the saved
+#'   outputs the new modules expect, so `simInitAndSpades2(out)` replays the run. Default
+#'   `NULL`.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects, written as a
 #'   literal `list(...)` or as a variable holding one.
@@ -1705,9 +1707,12 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' @param gitUserName The GitHub account name. Used with git clone git@github.com:*gitHuserName*/name
 #' @param alreadyRun `NULL` (default), or the run already done that [setupProject()] read for
 #'   its own `alreadyRun` argument: `list(run = <ledger row>, modules = data.frame(module,
-#'   version))`. The `modules` it ran (by name), and parents all of whose descendants it ran,
-#'   are not fetched and have no entry in the result, which then has an attribute
-#'   `"alreadyRun"` naming them.
+#'   version), parents = <optional list of each parent module's children>)`. The `modules` it
+#'   ran (by name), and parents all of whose descendants it ran, are not fetched and have no
+#'   entry in the result, which then has an attribute `"alreadyRun"` naming them. A parent
+#'   not held locally is judged from `parents` (the run's record, kept by
+#'   `SpaDES.core::simInit()` in `sim$._modulesGiven`) when it names that parent, else from
+#'   its .R file fetched from GitHub.
 #'
 #' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
@@ -1761,7 +1766,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     if (!is.null(alreadyRun)) {
       isRan <- vapply(modules, .isAlreadyRunModule, logical(1), ran = alreadyRun$modules$module,
-                      modulePath = paths[["modulePath"]],
+                      modulePath = paths[["modulePath"]], parents = alreadyRun$parents,
                       scratch = file.path(tempdir(), "alreadyRunParents"), USE.NAMES = FALSE)
       alreadyRunMods <- unname(modules[isRan])
       modules <- modules[!isRan]
