@@ -177,3 +177,17 @@ test_that("a bare Drive id works with remote = TRUE and names the result by the 
   sims <- suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm))
   expect_identical(names(sims), "run")
 })
+
+test_that("the simList's fetchOutputs fetches only the output files asked for", {
+  fetched <- .mockRemote()
+  rm <- c(old = "/o", new = withr::local_tempdir())
+  sim <- suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm,
+                                         outputsPattern = "^$"))[[1]]
+  expect_setequal(fetched$m, c("o/run.rds", "o/run_lazy/_manifest.rds"))
+  want <- file.path(rm[["new"]], c("cohortData_year2030.rds", "pixelGroupMap_year2020.tif"))
+  got <- suppressMessages(attr(sim, "fetchOutputs")(want))
+  expect_identical(got, want)
+  expect_setequal(fetched$m, c("o/run.rds", "o/run_lazy/_manifest.rds",
+                               "o/cohortData_year2030.rds", "o/pixelGroupMap_year2020.tif"))
+  expect_error(attr(sim, "fetchOutputs")(file.path(rm[["new"]], "0001-x.rds")), "Cannot resolve")
+})

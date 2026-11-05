@@ -17,6 +17,7 @@ setupProject(
   config,
   require = NULL,
   studyArea = NULL,
+  alreadyRun = NULL,
   Restart = getOption("SpaDES.project.Restart", FALSE),
   useGit = getOption("SpaDES.project.useGit", FALSE),
   setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
@@ -137,6 +138,21 @@ convenience, \code{subregion = "..."}, which will be grepped with the column
 \code{NAME_1}, and \code{epsg = "..."}, so a user can pass an \code{epsg.io} code to
 reproject the \code{studyArea}. Default is \code{NULL}, i.e., no study area is built.
 See examples.}
+
+\item{alreadyRun}{Optional. A run already done, archived with \code{\link[=outSaveTarUpload]{outSaveTarUpload()}}, whose
+modules this project does not need to fetch: \verb{list(ledger = <ledger file name>, remote = <its Google Drive or shared-disk folder>, scenario = list(<column> = <value>, ...))}. The
+\code{scenario} must match exactly one row of the \code{reproducible::CacheGeoLedger()}. The run's
+saved \code{simList} shell is read (not its objects or outputs) for the modules it ran. Each of
+\code{modules} that ran there, matched by name, or that is a parent all of whose descendants
+ran there, is not fetched, its packages are not installed, and it is not in the returned
+\code{modules}. The result gains an \code{alreadyRun} element: \code{run} (the ledger row), \code{modules}
+(the run's modules and versions), \code{parents} (each parent module's children, as the run
+recorded them; \code{NULL} for a run saved before SpaDES.core recorded them), \code{matched}
+(those of \code{modules} taken from the run), \code{sim} (the run's saved \code{simList} shell) and
+\code{fetch} (fetches output files of the run from the remote archive).
+\code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}} takes it as its \code{alreadyRun} argument and loads the saved
+outputs the new modules expect, so \code{simInitAndSpades2(out)} replays the run. Default
+\code{NULL}.}
 
 \item{Restart}{Logical or character. If either \code{TRUE} or a character,
 and if the \code{projectPath} is not the current path, and the session is
