@@ -321,9 +321,7 @@ sweepLibrarySnapshots <- function(where = c(getOption("spades.activeRunningPath"
 # The startup snippet for a worker script. Base R only: nothing may be loaded
 # from the library being copied before the copy exists. A failed snapshot is
 # reported and the worker runs on the shared library, which is the old behaviour.
-# A dev library (?devLibrary) is never installed into, so it needs no snapshot: "".
 .librarySnapshotCode <- function(libPath, fallback = NULL) {
-  if (.isDevLibrary(libPath)) return("")
   paste0(
     "local({ ", .deparseAs(".snapshotId", .snapshotId), .deparseAs(".pidNamespace", .pidNamespace),
     .deparseAs(".snapshotDir", .snapshotDir), .deparseAs(".snapBase", .snapshotLibraryBase),

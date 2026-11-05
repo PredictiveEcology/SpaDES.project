@@ -177,6 +177,7 @@
 #'   hardlinked snapshot of the project library before loading anything from it,
 #'   so an install into the shared library cannot corrupt a running job. See
 #'   [librarySnapshot].
+#' @inheritParams .workerDevLibrary
 experimentSBATCH <- function(
   df,
   global_path         = "global.R",
@@ -198,6 +199,8 @@ experimentSBATCH <- function(
   dry_run             = FALSE,
   sync_library        = NULL,
   snapshot_library    = TRUE,
+  devPackages         = NULL,
+  devInstallFun       = NULL,
   ...
 ) {
   on_interrupt <- match.arg(on_interrupt)
@@ -216,6 +219,8 @@ experimentSBATCH <- function(
   )
   if (!is.null(sync_library))
     syncProjectLibrary(sync_library, activeRunningPath = activeRunningPath)
+  dev_library <- .workerDevLibrary(devPackages, devInstallFun) # built now, before any job; not written to
+  if (!is.null(dev_library)) snapshot_library <- FALSE
 
   # -- 2. Save ... args so workers can load complex objects ------------------
   dots_path <- file.path(dirname(queue_path), ".sbatch_dots.rds")
@@ -330,6 +335,7 @@ experimentSBATCH <- function(
       r_cmd             = r_cmd,
       r_libs            = r_libs,
       snapshot_library  = snapshot_library,
+      dev_library       = dev_library,
       n_workers_on_host = nWorkersOnNode
     )
   }
@@ -391,7 +397,7 @@ experimentSBATCH <- function(
                                  email, cache_path, runNameLabel,
                                  activeRunningPath, dots_path,
                                  sbatch_opts, r_cmd, r_libs, snapshot_library = TRUE,
-                                 on_error = "stop", n_workers_on_host = 1L) {
+                                 dev_library = NULL, on_error = "stop", n_workers_on_host = 1L) {
   # SBATCH directives -- always set output / error / job-name; user-provided
   # opts come after and may NOT override these.
   reserved <- c("output", "error", "job-name", "job_name")
@@ -421,7 +427,7 @@ experimentSBATCH <- function(
     .librarySnapshotCode(r_libs[1L], activeRunningPath) else ""
   r_expr <- sprintf(
     paste0(
-      ".libPaths(%s); ",
+      ".libPaths(%s); %s",
       "SpaDES.project::tmuxRunWorkerLoop(",
       "queue_path = %s, global_path = %s, on_interrupt = %s, on_error = %s, ",
       "ss_id = %s, email = %s, cache_path = %s, ",
@@ -429,7 +435,7 @@ experimentSBATCH <- function(
       "dots_path = %s, stop_file = %s, pane_mode = \"reuse\", ",
       "n_workers_on_host = %s, exitOnError = TRUE)"
     ),
-    .deparse_one(r_libs),
+    .deparse_one(r_libs), .devLibraryStartup(dev_library),
     .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt), .deparse_one(on_error),
     .deparse_one(ss_id),       .deparse_one(email),       .deparse_one(cache_path),
     .deparse_one(runNameLabel),.deparse_one(activeRunningPath),

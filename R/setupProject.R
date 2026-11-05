@@ -206,8 +206,7 @@ NULL
 #'   using `Rstudio` and the `paths$projectPath` is not the root of the current
 #'   Rstudio project, then a warning will be given, indicating the .Rprofile may not
 #'   be read upon restart. Default is `getOption("SpaDES.project.updateRprofile", TRUE)`,
-#'   i.e., `TRUE` unless that option is set. A `packagePath` of several paths is
-#'   never written to the `.Rprofile`, which every job of the project reads.
+#'   i.e., `TRUE` unless that option is set.
 #' @param setLinuxBinaryRepo Logical. Should the binary RStudio Package Manager be used
 #'   on Linux (ignored if Windows). Default is
 #'   `getOption("SpaDES.project.setLinuxBinaryRepo", TRUE)`, i.e., `TRUE` unless that
@@ -984,12 +983,7 @@ setupProject <- function(name, paths, modules, packages,
 #'                                                    \tab appends this path to `.libPaths(packagePath)`,
 #'                                                         unless `standAlone = TRUE`, in which case,
 #'                                                         it will set `.libPaths(packagePath,
-#'                                                         include.site = FALSE)` to this path.
-#'                                                         Several paths (a job's dev library, then
-#'                                                         the stable one; see [newDevLibrary()])
-#'                                                         become `.libPaths()` in that order; nothing
-#'                                                         is installed into them and they are not
-#'                                                         written to the `.Rprofile` \cr
+#'                                                         include.site = FALSE)` to this path \cr
 #' ------       \tab -----------                 \tab  -----         \cr
 #'              \tab *Module Level Paths*                 \tab \cr
 #' `cachePath`  \tab `file.path(projectPath, "cache")` \tab `options(reproducible.cachePath = cachePath)`\cr
@@ -1169,22 +1163,16 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     Require::setupOff(verbose = verbose)
   }
 
-  # Several libraries (a job's dev library, then the stable one; see ?devLibrary) become
-  # .libPaths() exactly as given, and are never written to the .Rprofile, which every job shares.
-  multiLib <- length(paths[["packagePath"]]) > 1L
-  changedLibPaths <- if (multiLib) {
-    !identical(normPath(.libPaths()[seq_along(paths[["packagePath"]])]), paths[["packagePath"]])
-  } else {
-    (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
-       (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
-  }
+  changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+                        (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
   deps <- NULL
   if (isTRUE(changedLibPaths)) {
     # setupSpaDES.ProjectDeps() closes this under hard dependencies
     deps <- c("SpaDES.project", "Require")
-    # setupSpaDES.ProjectDeps() copies into packagePath; libraries given as a vector may be in use
-    needTryInstall <- !multiLib
+    # setupSpaDES.ProjectDeps() copies packages into packagePath: not where nothing may be installed
+    # (a worker, whose libraries are a dev library and the stable one; see ?devLibrary)
+    needTryInstall <- .useRequire()
     # setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps)
     needSetLibPaths <- TRUE
   } else {
@@ -1195,8 +1183,8 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
   prevLibPaths <- .libPaths()
   if (needSetLibPaths) {
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
-                                            updateRprofile = if (multiLib) FALSE else updateRprofile,
-                                            exact = multiLib, verbose = verbose))
+                                            updateRprofile = updateRprofile,
+                                            exact = !.useRequire(), verbose = verbose))
     prevLibPaths <- if (verbose < 0) {
       out <- capture.output(type = "message", ret <- eval(setLPCall))
       ret
@@ -1223,7 +1211,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       # the just-completed setLibPaths above already wrote correctly.
       on.exit(Require::setLibPaths(prevLibPaths, updateRprofile = FALSE),
               add = TRUE)
-    paths[["packagePath"]] <- .libPaths()[seq_along(paths[["packagePath"]])]
+    paths[["packagePath"]] <- .libPaths()[1]
     if (isTRUE(needTryInstall))
       setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps,
                               prevLibPaths = prevLibPaths)
@@ -2181,18 +2169,11 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
                          verbose = verbose, verboseLevel = 3)
         }
 
-        # Several libraries (a job's dev library, then the stable one; see ?devLibrary): any of them
-        # may be in use by running jobs, so nothing is installed; newDevLibrary() makes a new one.
-        multiLib <- length(libPaths) > 1L
-        if (multiLib)
-          messageVerbose("packagePath is several libraries; not installing into any of them ",
-                         "(use newDevLibrary())", verbose = verbose)
         if (sum(nzchar(needToAssess))) {
           withCallingHandlers(
             out <-
               Require::Require(needToAssess, require = requirePkgNames, # require = Require::extractPkgName(requireToTry),
-                               standAlone = if (multiLib) FALSE else standAlone,
-                               install = if (multiLib) FALSE else getOption("Require.install", TRUE),
+                               standAlone = standAlone,
                                libPaths = libPaths,
                                verbose = verbose)
             , warning = function(w) {

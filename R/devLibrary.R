@@ -4,9 +4,13 @@
 #' The project library (`.libPathDefault(name)`, e.g. `.../packages/<platform>/4.6`)
 #' is the frozen *stable* library: nothing installs into it. An update instead
 #' builds a new *dev* library beside it, in `<stable>_dev/<id>`, and each job is
-#' given the pair as its library path:
-#' `setupProject(paths = list(packagePath = c(<dev>, <stable>)))`. A running job's
-#' libraries are therefore never written to.
+#' given the pair as its library path. The `experiment*` launchers do this:
+#' `experimentTmux(devPackages = )`, `experimentSBATCH(devPackages = )` and
+#' `experimentFuture(devPackages = )` call `newDevLibrary()` once, before any worker
+#' starts, and start every worker with `options(spades.packagePath = c(<dev>, <stable>),
+#' SpaDES.project.updateRprofile = FALSE)` and `.libPaths(c(<dev>, <stable>))`, so the job's
+#' own `setupProject()` needs no `packagePath`. A running job's libraries are therefore
+#' never written to.
 #'
 #' * `newDevLibrary()` makes `<devRoot>/<id>` (`id` is the UTC time,
 #'   `yyyymmdd-HHMMSS`, and a short random suffix), hardlinks every package of the
@@ -35,18 +39,17 @@
 #' @param verbose Numeric.
 #'
 #' @return `newDevLibrary()` and `currentDevLibrary()` return `c(<dev>, stable)`,
-#'   or `stable` alone when there is no dev library yet: the value to give
-#'   `setupProject(paths = list(packagePath = ))`. `sweepDevLibraries()` returns
+#'   or `stable` alone when there is no dev library yet. `sweepDevLibraries()` returns
 #'   the directories it removed, invisibly.
 #'
 #' @examples
 #' \dontrun{
 #' # before queueing jobs (no job reads a library this writes):
 #' libs <- newDevLibrary(c("PredictiveEcology/reproducible@development (>= 3.2.1.9063)"))
-#' # each job, in its own R session:
-#' setupProject(paths = list(packagePath = libs), ...)
-#' # later, keeping what the queue's pending and running rows name:
-#' sweepDevLibraries(keep = unique(queue$libPath))
+#' # or let the launcher do it, and start its workers on the result:
+#' experimentTmux(df, devPackages = "PredictiveEcology/reproducible@development (>= 3.2.1.9063)")
+#' # later, keeping the libraries that pending and running jobs name:
+#' sweepDevLibraries(keep = libs)
 #' }
 #' @name devLibrary
 #' @rdname devLibrary
@@ -65,8 +68,7 @@ NULL
 }
 
 .devLibraryId <- function()
-  paste0(format(Sys.time(), "%Y%m%d-%H%M%S", tz = "UTC"), "-",
-         substr(sub("^file", "", basename(tempfile())), 1, 6))
+  paste0(format(Sys.time(), "%Y%m%d-%H%M%S", tz = "UTC"), "-", .rndstr(1, 6))
 
 .packageDirs <- function(lib) {
   dirs <- list.dirs(lib, recursive = FALSE)
@@ -156,4 +158,35 @@ sweepDevLibraries <- function(keep = character(), devRoot = paste0(.stableLibrar
   gone <- devs[!normalizePath(devs) %in% normalizePath(keep, mustWork = FALSE)]
   unlink(gone, recursive = TRUE)
   invisible(gone)
+}
+
+#' The dev library of an `experiment*` launcher
+#'
+#' Builds the dev library (see [newDevLibrary()]) beside the project library in use, once, before any
+#' worker starts. Returns `c(<dev>, <stable>)`, or `NULL` when there is none (`devPackages` is `NULL`,
+#' or nothing is installed yet): the workers then start as they always did.
+#'
+#' @param devPackages `NULL` (default: no dev library) or a character vector of package
+#'   specifications as for `newDevLibrary(packages = )`. If given, the launcher builds a new dev
+#'   library with them, in the project library's `<stable>_dev` folder, before any worker starts. Every
+#'   worker then starts with `options(spades.packagePath = c(<dev>, <stable>),
+#'   SpaDES.project.updateRprofile = FALSE)` and `.libPaths(c(<dev>, <stable>))`, so the job's own
+#'   `setupProject()` needs no `packagePath`, installs nothing and leaves the `.Rprofile` alone. No
+#'   library snapshot is taken (`snapshot_library` is ignored): the libraries are not written to.
+#' @param devInstallFun `NULL` (default) or the `installFun` of [newDevLibrary()].
+#' @param verbose Numeric.
+#' @keywords internal
+.workerDevLibrary <- function(devPackages, devInstallFun = NULL, verbose = getOption("Require.verbose", 1)) {
+  if (is.null(devPackages)) return(NULL)
+  libs <- newDevLibrary(devPackages, installFun = devInstallFun, verbose = verbose)
+  if (length(libs) > 1L) libs else NULL
+}
+
+## What a worker with a dev library runs first. The existing options do the rest: spades.packagePath is
+## what setupProject() takes for `paths$packagePath`; SpaDES.project.updateRprofile = FALSE keeps the
+## project's .Rprofile, which every job shares, as it is.
+.devLibraryStartup <- function(dev_library) {
+  if (length(dev_library) < 2L) return("")
+  libs <- paste(deparse(dev_library), collapse = " ")
+  sprintf("options(spades.packagePath = %s, SpaDES.project.updateRprofile = FALSE); .libPaths(%s); ", libs, libs)
 }

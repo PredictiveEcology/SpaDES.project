@@ -206,8 +206,7 @@ then there will be a warning, indicating this won't persist. If the user is
 using \code{Rstudio} and the \code{paths$projectPath} is not the root of the current
 Rstudio project, then a warning will be given, indicating the .Rprofile may not
 be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
-i.e., \code{TRUE} unless that option is set. A \code{packagePath} of several paths is
-never written to the \code{.Rprofile}, which every job of the project reads.}
+i.e., \code{TRUE} unless that option is set.}
 
 \item{overwrite}{Logical vector or character vector, however, only \code{getModule} will respond
 to a vector of values. If length-one \code{TRUE}, then all files that were previously downloaded
