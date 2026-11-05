@@ -5,6 +5,11 @@
   need <- c("ledger", "scenario") # `remote = NULL` is a local ledger in `destDir`
   if (!is.list(alreadyRun) || !all(need %in% names(alreadyRun)))
     stop("`alreadyRun` must be a list with elements ", paste(need, collapse = ", "), call. = FALSE)
+  ## SpaDES.core's simInit() replays a run only since it exports moduleSource()
+  if (!requireNamespace("SpaDES.core", quietly = TRUE) ||
+      !exists("moduleSource", envir = asNamespace("SpaDES.core"), inherits = FALSE))
+    stop("`alreadyRun` needs a SpaDES.core whose simInit() takes `alreadyRun`; please update ",
+         "SpaDES.core (PredictiveEcology/SpaDES.core@development)", call. = FALSE)
   ledger <- reproducible::CacheGeoLedger(alreadyRun$ledger, remote = alreadyRun$remote,
                                          destinationPath = destDir, key = "runName")
   rows <- reproducible::CacheGeoRead(ledger, area = NULL, verbose = verbose - 1)
