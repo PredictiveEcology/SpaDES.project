@@ -163,7 +163,7 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
   ## Objects: `fetch` is handed the path loadSimList expects; find the member
   ## with that basename among the sidecar entries and range-fetch it there.
   ## The output files not fetched above are fetched the same way, on request,
-  ## by the function in the simList's "fetchOutputs" attribute (simInit(archive = )).
+  ## by the function in the simList's "fetchOutputs" attribute (simInit(alreadyRun = )).
   fetchFrom <- function(members) function(path) {
     m <- members[basename(members) == basename(path)]
     if (length(m) != 1L)

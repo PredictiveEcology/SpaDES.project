@@ -229,19 +229,19 @@ NULL
 #'   only `setupModules` is currently responsive to a vector). To have fine grained control,
 #'   a user can just manually delete a file, then rerun. Default is
 #'   `getOption("SpaDES.project.overwrite", FALSE)`, i.e., `FALSE` unless that option is set.
-#' @param archive Optional. A run archived with [outSaveTarUpload()] whose modules this project
-#'   does not need to fetch: `list(ledger = <ledger file name>, remote = <its Google Drive or
-#'   shared-disk folder>, scenario = list(<column> = <value>, ...))`. The `scenario` must match
-#'   exactly one row of the `reproducible::CacheGeoLedger()`. The run's saved `simList` shell
-#'   is read (not its objects or outputs) for the modules it ran. Each of `modules` that ran
-#'   there, matched by name, or that is a parent all of whose descendants ran there, is not
-#'   fetched, its packages are not installed, and it is not in the returned `modules`. The
-#'   result gains an `archive` element: `run` (the ledger row), `modules` (the run's modules
-#'   and versions), `matched` (those of `modules` taken from the archive), `sim` (the run's
-#'   saved `simList` shell) and `fetch` (fetches output files of the run from the remote
-#'   archive). [SpaDES.core::simInit()] takes it as its `archive` argument and loads the
-#'   archived outputs the new modules expect, so `simInitAndSpades2(out)` replays the run.
-#'   Default `NULL`.
+#' @param alreadyRun Optional. A run already done, archived with [outSaveTarUpload()], whose
+#'   modules this project does not need to fetch: `list(ledger = <ledger file name>, remote =
+#'   <its Google Drive or shared-disk folder>, scenario = list(<column> = <value>, ...))`. The
+#'   `scenario` must match exactly one row of the `reproducible::CacheGeoLedger()`. The run's
+#'   saved `simList` shell is read (not its objects or outputs) for the modules it ran. Each of
+#'   `modules` that ran there, matched by name, or that is a parent all of whose descendants
+#'   ran there, is not fetched, its packages are not installed, and it is not in the returned
+#'   `modules`. The result gains an `alreadyRun` element: `run` (the ledger row), `modules`
+#'   (the run's modules and versions), `matched` (those of `modules` taken from the run),
+#'   `sim` (the run's saved `simList` shell) and `fetch` (fetches output files of the run from
+#'   the remote archive). [SpaDES.core::simInit()] takes it as its `alreadyRun` argument and
+#'   loads the saved outputs the new modules expect, so `simInitAndSpades2(out)` replays the
+#'   run. Default `NULL`.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects, written as a
 #'   literal `list(...)` or as a variable holding one.
@@ -548,7 +548,7 @@ NULL
 #' \dontshow{setwd(origDir)}
 setupProject <- function(name, paths, modules, packages,
                          times, options, params, sideEffects, functions, config,
-                         require = NULL, studyArea = NULL, archive = NULL,
+                         require = NULL, studyArea = NULL, alreadyRun = NULL,
                          Restart = getOption("SpaDES.project.Restart", FALSE),
                          useGit = getOption("SpaDES.project.useGit", FALSE),
                          setLinuxBinaryRepo = getOption("SpaDES.project.setLinuxBinaryRepo", TRUE),
@@ -644,7 +644,7 @@ setupProject <- function(name, paths, modules, packages,
       list2env(dots, envir = envirCur)
     }
 
-    archiveRun <- NULL
+    alreadyRunInfo <- NULL
     for (fullAttempt in 1:2) {
       if (fullAttempt == 2) {
         messageVerbose("Starting setupProject again with new packages installed", verbose = verbose)
@@ -738,14 +738,14 @@ setupProject <- function(name, paths, modules, packages,
       # ... and into the scope, so dots written after `functions` can call them
       publishToScope(envir, envirCur, setdiff(ls(envirCur, all.names = TRUE), localsBefore))
 
-      archiveSUB <- substitute(archive)
-      if (!is.null(archiveSUB) && is.null(archiveRun))
-        archiveRun <- .archiveRun(evalSUB(val = archiveSUB, valObjName = "archive", envir = envirCur, envir2 = envir),
-                                  destDir = file.path(paths[["inputPath"]], "archive"), verbose = verbose)
+      alreadyRunSUB <- substitute(alreadyRun)
+      if (!is.null(alreadyRunSUB) && is.null(alreadyRunInfo))
+        alreadyRunInfo <- .alreadyRunRead(evalSUB(val = alreadyRunSUB, valObjName = "alreadyRun", envir = envirCur, envir2 = envir),
+                                          destDir = file.path(paths[["inputPath"]], "alreadyRun"), verbose = verbose)
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,
                                      overwrite = overwrite, envir = envir, verbose = verbose,
-                                     archive = archiveRun)
+                                     alreadyRun = alreadyRunInfo)
       modules <- extractModName(names(modulePackages))
       names(modules) <- names(modulePackages)
       ## a module also listed as a child of another in `modules` reaches simInit() via its parent
@@ -914,8 +914,8 @@ setupProject <- function(name, paths, modules, packages,
     #   # we also lose projectPath --> but this is getwd()
     #   params = params,
     #   times = times), dotsSUB)
-    if (!is.null(archiveRun))
-      out$archive <- c(archiveRun, list(matched = attr(modulePackages, "archived")))
+    if (!is.null(alreadyRunInfo))
+      out$alreadyRun <- c(alreadyRunInfo, list(matched = attr(modulePackages, "alreadyRun")))
     if (!is.null(options)) {
       attr(out, "projectOptions") <- opts$updates
     }
@@ -1703,11 +1703,11 @@ evalListElems <- function(l, envir, verbose = getOption("Require.verbose", 1L)) 
 #' depends on (`reqsPkgs`)
 #'
 #' @param gitUserName The GitHub account name. Used with git clone git@github.com:*gitHuserName*/name
-#' @param archive `NULL` (default), or the archived run that [setupProject()] read for its own
-#'   `archive` argument: `list(run = <ledger row>, modules = data.frame(module, version))`.
-#'   The `modules` it ran (by name), and parents all of whose descendants it ran, are not
-#'   fetched and have no entry in the result, which then has an attribute `"archived"`
-#'   naming them.
+#' @param alreadyRun `NULL` (default), or the run already done that [setupProject()] read for
+#'   its own `alreadyRun` argument: `list(run = <ledger row>, modules = data.frame(module,
+#'   version))`. The `modules` it ran (by name), and parents all of whose descendants it ran,
+#'   are not fetched and have no entry in the result, which then has an attribute
+#'   `"alreadyRun"` naming them.
 #'
 #' @seealso [setupProject()] for the high-level wrapper, [setup_family] for an overview.
 #'
@@ -1718,7 +1718,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                          gitUserName,
                          verbose = getOption("Require.verbose", 1L), dots, defaultDots,
                          updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
-                         archive = NULL, ...) {
+                         alreadyRun = NULL, ...) {
   callerFrame <- parent.frame()
 
   envirCur <- environment()
@@ -1727,7 +1727,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
   dotsSUB <- as.list(substitute(list(...)))[-1]
   dotsSUB <- evalDots(dots, dotsSUB, defaultDots, envir = envir, callingEnv = callingEnv)
 
-  archived <- character()
+  alreadyRunMods <- character()
   if (missing(modules)) {
     modulesOrig <- character()
     packages <- list()
@@ -1759,14 +1759,14 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                                 envir = envir, verbose = verbose)
     }
 
-    if (!is.null(archive)) {
-      isArchived <- vapply(modules, .isArchivedModule, logical(1), ran = archive$modules$module,
-                           modulePath = paths[["modulePath"]],
-                           scratch = file.path(tempdir(), "archiveParents"), USE.NAMES = FALSE)
-      archived <- unname(modules[isArchived])
-      modules <- modules[!isArchived]
-      messageVerbose("From the archived run ", archive$run$runName, " (not fetched, packages not installed): ",
-                     paste(extractModName(archived), collapse = ", "), "; fetched: ",
+    if (!is.null(alreadyRun)) {
+      isRan <- vapply(modules, .isAlreadyRunModule, logical(1), ran = alreadyRun$modules$module,
+                      modulePath = paths[["modulePath"]],
+                      scratch = file.path(tempdir(), "alreadyRunParents"), USE.NAMES = FALSE)
+      alreadyRunMods <- unname(modules[isRan])
+      modules <- modules[!isRan]
+      messageVerbose("From the run already done, ", alreadyRun$run$runName, " (not fetched, packages not installed): ",
+                     paste(extractModName(alreadyRunMods), collapse = ", "), "; fetched: ",
                      if (length(modules)) paste(extractModName(modules), collapse = ", ") else "none",
                      verbose = verbose)
     }
@@ -2072,8 +2072,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
   }
   names(packages) <- modulesOrig
-  if (!is.null(archive))
-    attr(packages, "archived") <- archived
+  if (!is.null(alreadyRun))
+    attr(packages, "alreadyRun") <- alreadyRunMods
   return(packages)
 
 }

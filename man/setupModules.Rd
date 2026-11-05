@@ -18,7 +18,7 @@ setupModules(
   dots,
   defaultDots,
   updateRprofile = getOption("SpaDES.project.updateRprofile", TRUE),
-  archive = NULL,
+  alreadyRun = NULL,
   ...
 )
 }
@@ -122,11 +122,10 @@ Rstudio project, then a warning will be given, indicating the .Rprofile may not
 be read upon restart. Default is \code{getOption("SpaDES.project.updateRprofile", TRUE)},
 i.e., \code{TRUE} unless that option is set.}
 
-\item{archive}{\code{NULL} (default), or the archived run that \code{\link[=setupProject]{setupProject()}} read for its own
-\code{archive} argument: \verb{list(run = <ledger row>, modules = data.frame(module, version))}.
-The \code{modules} it ran (by name), and parents all of whose descendants it ran, are not
-fetched and have no entry in the result, which then has an attribute \code{"archived"}
-naming them.}
+\item{alreadyRun}{\code{NULL} (default), or the run already done that \code{\link[=setupProject]{setupProject()}} read for
+its own \code{alreadyRun} argument: \verb{list(run = <ledger row>, modules = data.frame(module, version))}. The \code{modules} it ran (by name), and parents all of whose descendants it ran,
+are not fetched and have no entry in the result, which then has an attribute
+\code{"alreadyRun"} naming them.}
 
 \item{...}{further named arguments that acts like \code{objects}, but a different
 way to specify them. These can be anything. The general use case

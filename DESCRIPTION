@@ -121,7 +121,7 @@ Collate:
     'resolveDots.R'
     'sbatch.R'
     'scenario.R'
-    'setupArchive.R'
+    'setupAlreadyRun.R'
     'setupProject.R'
     'spades-project-package.R'
     'stageFilesForHPC.R'
