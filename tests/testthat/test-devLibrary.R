@@ -129,7 +129,7 @@ mkDevDir <- function(stable, envir = parent.frame()) {
 }
 filesIn <- function(...) sort(list.files(c(...), recursive = TRUE, all.files = TRUE, full.names = TRUE))
 
-test_that("a packagePath of two paths is written to .Rprofile and paths$packagePath is the first one", {
+test_that("a packagePath of two paths is written to .Rprofile and paths$packagePath keeps both", {
   setupTest()
   stable <- mkStable()
   dev <- mkDevDir(stable)
@@ -141,7 +141,7 @@ test_that("a packagePath of two paths is written to .Rprofile and paths$packageP
                                                     modulePath = "modules"),
                                        updateRprofile = TRUE, verbose = -2))
   expect_true(any(grepl("setLibPaths", readLines(file.path(prj, ".Rprofile")))))
-  expect_identical(normalizePath(paths$packagePath), normalizePath(dev))
+  expect_identical(normalizePath(paths$packagePath), normalizePath(c(dev, stable)))
 })
 
 test_that("a worker's spades.packagePath is its .libPaths(); nothing is written to the libraries or .Rprofile", {
@@ -160,7 +160,11 @@ test_that("a worker's spades.packagePath is its .libPaths(); nothing is written 
   before <- filesIn(dev, stable)
   paths <- suppressWarnings(setupPaths(paths = list(projectPath = prj, modulePath = "modules"), verbose = -2))
   expect_identical(normalizePath(.libPaths()[1:2]), normalizePath(c(dev, stable)))
-  expect_identical(normalizePath(paths$packagePath), normalizePath(dev))
+  expect_identical(normalizePath(paths$packagePath), normalizePath(c(dev, stable)))
+  ## setupProject() runs setupPaths() again with the paths it returned (setupSideEffects(), setupOptions());
+  ## that kept only the dev library, so the job lost every package of the stable one
+  paths <- suppressWarnings(setupPaths(paths = paths, verbose = -2))
+  expect_identical(normalizePath(.libPaths()[1:2]), normalizePath(c(dev, stable)))
   expect_identical(readLines(file.path(prj, ".Rprofile")), rprof)
   expect_identical(filesIn(dev, stable), before)
 })

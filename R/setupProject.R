@@ -1186,7 +1186,10 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
     Require::setupOff(verbose = verbose)
   }
 
-  changedLibPaths <- (!identical(normPath(.libPaths()[1]), paths[["packagePath"]]) &&
+  # every library given stays, in order (a worker's dev library, then the stable one; see ?devLibrary):
+  # setupProject() runs setupPaths() again with the paths returned here
+  nLib <- length(paths[["packagePath"]])
+  changedLibPaths <- (!identical(normPath(.libPaths()[seq_len(nLib)]), paths[["packagePath"]]) &&
                         (!identical(dirname(normPath(.libPaths()[1])), paths[["packagePath"]])))
   needSetLibPathsNow <- !Restart %in% TRUE || inProject %in% TRUE
   deps <- NULL
@@ -1234,7 +1237,7 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       # the just-completed setLibPaths above already wrote correctly.
       on.exit(Require::setLibPaths(prevLibPaths, updateRprofile = FALSE),
               add = TRUE)
-    paths[["packagePath"]] <- .libPaths()[1]
+    paths[["packagePath"]] <- .libPaths()[seq_len(nLib)]
     if (isTRUE(needTryInstall))
       setupSpaDES.ProjectDeps(paths, verbose = verbose, deps = deps,
                               prevLibPaths = prevLibPaths)
