@@ -26,11 +26,16 @@
 #'
 #' @param df data.frame of parameter combinations.  Each row is one job.
 #'   Ignored if \code{queue_path} already exists (workers resume from the
-#'   existing queue).
+#'   existing queue).  Optional columns \code{.group}, \code{.after} and
+#'   \code{.afterType} split the rows into groups that run one after another, each
+#'   with its own jobs, in this one call; see \code{\link{experimentGroups}}.
 #' @param global_path Path to the R script each worker sources per job.
 #'   Defaults to \code{"global.R"} in the current directory.  Must be on a
 #'   filesystem visible to compute nodes (e.g. shared NFS / Lustre).
-#' @param n_workers Number of SBATCH jobs to submit.  Defaults to \code{4L}.
+#' @param n_workers Number of SBATCH jobs to submit.  Defaults to \code{4L}.  With
+#'   \code{.group} in the queue, the jobs of each group: a named vector
+#'   (\code{c(fit = 1, 4)}) gives a group's own number, the unnamed entry the rest; at
+#'   most one job per row still to run.  See \code{\link{experimentGroups}}.
 #' @param queue_path Path to the local RDS queue file.  Created automatically
 #'   if it does not yet exist.  Defaults to
 #'   \code{<dirname(global_path)>/sbatch_queue.rds}.  Must be on shared
@@ -65,7 +70,11 @@
 #'   Set a value to \code{NULL} or \code{TRUE} for flag-only directives
 #'   (\code{#SBATCH --<name>}).  Common keys: \code{partition}, \code{time},
 #'   \code{mem}, \code{cpus_per_task}, \code{account}, \code{nodes},
-#'   \code{ntasks_per_node}, \code{constraint}, \code{gres}.
+#'   \code{ntasks_per_node}, \code{constraint}, \code{gres}.  With \code{.group} in
+#'   the queue, a list of lists: an unnamed one for every group, then lists named by
+#'   group that add to or replace it (\code{list(list(partition = "standard"),
+#'   fit = list(mem = "300G"))}).  A group with \code{.after} also gets
+#'   \code{--dependency=<.afterType>:<job ids>}.
 #' @param sbatch_cmd Path to the \code{sbatch} executable.  Defaults to
 #'   \code{"sbatch"} (resolved on \code{$PATH}).  Override on systems where
 #'   \code{sbatch} is wrapped or non-standard.
@@ -92,6 +101,7 @@
 #'     \item{\code{stop_files}}{Character vector of stop-file paths.}
 #'     \item{\code{log_dir}}{Absolute path to the log directory.}
 #'     \item{\code{queue_path}}{Absolute path to the queue RDS file.}
+#'     \item{\code{groups}}{Each job's queue group (\code{NA} without \code{.group}).}
 #'   }
 #'
 #' @examples
@@ -304,63 +314,77 @@ experimentSBATCH <- function(
     }
   }
 
-  # -- 5. Build per-worker file paths ----------------------------------------
-  log_files    <- file.path(log_dir, sprintf("worker_%02d.log", seq_len(n_workers)))
-  stop_files   <- file.path(log_dir, sprintf("worker_%02d.stop", seq_len(n_workers)))
-  job_scripts  <- file.path(log_dir, sprintf("worker_%02d.sh",  seq_len(n_workers)))
+  # -- 5. Workers: per group (see ?experimentGroups), or n_workers for the whole queue ----
+  groups <- .queueGroups(.queue_read(queue_path))
+  worker_groups <- .workerGroups(n_workers, groups, pool = FALSE)
+  n_workers <- length(worker_groups)
+  idx          <- .indexInGroup(worker_groups)
+  log_files    <- .workerFiles(log_dir, worker_groups, ".log")
+  stop_files   <- .workerFiles(log_dir, worker_groups, ".stop")
+  job_scripts  <- .workerFiles(log_dir, worker_groups, ".sh")
   for (sf in stop_files) if (file.exists(sf)) unlink(sf)
+  opts <- .sbatchGroupOpts(sbatch_opts, if (is.null(groups)) "" else groups$group) # "": no groups
 
-  # -- 6. Generate SBATCH scripts --------------------------------------------
-  # Workers that share a node: as many as one node's tasks (--ntasks-per-node),
-  # at most all of them; 1 when the user did not say.
-  nWorkersOnNode <- min(n_workers, max(1L, suppressWarnings(as.integer(
-    c(sbatch_opts[["ntasks-per-node"]], sbatch_opts[["ntasks_per_node"]])[1L])), na.rm = TRUE))
-  for (i in seq_len(n_workers)) {
-    .sbatch_write_script(
-      script_path       = job_scripts[[i]],
-      worker_idx        = i,
-      log_file          = log_files[[i]],
-      stop_file         = stop_files[[i]],
-      queue_path        = queue_path,
-      global_path       = global_path,
-      on_interrupt      = on_interrupt,
-      on_error          = on_error,
-      ss_id             = ss_id,
-      email             = email,
-      cache_path        = cache_path,
-      runNameLabel      = runNameLabel,
-      activeRunningPath = activeRunningPath,
-      dots_path         = dots_path,
-      sbatch_opts       = sbatch_opts,
-      r_cmd             = r_cmd,
-      r_libs            = r_libs,
-      snapshot_library  = snapshot_library,
-      dev_library       = dev_library,
-      n_workers_on_host = nWorkersOnNode
-    )
+  if (!isTRUE(dry_run) && Sys.which(sbatch_cmd) == "" && !file.exists(sbatch_cmd))
+    stop("Could not find sbatch executable: '", sbatch_cmd,
+         "'. Set sbatch_cmd or run on a Slurm-enabled host.", call. = FALSE)
+
+  # -- 6./7. Per group, in dependency order: write its SBATCH scripts, then submit them,
+  # so the groups after it can name its job ids in --dependency ------------------------
+  job_ids <- rep(NA_integer_, n_workers)
+  for (g in unique(worker_groups)) {
+    w <- which(worker_groups %in% g)
+    o <- opts[[if (is.na(g)) 1L else g]]
+    if (!is.na(g)) {
+      dep <- .sbatchDependency(groups, g, worker_groups, job_ids)
+      if (nzchar(dep)) o$dependency <- paste(c(o$dependency, dep), collapse = ",")
+    }
+    # Workers that share a node: as many as one node's tasks (--ntasks-per-node),
+    # at most all of them; 1 when the user did not say.
+    nWorkersOnNode <- min(length(w), max(1L, suppressWarnings(as.integer(
+      c(o[["ntasks-per-node"]], o[["ntasks_per_node"]])[1L])), na.rm = TRUE))
+    for (i in w) {
+      .sbatch_write_script(
+        script_path       = job_scripts[[i]],
+        worker_idx        = idx[i],
+        log_file          = log_files[[i]],
+        stop_file         = stop_files[[i]],
+        queue_path        = queue_path,
+        global_path       = global_path,
+        on_interrupt      = on_interrupt,
+        on_error          = on_error,
+        ss_id             = ss_id,
+        email             = email,
+        cache_path        = cache_path,
+        runNameLabel      = runNameLabel,
+        activeRunningPath = activeRunningPath,
+        dots_path         = dots_path,
+        sbatch_opts       = o,
+        r_cmd             = r_cmd,
+        r_libs            = r_libs,
+        snapshot_library  = snapshot_library,
+        dev_library       = dev_library,
+        n_workers_on_host = nWorkersOnNode,
+        group             = g
+      )
+      if (!isTRUE(dry_run)) {
+        out <- system2(sbatch_cmd, args = job_scripts[[i]], stdout = TRUE, stderr = TRUE)
+        jid <- .sbatch_parse_jobid(out)
+        if (is.na(jid))
+          stop("Failed to parse Slurm job ID from sbatch output:\n",
+               paste(out, collapse = "\n"), call. = FALSE)
+        job_ids[i] <- jid
+      }
+    }
   }
-
-  # -- 7. Submit (or dry-run) -------------------------------------------------
-  job_ids <- integer(n_workers)
   if (isTRUE(dry_run)) {
-    job_ids[] <- NA_integer_
     message("dry_run = TRUE; ", n_workers, " job script(s) generated in ",
             log_dir, ", not submitted.")
   } else {
-    if (Sys.which(sbatch_cmd) == "" && !file.exists(sbatch_cmd))
-      stop("Could not find sbatch executable: '", sbatch_cmd,
-           "'. Set sbatch_cmd or run on a Slurm-enabled host.", call. = FALSE)
-    for (i in seq_len(n_workers)) {
-      out <- system2(sbatch_cmd, args = job_scripts[[i]], stdout = TRUE, stderr = TRUE)
-      jid <- .sbatch_parse_jobid(out)
-      if (is.na(jid))
-        stop("Failed to parse Slurm job ID from sbatch output:\n",
-             paste(out, collapse = "\n"), call. = FALSE)
-      job_ids[i] <- jid
-    }
     message("Submitted ", n_workers, " SBATCH job(s): ",
             paste(job_ids, collapse = ", "))
   }
+  clusters <- unique(unlist(lapply(opts, `[[`, "clusters")))
 
   # -- 8. Emit log-watching instructions -------------------------------------
   log_cmds <- paste0("  tail -f ", log_files, "   # worker ", seq_len(n_workers),
@@ -369,7 +393,7 @@ experimentSBATCH <- function(
     "\nWorkers will write logs to:\n", log_cmds, "\n",
     "  -- or --\n  tail -f ", log_dir, "/worker_*.log\n",
     if (!isTRUE(dry_run)) paste0("Live Slurm status:  ",
-                                 paste(c("squeue", .sbatch_cluster_args(sbatch_opts$clusters),
+                                 paste(c("squeue", .sbatch_cluster_args(clusters),
                                          "-j", paste(job_ids, collapse = ",")),
                                        collapse = " "), "\n") else ""
   )
@@ -383,7 +407,8 @@ experimentSBATCH <- function(
       log_dir     = log_dir,
       queue_path  = queue_path,
       sbatch_cmd  = sbatch_cmd,
-      clusters    = sbatch_opts$clusters
+      clusters    = clusters,
+      groups      = worker_groups
     ),
     class = "experimentSBATCH"
   )
@@ -397,7 +422,8 @@ experimentSBATCH <- function(
                                  email, cache_path, runNameLabel,
                                  activeRunningPath, dots_path,
                                  sbatch_opts, r_cmd, r_libs, snapshot_library = TRUE,
-                                 dev_library = NULL, on_error = "stop", n_workers_on_host = 1L) {
+                                 dev_library = NULL, on_error = "stop", n_workers_on_host = 1L,
+                                 group = NULL) {
   # SBATCH directives -- always set output / error / job-name; user-provided
   # opts come after and may NOT override these.
   reserved <- c("output", "error", "job-name", "job_name")
@@ -413,7 +439,8 @@ experimentSBATCH <- function(
     }
   }
   reserved_dirs <- c(
-    sprintf("#SBATCH --job-name=spades-worker-%02d", worker_idx),
+    sprintf("#SBATCH --job-name=spades-%s-%02d",
+            if (length(group) && !is.na(group)) .groupFileName(group) else "worker", worker_idx),
     sprintf("#SBATCH --output=%s",                   log_file),
     sprintf("#SBATCH --error=%s",                    log_file)
   )
@@ -433,14 +460,14 @@ experimentSBATCH <- function(
       "ss_id = %s, email = %s, cache_path = %s, ",
       "runNameLabel = %s, activeRunningPath = %s, ",
       "dots_path = %s, stop_file = %s, pane_mode = \"reuse\", ",
-      "n_workers_on_host = %s, exitOnError = TRUE)"
+      "n_workers_on_host = %s, exitOnError = TRUE%s)"
     ),
     .deparse_one(r_libs), .devLibraryStartup(dev_library),
     .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt), .deparse_one(on_error),
     .deparse_one(ss_id),       .deparse_one(email),       .deparse_one(cache_path),
     .deparse_one(runNameLabel),.deparse_one(activeRunningPath),
     .deparse_one(dots_path),   .deparse_one(stop_file),
-    .deparse_one(as.integer(n_workers_on_host))
+    .deparse_one(as.integer(n_workers_on_host)), .groupArg(group, ", group = %s")
   )
   r_expr <- sub("^(.libPaths\\([^;]*\\); )", paste0("\\1", gsub("\\\\", "\\\\\\\\", snap_code)), r_expr)
 
@@ -458,6 +485,37 @@ experimentSBATCH <- function(
   writeLines(body, script_path)
   Sys.chmod(script_path, "0755")
   invisible(script_path)
+}
+
+## `sbatch_opts` per group (see ?experimentGroups): a list whose elements are all lists is
+## the unnamed default followed by lists named by group, which add to or replace it; any
+## other list is every group's options. `groups = ""` (a queue without groups): the default.
+.sbatchGroupOpts <- function(sbatch_opts, groups) {
+  if (!length(sbatch_opts) || !all(vapply(sbatch_opts, is.list, logical(1))))
+    return(stats::setNames(rep(list(sbatch_opts), length(groups)), groups))
+  nms <- names(sbatch_opts)
+  if (is.null(nms)) nms <- rep("", length(sbatch_opts))
+  unknown <- setdiff(nms[nzchar(nms)], groups[nzchar(groups)])
+  if (length(unknown))
+    stop("`sbatch_opts` names group(s) not in the queue: ", paste(unknown, collapse = ", "), call. = FALSE)
+  if (sum(!nzchar(nms)) > 1L)
+    stop("`sbatch_opts` may have only one unnamed list (the default).", call. = FALSE)
+  default <- if (any(!nzchar(nms))) sbatch_opts[[which(!nzchar(nms))]] else list()
+  stats::setNames(lapply(groups, function(g) {
+    o <- if (nzchar(g) && g %in% nms) sbatch_opts[[g]] else list()
+    c(default[setdiff(names(default), names(o))], o) # not modifyList(): a NULL value is a flag
+  }), groups)
+}
+
+## --dependency for group `g`: its .afterType and the job ids of the workers of its .after
+## groups ("" when none of them has a job: they have nothing left to run). Ids not yet known
+## (dry run) are written as <group>.
+.sbatchDependency <- function(groups, g, worker_groups, job_ids) {
+  k <- match(g, groups$group)
+  w <- which(worker_groups %in% groups$after[[k]])
+  if (!length(w)) return("")
+  ids <- ifelse(is.na(job_ids[w]), paste0("<", worker_groups[w], ">"), job_ids[w])
+  paste0(groups$afterType[k], ":", paste(unique(ids), collapse = ":"))
 }
 
 .deparse_one <- function(x) {

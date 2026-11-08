@@ -13,7 +13,8 @@ tmuxRunNextWorker(
   statusCalculate = getOption("spades.statusCalculate"),
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
   activeRunningPath = getOption("spades.activeRunningPath"),
-  ss_id = NULL
+  ss_id = NULL,
+  group = NULL
 )
 }
 \arguments{
@@ -39,9 +40,14 @@ info in filenames. Defaults to \code{getOption("spades.folderWithIterInFilename"
 
 \item{ss_id}{Optional Google Sheets/Drive ID for the shared queue. When
 supplied workers use the GS backend instead of the local RDS file.}
+
+\item{group}{\code{NULL} (default: any row) or the queue group (\code{.group}) whose rows this
+worker claims. A row is claimed only once the groups in its \code{.after} have finished; see
+\link{experimentGroups}.}
 }
 \value{
-"ok" | "interrupt" | "empty" (if no pending work found); used by tmuxRunWorkerLoop()
+"ok" | "interrupt" | "empty" (if no pending work found) | "wait" (none ready yet:
+the groups in \code{.after} of the rows left are still running); used by tmuxRunWorkerLoop()
 }
 \description{
 Run one queued job (claim-next semantics) in the current R session.

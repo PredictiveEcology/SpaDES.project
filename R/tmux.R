@@ -657,7 +657,9 @@ tmuxSetMouse <- function(on = TRUE) {
 #'   that periodically syncs the local queue file to a Google Sheet (requires
 #'   `ss_id`).  Default `FALSE`.
 #' @param global_path Character scalar. Absolute path to the script sourced for each job.
-#' @param n_workers Integer. Number of worker panes to spawn. Defaults to `length(cores)`
+#' @param n_workers Integer. Number of worker panes to spawn. With `.group` in the queue, a
+#'   named vector dedicates panes to groups (`c(fit = 1, 2)`: one for `fit`, two for any
+#'   group); see [experimentGroups]. Defaults to `length(cores)`
 #'   if `cores` is supplied, otherwise `4`.
 #' @param delay_after_split Numeric. Seconds to wait after each `split-window`. Default `2`.
 #' @param delay_after_layout Numeric. Seconds to wait after `select-layout`. Default `0.2`.
@@ -1055,6 +1057,9 @@ experimentTmux <- function(df,
     warning("global_path not found from master R working directory: ", global_path)
   }
   
+  # the group each worker serves (NA: any); see ?experimentGroups
+  worker_groups <- .workerGroups(n_workers, .queueGroups(.queue_read(queue_path)), pool = TRUE)
+  n_workers <- length(worker_groups)
   if (n_workers < 1L) stop("'n_workers' must be >= 1.", call. = FALSE)
   
   # if (!is.null(queue_path)) {
@@ -1359,7 +1364,8 @@ experimentTmux <- function(df,
         lib_path          = .libPaths(),
         snapshot_library  = snapshot_library,
         dev_library       = dev_library,
-        n_workers_on_host = workersOnHost[i]
+        n_workers_on_host = workersOnHost[i],
+        group             = worker_groups[i]
       )
 
       # 3. Send startup command immediately to the freshly created pane.
@@ -1566,7 +1572,11 @@ experimentTmux <- function(df,
 #' @param global_path character; script to source for the job
 #' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".
 #' @param heartbeat_interval_s numeric; seconds between heartbeats while the job runs
-#' @return "ok" | "interrupt" | "empty" (if no pending work found); used by tmuxRunWorkerLoop()
+#' @param group `NULL` (default: any row) or the queue group (`.group`) whose rows this
+#'   worker claims. A row is claimed only once the groups in its `.after` have finished; see
+#'   [experimentGroups].
+#' @return "ok" | "interrupt" | "empty" (if no pending work found) | "wait" (none ready yet:
+#'   the groups in `.after` of the rows left are still running); used by tmuxRunWorkerLoop()
 #' @export
 #' @param runNameLabel A quoted expression (possibly of `q`, which is the result of `q <- readRDS(queue_path)`).
 #'   Default is the first 2 column names of `q`. These will be concatenated and used as
@@ -1588,7 +1598,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
                           folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
                           activeRunningPath = getOption("spades.activeRunningPath"),
-                          ss_id = NULL) {
+                          ss_id = NULL, group = NULL) {
   if (missing(global_path))
     global_path <- "global.R"
   stopifnot(file.exists(global_path))
@@ -1604,7 +1614,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
     if (.trace) message(sprintf("[gs-worker] claim attempt by %s queue_path=%s",
                                 worker_id, as.character(queue_path)))
-    claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path)
+    claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path, group = group)
+    if (inherits(claimed, "gs_claim_wait")) return("wait")
     if (is.null(claimed)) {
       if (.trace) message("[gs-worker] claim -> NULL (queue empty); exiting loop")
       return("empty")
@@ -1791,12 +1802,12 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   runNameLabel <- if (is.symbol(runNameLabel)) as.character(runNameLabel)
                   else eval(runNameLabel, envir = environment())
 
-  pending_idx <- which(q$status %in% c(txtInterrupted, txtPending))[1]
-  if (is.na(pending_idx)) {
+  claim <- .claimableRow(q, group)
+  if (is.na(claim$i)) {
     filelock::unlock(lck)
-    return("empty")
+    return(if (claim$wait) "wait" else "empty")
   }
-  i <- pending_idx
+  i <- claim$i
 
   data_cols <- setdiff(names(q), meta_cols)
   scenarioFieldsSet(data_cols)   # for positional pathBuild() in runNameLabel / statusCalculate
@@ -1956,6 +1967,9 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #'   the loop ends and any job it ran ended in `ERROR`, so that a batch scheduler
 #'   (Slurm `--dependency=afterok`) sees the failure. `experimentSBATCH()` sets it.
 #'   Default `FALSE`: the loop returns, as the tmux workers expect.
+#' @param group `NULL` (default: rows of any group) or the queue group (`.group`) this worker
+#'   serves. While the rows left wait for their `.after` groups, the worker looks again every
+#'   `SPADES_AFTER_POLL_SECONDS` (default 30) seconds. See [experimentGroups].
 #' @return invisibly TRUE
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
@@ -1973,7 +1987,9 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           snapshot_library = TRUE,
                           dev_library = NULL,
                           n_workers_on_host = 1L,
-                          exitOnError = FALSE) {
+                          exitOnError = FALSE,
+                          group = NULL) {
+  if (length(group) && is.na(group)) group <- NULL
   on_interrupt <- match.arg(on_interrupt)
   on_error     <- match.arg(on_error)
   pane_mode    <- match.arg(pane_mode)
@@ -2019,9 +2035,9 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
   if (pane_mode == "killAndNewPane") {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) return(invisible(TRUE))
 
-    res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
-                         heartbeat_interval_s, runNameLabel = runNameLabel,
-                         activeRunningPath = activeRunningPath, ss_id = ss_id)
+    res <- .runNextOrWait(stop_file, queue_path, global_path, on_interrupt,
+                          heartbeat_interval_s, runNameLabel = runNameLabel,
+                          activeRunningPath = activeRunningPath, ss_id = ss_id, group = group)
 
     should_continue <- .workerContinues(res, on_interrupt, on_error)
 
@@ -2049,7 +2065,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                    lib_path          = .libPaths(),
                    snapshot_library  = snapshot_library,
                    dev_library       = dev_library,
-                   n_workers_on_host = n_workers_on_host
+                   n_workers_on_host = n_workers_on_host,
+                   group             = group
                  ), .respawn_script, file.path(.libPaths()[1L], ".spades_github_pat"))
       # Clear inherited test-harness env vars (R_TESTS / R_BROWSER /
       # R_PDFVIEWER from `R CMD check` / `R CMD test`) for parity with the
@@ -2082,15 +2099,30 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
   anyError <- FALSE
   repeat {
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
-    res <- tmuxRunNextWorker(queue_path, global_path, on_interrupt,
-                         heartbeat_interval_s, runNameLabel = runNameLabel,
-                         activeRunningPath = activeRunningPath, ss_id = ss_id)
+    res <- .runNextOrWait(stop_file, queue_path, global_path, on_interrupt,
+                          heartbeat_interval_s, runNameLabel = runNameLabel,
+                          activeRunningPath = activeRunningPath, ss_id = ss_id, group = group)
     anyError <- anyError || identical(res, "error")
     if (!.workerContinues(res, on_interrupt, on_error)) break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
   }
   if (isTRUE(exitOnError) && anyError) quit(save = "no", status = 1L)
   invisible(TRUE)
+}
+
+
+## tmuxRunNextWorker(), again every .afterPollSeconds() while it returns "wait" (the rows left
+## wait for their `.after` groups), until a row has run, none is left or the stop file appears.
+.runNextOrWait <- function(stop_file, ...) {
+  waited <- FALSE
+  repeat {
+    res <- tmuxRunNextWorker(...)
+    if (!identical(res, "wait")) return(res)
+    if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) return("empty")
+    if (!waited) message("[", format(Sys.time(), "%H:%M:%S"), "] Waiting: the rows left wait for their `.after` groups")
+    waited <- TRUE
+    Sys.sleep(.afterPollSeconds())
+  }
 }
 
 
@@ -2279,7 +2311,8 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
 .build_worker_r_expr <- function(queue_path, global_path, on_interrupt, runNameLabel,
                                   activeRunningPath, ss_id, pane_mode, email, cache_path,
                                   dots_path, lib_path = .libPaths(), snapshot_library = TRUE,
-                                  dev_library = NULL, on_error = "stop", n_workers_on_host = 1L) {
+                                  dev_library = NULL, on_error = "stop", n_workers_on_host = 1L,
+                                  group = NULL) {
   # Ensure project lib is first so correct package versions are loaded
   ## The worker starts a fresh R and must be able to load SpaDES.project, so it
   ## needs the whole library search path, not just its first entry. Under covr /
@@ -2317,12 +2350,13 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
            "queue_path=%s, global_path=%s, on_interrupt=%s, on_error=%s,",
            " runNameLabel=quote(%s), activeRunningPath=%s, ss_id=%s,",
            " pane_mode=%s, email=%s, cache_path=%s, dots_path=%s, snapshot_library=%s,",
-           " dev_library=%s, n_workers_on_host=%s)"),
+           " dev_library=%s, n_workers_on_host=%s%s)"),
     lib_pre, snap_pre, dev_pre, wd_pre, dots_pre,
     deparse1(queue_path), deparse1(global_path), deparse1(on_interrupt), deparse1(on_error),
     deparse1(runNameLabel), deparse1(activeRunningPath), deparse1(ss_id),
     deparse1(pane_mode), deparse1(email), deparse1(cache_path), deparse1(dots_path),
-    deparse1(isTRUE(snapshot_library)), deparse1(dev_library), deparse1(as.integer(n_workers_on_host))
+    deparse1(isTRUE(snapshot_library)), deparse1(dev_library), deparse1(as.integer(n_workers_on_host)),
+    .groupArg(group, ", group=%s")
   )
 }
 
