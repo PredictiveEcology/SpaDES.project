@@ -160,14 +160,15 @@ test_that("tmuxRefreshQueueStatus fills the heartbeat columns from the iteration
   td <- withr::local_tempdir()
   qp <- mkStatusQueue(td, "RUNNING", machine = Sys.info()[["nodename"]], pid = Sys.getpid())
   hists <- file.path(td, "hists"); dir.create(hists)
-  file.create(file.path(hists, c("a_iter10_2026-01-01 00:00:00.png", "a_iter25_2026-01-01 00:10:00.png")))
+  ## date-only stamps: ":" is illegal in a Windows filename (the HH:MM:SS form is tested in test-tmux-pure-helpers.R)
+  file.create(file.path(hists, c("a_iter10_2026-01-01.png", "a_iter25_2026-01-02.png")))
 
   out <- suppressMessages(tmuxRefreshQueueStatus(qp, runNameLabel = quote(colnames(q)[1]),
                                                  folderWithIterInFilename = hists))
 
   expect_identical(as.character(out$status), "RUNNING")
   expect_identical(as.integer(out$heartbeat_iter), 25L)
-  expect_identical(out$heartbeat_at, "2026-01-01 00:10:00")
+  expect_identical(out$heartbeat_at, "2026-01-02")
 })
 
 # --- the sheet is the record, the local file its mirror -------------------------------------
