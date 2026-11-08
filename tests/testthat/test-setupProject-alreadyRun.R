@@ -136,6 +136,12 @@ test_that("setupProject(alreadyRun = NULL) is unchanged; with a run already done
                                          useGit = FALSE, updateRprofile = FALSE, verbose = -1))
   expect_identical(unname(plain$modules), c("par", "birds"))
   expect_false("alreadyRun" %in% names(plain))
+  ## an expression that gives NULL (e.g. `if (report) <runs>` in a run script) is none
+  report <- FALSE
+  plain <- suppressMessages(setupProject(modules = c("par", "birds"), paths = paths,
+                                         alreadyRun = if (report) "run.rds",
+                                         useGit = FALSE, updateRprofile = FALSE, verbose = -1))
+  expect_false("alreadyRun" %in% names(plain))
 
   alreadyRunLedger(file.path(root, "inputs", "alreadyRun"))
   local_mocked_bindings(.alreadyRunShell = function(run, destDir) alreadyRunShell(),

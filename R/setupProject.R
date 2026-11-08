@@ -749,9 +749,12 @@ setupProject <- function(name, paths, modules, packages,
       publishToScope(envir, envirCur, setdiff(ls(envirCur, all.names = TRUE), localsBefore))
 
       alreadyRunSUB <- substitute(alreadyRun)
-      if (!is.null(alreadyRunSUB) && is.null(alreadyRunInfo))
-        alreadyRunInfo <- .alreadyRunRead(evalSUB(val = alreadyRunSUB, valObjName = "alreadyRun", envir = envirCur, envir2 = envir),
-                                          destDir = file.path(paths[["inputPath"]], "alreadyRun"), verbose = verbose)
+      if (!is.null(alreadyRunSUB) && is.null(alreadyRunInfo)) {
+        alreadyRunVal <- evalSUB(val = alreadyRunSUB, valObjName = "alreadyRun", envir = envirCur, envir2 = envir)
+        if (!is.null(alreadyRunVal)) # e.g. `alreadyRun = if (report) <runs>`: NULL is none
+          alreadyRunInfo <- .alreadyRunRead(alreadyRunVal, destDir = file.path(paths[["inputPath"]], "alreadyRun"),
+                                            verbose = verbose)
+      }
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,
                                      overwrite = overwrite, envir = envir, verbose = verbose,
