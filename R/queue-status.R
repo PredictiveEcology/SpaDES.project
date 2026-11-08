@@ -115,6 +115,19 @@ NULL
 ## (no namespaces on this platform) counts as the same.
 .sameNs <- function(rowNs, ns) identical(as.character(rowNs), as.character(ns))
 
+## The `pid_ns` of rows `i` of queue `q`; NA for a queue written before the column existed.
+.rowNs <- function(q, i = seq_len(NROW(q)))
+  if (is.null(q$pid_ns)) rep(NA_character_, length(i)) else as.character(q$pid_ns[i])
+
+## Is each local `pid` alive? Only a pid recorded in this process's PID namespace (`pid_ns`)
+## can be looked up in its /proc; any other is NA: unknown, not dead.
+.localPidsAlive <- function(pid, pid_ns) {
+  here <- vapply(pid_ns, .sameNs, logical(1), ns = .pidNs(), USE.NAMES = FALSE)
+  alive <- rep(NA, length(pid))
+  alive[here] <- vapply(pid[here], .pidIsAlive, logical(1), USE.NAMES = FALSE)
+  alive
+}
+
 ## What a claim writes: the row is RUNNING under this worker, and every other record and
 ## display field of an earlier attempt is cleared, so RUNNING never carries a finished_at,
 ## heartbeat or last_error from before.
@@ -201,7 +214,7 @@ NULL
   status <- as.character(q$status)
   mach   <- if (is.null(q$machine_name)) rep(NA_character_, NROW(q)) else as.character(q$machine_name)
   pid    <- if (is.null(q$process_id)) rep(NA_integer_, NROW(q)) else suppressWarnings(as.integer(q$process_id))
-  ns     <- if (is.null(q$pid_ns)) rep(NA_character_, NROW(q)) else as.character(q$pid_ns)
+  ns     <- .rowNs(q)
   idx <- which(status == txtRunning & !is.na(mach) & !is.na(pid))
   local <- Sys.info()[["nodename"]]
   if (machines == "local") idx <- idx[mach[idx] == local]
@@ -214,12 +227,7 @@ NULL
                      logical(1))
     k <- k[!inPane]
     if (!length(k)) next
-    alive <- if (m == local) {
-      here <- vapply(ns[k], .sameNs, logical(1), ns = .pidNs(), USE.NAMES = FALSE)
-      a <- rep(NA, length(k))
-      a[here] <- vapply(pid[k][here], .pidIsAlive, logical(1), USE.NAMES = FALSE)
-      a
-    } else .ssh_pids_alive(m, pid[k], ns[k])
+    alive <- if (m == local) .localPidsAlive(pid[k], ns[k]) else .ssh_pids_alive(m, pid[k], ns[k])
     if (is.null(alive)) next
     dead <- c(dead, k[!is.na(alive) & !alive])
   }

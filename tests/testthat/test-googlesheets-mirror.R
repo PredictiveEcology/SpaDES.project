@@ -105,8 +105,12 @@ test_that(".mirror_local_queue traces the skip for an absent queue", {
 
 # --- .gs_demote_after_kill ----------------------------------------------------
 
+## A killed worker is machine + PID namespace + PID.
+killedWorkers <- function(pid, machine = "m", pid_ns = "pid:[1]")
+  data.frame(machine = machine, pid = pid, pid_ns = pid_ns, stringsAsFactors = FALSE)
+
 test_that(".gs_demote_after_kill returns 0 for an empty sheet id", {
-  expect_identical(SpaDES.project:::.gs_demote_after_kill("", killed_pids = 1L), 0L)
+  expect_identical(SpaDES.project:::.gs_demote_after_kill("", killedWorkers(1L)), 0L)
 })
 
 test_that(".gs_demote_after_kill returns 0 when the queue cannot be read", {
@@ -114,18 +118,18 @@ test_that(".gs_demote_after_kill returns 0 when the queue cannot be read", {
     .gs_read_queue = function(...) stop("no network")
   )
 
-  expect_identical(SpaDES.project:::.gs_demote_after_kill("sheet", 1L), 0L)
+  expect_identical(SpaDES.project:::.gs_demote_after_kill("sheet", killedWorkers(1L)), 0L)
 })
 
 test_that(".gs_demote_after_kill returns 0 when no RUNNING row matches", {
   testthat::local_mocked_bindings(
     .gs_read_queue = function(...) data.frame(
-      status = c("PENDING", "DONE"), process_id = c("11", "22"),
+      status = c("PENDING", "DONE"), machine_name = "m", pid_ns = "pid:[1]", process_id = c("11", "22"),
       stringsAsFactors = FALSE),
     .gs_write_cells = function(...) stop("must not write")
   )
 
-  expect_identical(SpaDES.project:::.gs_demote_after_kill("sheet", killed_pids = 99L), 0L)
+  expect_identical(SpaDES.project:::.gs_demote_after_kill("sheet", killedWorkers(99L)), 0L)
 })
 
 test_that(".gs_demote_after_kill puts matching RUNNING rows back in the queue as INTERRUPTED", {
@@ -134,6 +138,7 @@ test_that(".gs_demote_after_kill puts matching RUNNING rows back in the queue as
   testthat::local_mocked_bindings(
     .gs_read_queue = function(...) data.frame(
       status       = c("RUNNING", "RUNNING", "PENDING"),
+      machine_name = "m", pid_ns = "pid:[1]",
       process_id   = c("101", "202", "303"),
       claimed_by   = c("w1", "w2", NA_character_),
       started_at   = c("t1", "t2", NA_character_),
@@ -144,7 +149,7 @@ test_that(".gs_demote_after_kill puts matching RUNNING rows back in the queue as
     }
   )
 
-  n <- SpaDES.project:::.gs_demote_after_kill("sheet", killed_pids = c(101L, 303L))
+  n <- SpaDES.project:::.gs_demote_after_kill("sheet", killedWorkers(c(101L, 303L)))
 
   # only row 1 is both RUNNING and in killed_pids
   expect_identical(n, 1L)
@@ -158,7 +163,7 @@ test_that(".gs_demote_after_kill records why the row is back in the queue", {
   seen <- new.env(parent = emptyenv())
   testthat::local_mocked_bindings(
     .gs_read_queue = function(...) data.frame(
-      status = "RUNNING", process_id = "7", claimed_by = "w",
+      status = "RUNNING", machine_name = "m", pid_ns = "pid:[1]", process_id = "7", claimed_by = "w",
       stringsAsFactors = FALSE),
     .gs_write_cells = function(ss_id, sheet_row, updates, ...) {
       seen$updates <- updates
@@ -166,11 +171,20 @@ test_that(".gs_demote_after_kill records why the row is back in the queue", {
     }
   )
 
-  SpaDES.project:::.gs_demote_after_kill("sheet", killed_pids = 7L)
+  SpaDES.project:::.gs_demote_after_kill("sheet", killedWorkers(7L))
 
   # the same row every reclaim writes (.reclaimUpdates()): INTERRUPTED, unclaimed, with the reason
   expect_identical(seen$updates$status, "INTERRUPTED")
   expect_true(is.na(seen$updates$claimed_by))
   expect_false(is.na(seen$updates$interrupted_at))
   expect_match(seen$updates$last_error, "7")
+})
+
+test_that(".gs_demote_after_kill leaves a row with the killed PID on another machine or in another PID namespace", {
+  testthat::local_mocked_bindings(
+    .gs_read_queue = function(...) data.frame(
+      status = "RUNNING", machine_name = c("m", "other", "m"), pid_ns = c("pid:[2]", "pid:[1]", "pid:[1]"),
+      process_id = "7", claimed_by = "w", stringsAsFactors = FALSE),
+    .gs_write_cells = function(ss_id, sheet_row, updates, ...) invisible(sheet_row))
+  expect_identical(SpaDES.project:::.gs_demote_after_kill("sheet", killedWorkers(7L)), 1L)   # row 3 only
 })

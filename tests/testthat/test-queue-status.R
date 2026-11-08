@@ -123,9 +123,10 @@ test_that("every reclaim path writes the same INTERRUPTED row", {
   testthat::local_mocked_bindings(
     .gs_read_queue = function(...) data.frame(status = "RUNNING", machine_name = me,
                                               process_id = as.character(pid), claimed_by = "w",
+                                              pid_ns = SpaDES.project:::.pidNs(),
                                               stringsAsFactors = FALSE),
     .gs_write_cells = function(ss_id, sheet_row, updates, ...) { seen <<- updates; invisible(NULL) })
-  SpaDES.project:::.gs_demote_after_kill("sheet", killed_pids = pid)
+  SpaDES.project:::.gs_demote_after_kill("sheet", data.frame(machine = me, pid = pid, pid_ns = SpaDES.project:::.pidNs()))
   expect_identical(seen[c("status", "claimed_by", "last_error")], want[c("status", "claimed_by", "last_error")])
 })
 
@@ -329,4 +330,27 @@ test_that("the sheet reclaim leaves a row from another PID namespace alone", {
     .gs_write_cells = function(...) { wrote <<- TRUE; invisible(NULL) })
   SpaDES.project:::.gs_reclaim_dead_jobs("sheet")
   expect_false(wrote)
+})
+
+## The symptom itself: the row's PID looks dead in this worker's /proc (mocked, so it holds on
+## any platform), but the row was claimed in another PID namespace, so it says nothing.
+test_that("a foreign-namespace row whose pid looks dead is reclaimed on base and not here", {
+  noOtherLiveness()
+  testthat::local_mocked_bindings(.pidIsAlive = function(...) FALSE)
+  q <- data.frame(status = "RUNNING", claimed_by = "a", machine_name = Sys.info()[["nodename"]],
+                  process_id = 120L, pid_ns = "pid:[1]", stringsAsFactors = FALSE)
+  expect_silent(out <- SpaDES.project:::.queueAtLaunch(q))
+  expect_identical(out$status, "RUNNING")
+})
+
+test_that("experimentFutureList lists a RUNNING row only if its pid is alive in this PID namespace", {
+  skip_if(.Platform$OS.type != "unix" || !dir.exists("/proc"), "needs /proc")
+  qp <- withr::local_tempfile(fileext = "_queue.rds")
+  me <- Sys.info()[["nodename"]]
+  saveRDS(data.frame(.ELFind = c("a", "b", "c"), status = "RUNNING", machine_name = me,
+                     process_id = Sys.getpid(), started_at = "t",
+                     pid_ns = c(SpaDES.project:::.pidNs(), "pid:[1]", SpaDES.project:::.pidNs()),
+                     stringsAsFactors = FALSE), qp)
+  out <- experimentFutureList(queue_paths = qp)
+  expect_identical(out$runName[out$queue_path %in% qp], c("a", "c"))      # the "pid:[1]" row is not ours to list or kill
 })
