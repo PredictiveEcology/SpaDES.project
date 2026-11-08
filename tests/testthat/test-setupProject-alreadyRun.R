@@ -172,6 +172,8 @@ test_that("setupProject with several ledger runs reads each, skips no module and
   skip_if_not_installed("sf")
   skip_if_not_installed("reproducible")
   skip_if_not_installed("SpaDES.core")
+  skip_if_not(exists(".alreadyRunMulti", envir = asNamespace("SpaDES.core"), inherits = FALSE),
+              "SpaDES.core without several-run alreadyRun")
   setupTest()
   withr::local_options(spades.useRequire = FALSE, Require.updateRprofile = NULL)
   root <- normPath(withr::local_tempdir())
