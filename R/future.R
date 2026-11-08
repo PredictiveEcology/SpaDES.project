@@ -5,14 +5,6 @@
 # background R processes.  All worker output is captured to per-worker log
 # files on localhost via callr::r_bg(), enabling true streaming logs.
 
-# -- Internal constants -----------------------------------------------------
-
-.future_meta_cols <- c(
-  "status", "claimed_by", "started_at", "finished_at",
-  "DEoptimElapsedTime", "machine_name", "process_id",
-  "heartbeat_at", "heartbeat_iter", "iterationsTotal", "interrupted_at"
-)
-
 # -- experimentFuture -------------------------------------------------------
 
 #' Run parallel R jobs using background processes (tmux-free)
@@ -47,9 +39,9 @@
 #'   if it does not yet exist.  Defaults to
 #'   \code{<dirname(global_path)>/future_queue.rds}.
 #' @param on_interrupt \code{"requeue"} (default) re-queues interrupted jobs
-#'   as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
-#'   errors (rather than being interrupted) is marked ERROR and is not claimed
-#'   again until its status is set back to PENDING.
+#'   as PENDING; \code{"fail"} marks them INTERRUPTED (still claimable) and stops the
+#'   worker. A job that errors is marked ERROR, which no worker claims until the next
+#'   launch on this queue (see [experimentStatus]).
 #' @param on_error \code{"stop"} (default) leaves a worker stopped after a job errors, with
 #'   the error visible in its log; \code{"continue"} goes on to the next claimable job. The
 #'   errored row is marked ERROR either way (see \code{on_interrupt}).
@@ -288,8 +280,8 @@ experimentFuture <- function(
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
       if (!missing(df) && !is.null(df)) {
         gs_names_reverted <- names(revertDotNames(data.table::copy(data.table::setDT(gs_q))))
-        gs_data_cols  <- setdiff(gs_names_reverted, .future_meta_cols)
-        df_data_cols  <- setdiff(names(df),         .future_meta_cols)
+        gs_data_cols  <- setdiff(gs_names_reverted, meta_cols)
+        df_data_cols  <- setdiff(names(df),         meta_cols)
         extra_in_gs   <- setdiff(gs_data_cols, df_data_cols)
         missing_in_gs <- setdiff(df_data_cols, gs_data_cols)
         if (length(extra_in_gs) > 0L || length(missing_in_gs) > 0L) {
@@ -310,17 +302,16 @@ experimentFuture <- function(
       }
       q <- revertDotNames(data.table::setDT(gs_q))
       .queue_write(q, queue_path)
-    } else {
-      # Push local queue to GS
-      q         <- readRDS(queue_path)
-      q_sync    <- as.data.frame(lapply(q, as.character))
-      names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
-      try(googlesheets4::with_gs4_quiet(
-        googlesheets4::range_write(ss = ss_id, data = q_sync,
-                                   sheet = "Status", range = "A1", reformat = FALSE)
-      ), silent = TRUE)
     }
   }
+  # A launch runs what is left: HOLD and ERROR rows back to PENDING, RUNNING rows of dead
+  # workers back in the queue (see ?experimentStatus); then the sheet, if there is one, gets
+  # the queue the workers will claim from.
+  q <- .queue_modify(queue_path, .queueAtLaunch)
+  if (!is.null(ss_id))
+    tryCatch(.gs_push_queue(ss_id, q),
+             error = function(e) warning("Could not push the queue to the Google Sheet (",
+                                         ss_id, "): ", conditionMessage(e), call. = FALSE))
 
   # -- 5. Remote machine setup -----------------------------------------------
   unique_hosts <- if (!is.null(cores)) {
@@ -771,10 +762,9 @@ awaitExperimentFuture <- function(ef, verbose = TRUE) {
 #' interrupt handler has a chance to update the queue.  Any jobs that were
 #' \code{RUNNING} at the time of the kill will remain as \code{RUNNING} in the
 #' queue until the next reclaim pass.  Call
-#' \code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to reset stale
-#' \code{RUNNING} entries to \code{PENDING} (or \code{INTERRUPTED} if the run had
-#' already written a heartbeat), or use the GS backend which
-#' reclaims dead workers automatically before each new claim.
+#' \code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to put those
+#' \code{RUNNING} entries back in the queue as \code{INTERRUPTED}; the next launch
+#' and every worker's claim do the same.
 #'
 #' @param ef An \code{"experimentFuture"} object returned by
 #'   \code{\link{experimentFuture}}.
@@ -864,8 +854,8 @@ killExperimentFuture <- function(ef, force = FALSE) {
 #' @param kill   If \code{TRUE}, send \code{signal} to every worker found,
 #'   wait up to 10 s for the processes to exit, then call
 #'   \code{\link{tmuxRefreshQueueStatus}()} on each unique
-#'   \code{queue_path} to demote the now-orphaned \verb{RUNNING} rows
-#'   back to \verb{PENDING}. Default \code{FALSE} (list-only).
+#'   \code{queue_path} to put the now-orphaned \verb{RUNNING} rows
+#'   back in the queue as \verb{INTERRUPTED}. Default \code{FALSE} (list-only).
 #' @param signal One of \code{"TERM"} (15, default; graceful), \code{"INT"}
 #'   (2; like Ctrl-C), or \code{"KILL"} (9; immediate).
 #' @param queue_paths Optional character vector of queue \code{.rds} paths to
@@ -1010,7 +1000,7 @@ experimentFutureList <- function(ef = NULL,
         idx <- which(q$status == "RUNNING" &
                      suppressWarnings(as.integer(q$process_id)) == pid)
         if (length(idx)) {
-          data_cols <- setdiff(names(q), .future_meta_cols)
+          data_cols <- setdiff(names(q), meta_cols)
           vals <- vapply(data_cols,
                          function(cn) as.character(q[[cn]][idx[1L]]),
                          character(1L))
@@ -1059,7 +1049,7 @@ experimentFutureList <- function(ef = NULL,
                  !is.na(suppressWarnings(as.integer(q$process_id))))
     if (length(idx) == 0L) next
     machines <- unique(q$machine_name[idx])
-    data_cols <- setdiff(names(q), .future_meta_cols)
+    data_cols <- setdiff(names(q), meta_cols)
     seen <- if (nrow(out)) paste(out$pid, out$machine, sep = "@") else character(0)
     for (m in machines) {
       m_idx  <- idx[q$machine_name[idx] == m]
@@ -1136,10 +1126,10 @@ experimentFutureList <- function(ef = NULL,
             sum(is_local_row), " local, ", sum(!is_local_row), " remote).")
 
     # Wait for the workers to actually exit before refreshing the queue.
-    # tmuxRefreshQueueStatus() demotes a RUNNING row to PENDING only if the
+    # tmuxRefreshQueueStatus() puts a RUNNING row back in the queue only if the
     # row's process_id is no longer alive; if we refresh too eagerly, the
-    # killed workers' processes may not yet be reaped, so the demotion
-    # would be skipped and the queue would stay stuck.
+    # killed workers' processes may not yet be reaped, so the row would be
+    # skipped and the queue would stay stuck.
     deadline    <- Sys.time() + 10
     remaining_l <- out$pid[is_local_row]
     remaining_r <- split(out$pid[!is_local_row], out$machine[!is_local_row])
@@ -1195,8 +1185,8 @@ experimentFutureList <- function(ef = NULL,
       }
     }
     if (length(qps))
-      message("Refreshed ", length(qps), " queue file(s); stale RUNNING rows ",
-              "have been demoted to PENDING.")
+      message("Refreshed ", length(qps), " queue file(s); RUNNING rows of the killed ",
+              "workers are back in the queue as INTERRUPTED.")
     if (gs_demoted > 0L)
       message("Demoted ", gs_demoted, " RUNNING row(s) on associated Google Sheet(s).")
     return(invisible(out))
@@ -1270,7 +1260,7 @@ experimentFutureList <- function(ef = NULL,
                  !is.na(q$machine_name) &
                  !is.na(suppressWarnings(as.integer(q$process_id))))
     if (length(idx) == 0L) next
-    data_cols <- setdiff(names(q), .future_meta_cols)
+    data_cols <- setdiff(names(q), meta_cols)
     for (m in unique(q$machine_name[idx])) {
       m_idx  <- idx[q$machine_name[idx] == m]
       m_pids <- as.integer(q$process_id[m_idx])
@@ -1367,25 +1357,6 @@ experimentFutureList <- function(ef = NULL,
     }
   }
   workers
-}
-
-# Batched remote PID-liveness check: one SSH connection per machine.
-# Returns NULL if SSH is unreachable (treat as "leave alone"), or a logical
-# vector aligned to `pids` otherwise.
-.ssh_pids_alive <- function(machine, pids) {
-  if (length(pids) == 0L) return(logical(0))
-  pid_str <- paste(pids, collapse = " ")
-  cmd <- paste0("for pid in ", pid_str,
-                "; do [ -d /proc/$pid ] && echo alive || echo dead; done")
-  res <- tryCatch(
-    system2("ssh",
-            c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-              machine, shQuote(cmd)),
-            stdout = TRUE, stderr = FALSE),
-    error = function(e) NULL
-  )
-  if (is.null(res) || length(res) != length(pids)) return(NULL)
-  res == "alive"
 }
 
 # Batched remote `readlink /proc/<pid>/fd/1` for each pid; one SSH connection.

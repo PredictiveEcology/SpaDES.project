@@ -29,11 +29,21 @@ in \code{\link[=experimentSBATCH]{experimentSBATCH()}}, the number of workers of
 group (a pool shares one machine, a Slurm job does not). A group with rows to run and no
 worker is an error.
 
+How a row's \code{.after} groups are judged, for each group named: the group is \emph{ok} when
+every row of it is \code{DONE}; \emph{active} while a row of it is \code{RUNNING}, or is \code{PENDING} or
+\code{INTERRUPTED} and can itself still run; otherwise it \emph{ended} without finishing (an
+\code{ERROR}, \code{HOLD} or never-runnable row). An \code{afterok} row is ready when every group is ok,
+an \code{afterany} row when none is active; a row waits while a group is active, and never runs
+otherwise. A worker that would wait checks the queue again every 30 seconds
+(\code{SPADES_AFTER_POLL_SECONDS}); a worker with only rows that never run ends.
+
 On Slurm, each group's jobs are submitted with
 \verb{--dependency=<.afterType>:<job ids of the .after groups>}, after those groups' jobs
-(groups are submitted in dependency order). A worker that would wait for an unfinished
-group checks the queue again every 30 seconds (\code{SPADES_AFTER_POLL_SECONDS}). A row whose
-\code{"afterok"} group ended with a row not \code{DONE} never runs; its worker ends.
+(groups are submitted in dependency order), and start with
+\code{tmuxRunWorkerLoop(afterGroupsEnded = TRUE)}: the jobs of the \code{.after} groups have ended
+by then, so a row of theirs still \code{PENDING} or \code{INTERRUPTED} (its job was killed) has no
+worker and does not count as active. Without that, a score job set to run \code{afterany} its
+hindcasts polled for its whole walltime on hindcast rows nobody would run.
 }
 \examples{
 \dontrun{

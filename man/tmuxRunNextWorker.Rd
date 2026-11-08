@@ -14,7 +14,8 @@ tmuxRunNextWorker(
   folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
   activeRunningPath = getOption("spades.activeRunningPath"),
   ss_id = NULL,
-  group = NULL
+  group = NULL,
+  afterGroupsEnded = FALSE
 )
 }
 \arguments{
@@ -22,7 +23,7 @@ tmuxRunNextWorker(
 
 \item{global_path}{character; script to source for the job}
 
-\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".}
+\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which no worker claims until the next launch on this queue (see \link{experimentStatus}).}
 
 \item{heartbeat_interval_s}{numeric; seconds between heartbeats while the job runs}
 
@@ -43,6 +44,12 @@ supplied workers use the GS backend instead of the local RDS file.}
 
 \item{group}{\code{NULL} (default: any row) or the queue group (\code{.group}) whose rows this
 worker claims. A row is claimed only once the groups in its \code{.after} have finished; see
+\link{experimentGroups}.}
+
+\item{afterGroupsEnded}{Logical (default \code{FALSE}). \code{TRUE} in a worker started after the
+groups it waits for have ended (a Slurm job with \code{--dependency}, as \code{\link[=experimentSBATCH]{experimentSBATCH()}}
+writes it): a row of those groups still \code{PENDING} or \code{INTERRUPTED} has no worker left,
+so it does not hold up an \code{afterany} row and makes an \code{afterok} row never run. See
 \link{experimentGroups}.}
 }
 \value{

@@ -68,9 +68,11 @@ values \code{"trial1"} and \code{"trial2"}, the first worker runs
 "PENDING" for all rows; workers take the next "PENDING" (or "INTERRUPTED")
 row, skipping "DONE" rows (and any other status, such as "HOLD"), and mark a
 row "DONE" when it finishes without error before moving to the next. A job
-that errors is marked "ERROR", which no worker takes; set its status back to
-"PENDING" to run it again. A worker never overwrites a status you set while
-its job ran.
+that errors is marked "ERROR", which no worker takes. A worker never overwrites
+a status you set while its job ran. Every launch on an existing queue sets its
+"HOLD" and "ERROR" rows back to "PENDING" and puts the "RUNNING" rows of dead
+workers back in the queue as "INTERRUPTED", so a relaunch runs what is left.
+See \link{experimentStatus} for the whole model.
 
 These three share the queue and the run-naming convention and differ only in
 \emph{how} parallel workers are spawned:
@@ -162,10 +164,10 @@ on the queue between read and write, so each row is claimed at most
 once across all workers and machines.}
 \item{Resume after crash / ctrl-C}{If a worker dies mid-job, the row is
 stuck "in progress" with no record. The experimentXXX functions mark the row RUNNING
-when claimed and DONE / ERROR / INTERRUPTED when finished, so the next launch
-skips DONE and ERROR rows and (optionally, via \code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} or
-\code{\link[=experimentFutureList]{experimentFutureList()}} \code{(kill = TRUE)}) demotes orphaned RUNNING
-rows back to PENDING for re-claim.}
+when claimed and DONE / ERROR / INTERRUPTED when finished; the next launch, a worker
+before each claim, \code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} and \code{\link[=experimentFutureList]{experimentFutureList()}}
+\code{(kill = TRUE)} put RUNNING rows whose process is dead back in the queue as
+INTERRUPTED.}
 \item{Worker-pool sizing}{\verb{Rscript &; Rscript &; Rscript &} scales as
 "one process per row", which thrashes the box once you exceed the
 core count. The experimentXXX functions take \code{n_workers} and let each worker pull
@@ -334,8 +336,8 @@ live worker -- local and remote, in one table.
 \code{ssh <alias> "kill -<sig> p1 p2 ..."} per remote machine.
 After signalling, it polls (locally via \code{/proc}, remotely via
 SSH) for up to 10 s until the workers actually exit, then runs
-\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} on each unique queue file to demote the
-now-orphaned \verb{RUNNING} rows back to \verb{PENDING}.  When
+\code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} on each unique queue file to put the
+now-orphaned \verb{RUNNING} rows back in the queue as \verb{INTERRUPTED}.  When
 \code{ss_id} was supplied to the original \code{experimentFuture()}
 call, an \code{<queue_path>.ss_id} sidecar is left behind;
 \code{kill = TRUE} reads it and pushes the same demotion to the
@@ -375,8 +377,8 @@ network blip (otherwise the queue would stay stuck at
 \verb{RUNNING} and no one would re-claim).
 \item Send \code{SIGTERM} cluster-wide to abort an experiment
 mid-run, then immediately re-launch a fixed \code{global.R}
-against the same queue (any DONE rows are skipped, demoted
-RUNNING rows are re-claimed).
+against the same queue (any DONE rows are skipped, the
+INTERRUPTED rows are re-claimed).
 \item Mirror that demotion to the Google Sheet so a stakeholder
 watching in a browser sees the change without needing to be
 told.

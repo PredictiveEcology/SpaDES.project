@@ -21,8 +21,8 @@ scope.}
 \item{kill}{If \code{TRUE}, send \code{signal} to every worker found,
 wait up to 10 s for the processes to exit, then call
 \code{\link{tmuxRefreshQueueStatus}()} on each unique
-\code{queue_path} to demote the now-orphaned \verb{RUNNING} rows
-back to \verb{PENDING}. Default \code{FALSE} (list-only).}
+\code{queue_path} to put the now-orphaned \verb{RUNNING} rows
+back in the queue as \verb{INTERRUPTED}. Default \code{FALSE} (list-only).}
 
 \item{signal}{One of \code{"TERM"} (15, default; graceful), \code{"INT"}
 (2; like Ctrl-C), or \code{"KILL"} (9; immediate).}

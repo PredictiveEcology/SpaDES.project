@@ -2,7 +2,7 @@
 % Please edit documentation in R/tmux.R
 \name{tmuxRefreshQueueStatus}
 \alias{tmuxRefreshQueueStatus}
-\title{Refresh and Assess Queue Status from Simulation Outputs}
+\title{Refresh a queue file: reclaim dead workers' rows, fill the display columns}
 \usage{
 tmuxRefreshQueueStatus(
   queue_path,
@@ -16,39 +16,41 @@ tmuxRefreshQueueStatus(
 )
 }
 \arguments{
-\item{queue_path}{Character. Absolute path to the \code{experiment_queue.rds} file.}
+\item{queue_path}{Character. Absolute path to the queue \code{.rds} file.}
 
-\item{timeout_min}{Numeric. Minutes of inactivity before a task is
-considered stale. Defaults to 20.}
+\item{timeout_min}{Unused; kept so old calls still work.}
 
 \item{runNameLabel}{A quoted expression to derive a run label from the queue. Default uses first two columns.}
 
-\item{statusCalculate}{A quoted expression to compute job status from output files.
+\item{statusCalculate}{A quoted expression evaluated per row with the row's data columns
+and the \code{...} in scope; the display columns it assigns are written to the row.
 Defaults to \code{getOption("spades.statusCalculate", NULL)}.}
 
 \item{folderWithIterInFilename}{A quoted expression for a folder with iteration info in filenames.
 Defaults to \code{getOption("spades.folderWithIterInFilename", NULL)}.}
 
-\item{recheckDone}{Logical. If \code{TRUE}, re-evaluate DONE status. Default \code{FALSE}.}
+\item{recheckDone}{Logical. If \code{TRUE}, fill the display columns of \code{DONE} rows too. Default \code{FALSE}.}
 
 \item{activeRunningPath}{Directory for "running" flag files. See \code{tmuxActiveRunningPath}.}
 
-\item{...}{Additional arguments (currently unused).}
+\item{...}{Objects \code{statusCalculate} may use.}
 }
 \value{
-A data.frame (the updated queue), invisibly.
+A data.frame (the updated queue), invisibly; \code{NULL} when there is no queue file.
 As a side effect, updates the RDS file on disk.
 }
 \description{
-Scans the simulation output directories (defined by \code{runNameLabel}) to assess
-current status based on file timestamps and visual content of PNGs.
-If a PNG has not been updated for a specified timeout, the task is marked
-as "FINISHED" (if red pixels are detected) or "INTERRUPTED" (if no red
-is detected).
+Two things, both under the queue's lock. First, every \code{RUNNING} row whose worker process
+is known dead (see \link{experimentStatus}) goes back in the queue as \code{INTERRUPTED}, and the
+\verb{Running_*} marker files of dead local processes are removed. Second, for every row not
+finished (and every row, with \code{recheckDone = TRUE}), the display columns \code{heartbeat_at},
+\code{heartbeat_iter}, \code{DEoptimElapsedTime} and \code{iterationsTotal} are filled from the job's
+output files: from the newest \verb{iter<n>_<time>} file in \code{folderWithIterInFilename}, and
+from whichever of those names \code{statusCalculate} assigns. No other status is written: a
+row's status is the record of the worker that ran it.
 }
 \examples{
 \dontrun{
-# Assessment of all simulations in the current project
-tmuxRefreshQueueStatus("experiment_queue.rds", timeout_min = 30)
+tmuxRefreshQueueStatus("experiment_queue.rds")
 }
 }

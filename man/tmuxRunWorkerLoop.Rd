@@ -22,7 +22,8 @@ tmuxRunWorkerLoop(
   dev_library = NULL,
   n_workers_on_host = 1L,
   exitOnError = FALSE,
-  group = NULL
+  group = NULL,
+  afterGroupsEnded = FALSE
 )
 }
 \arguments{
@@ -30,7 +31,7 @@ tmuxRunWorkerLoop(
 
 \item{global_path}{character; script to source for the job}
 
-\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".}
+\item{on_interrupt}{"requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which no worker claims until the next launch on this queue (see \link{experimentStatus}).}
 
 \item{on_error}{\code{"stop"} (default) or \code{"continue"}. After a job errors, \code{"stop"} leaves this
 worker at the prompt with the error and call stack available; \code{"continue"} goes on to the
@@ -82,6 +83,12 @@ Default \code{FALSE}: the loop returns, as the tmux workers expect.}
 \item{group}{\code{NULL} (default: rows of any group) or the queue group (\code{.group}) this worker
 serves. While the rows left wait for their \code{.after} groups, the worker looks again every
 \code{SPADES_AFTER_POLL_SECONDS} (default 30) seconds. See \link{experimentGroups}.}
+
+\item{afterGroupsEnded}{Logical (default \code{FALSE}). \code{TRUE} in a worker started after the
+groups it waits for have ended (a Slurm job with \code{--dependency}, as \code{\link[=experimentSBATCH]{experimentSBATCH()}}
+writes it): a row of those groups still \code{PENDING} or \code{INTERRUPTED} has no worker left,
+so it does not hold up an \code{afterany} row and makes an \code{afterok} row never run. See
+\link{experimentGroups}.}
 }
 \value{
 invisibly TRUE

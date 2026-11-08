@@ -41,12 +41,14 @@
 #'   \code{<dirname(global_path)>/sbatch_queue.rds}.  Must be on shared
 #'   storage so all worker nodes can read/write it.
 #' @param on_interrupt \code{"requeue"} (default) re-queues interrupted jobs
-#'   as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
-#'   errors (rather than being interrupted) is marked ERROR and is not claimed
-#'   again until its status is set back to PENDING.
-#' @param on_error \code{"stop"} (default) leaves a worker stopped after a job errors, with
-#'   the error visible in its log; \code{"continue"} goes on to the next claimable job. The
-#'   errored row is marked ERROR either way (see \code{on_interrupt}).
+#'   as PENDING; \code{"fail"} marks them INTERRUPTED (still claimable) and stops the
+#'   worker. A job that errors is marked ERROR, which no worker claims until the next
+#'   launch on this queue (see [experimentStatus]).
+#' @param on_error \code{"continue"} (default) goes on to the next claimable job after a
+#'   job errors; \code{"stop"} ends the worker there, so the rows it would have run stay
+#'   PENDING with no worker. A batch job has no prompt to continue from, so
+#'   \code{"continue"} is the default here; the job still exits with status 1 when any
+#'   of its rows errored. The errored row is marked ERROR either way.
 #' @param ss_id Google Sheets ID (or Drive folder ID) for the shared queue.
 #'   When provided workers use the GS backend in addition to the local RDS
 #'   file (mirroring \code{experimentFuture}).
@@ -162,8 +164,8 @@
 #' tmuxRefreshQueueStatus(es$queue_path)
 #'
 #' ## -- Resume after stop ---------------------------------------------------
-#' # Same `queue_path` -> DONE rows are skipped, demoted PENDING rows are
-#' # re-claimed by the new sbatch jobs.
+#' # Same `queue_path` -> DONE rows are skipped; HOLD and ERROR rows go back to PENDING,
+#' # RUNNING rows of dead workers to INTERRUPTED, and the new sbatch jobs claim them.
 #' es2 <- experimentSBATCH(
 #'   df          = expt,                # ignored if queue exists
 #'   global_path = file.path(tdir, "global.R"),
@@ -194,7 +196,7 @@ experimentSBATCH <- function(
   n_workers           = 4L,
   queue_path          = NULL,
   on_interrupt        = c("requeue", "fail"),
-  on_error            = c("stop", "continue"),
+  on_error            = c("continue", "stop"),
   ss_id               = NULL,
   forceLocalQueueToGS = FALSE,
   email               = getOption("gargle_oauth_email"),
@@ -281,8 +283,8 @@ experimentSBATCH <- function(
     if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L && isFALSE(forceLocalQueueToGS)) {
       if (!missing(df) && !is.null(df)) {
         gs_names_reverted <- names(revertDotNames(data.table::copy(data.table::setDT(gs_q))))
-        gs_data_cols  <- setdiff(gs_names_reverted, .future_meta_cols)
-        df_data_cols  <- setdiff(names(df),         .future_meta_cols)
+        gs_data_cols  <- setdiff(gs_names_reverted, meta_cols)
+        df_data_cols  <- setdiff(names(df),         meta_cols)
         extra_in_gs   <- setdiff(gs_data_cols, df_data_cols)
         missing_in_gs <- setdiff(df_data_cols, gs_data_cols)
         if (length(extra_in_gs) > 0L || length(missing_in_gs) > 0L) {
@@ -303,16 +305,16 @@ experimentSBATCH <- function(
       }
       q <- data.table::setDT(gs_q)
       .queue_write(q, queue_path)
-    } else {
-      q         <- readRDS(queue_path)
-      q_sync    <- as.data.frame(lapply(q, as.character))
-      names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
-      try(googlesheets4::with_gs4_quiet(
-        googlesheets4::range_write(ss = ss_id, data = q_sync,
-                                   sheet = "Status", range = "A1", reformat = FALSE)
-      ), silent = TRUE)
     }
   }
+  # A launch runs what is left: HOLD and ERROR rows back to PENDING, RUNNING rows of dead
+  # workers back in the queue (see ?experimentStatus); then the sheet, if there is one, gets
+  # the queue the workers will claim from.
+  q <- .queue_modify(queue_path, .queueAtLaunch)
+  if (!is.null(ss_id))
+    tryCatch(.gs_push_queue(ss_id, q),
+             error = function(e) warning("Could not push the queue to the Google Sheet (",
+                                         ss_id, "): ", conditionMessage(e), call. = FALSE))
 
   # -- 5. Workers: per group (see ?experimentGroups), or n_workers for the whole queue ----
   groups <- .queueGroups(.queue_read(queue_path))
@@ -460,7 +462,7 @@ experimentSBATCH <- function(
       "ss_id = %s, email = %s, cache_path = %s, ",
       "runNameLabel = %s, activeRunningPath = %s, ",
       "dots_path = %s, stop_file = %s, pane_mode = \"reuse\", ",
-      "n_workers_on_host = %s, exitOnError = TRUE%s)"
+      "n_workers_on_host = %s, exitOnError = TRUE, afterGroupsEnded = TRUE%s)"
     ),
     .deparse_one(r_libs), .devLibraryStartup(dev_library),
     .deparse_one(queue_path),  .deparse_one(global_path), .deparse_one(on_interrupt), .deparse_one(on_error),
