@@ -158,7 +158,7 @@ test_that("experimentSBATCH builds the dev library once for all groups", {
   expect_identical(n, 1L)
   expect_length(es$job_scripts, 3L)
   for (s in es$job_scripts)
-    expect_true(any(grepl('.libPaths(c("/x/dev", "/x/stable"))', readLines(s), fixed = TRUE)))
+    expect_true(any(grepl('\\.libPaths\\(c\\(\\\\?"/x/dev\\\\?", \\\\?"/x/stable\\\\?"\\)\\)', readLines(s)))) # \" inside the shell wrapper (Windows)
 })
 
 test_that("experimentSBATCH without .group is as before: n_workers jobs, one options list, no dependency", {
