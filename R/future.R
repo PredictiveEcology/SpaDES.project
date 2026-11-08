@@ -39,7 +39,10 @@
 #'   workers are launched, replicating the full SpaDES environment (packages,
 #'   GitHub PAT, gargle OAuth cache) on each remote machine.
 #' @param n_workers Number of parallel workers.  Defaults to
-#'   \code{length(cores)} for remote workers, or \code{4L} for local.
+#'   \code{length(cores)} for remote workers, or \code{4L} for local.  With
+#'   \code{.group} in the queue, a named vector dedicates workers to groups
+#'   (\code{c(fit = 1, 2)}: one for \code{fit}, two for any group); see
+#'   \code{\link{experimentGroups}}.
 #' @param queue_path Path to the local RDS queue file.  Created automatically
 #'   if it does not yet exist.  Defaults to
 #'   \code{<dirname(global_path)>/future_queue.rds}.
@@ -361,8 +364,11 @@ experimentFuture <- function(
               all(cores %in% .localHostNames())
 
   # -- 7. Build log and stop-file paths --------------------------------------
-  log_files  <- file.path(log_dir, sprintf("worker_%02d.log",      seq_len(n_workers)))
-  stop_files <- file.path(log_dir, sprintf("worker_%02d.stop",     seq_len(n_workers)))
+  # the group each worker serves (NA: any); see ?experimentGroups
+  worker_groups <- .workerGroups(n_workers, .queueGroups(.queue_read(queue_path)), pool = TRUE)
+  n_workers  <- length(worker_groups)
+  log_files  <- .workerFiles(log_dir, worker_groups, ".log")
+  stop_files <- .workerFiles(log_dir, worker_groups, ".stop")
   # Remove any leftover stop files from a previous run
   for (sf in stop_files) if (file.exists(sf)) unlink(sf)
 
@@ -401,7 +407,8 @@ experimentFuture <- function(
       procs[[i]] <- callr::r_bg(
         func = function(queue_path, global_path, on_interrupt, on_error, ss_id,
                         email, cache_path, runNameLabel, activeRunningPath,
-                        dots_path, stop_file, lib_paths, snap_code, dev_code, n_workers_on_host) {
+                        dots_path, stop_file, lib_paths, snap_code, dev_code, n_workers_on_host,
+                        group) {
           .libPaths(lib_paths)
           if (nzchar(dev_code)) eval(parse(text = dev_code))
           # hardlinked per-job library, before anything is loaded from it
@@ -419,12 +426,14 @@ experimentFuture <- function(
             dots_path         = dots_path,
             stop_file         = stop_file,
             pane_mode         = "reuse",
-            n_workers_on_host = n_workers_on_host
+            n_workers_on_host = n_workers_on_host,
+            group             = group
           )
         },
         args    = c(worker_args, list(stop_file = stop_files[[i]], lib_paths = .libPaths(),
                                       snap_code = snap_code, dev_code = .devLibraryStartup(dev_library),
-                                      n_workers_on_host = workersOnHost[[i]])),
+                                      n_workers_on_host = workersOnHost[[i]],
+                                      group = worker_groups[[i]])),
         stdout  = log_files[[i]],
         stderr  = log_files[[i]],
         # Unset TMUX/TMUX_PANE so workers don't emit OSC 2 escape bytes into log files.
@@ -449,6 +458,7 @@ experimentFuture <- function(
       sf <- stop_files[[i]]
       wa <- worker_args
       nh <- workersOnHost[[i]]
+      gr <- worker_groups[[i]]
       procs[[i]] <- future::future(seed = TRUE, {
         .fn(
           queue_path        = wa$queue_path,
@@ -463,7 +473,8 @@ experimentFuture <- function(
           dots_path         = wa$dots_path,
           stop_file         = sf,
           log_file          = lf,
-          n_workers_on_host = nh
+          n_workers_on_host = nh,
+          group             = gr
         )
       })
     }
@@ -565,6 +576,8 @@ experimentFuture <- function(
 #'   [librarySnapshot].
 #' @param n_workers_on_host Number of workers the launcher runs on this host; passed
 #'   to [tmuxRunWorkerLoop()].
+#' @param group `NULL` (default: any row) or the queue group this worker serves; passed to
+#'   [tmuxRunWorkerLoop()]. See [experimentGroups].
 runWorkerLoopFuture <- function(
   queue_path,
   global_path,
@@ -579,7 +592,8 @@ runWorkerLoopFuture <- function(
   stop_file         = NULL,
   log_file          = NULL,
   snapshot_library = TRUE,
-  n_workers_on_host = 1L
+  n_workers_on_host = 1L,
+  group             = NULL
 ) {
   on_interrupt <- match.arg(on_interrupt)
   on_error     <- match.arg(on_error)
@@ -603,7 +617,7 @@ runWorkerLoopFuture <- function(
       func = function(queue_path, global_path, on_interrupt, on_error,
                       ss_id, email, cache_path, runNameLabel,
                       activeRunningPath, dots_path, stop_file, lib_paths, snap_code,
-                      n_workers_on_host) {
+                      n_workers_on_host, group) {
         .libPaths(lib_paths)
         if (nzchar(snap_code)) eval(parse(text = snap_code))
         SpaDES.project::tmuxRunWorkerLoop(
@@ -619,7 +633,8 @@ runWorkerLoopFuture <- function(
           dots_path         = dots_path,
           stop_file         = stop_file,
           pane_mode         = "reuse",
-          n_workers_on_host = n_workers_on_host
+          n_workers_on_host = n_workers_on_host,
+          group             = group
         )
       },
       args = list(
@@ -635,6 +650,7 @@ runWorkerLoopFuture <- function(
         dots_path         = dots_path,
         stop_file         = stop_file,
         n_workers_on_host = n_workers_on_host,
+        group             = group,
         lib_paths         = .libPaths(),
         snap_code         = if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
           .librarySnapshotCode(.libPaths()[1L], activeRunningPath) else ""
@@ -668,7 +684,8 @@ runWorkerLoopFuture <- function(
     dots_path         = dots_path,
     stop_file         = stop_file,
     pane_mode         = "reuse",
-    n_workers_on_host = n_workers_on_host
+    n_workers_on_host = n_workers_on_host,
+    group             = group
   )
 
   message("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ",

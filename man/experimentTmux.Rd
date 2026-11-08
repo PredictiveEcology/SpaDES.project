@@ -52,7 +52,9 @@ machine reachable via passwordless SSH. When any remote hosts are listed,
 \code{.setup_remote_machine()} is called for each unique hostname before workers start.
 Default \code{NULL} (all localhost).}
 
-\item{n_workers}{Integer. Number of worker panes to spawn. Defaults to \code{length(cores)}
+\item{n_workers}{Integer. Number of worker panes to spawn. With \code{.group} in the queue, a
+named vector dedicates panes to groups (\code{c(fit = 1, 2)}: one for \code{fit}, two for any
+group); see \link{experimentGroups}. Defaults to \code{length(cores)}
 if \code{cores} is supplied, otherwise \code{4}.}
 
 \item{delay_after_split}{Numeric. Seconds to wait after each \code{split-window}. Default \code{2}.}

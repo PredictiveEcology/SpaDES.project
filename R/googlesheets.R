@@ -392,11 +392,13 @@
 # Retries on lost race; returns
 #   * list(row_index, sheet_row, col_positions, data)            -- success
 #   * NULL                                                       -- queue empty
+#   * structure(list(), class = "gs_claim_wait")                 -- rows left wait for `.after` groups
 #   * structure(list(), class = "gs_claim_lost")                 -- exhausted retries
+# `group`: NULL (any row) or the `.group` whose rows this worker claims (see .claimableRow()).
 # `queue_path`: when supplied, GS state is mirrored back to the local RDS
 # so queueRead(local) and experimentFutureList() see the live state.
 .gs_claim_next_job <- function(ss_id, worker_id, sheet = "Status",
-                                queue_path = NULL, max_attempts = 20L) {
+                                queue_path = NULL, max_attempts = 20L, group = NULL) {
   for (attempt in seq_len(max_attempts)) {
     # Reclaim any RUNNING rows whose process died on this machine before scanning.
     .gs_reclaim_dead_jobs(ss_id, sheet)
@@ -405,13 +407,13 @@
     if (nrow(q) == 0L) return(NULL)
 
     col_pos     <- setNames(seq_along(names(q)), names(q))
-    pending_idx <- which(q$status %in% c("PENDING", "INTERRUPTED"))
-    if (length(pending_idx) == 0L) return(NULL)
-
-    # Always claim the topmost pending row.  If two workers collide on the
+    # Always claim the topmost claimable row.  If two workers collide on the
     # same row, the loser's retry sees that row already RUNNING and falls
     # through to the next pending row.
-    row_i     <- pending_idx[1L]
+    claim <- .claimableRow(q, group)
+    if (is.na(claim$i))
+      return(if (claim$wait) structure(list(), class = "gs_claim_wait") else NULL)
+    row_i     <- claim$i
     sheet_row <- row_i + 1L          # +1 for the header row
     now       <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 

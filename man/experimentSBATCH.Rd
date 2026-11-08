@@ -33,13 +33,18 @@ experimentSBATCH(
 \arguments{
 \item{df}{data.frame of parameter combinations.  Each row is one job.
 Ignored if \code{queue_path} already exists (workers resume from the
-existing queue).}
+existing queue).  Optional columns \code{.group}, \code{.after} and
+\code{.afterType} split the rows into groups that run one after another, each
+with its own jobs, in this one call; see \code{\link{experimentGroups}}.}
 
 \item{global_path}{Path to the R script each worker sources per job.
 Defaults to \code{"global.R"} in the current directory.  Must be on a
 filesystem visible to compute nodes (e.g. shared NFS / Lustre).}
 
-\item{n_workers}{Number of SBATCH jobs to submit.  Defaults to \code{4L}.}
+\item{n_workers}{Number of SBATCH jobs to submit.  Defaults to \code{4L}.  With
+\code{.group} in the queue, the jobs of each group: a named vector
+(\code{c(fit = 1, 4)}) gives a group's own number, the unnamed entry the rest; at
+most one job per row still to run.  See \code{\link{experimentGroups}}.}
 
 \item{queue_path}{Path to the local RDS queue file.  Created automatically
 if it does not yet exist.  Defaults to
@@ -85,7 +90,11 @@ Underscores in names are translated to hyphens, so
 Set a value to \code{NULL} or \code{TRUE} for flag-only directives
 (\code{#SBATCH --<name>}).  Common keys: \code{partition}, \code{time},
 \code{mem}, \code{cpus_per_task}, \code{account}, \code{nodes},
-\code{ntasks_per_node}, \code{constraint}, \code{gres}.}
+\code{ntasks_per_node}, \code{constraint}, \code{gres}.  With \code{.group} in
+the queue, a list of lists: an unnamed one for every group, then lists named by
+group that add to or replace it (\code{list(list(partition = "standard"),
+fit = list(mem = "300G"))}).  A group with \code{.after} also gets
+\code{--dependency=<.afterType>:<job ids>}.}
 
 \item{sbatch_cmd}{Path to the \code{sbatch} executable.  Defaults to
 \code{"sbatch"} (resolved on \code{$PATH}).  Override on systems where
@@ -137,6 +146,7 @@ paths.}
 \item{\code{stop_files}}{Character vector of stop-file paths.}
 \item{\code{log_dir}}{Absolute path to the log directory.}
 \item{\code{queue_path}}{Absolute path to the queue RDS file.}
+\item{\code{groups}}{Each job's queue group (\code{NA} without \code{.group}).}
 }
 }
 \description{

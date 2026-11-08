@@ -18,7 +18,8 @@ runWorkerLoopFuture(
   stop_file = NULL,
   log_file = NULL,
   snapshot_library = TRUE,
-  n_workers_on_host = 1L
+  n_workers_on_host = 1L,
+  group = NULL
 )
 }
 \arguments{
@@ -60,6 +61,9 @@ so an install into the shared library cannot corrupt a running job. See
 
 \item{n_workers_on_host}{Number of workers the launcher runs on this host; passed
 to \code{\link[=tmuxRunWorkerLoop]{tmuxRunWorkerLoop()}}.}
+
+\item{group}{\code{NULL} (default: any row) or the queue group this worker serves; passed to
+\code{\link[=tmuxRunWorkerLoop]{tmuxRunWorkerLoop()}}. See \link{experimentGroups}.}
 }
 \value{
 Invisibly returns the worker identifier string.

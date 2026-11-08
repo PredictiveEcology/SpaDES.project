@@ -117,6 +117,7 @@ Collate:
     'paths2.R'
     'pkgload2.R'
     'queue-peek.R'
+    'queueGroups.R'
     'remoteMember.R'
     'resolveDots.R'
     'sbatch.R'

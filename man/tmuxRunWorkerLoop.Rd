@@ -21,7 +21,8 @@ tmuxRunWorkerLoop(
   snapshot_library = TRUE,
   dev_library = NULL,
   n_workers_on_host = 1L,
-  exitOnError = FALSE
+  exitOnError = FALSE,
+  group = NULL
 )
 }
 \arguments{
@@ -77,6 +78,10 @@ results go to disk, unless the user set these; see \code{.workerResourceDefaults
 the loop ends and any job it ran ended in \code{ERROR}, so that a batch scheduler
 (Slurm \code{--dependency=afterok}) sees the failure. \code{experimentSBATCH()} sets it.
 Default \code{FALSE}: the loop returns, as the tmux workers expect.}
+
+\item{group}{\code{NULL} (default: rows of any group) or the queue group (\code{.group}) this worker
+serves. While the rows left wait for their \code{.after} groups, the worker looks again every
+\code{SPADES_AFTER_POLL_SECONDS} (default 30) seconds. See \link{experimentGroups}.}
 }
 \value{
 invisibly TRUE

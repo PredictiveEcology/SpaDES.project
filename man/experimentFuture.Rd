@@ -42,7 +42,10 @@ workers are launched, replicating the full SpaDES environment (packages,
 GitHub PAT, gargle OAuth cache) on each remote machine.}
 
 \item{n_workers}{Number of parallel workers.  Defaults to
-\code{length(cores)} for remote workers, or \code{4L} for local.}
+\code{length(cores)} for remote workers, or \code{4L} for local.  With
+\code{.group} in the queue, a named vector dedicates workers to groups
+(\code{c(fit = 1, 2)}: one for \code{fit}, two for any group); see
+\code{\link{experimentGroups}}.}
 
 \item{queue_path}{Path to the local RDS queue file.  Created automatically
 if it does not yet exist.  Defaults to
