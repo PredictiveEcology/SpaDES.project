@@ -145,6 +145,8 @@
 #' @return `TRUE` if the process exists and is not a zombie.
 #' @keywords internal
 .pidIsAlive <- function(pid, procRoot = "/proc") {
+  # no /proc (macOS, Windows): ask the OS instead of reading every pid as dead
+  if (!dir.exists(procRoot)) return(unname(.pidsAlive(as.integer(pid))))
   f <- file.path(procRoot, pid, "stat")
   if (!file.exists(f)) return(FALSE)
   l <- tryCatch(readLines(f, warn = FALSE)[1L], error = function(e) NA_character_)
