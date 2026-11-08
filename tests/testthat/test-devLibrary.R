@@ -92,22 +92,36 @@ test_that("newDevLibrary with nothing to install keeps the current library and l
   expect_identical(list.files(devRoot, all.files = TRUE, no.. = TRUE), before)
 })
 
-test_that("newDevLibrary removes its directory when the install left read-only directories in it", {
+test_that("newDevLibrary and sweepDevLibraries remove dated folders without a marker (empty directories left on NFS)", {
   skip_if_not_installed("callr")
   skip_on_os("windows")
   stable <- mkStable()
   devRoot <- paste0(stable, "_dev")
-  ## like Require linking pak's library into the new library, and installing nothing
-  installPakOnly <- function(packages, libPath) {
-    d <- file.path(libPath, "pak", "library", "x")
-    dir.create(d, recursive = TRUE)
-    writeLines("a", file.path(d, "f"))
-    Sys.chmod(c(d, dirname(d)), "0555")
-  }
-  environment(installPakOnly) <- globalenv()
-  expect_identical(newDevLibrary("zz", stable = stable, devRoot = devRoot,
-                                 installFun = installPakOnly, verbose = 0), stable)
-  expect_length(list.files(devRoot, all.files = TRUE, no.. = TRUE), 0L)
+  libs <- newDevLibrary(mkTinyPkg("tinyA", "1.0.0"), stable = stable, devRoot = devRoot,
+                        installFun = installTiny, verbose = 0)
+  ## what a removal leaves when a file was still open: only empty directories, no marker
+  mkLeftover <- function(id) dir.create(file.path(devRoot, id, "pak", "library", "lpSolve", "libs"), recursive = TRUE)
+  mkLeftover("20261108-023320-PFTjqh")
+  other <- file.path(devRoot, "notADevLibrary"); dir.create(file.path(other, "empty"), recursive = TRUE)
+  same <- newDevLibrary("tinyA", stable = stable, devRoot = devRoot,
+                        installFun = function(packages, libPath) NULL, verbose = 0)
+  expect_identical(same, libs)
+  expect_false(dir.exists(file.path(devRoot, "20261108-023320-PFTjqh")))
+  expect_true(dir.exists(other)); expect_true(dir.exists(libs[1]))
+  mkLeftover("20261108-023321-AbCdEf")
+  sweepDevLibraries(devRoot = devRoot)
+  expect_false(dir.exists(file.path(devRoot, "20261108-023321-AbCdEf")))
+  expect_true(dir.exists(other)); expect_true(dir.exists(libs[1]))
+})
+
+test_that(".removeDevLibrary warns when a directory cannot be removed", {
+  skip_on_os("windows")
+  skip_if(Sys.info()[["user"]] == "root")
+  parent <- withr::local_tempdir()
+  d <- file.path(parent, "20261108-023320-PFTjqh"); dir.create(file.path(d, "x"), recursive = TRUE)
+  Sys.chmod(d, "0555") # nothing inside can be removed
+  withr::defer(Sys.chmod(d, "0755"))
+  expect_warning(SpaDES.project:::.removeDevLibrary(d), "Could not remove")
 })
 
 test_that("newDevLibrary's default install sees what stable already has and installs nothing", {
