@@ -22,6 +22,23 @@ chainDf <- function() data.frame(
   .afterType = c("afterany", "afterok", "afterok", "afterok"),
   stringsAsFactors = FALSE)
 
+test_that("an afterany row is claimable once the group it follows can never run", {
+  q <- data.frame(.name = c("fit1", "hc1", "hc2", "score"),
+                  .group = c("fit", "hc", "hc", "score"),
+                  .after = c("", "fit", "fit", "hc"),
+                  .afterType = c("afterok", "afterok", "afterok", "afterany"),
+                  status = c("ERROR", "PENDING", "PENDING", "PENDING"),
+                  stringsAsFactors = FALSE)
+  got <- .claimableRow(q, "score")
+  expect_identical(got$i, 4L)
+  expect_false(got$wait)
+  ## hc can still run: score waits
+  q$status[2] <- "RUNNING"
+  got <- .claimableRow(q, "score")
+  expect_true(is.na(got$i))
+  expect_true(got$wait)
+})
+
 # --- claim order (file queue) ---------------------------------------------------
 
 test_that("a worker takes a row only after the groups in its .after have finished", {

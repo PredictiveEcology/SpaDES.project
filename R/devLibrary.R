@@ -82,6 +82,23 @@ NULL
   paste(basename(pkgDirs), unname(tools::md5sum(file.path(pkgDirs, "DESCRIPTION"))))
 }
 
+## Dated folders (`.devLibraryId()`) of `devRoot` without the marker: a build that installed
+## nothing or failed (newDevLibrary() writes the marker first). They can hold empty directories:
+## on NFS a file still open (pak's subprocess has lpSolve.so loaded) is renamed `.nfsXXXX`
+## instead of deleted when the build is removed, so its parent directories cannot be removed.
+.unfinishedDevLibraries <- function(devRoot) {
+  devs <- list.dirs(devRoot, recursive = FALSE)
+  devs[grepl("^[0-9]{8}-[0-9]{6}-[[:alnum:]]{6}$", basename(devs)) &
+         !file.exists(file.path(devs, .devLibraryMarker))]
+}
+
+.removeDevLibrary <- function(dirs) {
+  unlink(dirs, recursive = TRUE)
+  left <- dirs[file.exists(dirs)]
+  if (length(left)) warning("Could not remove ", paste(left, collapse = ", "), call. = FALSE)
+  invisible(setdiff(dirs, left))
+}
+
 #' @export
 #' @rdname devLibrary
 newDevLibrary <- function(packages, stable = .stableLibrary(), devRoot = paste0(stable, "_dev"),
@@ -90,10 +107,12 @@ newDevLibrary <- function(packages, stable = .stableLibrary(), devRoot = paste0(
   dir.create(devRoot, recursive = TRUE, showWarnings = FALSE)
   devRoot <- normalizePath(devRoot, mustWork = TRUE)
   current <- currentDevLibrary(stable, devRoot)
+  .removeDevLibrary(.unfinishedDevLibraries(devRoot)) # leftovers of earlier builds; their processes are gone
   new <- file.path(devRoot, .devLibraryId())
   dir.create(new)
+  writeLines(stable, file.path(new, .devLibraryMarker))
   done <- FALSE
-  on.exit(if (!done) unlink(new, recursive = TRUE), add = TRUE)
+  on.exit(if (!done) .removeDevLibrary(new), add = TRUE)
 
   if (length(current) > 1L) {
     pkgDirs <- .packageDirs(current[1])
@@ -104,7 +123,6 @@ newDevLibrary <- function(packages, stable = .stableLibrary(), devRoot = paste0(
              current[1], " into ", new, call. = FALSE)
     }
   }
-  writeLines(stable, file.path(new, .devLibraryMarker))
   before <- .libraryState(new)
 
   if (is.null(installFun)) {
@@ -152,11 +170,11 @@ currentDevLibrary <- function(stable = .stableLibrary(), devRoot = paste0(stable
 sweepDevLibraries <- function(keep = character(), devRoot = paste0(.stableLibrary(), "_dev")) {
   if (!dir.exists(devRoot)) return(invisible(character()))
   devs <- list.dirs(devRoot, recursive = FALSE)
-  devs <- devs[file.exists(file.path(devs, .devLibraryMarker))]
+  devs <- c(devs[file.exists(file.path(devs, .devLibraryMarker))], .unfinishedDevLibraries(devRoot))
   f <- file.path(devRoot, "current")
   keep <- c(keep, if (file.exists(f)) readLines(f, warn = FALSE)[1])
   gone <- devs[!normalizePath(devs) %in% normalizePath(keep, mustWork = FALSE)]
-  unlink(gone, recursive = TRUE)
+  .removeDevLibrary(gone)
   invisible(gone)
 }
 
