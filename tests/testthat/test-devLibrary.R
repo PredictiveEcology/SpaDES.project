@@ -92,6 +92,24 @@ test_that("newDevLibrary with nothing to install keeps the current library and l
   expect_identical(list.files(devRoot, all.files = TRUE, no.. = TRUE), before)
 })
 
+test_that("newDevLibrary removes its directory when the install left read-only directories in it", {
+  skip_if_not_installed("callr")
+  skip_on_os("windows")
+  stable <- mkStable()
+  devRoot <- paste0(stable, "_dev")
+  ## like Require linking pak's library into the new library, and installing nothing
+  installPakOnly <- function(packages, libPath) {
+    d <- file.path(libPath, "pak", "library", "x")
+    dir.create(d, recursive = TRUE)
+    writeLines("a", file.path(d, "f"))
+    Sys.chmod(c(d, dirname(d)), "0555")
+  }
+  environment(installPakOnly) <- globalenv()
+  expect_identical(newDevLibrary("zz", stable = stable, devRoot = devRoot,
+                                 installFun = installPakOnly, verbose = 0), stable)
+  expect_length(list.files(devRoot, all.files = TRUE, no.. = TRUE), 0L)
+})
+
 test_that("newDevLibrary's default install sees what stable already has and installs nothing", {
   skip_if_not_installed("callr")
   skip_on_os("windows")

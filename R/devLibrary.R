@@ -82,6 +82,18 @@ NULL
   paste(basename(pkgDirs), unname(tools::md5sum(file.path(pkgDirs, "DESCRIPTION"))))
 }
 
+## Removes dev library directories. unlink() cannot delete inside a read-only directory (the
+## pak library Require links into a new library is one) and returns non-zero without a word,
+## which left the dated folder behind; so make the directories writable first, and warn if
+## anything is still there.
+.removeDevLibrary <- function(dirs) {
+  for (d in dirs[dir.exists(dirs)])
+    Sys.chmod(list.dirs(d), "0700", use_umask = FALSE)
+  if (unlink(dirs, recursive = TRUE) != 0L || any(file.exists(dirs)))
+    warning("Could not remove ", paste(dirs[file.exists(dirs)], collapse = ", "), call. = FALSE)
+  invisible(!file.exists(dirs))
+}
+
 #' @export
 #' @rdname devLibrary
 newDevLibrary <- function(packages, stable = .stableLibrary(), devRoot = paste0(stable, "_dev"),
@@ -93,7 +105,7 @@ newDevLibrary <- function(packages, stable = .stableLibrary(), devRoot = paste0(
   new <- file.path(devRoot, .devLibraryId())
   dir.create(new)
   done <- FALSE
-  on.exit(if (!done) unlink(new, recursive = TRUE), add = TRUE)
+  on.exit(if (!done) .removeDevLibrary(new), add = TRUE)
 
   if (length(current) > 1L) {
     pkgDirs <- .packageDirs(current[1])
@@ -156,7 +168,7 @@ sweepDevLibraries <- function(keep = character(), devRoot = paste0(.stableLibrar
   f <- file.path(devRoot, "current")
   keep <- c(keep, if (file.exists(f)) readLines(f, warn = FALSE)[1])
   gone <- devs[!normalizePath(devs) %in% normalizePath(keep, mustWork = FALSE)]
-  unlink(gone, recursive = TRUE)
+  .removeDevLibrary(gone)
   invisible(gone)
 }
 

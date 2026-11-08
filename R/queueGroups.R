@@ -180,22 +180,27 @@ NULL
   status <- as.character(q$status)
   open <- status %in% .openStatus()
   g <- .qcol(q, .groupCol)
-  if (!is.null(group) && !is.null(g)) open <- open & as.character(g) %in% group
-  cand <- which(open)
+  mine <- open
+  if (!is.null(group) && !is.null(g)) mine <- mine & as.character(g) %in% group
+  cand <- which(mine)
   if (!length(cand) || is.null(g)) return(list(i = cand[1L], wait = FALSE))
   g <- as.character(g)
   after <- .afterOf(q)
   type  <- .afterTypeOf(q)
-  ## for each row: "ready", "wait" or "never"
-  state <- vapply(cand, function(r) {
+  ## for each row: "ready", "wait" or "never". A group is active while a row runs or can still
+  ## run; an open row whose own `.after` groups cannot finish ("never") stays PENDING for good
+  ## and is not active, or an afterany row would wait on it forever.
+  rowState <- function(r) {
     s <- vapply(after[[r]], function(a) {
-      rows <- status[g == a]
-      active <- any(rows %in% .activeStatus())
-      ok <- if (identical(type[r], "afterany")) !active else all(rows == txtDone)
+      rows <- which(g == a)
+      active <- any(status[rows] == txtRunning) ||
+        any(vapply(rows[open[rows]], function(x) rowState(x) != "never", logical(1)))
+      ok <- if (identical(type[r], "afterany")) !active else all(status[rows] == txtDone)
       if (ok) "ready" else if (active) "wait" else "never"
     }, character(1))
     if (all(s == "ready")) "ready" else if (any(s == "never")) "never" else "wait"
-  }, character(1))
+  }
+  state <- vapply(cand, rowState, character(1))
   list(i = cand[state == "ready"][1L], wait = any(state == "wait"))
 }
 
