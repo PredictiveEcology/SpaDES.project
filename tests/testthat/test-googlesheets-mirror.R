@@ -128,7 +128,7 @@ test_that(".gs_demote_after_kill returns 0 when no RUNNING row matches", {
   expect_identical(SpaDES.project:::.gs_demote_after_kill("sheet", killed_pids = 99L), 0L)
 })
 
-test_that(".gs_demote_after_kill demotes matching RUNNING rows to PENDING", {
+test_that(".gs_demote_after_kill puts matching RUNNING rows back in the queue as INTERRUPTED", {
   seen <- new.env(parent = emptyenv())
   seen$calls <- list()
   testthat::local_mocked_bindings(
@@ -151,10 +151,10 @@ test_that(".gs_demote_after_kill demotes matching RUNNING rows to PENDING", {
   expect_length(seen$calls, 1L)
   # +1 for the header row
   expect_identical(seen$calls[[1]]$row, 2L)
-  expect_identical(seen$calls[[1]]$updates$status, "PENDING")
+  expect_identical(seen$calls[[1]]$updates$status, "INTERRUPTED")
 })
 
-test_that(".gs_demote_after_kill clears the run metadata it demotes", {
+test_that(".gs_demote_after_kill records why the row is back in the queue", {
   seen <- new.env(parent = emptyenv())
   testthat::local_mocked_bindings(
     .gs_read_queue = function(...) data.frame(
@@ -168,10 +168,9 @@ test_that(".gs_demote_after_kill clears the run metadata it demotes", {
 
   SpaDES.project:::.gs_demote_after_kill("sheet", killed_pids = 7L)
 
-  # every meta column is wiped, and status is the only one left non-NA
-  expect_identical(seen$updates$status, "PENDING")
-  meta <- seen$updates[setdiff(names(seen$updates), "status")]
-  expect_true(all(vapply(meta, is.na, logical(1))))
-  expect_true(all(c("claimed_by", "started_at", "finished_at", "machine_name",
-                    "process_id", "heartbeat_at") %in% names(seen$updates)))
+  # the same row every reclaim writes (.reclaimUpdates()): INTERRUPTED, unclaimed, with the reason
+  expect_identical(seen$updates$status, "INTERRUPTED")
+  expect_true(is.na(seen$updates$claimed_by))
+  expect_false(is.na(seen$updates$interrupted_at))
+  expect_match(seen$updates$last_error, "7")
 })

@@ -33,10 +33,9 @@ workers run non-interactively, the process typically exits before R's
 interrupt handler has a chance to update the queue.  Any jobs that were
 \code{RUNNING} at the time of the kill will remain as \code{RUNNING} in the
 queue until the next reclaim pass.  Call
-\code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to reset stale
-\code{RUNNING} entries to \code{PENDING} (or \code{INTERRUPTED} if the run had
-already written a heartbeat), or use the GS backend which
-reclaims dead workers automatically before each new claim.
+\code{tmuxRefreshQueueStatus(ef$queue_path)} afterwards to put those
+\code{RUNNING} entries back in the queue as \code{INTERRUPTED}; the next launch
+and every worker's claim do the same.
 }
 \seealso{
 \code{\link{experimentFuture}}, \code{\link{awaitExperimentFuture}}

@@ -38,3 +38,9 @@ test_that(".pidIsAlive treats a zombie as dead, and parses comm names containing
   expect_false(.pidIsAlive("999999", procRoot = root))                   # no entry
   expect_true(.pidIsAlive(Sys.getpid()))                                 # the real thing
 })
+
+test_that(".pidIsAlive asks the OS when there is no /proc (macOS, Windows)", {
+  noProc <- file.path(tempdir(), "no-proc-here")
+  expect_true(SpaDES.project:::.pidIsAlive(Sys.getpid(), procRoot = noProc))
+  expect_false(SpaDES.project:::.pidIsAlive(999999L, procRoot = noProc))
+})

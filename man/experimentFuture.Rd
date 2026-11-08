@@ -52,9 +52,9 @@ if it does not yet exist.  Defaults to
 \code{<dirname(global_path)>/future_queue.rds}.}
 
 \item{on_interrupt}{\code{"requeue"} (default) re-queues interrupted jobs
-as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
-errors (rather than being interrupted) is marked ERROR and is not claimed
-again until its status is set back to PENDING.}
+as PENDING; \code{"fail"} marks them INTERRUPTED (still claimable) and stops the
+worker. A job that errors is marked ERROR, which no worker claims until the next
+launch on this queue (see \link{experimentStatus}).}
 
 \item{on_error}{\code{"stop"} (default) leaves a worker stopped after a job errors, with
 the error visible in its log; \code{"continue"} goes on to the next claimable job. The

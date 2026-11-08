@@ -10,7 +10,7 @@ experimentSBATCH(
   n_workers = 4L,
   queue_path = NULL,
   on_interrupt = c("requeue", "fail"),
-  on_error = c("stop", "continue"),
+  on_error = c("continue", "stop"),
   ss_id = NULL,
   forceLocalQueueToGS = FALSE,
   email = getOption("gargle_oauth_email"),
@@ -52,13 +52,15 @@ if it does not yet exist.  Defaults to
 storage so all worker nodes can read/write it.}
 
 \item{on_interrupt}{\code{"requeue"} (default) re-queues interrupted jobs
-as PENDING; \code{"fail"} marks them INTERRUPTED permanently. A job that
-errors (rather than being interrupted) is marked ERROR and is not claimed
-again until its status is set back to PENDING.}
+as PENDING; \code{"fail"} marks them INTERRUPTED (still claimable) and stops the
+worker. A job that errors is marked ERROR, which no worker claims until the next
+launch on this queue (see \link{experimentStatus}).}
 
-\item{on_error}{\code{"stop"} (default) leaves a worker stopped after a job errors, with
-the error visible in its log; \code{"continue"} goes on to the next claimable job. The
-errored row is marked ERROR either way (see \code{on_interrupt}).}
+\item{on_error}{\code{"continue"} (default) goes on to the next claimable job after a
+job errors; \code{"stop"} ends the worker there, so the rows it would have run stay
+PENDING with no worker. A batch job has no prompt to continue from, so
+\code{"continue"} is the default here; the job still exits with status 1 when any
+of its rows errored. The errored row is marked ERROR either way.}
 
 \item{ss_id}{Google Sheets ID (or Drive folder ID) for the shared queue.
 When provided workers use the GS backend in addition to the local RDS
@@ -221,8 +223,8 @@ killExperimentSBATCH(es, force = TRUE)
 tmuxRefreshQueueStatus(es$queue_path)
 
 ## -- Resume after stop ---------------------------------------------------
-# Same `queue_path` -> DONE rows are skipped, demoted PENDING rows are
-# re-claimed by the new sbatch jobs.
+# Same `queue_path` -> DONE rows are skipped; HOLD and ERROR rows go back to PENDING,
+# RUNNING rows of dead workers to INTERRUPTED, and the new sbatch jobs claim them.
 es2 <- experimentSBATCH(
   df          = expt,                # ignored if queue exists
   global_path = file.path(tdir, "global.R"),

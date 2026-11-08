@@ -145,6 +145,8 @@
 #' @return `TRUE` if the process exists and is not a zombie.
 #' @keywords internal
 .pidIsAlive <- function(pid, procRoot = "/proc") {
+  # no /proc (macOS, Windows): ask the OS instead of reading every pid as dead
+  if (!dir.exists(procRoot)) return(unname(.pidsAlive(as.integer(pid))))
   f <- file.path(procRoot, pid, "stat")
   if (!file.exists(f)) return(FALSE)
   l <- tryCatch(readLines(f, warn = FALSE)[1L], error = function(e) NA_character_)
@@ -152,119 +154,37 @@
   !identical(strsplit(sub("^.*\\) ", "", l), " ")[[1L]][1L], "Z")
 }
 
-# Reclaim RUNNING rows whose R process is no longer alive on any machine.
-#
-# Liveness decision per row:
-#   1. If "<machine>-<pid>" appears in ANY tmux pane title across ALL tmux
-#      servers on this machine -> the worker pane is alive, skip.
-#   2. Otherwise fall through to the /proc check:
-#        - local  machine  : file.exists("/proc/<pid>")
-#        - remote machine  : one SSH connection, batched /proc check for all pids
-#      SSH unreachable -> leave alone (unreachable is not proof of death).
-#      SSH reachable + PID dead -> reclaim.
-#
-# Pane titles are a POSITIVE signal only; their absence falls through to SSH.
-# This prevents cross-server false reclaims and handles old-style panes
-# (no node-pid in title) safely via the SSH backstop.
+# Sheet backend: RUNNING rows whose worker is dead (.deadRunningRows(): local /proc, one
+# ssh per other machine, pane titles as proof of life) go back in the queue as INTERRUPTED.
+# The sheet has no lock, so the row is read again right before writing: the decision came
+# from a read taken before the liveness checks, and since then another worker may have
+# reclaimed the row and a third claimed it and started the job. Writing INTERRUPTED over
+# that claim would put a running job back in the queue, and the next worker would run it
+# too (#169). An unreadable sheet is not proof either, so the row is left alone then.
 .gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
+  dead <- .deadRunningRows(q, "all")
+  if (!length(dead)) return(invisible(NULL))
 
-  running_idx <- which(
-    q$status == "RUNNING" &
-    !is.na(q$machine_name) &
-    !is.na(q$process_id)
-  )
-  if (length(running_idx) == 0L) return(invisible(NULL))
-
-  col_pos     <- setNames(seq_along(names(q)), names(q))
-  now         <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  local_node  <- Sys.info()[["nodename"]]
-  pane_titles <- .tmux_all_pane_titles()      # character(0) if unavailable
-  machines    <- unique(q$machine_name[running_idx])
-
-  .reclaim <- function(idx, pid, machine, reason) {
-    ## Read the queue again right before writing. The decision above came from a read
-    ## taken before the liveness checks; since then another worker may have reclaimed this
-    ## row and a third claimed it and started the job. Writing INTERRUPTED over that claim
-    ## puts a running job back in the queue, and the next worker runs it too (#169). Only
-    ## reclaim if the row is still RUNNING under the machine and process found dead; an
-    ## unreadable queue is not proof, so leave the row alone then.
-    q_now <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
+  col_pos <- setNames(seq_along(names(q)), names(q))
+  q_now <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
+  for (idx in dead) {
+    machine <- q$machine_name[idx]
+    pid     <- suppressWarnings(as.integer(q$process_id[idx]))
     unchanged <- !is.null(q_now) && NROW(q_now) >= idx &&
-      identical(q_now$status[idx], "RUNNING") &&
+      identical(q_now$status[idx], txtRunning) &&
       identical(q_now$machine_name[idx], machine) &&
-      identical(suppressWarnings(as.integer(q_now$process_id[idx])), as.integer(pid))
+      identical(suppressWarnings(as.integer(q_now$process_id[idx])), pid)
     if (!unchanged) {
       message("Not reclaiming job row ", idx, ": it changed after PID ", pid,
               " on ", machine, " was found dead")
-      return(invisible(NULL))
+      next
     }
-    sheet_row <- idx + 1L
-    try(.gs_write_cells(ss_id, sheet_row,
-                        updates       = list(status         = "INTERRUPTED",
-                                             claimed_by     = NA_character_,
-                                             interrupted_at = now),
-                        col_positions = col_pos,
-                        sheet         = sheet), silent = TRUE)
-    message("Reclaimed stale RUNNING job row ", idx,
-            " (", reason, ": PID ", pid, " on ", machine, ")")
-  }
-
-  for (machine in machines) {
-    m_idx <- running_idx[q$machine_name[running_idx] == machine]
-    pids  <- suppressWarnings(as.integer(q$process_id[m_idx]))
-    ok    <- !is.na(pids)
-    m_idx <- m_idx[ok]
-    pids  <- pids[ok]
-    if (length(pids) == 0L) next
-
-    # --- pane-title positive check ---
-    pane_alive <- if (length(pane_titles)) {
-      vapply(pids, function(pid)
-        any(grepl(paste0(machine, "-", pid), pane_titles, fixed = TRUE)),
-        logical(1L))
-    } else {
-      rep(FALSE, length(pids))
-    }
-
-    # Rows with a confirmed pane: nothing to do.
-    need_ssh_i <- which(!pane_alive)
-    if (!length(need_ssh_i)) next
-
-    ssh_m_idx <- m_idx[need_ssh_i]
-    ssh_pids  <- pids[need_ssh_i]
-
-    # --- /proc liveness check (local or SSH) ---
-    if (machine == local_node) {
-      alive <- vapply(ssh_pids, .pidIsAlive, logical(1), USE.NAMES = FALSE)
-    } else {
-      pid_str   <- paste(ssh_pids, collapse = " ")
-      ## Same zombie test as .pidIsAlive(): state is the field after the last ")",
-      ## because the comm field can itself contain spaces and parentheses.
-      check_cmd <- paste0(
-        "for pid in ", pid_str,
-        "; do s=$(sed 's/^.*) //' /proc/$pid/stat 2>/dev/null | cut -d' ' -f1);",
-        " if [ -n \"$s\" ] && [ \"$s\" != Z ]; then echo alive; else echo dead; fi; done"
-      )
-      result <- tryCatch(
-        system2("ssh",
-                c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-                  machine, shQuote(check_cmd)),
-                stdout = TRUE, stderr = FALSE),
-        error = function(e) NULL
-      )
-      if (is.null(result) || length(result) != length(ssh_pids)) {
-        # SSH unreachable -- unreachable is not proof of death.  Leave alone.
-        next
-      }
-      alive <- result == "alive"
-    }
-
-    for (j in seq_along(ssh_m_idx)) {
-      if (!alive[j])
-        .reclaim(ssh_m_idx[j], ssh_pids[j], machine, "PID dead")
-    }
+    try(.gs_write_cells(ss_id, idx + 1L, updates = .reclaimUpdates(machine, pid),
+                        col_positions = col_pos, sheet = sheet), silent = TRUE)
+    message("Reclaimed RUNNING job row ", idx, " (PID ", pid, " on ", machine, " is dead): now ",
+            txtInterrupted)
   }
   invisible(NULL)
 }
@@ -317,14 +237,7 @@
   skipped <- character(0)
   for (nm in names(updates)) {
     if (nm %in% names(q)) {
-      val <- updates[[nm]]
-      cur <- q[[nm]]
-      val2 <- tryCatch(
-        if (is.integer(cur)) suppressWarnings(as.integer(val))
-        else if (is.numeric(cur)) suppressWarnings(as.numeric(val))
-        else as.character(val),
-        error = function(e) val
-      )
+      val2 <- .coerceLike(updates[[nm]], q[[nm]])
       q[[nm]][row_i] <- val2
       applied <- c(applied, sprintf("%s=%s", nm, as.character(val2)))
     } else if (nm %in% meta_cols) {
@@ -349,35 +262,19 @@
   invisible(NULL)
 }
 
-# Demote any GS rows whose RUNNING claim is held by one of `killed_pids`,
-# resetting status -> PENDING and clearing the run's metadata.  Used by
-# experimentFutureList(kill = TRUE) to mirror the local-queue demotion to GS.
+# Sheet rows RUNNING under one of `killed_pids` (workers experimentFutureList(kill = TRUE)
+# just killed) go back in the queue as INTERRUPTED, like every other dead worker's row.
 .gs_demote_after_kill <- function(ss_id, killed_pids, sheet = "Status") {
   if (!nzchar(as.character(ss_id))) return(invisible(0L))
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(0L))
   pids <- suppressWarnings(as.integer(q$process_id))
-  to_demote <- which(q$status == "RUNNING" & pids %in% as.integer(killed_pids))
+  to_demote <- which(q$status == txtRunning & pids %in% as.integer(killed_pids))
   if (length(to_demote) == 0L) return(invisible(0L))
   col_pos <- setNames(seq_along(names(q)), names(q))
-  # Demote to PENDING and wipe ALL run-specific metadata (matches the
-  # local-queue demotion in tmuxRefreshQueueStatus, which clears every
-  # meta column except `status`).
   for (i in to_demote) {
     try(.gs_write_cells(ss_id, sheet_row = i + 1L,
-      updates = list(
-        status             = "PENDING",
-        claimed_by         = NA_character_,
-        started_at         = NA_character_,
-        finished_at        = NA_character_,
-        DEoptimElapsedTime = NA_character_,
-        machine_name       = NA_character_,
-        process_id         = NA_character_,
-        heartbeat_at       = NA_character_,
-        heartbeat_iter     = NA_character_,
-        iterationsTotal    = NA_character_,
-        interrupted_at     = NA_character_
-      ),
+      updates = .reclaimUpdates(q$machine_name[i], pids[i]),
       col_positions = col_pos,
       sheet         = sheet,
       current_row   = as.list(q[i, ])
@@ -388,19 +285,20 @@
 
 # Attempt to claim the next PENDING/INTERRUPTED job from the sheet.
 # Uses optimistic concurrency: write claim, wait, re-read to verify.
-# Random pending-row selection reduces collisions when many workers race.
 # Retries on lost race; returns
 #   * list(row_index, sheet_row, col_positions, data)            -- success
 #   * NULL                                                       -- queue empty
 #   * structure(list(), class = "gs_claim_wait")                 -- rows left wait for `.after` groups
 #   * structure(list(), class = "gs_claim_lost")                 -- exhausted retries
-# `group`: NULL (any row) or the `.group` whose rows this worker claims (see .claimableRow()).
+# `group`: NULL (any row) or the `.group` whose rows this worker claims; `afterGroupsEnded`:
+# see .claimableRow().
 # `queue_path`: when supplied, GS state is mirrored back to the local RDS
 # so queueRead(local) and experimentFutureList() see the live state.
 .gs_claim_next_job <- function(ss_id, worker_id, sheet = "Status",
-                                queue_path = NULL, max_attempts = 20L, group = NULL) {
+                                queue_path = NULL, max_attempts = 20L, group = NULL,
+                                afterGroupsEnded = FALSE) {
   for (attempt in seq_len(max_attempts)) {
-    # Reclaim any RUNNING rows whose process died on this machine before scanning.
+    # Reclaim any RUNNING rows whose process died before scanning.
     .gs_reclaim_dead_jobs(ss_id, sheet)
 
     q <- .gs_read_queue(ss_id, sheet)
@@ -410,31 +308,13 @@
     # Always claim the topmost claimable row.  If two workers collide on the
     # same row, the loser's retry sees that row already RUNNING and falls
     # through to the next pending row.
-    claim <- .claimableRow(q, group)
+    claim <- .claimableRow(q, group, afterGroupsEnded)
     if (is.na(claim$i))
       return(if (claim$wait) structure(list(), class = "gs_claim_wait") else NULL)
     row_i     <- claim$i
     sheet_row <- row_i + 1L          # +1 for the header row
-    now       <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
-    # Claim updates: set the new run's owner / start time, and ALSO scrub
-    # any stale completion/interrupt fields left over from a previous run
-    # of the same row.  Without these clears, finished_at / DEoptimElapsedTime
-    # / heartbeat_* / interrupted_at would still carry the previous run's
-    # values while the row is RUNNING, which is misleading.
-    claim_updates <- list(
-      status             = "RUNNING",
-      claimed_by         = worker_id,
-      started_at         = now,
-      finished_at        = NA_character_,
-      DEoptimElapsedTime = NA_character_,
-      machine_name       = Sys.info()[["nodename"]],
-      process_id         = as.character(Sys.getpid()),
-      heartbeat_at       = NA_character_,
-      heartbeat_iter     = NA_character_,
-      iterationsTotal    = NA_character_,
-      interrupted_at     = NA_character_
-    )
+    claim_updates <- .claimUpdates(worker_id)
     .gs_write_cells(ss_id, sheet_row,
       updates       = claim_updates,
       col_positions = col_pos,
@@ -447,19 +327,7 @@
     q2 <- .gs_read_queue(ss_id, sheet)
     if (isTRUE(q2$claimed_by[row_i] == worker_id)) {
       # Mirror claim back to the local RDS so non-GS readers see the truth.
-      .mirror_local_queue(queue_path, row_i, list(
-        status             = "RUNNING",
-        claimed_by         = worker_id,
-        started_at         = now,
-        finished_at        = NA,
-        DEoptimElapsedTime = NA,
-        machine_name       = Sys.info()[["nodename"]],
-        process_id         = Sys.getpid(),
-        heartbeat_at       = NA,
-        heartbeat_iter     = NA,
-        iterationsTotal    = NA,
-        interrupted_at     = NA
-      ))
+      .mirror_local_queue(queue_path, row_i, claim_updates)
       return(list(row_index    = row_i,
                   sheet_row    = sheet_row,
                   col_positions = col_pos,
@@ -523,77 +391,19 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
     "\nevery ", interval, " seconds")
   repeat {
     if (file.exists(queue_path)) {
-
+      # The sheet is the record, the local file its mirror (see ?experimentStatus).
+      # 1. The record: rows of dead workers go back in the queue.
+      try(.gs_reclaim_dead_jobs(ss_id), silent = TRUE)
+      # 2. The mirror: display columns from the jobs' output files.
       activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
       tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel,
                                 statusCalculate = statusCalculate,
                                 activeRunningPath = activeRunningPath, ...)
       q <- try(.queue_read(queue_path), silent = TRUE)
       if (inherits(q, "try-error")) { Sys.sleep(2); next }
-
-      # ---- GS → local: merge GS state into local RDS ----
       gs_q <- try(.gs_read_queue(ss_id), silent = TRUE)
-      if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L) {
-
-        n_local <- nrow(q)
-        n_gs    <- nrow(gs_q)
-
-        for (j in seq_len(min(n_local, n_gs))) {
-          gs_status    <- gs_q$status[j]
-          local_status <- q$status[j]
-
-          # A remote worker claimed this job in GS (RUNNING) but the local RDS
-          # hasn't caught up yet (still PENDING).  Pull the full claim from GS
-          # so the local→GS push doesn't stomp the worker's live RUNNING entry.
-          # .gs_reclaim_dead_jobs() above already cleared any stale RUNNING, so
-          # a GS RUNNING here means a confirmed-live (or recently-live) worker.
-          if (!is.na(gs_status) &&
-              gs_status    == txtRunning &&
-              local_status == txtPending) {
-            q$status[j]       <- gs_status
-            for (mc in c("claimed_by", "started_at", "machine_name", "process_id")) {
-              if (mc %in% names(gs_q) && mc %in% names(q))
-                q[[mc]][j] <- gs_q[[mc]][j]
-            }
-            next
-          }
-
-          # For all other rows: trust GS only for intentional user edits
-          # (e.g. resetting INTERRUPTED -> PENDING).  Never let a stale GS
-          # value demote an authoritative local RUNNING or completed DONE.
-          if (!is.na(gs_status) &&
-              gs_status    != txtRunning &&
-              local_status != txtRunning &&
-              local_status != txtDone    &&
-              !identical(gs_status, local_status)) {
-            q$status[j] <- gs_status
-            if (gs_status == txtPending) {
-              q$claimed_by[j]  <- NA_character_
-              q$started_at[j]  <- NA_character_
-              q$finished_at[j] <- NA_character_
-            }
-          }
-        }
-
-        # Append rows the user added directly in the sheet
-        if (n_gs > n_local) {
-          new_gs <- gs_q[(n_local + 1L):n_gs, , drop = FALSE]
-          # Coerce to match local column types
-          new_gs <- .gs_restore_types(new_gs, q)
-          q <- rbind(q, new_gs[, names(q), drop = FALSE])
-        }
-
-        .queue_write(q, queue_path)
-      }
-
-      # ---- local → GS: push current status for display ----
-      q_sync        <- as.data.frame(lapply(q, as.character))
-      names(q_sync) <- gsub("^\\.", dotTxt, names(q_sync))
-      try(
-        googlesheets4::with_gs4_quiet(
-          googlesheets4::range_write(
-            ss = ss_id, data = q_sync, sheet = "Status", range = "A1", reformat = FALSE
-          )), silent = TRUE)
+      if (!inherits(gs_q, "try-error") && nrow(gs_q) > 0L)
+        .queue_write(.syncMirrorWithSheet(q, gs_q, ss_id), queue_path)
     }
     
     # --- CLI COUNTDOWN FIX ---
@@ -610,6 +420,35 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
     }
     cli::cli_progress_done(id = pb)
   }
+}
+
+# One sync cycle between the mirror `q` (the local file) and the record `gs_q` (the sheet,
+# all text), by row position: the sheet's record columns (status, who claimed it, when it
+# started and ended) overwrite the mirror's; rows added at the bottom of the sheet are
+# appended; and the mirror's display columns (heartbeats, from the output files) are
+# written to the sheet, one cell range per row that differs. Nothing else goes up: the
+# whole mirror used to be pushed over the sheet from A1 every cycle, which overwrote any
+# claim a worker wrote between the read and the push, and gave two writable copies of
+# the status. Returns the mirror to write.
+.syncMirrorWithSheet <- function(q, gs_q, ss_id, sheet = "Status") {
+  n <- min(nrow(q), nrow(gs_q))
+  for (mc in intersect(.recordCols, intersect(names(gs_q), names(q))))
+    q[[mc]][seq_len(n)] <- .coerceLike(gs_q[[mc]][seq_len(n)], q[[mc]])
+  if (nrow(gs_q) > n) {
+    new_gs <- .gs_restore_types(gs_q[(n + 1L):nrow(gs_q), , drop = FALSE], q)
+    q <- rbind(q, new_gs[, names(q), drop = FALSE])
+  }
+  col_pos <- setNames(seq_along(names(gs_q)), names(gs_q))
+  show <- intersect(.displayCols, intersect(names(gs_q), names(q)))
+  for (j in seq_len(n)) {
+    mine <- lapply(q[j, show, drop = FALSE], as.character)
+    theirs <- lapply(gs_q[j, show, drop = FALSE], as.character)
+    differs <- !mapply(function(a, b) identical(a, b) || (is.na(a) && is.na(b)), mine, theirs)
+    if (any(differs))
+      try(.gs_write_cells(ss_id, j + 1L, updates = mine[differs], col_positions = col_pos,
+                          sheet = sheet, current_row = as.list(gs_q[j, ])), silent = TRUE)
+  }
+  q
 }
 
 # Push a whole queue to the sheet, replacing its contents from A1. Dot-prefixed
@@ -646,6 +485,19 @@ tmuxMirrorQueueToSheets <- function(queue_path, ss_id, sheet_name = "Status") {
   if (!file.rename(tmp, queue_path))
     stop("Could not move the new queue into place at ", queue_path)
   invisible(queue_path)
+}
+
+# Change the queue file in place: `fun(q)` under the lock, written back only if it changed.
+# Returns the queue as it now is. Do not call it while holding that lock.
+.queue_modify <- function(queue_path, fun, timeout = 10000L) {
+  LOCKF <- paste0(queue_path, ".lock")
+  lck <- filelock::lock(LOCKF, timeout = timeout)
+  if (is.null(lck)) stop("Could not take ", LOCKF)
+  on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
+  q <- readRDS(queue_path)
+  q2 <- fun(q)
+  if (!identical(q2, q)) .queue_write(q2, queue_path)
+  q2
 }
 
 # Read the queue under the same `.lock` that writers take, retrying; stop if it still

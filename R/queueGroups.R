@@ -13,8 +13,6 @@
 .afterCol     <- ".after"
 .afterTypeCol <- ".afterType"
 .afterTypes   <- c("afterok", "afterany")
-.openStatus   <- function() c(txtPending, txtInterrupted)
-.activeStatus <- function() c(txtPending, txtInterrupted, txtRunning)
 
 ## A queue column by its R name; the Google Sheet stores `.col` as `dotcol`.
 .qcol <- function(q, nm) {
@@ -69,11 +67,21 @@
 #' group (a pool shares one machine, a Slurm job does not). A group with rows to run and no
 #' worker is an error.
 #'
+#' How a row's `.after` groups are judged, for each group named: the group is *ok* when
+#' every row of it is `DONE`; *active* while a row of it is `RUNNING`, or is `PENDING` or
+#' `INTERRUPTED` and can itself still run; otherwise it *ended* without finishing (an
+#' `ERROR`, `HOLD` or never-runnable row). An `afterok` row is ready when every group is ok,
+#' an `afterany` row when none is active; a row waits while a group is active, and never runs
+#' otherwise. A worker that would wait checks the queue again every 30 seconds
+#' (`SPADES_AFTER_POLL_SECONDS`); a worker with only rows that never run ends.
+#'
 #' On Slurm, each group's jobs are submitted with
 #' `--dependency=<.afterType>:<job ids of the .after groups>`, after those groups' jobs
-#' (groups are submitted in dependency order). A worker that would wait for an unfinished
-#' group checks the queue again every 30 seconds (`SPADES_AFTER_POLL_SECONDS`). A row whose
-#' `"afterok"` group ended with a row not `DONE` never runs; its worker ends.
+#' (groups are submitted in dependency order), and start with
+#' `tmuxRunWorkerLoop(afterGroupsEnded = TRUE)`: the jobs of the `.after` groups have ended
+#' by then, so a row of theirs still `PENDING` or `INTERRUPTED` (its job was killed) has no
+#' worker and does not count as active. Without that, a score job set to run `afterany` its
+#' hindcasts polled for its whole walltime on hindcast rows nobody would run.
 #' @name experimentGroups
 #' @examples
 #' \dontrun{
@@ -176,7 +184,9 @@ NULL
 ## The row a worker claims next: the first PENDING or INTERRUPTED row of its `group` (NULL:
 ## any) whose `.after` groups have finished. list(i = row or NA, wait = TRUE when no row is
 ## ready but one will be once a group still running finishes).
-.claimableRow <- function(q, group = NULL) {
+## `afterGroupsEnded`: the worker started after its `.after` groups' jobs ended (Slurm
+## --dependency), so an open row of those groups has no worker and will not run.
+.claimableRow <- function(q, group = NULL, afterGroupsEnded = FALSE) {
   status <- as.character(q$status)
   open <- status %in% .openStatus()
   g <- .qcol(q, .groupCol)
@@ -194,7 +204,8 @@ NULL
     s <- vapply(after[[r]], function(a) {
       rows <- which(g == a)
       active <- any(status[rows] == txtRunning) ||
-        any(vapply(rows[open[rows]], function(x) rowState(x) != "never", logical(1)))
+        (!isTRUE(afterGroupsEnded) &&
+           any(vapply(rows[open[rows]], function(x) rowState(x) != "never", logical(1))))
       ok <- if (identical(type[r], "afterany")) !active else all(status[rows] == txtDone)
       if (ok) "ready" else if (active) "wait" else "never"
     }, character(1))

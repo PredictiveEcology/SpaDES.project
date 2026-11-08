@@ -1,5 +1,5 @@
 utils::globalVariables(c(
-  "..meta_cols", "interrupted_at", "last_error"
+  "interrupted_at", "last_error"
 ))
 
 # ======================================================================
@@ -683,8 +683,9 @@ tmuxSetMouse <- function(on = TRUE) {
 #'   `file.path(dirname(global_path), "tmux_queue.rds")`.
 #' @param on_interrupt `"requeue"` (default) or `"fail"`. Action when a job is
 #'   interrupted (Ctrl-C): requeue it for another worker, or mark it INTERRUPTED and stop this
-#'   worker. A job that errors is marked "ERROR" and is not claimed again until its status is
-#'   set back to "PENDING"; a status set by the user while the job ran (e.g. "HOLD") is kept.
+#'   worker. A job that errors is marked "ERROR", which no worker claims until the next launch
+#'   on this queue; a status set by the user while the job ran (e.g. "HOLD") is kept. See
+#'   [experimentStatus].
 #' @param ss_id Optional Google Drive spreadsheet/folder ID for live status syncing via
 #'   `googlesheets4`. `NULL` disables syncing.
 #' @param email Optional email address for gargle/Google OAuth authentication.
@@ -1044,15 +1045,19 @@ experimentTmux <- function(df,
       .queue_write(q, queue_path)
     }
 
-    # Push merged (or fresh) queue to GS. Not a silent try: a failed push leaves
-    # workers reading a sheet that does not match the queue they were given.
+  }
+  if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
+  # A launch runs what is left: HOLD and ERROR rows back to PENDING, RUNNING rows of dead
+  # workers back in the queue (see ?experimentStatus). Then the record gets it: the sheet,
+  # when there is one. Not a silent try: a failed push leaves workers reading a sheet that
+  # does not match the queue they were given.
+  q <- .queue_modify(queue_path, .queueAtLaunch)
+  if (!is.null(ss_id))
     tryCatch(.gs_push_queue(ss_id, q),
              error = function(e) warning("Could not push the queue to the Google Sheet (",
                                          ss_id, "): ", conditionMessage(e), call. = FALSE))
-  }
   tmuxRefreshQueueStatus(queue_path, runNameLabel = runNameLabel, statusCalculate = statusCalculate,
                             activeRunningPath = activeRunningPath, ...)
-  if (!is.data.frame(df)) stop("'df' must be a data.frame.", call. = FALSE)
   if (!file.exists(global_path)) {
     warning("global_path not found from master R working directory: ", global_path)
   }
@@ -1570,10 +1575,15 @@ experimentTmux <- function(df,
 #'
 #' @param queue_path character; path to the queue `.rds`
 #' @param global_path character; script to source for the job
-#' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which is not claimed again until set back to "PENDING".
+#' @param on_interrupt "requeue" or "fail". If the sourced script is interrupted, either requeue or mark as INTERRUPTED. A script that errors leaves the row "ERROR", which no worker claims until the next launch on this queue (see [experimentStatus]).
 #' @param heartbeat_interval_s numeric; seconds between heartbeats while the job runs
 #' @param group `NULL` (default: any row) or the queue group (`.group`) whose rows this
 #'   worker claims. A row is claimed only once the groups in its `.after` have finished; see
+#'   [experimentGroups].
+#' @param afterGroupsEnded Logical (default `FALSE`). `TRUE` in a worker started after the
+#'   groups it waits for have ended (a Slurm job with `--dependency`, as [experimentSBATCH()]
+#'   writes it): a row of those groups still `PENDING` or `INTERRUPTED` has no worker left,
+#'   so it does not hold up an `afterany` row and makes an `afterok` row never run. See
 #'   [experimentGroups].
 #' @return "ok" | "interrupt" | "empty" (if no pending work found) | "wait" (none ready yet:
 #'   the groups in `.after` of the rows left are still running); used by tmuxRunWorkerLoop()
@@ -1598,7 +1608,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
                           folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
                           # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "hists"))),
                           activeRunningPath = getOption("spades.activeRunningPath"),
-                          ss_id = NULL, group = NULL) {
+                          ss_id = NULL, group = NULL, afterGroupsEnded = FALSE) {
   if (missing(global_path))
     global_path <- "global.R"
   stopifnot(file.exists(global_path))
@@ -1614,7 +1624,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
     if (.trace) message(sprintf("[gs-worker] claim attempt by %s queue_path=%s",
                                 worker_id, as.character(queue_path)))
-    claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path, group = group)
+    claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path, group = group,
+                                    afterGroupsEnded = afterGroupsEnded)
     if (inherits(claimed, "gs_claim_wait")) return("wait")
     if (is.null(claimed)) {
       if (.trace) message("[gs-worker] claim -> NULL (queue empty); exiting loop")
@@ -1757,7 +1768,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
         else
           message("Error: ", conditionMessage(e))
         message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
-        message("\nThe row is marked ERROR (set it back to PENDING to rerun it).")
+        message("\nThe row is marked ERROR; the next launch on this queue runs it again.")
         "error"
       },
       interrupt = function(e) {
@@ -1784,25 +1795,26 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   LOCKF <- paste0(queue_path, ".lock")
 
   activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
-  # NOTE: tmuxRefreshQueueStatus is intentionally NOT called per-iteration
-  # here. It races with the claim path's atomic queue+Running-file write
-  # and can demote a just-claimed row back to PENDING under fast jobs,
-  # producing duplicate claims. Recovery of stuck RUNNING rows from a
-  # previous run should be performed once by the master (experimentTmux /
-  # experimentFuture / experimentSBATCH already do this) before any worker
-  # starts, not on every claim.
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
   q <- revertDotNames(q)
-  
+  # RUNNING rows of this machine whose worker died go back in the queue first. Under the
+  # lock this cannot race a claim, which writes the row's process_id under the same lock.
+  # Rows of other machines are reclaimed by the launcher and tmuxRefreshQueueStatus().
+  dead <- .deadRunningRows(q, "local")
+  if (length(dead)) {
+    q <- .reclaimRows(q, dead)
+    .queue_write(q, queue_path)
+  }
+
   # Convert runNameLabel to a character column-name vector.
   # If it is a bare symbol like quote(.samplingRange), deparse it to get the name.
   # If it is a call like quote(colnames(q)[1:2]), evaluate it now that q is in scope.
   runNameLabel <- if (is.symbol(runNameLabel)) as.character(runNameLabel)
                   else eval(runNameLabel, envir = environment())
 
-  claim <- .claimableRow(q, group)
+  claim <- .claimableRow(q, group, afterGroupsEnded)
   if (is.na(claim$i)) {
     filelock::unlock(lck)
     return(if (claim$wait) "wait" else "empty")
@@ -1827,26 +1839,11 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     assign(nm, q[[nm]][[i]], envir = scn_env) # [[ ]]: a list column's cell is the list, not a list of it
   .pkgEnv$lastScn <- scn_env
 
-  q$status[i]       <- txtRunning
-  q$claimed_by[i]   <- if (nzchar(PANE)) PANE else paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
-  q$started_at[i]   <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  q$machine_name[i] <- Sys.info()[["nodename"]]
-  q$process_id[i]   <- Sys.getpid()
-  # Scrub stale completion/interrupt fields left from a prior run of this row,
-  # so RUNNING never carries a finished_at / heartbeat / interrupted_at value.
-  for (cn in intersect(c("finished_at", "DEoptimElapsedTime", "heartbeat_at",
-                         "heartbeat_iter", "iterationsTotal", "interrupted_at",
-                         "last_error"),
-                       names(q))) {
-    q[[cn]][i] <- NA
-  }
+  q <- .applyUpdates(q, i, .claimUpdates(
+    if (nzchar(PANE)) PANE else paste0(Sys.info()[["nodename"]], "-", Sys.getpid())))
 
-  # Critical-section invariant: marking the row RUNNING in the queue and
-  # writing its Running_*.rds sentinel must be visible together. If we
-  # released the lock between these two writes, a concurrent worker's
-  # tmuxRefreshQueueStatus() could observe status=RUNNING with no matching
-  # Running file and demote the row back to PENDING (default at the top
-  # of its loop), causing this row to be re-claimed by another worker.
+  # The row's RUNNING status and its Running_*.rds marker file are written under the same
+  # lock, so a reader sees both or neither.
   current_run <- getRunName(q, i, runNameLabel)
   runName     <- gsub("[^[:alnum:]_.:-]", "-", as.character(current_run))
   activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
@@ -1922,7 +1919,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
       else
         message("Error: ", conditionMessage(e))
       message("\n(call stack stashed -- type traceback(SpaDES.project::lastTraceback()) to inspect)")
-      message("\nThe row is marked ERROR (set it back to PENDING to rerun it).")
+      message("\nThe row is marked ERROR; the next launch on this queue runs it again.")
       "error"
     },
     interrupt = function(e) "interrupt"
@@ -1970,6 +1967,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' @param group `NULL` (default: rows of any group) or the queue group (`.group`) this worker
 #'   serves. While the rows left wait for their `.after` groups, the worker looks again every
 #'   `SPADES_AFTER_POLL_SECONDS` (default 30) seconds. See [experimentGroups].
+#' @inheritParams tmuxRunNextWorker
 #' @return invisibly TRUE
 #' @export
 tmuxRunWorkerLoop <- function(queue_path, global_path,
@@ -1988,7 +1986,7 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
                           dev_library = NULL,
                           n_workers_on_host = 1L,
                           exitOnError = FALSE,
-                          group = NULL) {
+                          group = NULL, afterGroupsEnded = FALSE) {
   if (length(group) && is.na(group)) group <- NULL
   on_interrupt <- match.arg(on_interrupt)
   on_error     <- match.arg(on_error)
@@ -2037,7 +2035,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
 
     res <- .runNextOrWait(stop_file, queue_path, global_path, on_interrupt,
                           heartbeat_interval_s, runNameLabel = runNameLabel,
-                          activeRunningPath = activeRunningPath, ss_id = ss_id, group = group)
+                          activeRunningPath = activeRunningPath, ss_id = ss_id, group = group,
+                          afterGroupsEnded = afterGroupsEnded)
 
     should_continue <- .workerContinues(res, on_interrupt, on_error)
 
@@ -2088,7 +2087,9 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
     } else {
       # Queue has nothing claimable or interrupt+fail: stay at '>' so the user can debug.
       message("\nWorker idle: res=", res,
-              "\n  q(status=1L) to retry  |  q() to stop the loop")
+              if (identical(res, "empty"))
+                "\n  Nothing left to claim. A new launch on this queue runs its HOLD and ERROR rows again."
+              else "\n  q(status=1L) to retry  |  q() to stop the loop")
       return(invisible(res))
     }
   }
@@ -2101,7 +2102,8 @@ tmuxRunWorkerLoop <- function(queue_path, global_path,
     if (!is.null(stop_file) && isTRUE(file.exists(stop_file))) break
     res <- .runNextOrWait(stop_file, queue_path, global_path, on_interrupt,
                           heartbeat_interval_s, runNameLabel = runNameLabel,
-                          activeRunningPath = activeRunningPath, ss_id = ss_id, group = group)
+                          activeRunningPath = activeRunningPath, ss_id = ss_id, group = group,
+                          afterGroupsEnded = afterGroupsEnded)
     anyError <- anyError || identical(res, "error")
     if (!.workerContinues(res, on_interrupt, on_error)) break
     Sys.sleep(stats::runif(1, 0.05, 0.2))
@@ -2626,9 +2628,10 @@ tmuxListPanes <- function(stats = FALSE) {
   fmt <- shQuote("#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_title}")
 
   rows <- lapply(sockets, function(s) {
+    # a socket whose server is gone (a killed test server, say) exits 1: no panes there
     lines <- tryCatch(
-      system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
-              stdout = TRUE, stderr = FALSE),
+      suppressWarnings(system2("tmux", c("-S", s, "list-panes", "-a", "-F", fmt),
+                               stdout = TRUE, stderr = FALSE)),
       error = function(e) character(0)
     )
     if (!length(lines)) return(NULL)
@@ -3182,86 +3185,31 @@ tmuxPrepareQueueFromDF <- function(df, queue_path) {
 # }
 
 
-#' Assess simulation status from PNG outputs
-#' @param runName Directory containing the figures/hists
-#' @param timeout_min Threshold for inactivity (e.g., 20)
-#' @param statusCalculate A quoted expression to compute job status from output files.
-#'   Defaults to `getOption("spades.statusCalculate", NULL)`.
-assessDoneInFigure <- function(runName, timeout_min = 20, 
-                               statusCalculate = getOption("spades.statusCalculate")) {
-                               # quote(file.path("outputs", runName, "figures", "fireSense_SpreadFit", "objFun"))
-
-  # startedFiles <- dir(activeRunningPath, pattern = txtRunning, ignore.case = TRUE)
-  # is_running <- runName %in% sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
-  # if (isTRUE(is_running)) {
-  #   return(txtRunning)
-  # }
-
-  if (!is.null(statusCalculate)) {
-    if (is.call(statusCalculate))
-      statusCalculate <- eval(statusCalculate, envir = environment())
-    # statusCalculate <- file.path("outputs", runName, "figures", "objFun")
-    if (length(statusCalculate) == 0 || !dir.exists(statusCalculate)) return(txtPending)
-    
-    # Find most recent PNG
-    png_files <- list.files(statusCalculate, pattern = "\\.png$", full.names = TRUE)
-    if (length(png_files) == 0) return(txtPending)
-    
-    # Get most recent file
-    finfo <- file.info(png_files)
-    latest_file <- png_files[which.max(finfo$mtime)]
-    last_mod <- finfo$mtime[which.max(finfo$mtime)]
-    
-    # Check for staleness
-    is_stale <- difftime(Sys.time(), last_mod, units = "mins") > timeout_min
-    if (!is_stale) return(txtRunning)
-    
-    # Visual check for "ter" using magick
-    # Red pixels typically have high R and low G/B values
-    reproducible::.requireNamespace("magick", stopOnFALSE = TRUE)
-    img <- magick::image_read(latest_file)
-    img_data <- as.integer(img[[1]]) # Get RGBA array
-    
-    # Heuristic: Red channel > 200 AND Green/Blue < 100
-    # img_data is [height, width, channels]
-    red_pixels <- sum(img_data[,,1] > 200 & img_data[,,2] < 100 & img_data[,,3] < 100)
-    # This is simpler heuristic. Maybe not accurate enough though
-    # red_pixels <- sum(img_data[,,1] > 200)
-    
-    has_red <- red_pixels > 0
-    
-    if (has_red) {
-      return(txtDone)
-    } else {
-      # return(txtDone)
-      return(txtInterrupted)
-    }
-  } else {
-    return(txtPending)
-  }
-}
-
-#' Refresh and Assess Queue Status from Simulation Outputs
+#' Refresh a queue file: reclaim dead workers' rows, fill the display columns
 #'
-#' Scans the simulation output directories (defined by `runNameLabel`) to assess
-#' current status based on file timestamps and visual content of PNGs.
-#' If a PNG has not been updated for a specified timeout, the task is marked
-#' as "FINISHED" (if red pixels are detected) or "INTERRUPTED" (if no red
-#' is detected).
+#' @description
+#' Two things, both under the queue's lock. First, every `RUNNING` row whose worker process
+#' is known dead (see [experimentStatus]) goes back in the queue as `INTERRUPTED`, and the
+#' `Running_*` marker files of dead local processes are removed. Second, for every row not
+#' finished (and every row, with `recheckDone = TRUE`), the display columns `heartbeat_at`,
+#' `heartbeat_iter`, `DEoptimElapsedTime` and `iterationsTotal` are filled from the job's
+#' output files: from the newest `iter<n>_<time>` file in `folderWithIterInFilename`, and
+#' from whichever of those names `statusCalculate` assigns. No other status is written: a
+#' row's status is the record of the worker that ran it.
 #'
-#' @param queue_path Character. Absolute path to the `experiment_queue.rds` file.
-#' @param timeout_min Numeric. Minutes of inactivity before a task is
-#'   considered stale. Defaults to 20.
+#' @param queue_path Character. Absolute path to the queue `.rds` file.
+#' @param timeout_min Unused; kept so old calls still work.
 #' @param runNameLabel A quoted expression to derive a run label from the queue. Default uses first two columns.
-#' @param statusCalculate A quoted expression to compute job status from output files.
+#' @param statusCalculate A quoted expression evaluated per row with the row's data columns
+#'   and the `...` in scope; the display columns it assigns are written to the row.
 #'   Defaults to `getOption("spades.statusCalculate", NULL)`.
 #' @param folderWithIterInFilename A quoted expression for a folder with iteration info in filenames.
 #'   Defaults to `getOption("spades.folderWithIterInFilename", NULL)`.
-#' @param recheckDone Logical. If `TRUE`, re-evaluate DONE status. Default `FALSE`.
+#' @param recheckDone Logical. If `TRUE`, fill the display columns of `DONE` rows too. Default `FALSE`.
 #' @param activeRunningPath Directory for "running" flag files. See `tmuxActiveRunningPath`.
-#' @param ... Additional arguments (currently unused).
+#' @param ... Objects `statusCalculate` may use.
 #'
-#' @return A data.frame (the updated queue), invisibly.
+#' @return A data.frame (the updated queue), invisibly; `NULL` when there is no queue file.
 #'   As a side effect, updates the RDS file on disk.
 #'
 #' @export
@@ -3270,278 +3218,82 @@ assessDoneInFigure <- function(runName, timeout_min = 20,
 #'
 #' @examples
 #' \dontrun{
-#' # Assessment of all simulations in the current project
-#' tmuxRefreshQueueStatus("experiment_queue.rds", timeout_min = 30)
+#' tmuxRefreshQueueStatus("experiment_queue.rds")
 #' }
 tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = quote(colnames(q)[1:2]),
                                       statusCalculate = getOption("spades.statusCalculate"),
                                       folderWithIterInFilename = getOption("spades.folderWithIterInFilename"),
-                                      recheckDone = FALSE, #!is.null(statusCalculate),
+                                      recheckDone = FALSE,
                                       activeRunningPath = getOption("spades.activeRunningPath"),
                                       ...) {
-  
-  if (file.exists(queue_path)) {
-    lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
-    on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
-    if (is.null(lck)) stop("Could not lock queue for refresh.")
+  if (!file.exists(queue_path)) return(invisible(NULL))
+  lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
+  if (is.null(lck)) stop("Could not lock queue for refresh.")
+  on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
 
-    q <- try(readRDS(queue_path))
-    if (is(q, "try-error")) {
-      unlink(queue_path)
-      return(invisible(NULL))
-    }
-    q <- revertDotNames(q)
-    data.table::setDT(q)
-    if (!"interrupted_at" %in% names(q))
-      q[, interrupted_at := NA_character_]
-    if (!"last_error" %in% names(q))
-      q[, last_error := NA_character_]
-    scenarioFieldsSet(setdiff(names(q), meta_cols))   # for positional pathBuild() in runNameLabel / statusCalculate
-
-    # Only refresh rows with an active status (PENDING, RUNNING, INTERRUPTED).
-    # Any other status (DONE, CANCELLED, or user-defined) is left untouched.
-    # recheckDone=TRUE re-adds DONE rows so their status can be re-evaluated.
-    to_check <- if (!isTRUE(try(recheckDone))) {
-      which(q$status %in% c(txtPending, txtRunning, txtInterrupted))
-    } else {
-      seq_along(q$status)
-    }
-      # to_check <- seq_len(NROW(q))#which(!q$status %in% txtDone)
-
-    activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
-    for (i in to_check) {
-      new_status <- txtPending
-
-      # put the values from the q columns into this environment so runNameLabel can use them
-      list2env(as.list(q[i, -..meta_cols]), envir = environment())
-
-      # Compute runName the same way the claim path does (tmuxRunNextWorker
-      # at line ~1713). Two flavours of runNameLabel:
-      #   * a quoted expression that evaluates to column NAMES of q (e.g. the
-      #     default quote(colnames(q)[1:2])) -- treat as column names and
-      #     extract values from row i;
-      #   * any other expression -- treat its evaluation as the runName itself
-      #     (collapsed to a single string).
-      # Sanitize identically to the claim path so the resulting runName
-      # matches the segment in Running_<runName>_<pid>_.rds filenames.
-      raw <- eval(runNameLabel, envir = environment())
-      runName <- if (is.character(raw) && length(raw) > 0L && all(raw %in% names(q))) {
-        paste(vapply(raw, function(cn) as.character(q[[cn]][i]), character(1L)),
-              collapse = "-")
-      } else {
-        paste(as.character(raw), collapse = "-")
-      }
-      runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
-      
-      # runName <- q[i, runNameLabel] |> paste(collapse = "-")
-      # if (runName == "14.1") {
-      #   debug(get_latest_heartbeat)
-      # }
-      # runName <- q[i, runNameLabel] |> paste(collapse = "-")
-      allFiles <- dir(activeRunningPath)
-      allFilesFull <- dir(activeRunningPath, full.names = TRUE)
-      runningFiles <- grep(allFiles, pattern = txtRunning, ignore.case = TRUE, value = TRUE)
-      runningFilesFull <- grep(allFilesFull, pattern = txtRunning, ignore.case = TRUE, value = TRUE)
-      
-      is_running <- sapply(strsplit(runningFiles, "_"), function(x) runName %in% x)
-      if (any(is_running)) {
-        # confirm that they are still running using pids
-        filename <- runningFilesFull[is_running]
-        if (length(filename)) {
-          toRm <- Map(fiHere = filename, function(fiHere) {
-            # Only delete Running_ files whose PID is dead on the LOCAL machine.
-            # Remote PIDs are invisible to tools::pskill here; treating them as
-            # dead would delete a live job's sentinel file from NFS.
-            this_machine <- q$machine_name[i]
-            if (!is.na(this_machine) && this_machine != Sys.info()[["nodename"]])
-              return(NULL)
-            pid <- strsplit(basename(fiHere), split = "_")[[1]][3] |> as.integer()
-            alive <- is_pid_alive_tools(pid)
-            if (isFALSE(alive)) {
-              return(fiHere)
-            } else {
-              return(NULL)
-            }
-          })
-          toRm <- unlist(toRm)
-          if (length(toRm)) {
-            unlink(toRm)
-            toRmInd <- match(toRm, allFilesFull)
-            allFiles <- allFiles[-toRmInd]
-            allFilesFull <- allFilesFull[-toRmInd]
-            # toRmIndForPartialRunningFiles <- match(toRm, runningFilesFull[is_running])
-            toRmIndForRunning <- match(runningFilesFull[is_running], runningFilesFull)
-            is_running[toRmIndForRunning] <- FALSE
-          }
-        }
-
-        
-      }
-      
-      done <- FALSE
-      if (!is.null(statusCalculate)) {
-        # Unpack ... into local scope so statusCalculate can reference them by name
-        dots <- list(...)
-        if (length(dots)) list2env(dots, envir = environment())
-        # put the values from the q columns into this environment so runNameLabel can use them
-        list2env(as.list(q[i, -..meta_cols]), envir = environment())
-        evaled <- try(eval(statusCalculate, envir = environment()))
-        if (is(evaled, "try-error") || is.null(evaled)) {
-          statusCalculate <- NULL
-        } else {
-          cn <- meta_cols
-          for (cc in cn) {
-            q[[cc]][i] <- NA
-            if (exists(cc, inherits = FALSE)) {
-              outHere <- get(cc, inherits = FALSE)
-              if (length(outHere) > 0) 
-              # if (is(outHere, "try-error")) browser()
-                q[[cc]][i] <- outHere
-              
-            }
-          }
-        }
-      }
-      if (!isTRUE(done)) {
-        if (isTRUE(any(is_running))) {
-          new_status <- txtRunning
-        } #else if (isTRUE(is_done)) {
-          #new_status <- txtDone
-        #} # else {
-        #   new_status <- assessDoneInFigure(runName = runName, timeout_min = timeout_min, 
-        #                                    statusCalculate = statusCalculate)#, 
-        #   #activeRunningPath = activeRunningPath)
-        # }
-        hb <- NA
-        if (!is.null(folderWithIterInFilename)) {
-          hb <- get_latest_heartbeat(runName, folderWithIterInFilename = folderWithIterInFilename)
-          elapsedTime <- hb$elapsed
-        } 
-        
-        fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
-        hasFI <- (!is.null(fi) && NROW(fi))
-        machine_name <- Sys.info()[["nodename"]]
-        if (hasFI) {
-          startedAt <- format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-          process_id <- gsub(".+([[:digit:]]{6,7}).+","\\1", basename(rownames(fi)))
-        }
-        
-        if (any(unlist(hb) %in% NA) ) {
-          if (new_status %in% txtPending) {
-            cns <- setdiff(meta_cols, "status")
-            for (cn in cns)
-              q[[cn]][i] <- NA
-          } else {
-            # This is RUNNING; but not at DEoptim yet; can also be DONE
-            # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runName = runName, queue_path = queue_path)
-            if (hasFI) {
-              # q[q$process_id %in% names(pidsToRm)[pidsToRm],"status"] <- txtRunning
-              # 3
-              q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-              q$machine_name[i] <- machine_name
-            }
-            q$DEoptimElapsedTime[i] <- NA
-            # q$process_id[i] <- NA
-          }
-        } else {
-          # Update status and timestamps if changed
-          # fi <- activeRunningFileInfo(activeRunningPath = activeRunningPath, runNameLabel = runNameLabel, queue_path = queue_path)
-          # pids <- Map(fiHere = rownames(fi), function(fiHere) {
-          #   pid <- strsplit(fiHere, split = "_")[[1]][3] |> as.integer()
-          #   alive <- is_pid_alive_tools(pid)
-          #   if (isFALSE(alive)) {
-          #     unlink(fiHere)
-          #   }
-          # })
-          
-          q$process_id[i] <- NA
-          if (hasFI) {
-            procId <- strsplit(basename(rownames(fi)), split = "_")[[1]][3]
-            if (is_pid_alive_tools(as.integer(procId)) )
-              new_status <- txtRunning
-            
-            if (!is.na(suppressWarnings(as.numeric(procId))))
-              q$process_id[i] <- procId
-            if (!is.character(hb$started) || is.na(hb$started)) {
-              
-              q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-            } else {
-              # elapsedTime <- difftime(fi$mtime, hb$started)
-              
-              if (elapsedTime > 0)
-                q$started_at[i] <- format(as.POSIXct(hb$ts) - elapsedTime, "%Y-%m-%d %H:%M:%S")
-              else
-                q$started_at[i] <- startedAt#format(fi$mtime, "%Y-%m-%d %H:%M:%S")
-            }
-            if (isTRUE(is.na(q$machine_name[i])))
-              q$machine_name[i] <- Sys.info()[["nodename"]]
-          } else {
-            
-            # Says it is RUNNING --> but is actually INTERRUPTED because it has no log file (fi)
-            if (isTRUE(is.na(q$started_at[i])))
-              q$started_at[i] <- hb$started
-            if (isTRUE(is.na(q$machine_name[i])))
-              q$machine_name[i] <- Sys.info()[["nodename"]]
-            
-            new_status <- txtInterrupted
-            if (q$heartbeat_iter[i] %% 25 %in% 0)
-              new_status <- txtDone
-            
-          }
-          
-          q$heartbeat_iter[i] <- hb$iter
-          q$heartbeat_at[i] <- hb$ts
-          # dt <- try(format(round(difftime(q$heartbeat_at[i], q$started_at[i], units = "days"), 2), digits = 2))
-          q$DEoptimElapsedTime[i] <- format(round(elapsedTime, 2), digits = 2, units = "days")
-          if (new_status %in% txtDone) {
-            q$finished_at[i] <- q$heartbeat_at[i]
-            q$heartbeat_at[i] <- NA
-            q$iterationsTotal[i] <- q$heartbeat_iter[i]
-            q$heartbeat_iter[i] <- NA
-            q$claimed_by[i] <- NA
-          }
-          
-        }
-      } else {
-        new_status <- txtDone
-      }
-
-      # Remote-machine guard: the local node cannot observe a remote process via
-      # /proc or tools::pskill, so absence of a Running_ file on NFS or a failed
-      # is_pid_alive_tools() check is not proof the remote job died.  Only a
-      # definitive authoritative signal (done=TRUE from statusCalculate) should
-      # demote a remote RUNNING job.
-      if (q$status[i]  == txtRunning  &&
-          new_status    %in% c(txtPending, txtInterrupted) &&
-          !is.na(q$machine_name[i])   &&
-          q$machine_name[i] != Sys.info()[["nodename"]]) {
-        new_status <- txtRunning  # preserve remote ownership
-      }
-
-      if (!q$status[i] %in% new_status) {
-        q$status[i] <- new_status
-        if (new_status == txtInterrupted) {
-          q$interrupted_at[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          q$claimed_by[i]     <- NA_character_
-        }
-      }
-      
-    }
-    
-    #q <- data.table::as.data.table(q);
-    # ord <- order(as.package_version(q[[runNameLabel]]))
-    # q <- q[ord, ]
-    # q1 <- data.table::rbindlist(list(q[status %in% txtDone], q[status %in% txtRunning]))
-    # q2 <- q[!q1, on = runNameLabel][grep("^(5.|6.|14.|9.|12.)", .ELFind),]
-    # q3 <- rbindlist(list(q1, q2))
-    # q <- rbindlist(list(q3, q[!q3, on = runNameLabel]))
-    
-    #q <- as.data.frame(q)
-    
-    .queue_write(q, queue_path)
-    filelock::unlock(lck)
-    invisible(q)
+  q <- try(readRDS(queue_path))
+  if (is(q, "try-error")) {
+    unlink(queue_path)
+    return(invisible(NULL))
   }
+  q <- revertDotNames(q)
+  data.table::setDT(q)
+  for (cn in c("interrupted_at", "last_error"))
+    if (!cn %in% names(q)) data.table::set(q, j = cn, value = NA_character_)
+  scenarioFieldsSet(setdiff(names(q), meta_cols))   # for positional pathBuild() in runNameLabel / statusCalculate
+  activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
+
+  dead <- .deadRunningRows(q, "all")
+  if (length(dead)) q <- .reclaimRows(q, dead)
+  .sweepRunningFiles(activeRunningPath)
+
+  rows <- if (isTRUE(recheckDone)) seq_len(NROW(q)) else which(q$status %in% .activeStatus())
+  dots <- list(...)
+  dataCols <- setdiff(names(q), meta_cols)
+  for (i in rows) {
+    # the row's data columns, by name, for runNameLabel / statusCalculate / folderWithIterInFilename
+    rowEnv <- new.env(parent = environment())
+    list2env(as.list(q[i, dataCols, with = FALSE]), envir = rowEnv)
+    if (length(dots)) list2env(dots, envir = rowEnv)
+    raw <- eval(runNameLabel, envir = rowEnv)
+    runName <- if (is.character(raw) && length(raw) > 0L && all(raw %in% names(q))) {
+      getRunName(q, i, raw)
+    } else {
+      paste(as.character(raw), collapse = "-")
+    }
+    runName <- gsub("[^[:alnum:]_.:-]", "-", runName)
+    assign("runName", runName, envir = rowEnv)
+
+    if (!is.null(folderWithIterInFilename)) {
+      hb <- try(get_latest_heartbeat(runName, folderWithIterInFilename = folderWithIterInFilename),
+                silent = TRUE)
+      if (!is(hb, "try-error") && !is.na(hb$iter)) {
+        q <- .applyUpdates(q, i, list(heartbeat_iter = hb$iter, heartbeat_at = hb$ts,
+                                      DEoptimElapsedTime = format(round(hb$elapsed, 2), digits = 2)))
+      }
+    }
+    if (!is.null(statusCalculate)) {
+      evaled <- try(eval(statusCalculate, envir = rowEnv), silent = TRUE)
+      if (!is(evaled, "try-error")) {
+        set <- mget(.displayCols, envir = rowEnv, inherits = FALSE, ifnotfound = list(NULL))
+        set <- Filter(function(v) length(v) == 1L, set)
+        if (length(set)) q <- .applyUpdates(q, i, set)
+      }
+    }
+  }
+
+  .queue_write(q, queue_path)
+  invisible(q)
+}
+
+## Remove the Running_<runName>_<pid>_.rds marker files of local processes that are dead.
+.sweepRunningFiles <- function(activeRunningPath) {
+  files <- dir(activeRunningPath, pattern = paste0("^", txtRunning, "_"), full.names = TRUE)
+  for (f in files) {
+    pid <- suppressWarnings(as.integer(rev(strsplit(basename(f), "_", fixed = TRUE)[[1L]])[2L]))
+    if (!is.na(pid) && !.pidIsAlive(pid)) unlink(f)
+  }
+  invisible(files)
 }
 
 get_latest_heartbeat <- function(runName, 
@@ -3690,29 +3442,6 @@ get_sim_year_heartbeat <- function(output_path,
 }
 
 
-activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRunningPath"), pattern = txtRunning, queue_path, runName) {
-  if (is.null(activeRunningPath))
-    activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = NULL, queue_path)
-  
-  startedFiles <- dir(activeRunningPath, pattern = pattern, ignore.case = TRUE)
-  if (length(startedFiles)) {
-    startedFilesELFind <- sapply(startedFiles, function(x) strsplit(x, "_")[[1]][[2]])
-    if (missing(runName) || is.null(runName) || all(!nzchar(runName))) {
-      wh <- seq(NROW(startedFiles))
-    } else {
-      # %in% (not ==) so a multi-element runName -- e.g. the default
-      # quote(colnames(q)[1:2]), which evaluates to a length-2 vector --
-      # doesn't trigger recycling warnings against startedFilesELFind.
-      wh <- which(startedFilesELFind %in% runName)
-    }
-    startedFilesFull <- dir(activeRunningPath, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
-    fi <- file.info(startedFilesFull[wh])
-  } else {
-    fi <- NULL
-  }
-  fi
-}
-
 ## A worker must never install packages. Every worker sources the user's global.R at the
 ## start of every job, so with N workers that is N processes resolving and writing one
 ## shared library: on 2026-09-09 a worker rewrote SpaDES.tools mid-run and four of its
@@ -3770,28 +3499,6 @@ activeRunningFileInfo <- function(activeRunningPath = getOption("spades.activeRu
   if (length(lastErr) == 1L && !is.na(lastErr)) lastErr else .errText(e)
 }
 
-meta_cols <- c("status","claimed_by","started_at","finished_at",
-               "DEoptimElapsedTime","machine_name","process_id",
-               "heartbeat_at","heartbeat_iter","iterationsTotal",
-               "interrupted_at","last_error")
-
-is_pid_alive_tools <- function(pid) {
-  stopifnot(length(pid) == 1L, is.numeric(pid), pid > 0)
-  out <- tryCatch(
-    tools::pskill(pid, signal = 0L),  # TRUE if PID exists & you have permission
-    error = function(e) NA
-  )
-  isTRUE(out)
-}
-
-
-
-txtInterrupted <- "INTERRUPTED"
-txtPending <- "PENDING"
-txtDone <- "DONE"
-txtRunning <- "RUNNING"
-txtError <- "ERROR"
-
 # Whether a worker claims another job after tmuxRunNextWorker() returned `res`. An errored
 # job is ERROR, which is not claimable, so with on_error = "continue" the worker takes the next
 # row and ends at "empty".
@@ -3799,44 +3506,6 @@ txtError <- "ERROR"
   !identical(res, "empty") &&
     !(identical(res, "interrupt") && on_interrupt == "fail") &&
     !(identical(res, "error") && on_error == "stop")
-
-# What a worker writes to its row when the job ends. Only a row still RUNNING gets a
-# new status: if the user set it to something else while the job ran (HOLD, say), that
-# is theirs to change, so only the error text and timestamps are recorded.
-# `outcome`: "ok", "error", "interrupt" (Ctrl-C) or "quit" (R exited inside the job).
-# An errored job is ERROR, which no worker claims; set it back to PENDING to rerun it.
-.jobEndUpdates <- function(outcome, on_interrupt, currentStatus, lastErr = NULL) {
-  now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  status <- switch(outcome,
-    ok        = txtDone,
-    error     = txtError,
-    interrupt = if (on_interrupt == "requeue") txtPending else txtInterrupted,
-    quit      = txtInterrupted)
-  upd <- list(status = status, claimed_by = NA_character_)
-  if (outcome == "ok") {
-    upd$finished_at <- now
-    upd$last_error  <- NA_character_
-  } else {
-    if (status != txtPending) upd$interrupted_at <- now
-    upd$last_error <- lastErr
-  }
-  if (!is.na(currentStatus) && !identical(currentStatus, txtRunning))
-    upd$status <- NULL
-  upd
-}
-
-# File backend: apply .jobEndUpdates() to row `i` of the queue `q`.
-.applyJobEnd <- function(q, i, outcome, on_interrupt, lastErr = NULL) {
-  upd <- .jobEndUpdates(outcome, on_interrupt, q$status[i], lastErr)
-  for (nm in names(upd)) {
-    if (!nm %in% names(q)) {
-      if (is.na(upd[[nm]])) next
-      q[[nm]] <- NA_character_
-    }
-    q[[nm]][i] <- upd[[nm]]
-  }
-  q
-}
 
 #' Log path for default tmux status
 #' 
