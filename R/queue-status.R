@@ -13,10 +13,10 @@ txtHold        <- "HOLD"
 ## job ends (the record of who ran what and how it ended); `.displayCols` are filled from
 ## the job's output files by tmuxRefreshQueueStatus() for people watching the queue.
 .recordCols  <- c("status", "claimed_by", "started_at", "finished_at", "machine_name",
-                  "process_id", "interrupted_at", "last_error")
+                  "process_id", "pid_ns", "interrupted_at", "last_error")
 .displayCols <- c("DEoptimElapsedTime", "heartbeat_at", "heartbeat_iter", "iterationsTotal")
 meta_cols <- c("status", "claimed_by", "started_at", "finished_at",
-               "DEoptimElapsedTime", "machine_name", "process_id",
+               "DEoptimElapsedTime", "machine_name", "process_id", "pid_ns",
                "heartbeat_at", "heartbeat_iter", "iterationsTotal",
                "interrupted_at", "last_error")
 
@@ -38,7 +38,7 @@ meta_cols <- c("status", "claimed_by", "started_at", "finished_at",
 #'     `on_interrupt = "fail"`, when R quits inside a job, and when a `RUNNING` row's
 #'     process is found dead.}
 #'   \item{`RUNNING`}{One worker owns it: `claimed_by`, `machine_name`, `process_id`,
-#'     `started_at`. Only a claim writes `RUNNING`.}
+#'     `pid_ns`, `started_at`. Only a claim writes `RUNNING`.}
 #'   \item{`DONE`}{The job finished (`finished_at`).}
 #'   \item{`ERROR`}{The job errored (`last_error`). No worker claims it; the next launch on
 #'     this queue sets it back to `PENDING`, or set it yourself.}
@@ -60,7 +60,9 @@ meta_cols <- c("status", "claimed_by", "started_at", "finished_at",
 #'     queue lock; the sheet backend for every machine, checking the row again before
 #'     writing); [tmuxRefreshQueueStatus()] does it for the whole queue. A process is
 #'     dead when `/proc` (locally, or over one `ssh` per machine) says so; a machine that
-#'     cannot be reached, or a row without a pid, is left alone;
+#'     cannot be reached, a row without a pid, and a row whose `pid_ns` (the PID namespace
+#'     the claim recorded, which a Slurm job has of its own) is not the one the check runs
+#'     in, are left alone;
 #'   \item a launch: `HOLD` and `ERROR` rows become `PENDING`. A `RUNNING` row with a live
 #'     process is never touched by a launch.
 #' }
@@ -101,17 +103,30 @@ NULL
   q
 }
 
+## This process's PID namespace, e.g. "pid:[4026531836]"; NA where there is none to read
+## (macOS, Windows). A PID means something only inside its namespace: Slurm gives every job
+## its own, so two jobs on one node can hold the same machine_name and the same PIDs.
+.pidNs <- function() {
+  ns <- Sys.readlink("/proc/self/ns/pid")
+  if (is.na(ns) || !nzchar(ns)) NA_character_ else ns
+}
+
+## Does a row's `rowNs` name the namespace `ns` that PIDs are being checked in? Both NA
+## (no namespaces on this platform) counts as the same.
+.sameNs <- function(rowNs, ns) identical(as.character(rowNs), as.character(ns))
+
 ## What a claim writes: the row is RUNNING under this worker, and every other record and
 ## display field of an earlier attempt is cleared, so RUNNING never carries a finished_at,
 ## heartbeat or last_error from before.
 .claimUpdates <- function(worker_id, machine = Sys.info()[["nodename"]], pid = Sys.getpid(),
-                          now = format(Sys.time(), "%Y-%m-%d %H:%M:%S")) {
+                          pid_ns = .pidNs(), now = format(Sys.time(), "%Y-%m-%d %H:%M:%S")) {
   upd <- stats::setNames(rep(list(NA_character_), length(meta_cols)), meta_cols)
   upd$status       <- txtRunning
   upd$claimed_by   <- worker_id
   upd$started_at   <- now
   upd$machine_name <- machine
   upd$process_id   <- pid
+  upd$pid_ns       <- pid_ns
   upd
 }
 
@@ -154,31 +169,39 @@ NULL
 
 ## Is each of `pids` alive on `machine`? One ssh; a zombie (State: Z in /proc/<pid>/status)
 ## is dead, as in .pidIsAlive(). NULL when the machine cannot be reached: unreachable is not
-## proof of death.
-.ssh_pids_alive <- function(machine, pids) {
+## proof of death. The ssh shell is in the host's PID namespace, so a pid recorded in another
+## one (`pid_ns`, one per pid, as .pidNs() writes it) cannot be judged: NA, not dead.
+.ssh_pids_alive <- function(machine, pids, pid_ns = NULL) {
   if (length(pids) == 0L) return(logical(0))
   cmd <- paste0(
-    "for pid in ", paste(pids, collapse = " "),
+    "echo ns:$(readlink /proc/self/ns/pid); for pid in ", paste(pids, collapse = " "),
     "; do if [ -r /proc/$pid/status ] && ! grep -q ^State:.Z /proc/$pid/status;",
     " then echo alive; else echo dead; fi; done")
   res <- tryCatch(
     system2("ssh", c("-o", "BatchMode=yes", "-o", "ConnectTimeout=5", machine, shQuote(cmd)),
             stdout = TRUE, stderr = FALSE),
     error = function(e) NULL)
-  if (is.null(res) || length(res) != length(pids)) return(NULL)
-  res == "alive"
+  if (is.null(res) || length(res) != length(pids) + 1L) return(NULL)
+  remoteNs <- sub("^ns:", "", res[1L])
+  if (!nzchar(remoteNs)) remoteNs <- NA_character_
+  alive <- res[-1L] == "alive"
+  if (!is.null(pid_ns))
+    alive[!vapply(pid_ns, .sameNs, logical(1), ns = remoteNs, USE.NAMES = FALSE)] <- NA
+  alive
 }
 
 ## The RUNNING rows of `q` whose process is known dead. `machines = "local"`: only rows of
 ## this machine (cheap: for a worker holding the queue lock); `"all"`: one ssh per other
-## machine too. Unknown is not dead: a row without machine or pid, or on a machine that
-## cannot be reached, is not returned. A tmux pane titled "<machine>-<pid>" is proof of
-## life that saves the check.
+## machine too. Unknown is not dead: a row without machine or pid, on a machine that
+## cannot be reached, or from another PID namespace than the check runs in (a Slurm job's
+## own; a row written before pid_ns existed counts as another), is not returned. A tmux
+## pane titled "<machine>-<pid>" is proof of life that saves the check.
 .deadRunningRows <- function(q, machines = c("all", "local")) {
   machines <- match.arg(machines)
   status <- as.character(q$status)
   mach   <- if (is.null(q$machine_name)) rep(NA_character_, NROW(q)) else as.character(q$machine_name)
   pid    <- if (is.null(q$process_id)) rep(NA_integer_, NROW(q)) else suppressWarnings(as.integer(q$process_id))
+  ns     <- if (is.null(q$pid_ns)) rep(NA_character_, NROW(q)) else as.character(q$pid_ns)
   idx <- which(status == txtRunning & !is.na(mach) & !is.na(pid))
   local <- Sys.info()[["nodename"]]
   if (machines == "local") idx <- idx[mach[idx] == local]
@@ -191,10 +214,14 @@ NULL
                      logical(1))
     k <- k[!inPane]
     if (!length(k)) next
-    alive <- if (m == local) vapply(pid[k], .pidIsAlive, logical(1), USE.NAMES = FALSE)
-             else .ssh_pids_alive(m, pid[k])
+    alive <- if (m == local) {
+      here <- vapply(ns[k], .sameNs, logical(1), ns = .pidNs(), USE.NAMES = FALSE)
+      a <- rep(NA, length(k))
+      a[here] <- vapply(pid[k][here], .pidIsAlive, logical(1), USE.NAMES = FALSE)
+      a
+    } else .ssh_pids_alive(m, pid[k], ns[k])
     if (is.null(alive)) next
-    dead <- c(dead, k[!alive])
+    dead <- c(dead, k[!is.na(alive) & !alive])
   }
   sort(dead)
 }
