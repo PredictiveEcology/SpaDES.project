@@ -4451,25 +4451,25 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
 ## Make `pp` a working copy of the existing repository at `url`, on its default branch,
 ## without removing anything already in `pp` (e.g., the global.R that Restart copied there).
 ## A local file the repository also has would be overwritten: stop, naming it, and leave
-## `pp` as it was.
+## `pp` as it was. The check uses a bare clone in a temporary folder, so nothing is written
+## to `pp` until it passes (deleting a just-made .git fails on Windows while git holds it open).
 .connectExistingRepo <- function(url, pp) {
-  gert::git_init(pp)
-  ok <- FALSE
-  on.exit(if (!ok) unlink(file.path(pp, ".git"), recursive = TRUE), add = TRUE)
-  gert::git_remote_add(url, name = "origin", repo = pp)
-  gert::git_fetch("origin", repo = pp, verbose = FALSE)
-  rls <- gert::git_remote_ls("origin", repo = pp, verbose = FALSE)
-  br <- sub("^refs/heads/", "", rls$symref[rls$ref %in% "HEAD"])
-  ref <- paste0("origin/", br)
-  clash <- gert::git_ls(repo = pp, ref = ref)$path
+  tmp <- tempfile2()
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  gert::git_clone(url, path = tmp, bare = TRUE, verbose = FALSE)
+  br <- gert::git_branch(repo = tmp)
+  clash <- gert::git_ls(repo = tmp, ref = br)$path
   clash <- clash[file.exists(file.path(pp, clash))]
   if (length(clash))
     stop("These files in ", pp, " are also in ", url, ": ", paste(clash, collapse = ", "),
          "\nMove them out of ", pp, " and rerun; the repository's copies will be used.",
          call. = FALSE)
+  gert::git_init(pp)
+  gert::git_remote_add(url, name = "origin", repo = pp)
+  gert::git_fetch("origin", repo = pp, verbose = FALSE)
+  ref <- paste0("origin/", br)
   gert::git_branch_create(br, ref = ref, checkout = TRUE, repo = pp)
   gert::git_branch_set_upstream(ref, branch = br, repo = pp)
-  ok <- TRUE
   invisible(br)
 }
 
