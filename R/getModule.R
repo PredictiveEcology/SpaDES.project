@@ -447,8 +447,12 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
 
 ## Fetch the children of `parents`, then theirs, and so on. `explicit` (the modules the
 ## user asked for) are never refetched from a parent's entry; `seen` stops a cycle.
+## `fetch(kids, modulePath, overwrite, verbose)` gets the children and returns `success`
+## and `failed`, as .getModuleNoChildren() does; with useGit, setupModules() adds them as
+## git submodules instead.
 .getChildModules <- function(parents, explicit, modulePath, overwrite = FALSE,
-                             verbose = getOption("Require.verbose", 1L)) {
+                             verbose = getOption("Require.verbose", 1L),
+                             fetch = .getModuleNoChildren) {
   ## a logical `overwrite` per explicit module does not apply to children
   if (is.logical(overwrite) && length(overwrite) != 1) overwrite <- FALSE
   seen <- if (length(explicit)) extractModName(explicit) else character()
@@ -475,7 +479,7 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
     out <- list(success = character(), failed = character())
     if (length(kids)) {
       messageVerbose("Child modules: ", paste(kids, collapse = ", "), verbose = verbose)
-      out <- .getModuleNoChildren(kids, modulePath, overwrite = overwrite, verbose = verbose)
+      out <- fetch(kids, modulePath, overwrite = overwrite, verbose = verbose)
     }
     success <- c(success, placed, out$success)
     failed <- c(failed, out$failed)
