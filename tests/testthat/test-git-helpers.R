@@ -17,11 +17,11 @@ test_that(".shouldOfferClone is FALSE inside a git repository", {
   expect_false(SpaDES.project:::.shouldOfferClone(repo))
 })
 
-test_that(".shouldOfferClone is FALSE inside an RStudio project", {
+test_that(".shouldOfferClone is TRUE in an RStudio project that is not a git repository", {
   proj <- withr::local_tempdir()
   writeLines("Version: 1.0", file.path(proj, "some.Rproj"))
 
-  expect_false(SpaDES.project:::.shouldOfferClone(proj))
+  expect_true(SpaDES.project:::.shouldOfferClone(proj))
 })
 
 test_that("getGitUserName uses the GitHub login when not interactive", {
