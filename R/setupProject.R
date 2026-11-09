@@ -1905,7 +1905,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                paste(mods, collapse = "\n"))
 
         gitSplit <- unique(gitSplit) # there could be several modules within the same repository; only clone once
-        mapply(split = gitSplit, function(split) {
+        mapply(split = gitSplit, i = seq_along(gitSplit), function(split, i) {
           modPath <- file.path(split$acct, split$repo)
           # the modulePath already holding this repo, else the first one
           repoModulePath <- whichModulePath(split$repo, paths[["modulePath"]])
@@ -1933,6 +1933,9 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                 dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
               }
 
+              messageVerbose("Cloning ", split$acct, "/", split$repo, "@", split$br,
+                             " (", i, " of ", length(gitSplit), ") into ", localPath,
+                             verbose = verbose)
               out <- try(cloneOrSubmodule(.gh_url(split$acct, split$repo),
                                       path = clonePath))
               checkPath(localPath, create = TRUE)

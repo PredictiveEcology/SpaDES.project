@@ -59,3 +59,33 @@ test_that("useGit: a parent's children (and theirs) are added as submodules, on 
                   file.path("modules", c("par", "kidB", "kidC")))
   expect_true("data.table" %in% pkgs[["Acct/par@dev"]])
 })
+
+test_that("useGit: each module is named as it is cloned", {
+  ## gert prints only the refs it fetched, so nine children went by with no module names
+  skip_if_not_installed("gert")
+  withr::local_options(Require.updateRprofile = NULL)
+  td <- normPath(withr::local_tempdir())
+  mkBareModule(td, "par", "dev", childModules = c("kidB", "kidC"))
+  mkBareModule(td, "kidB", "dev")
+  mkBareModule(td, "kidC", "dev")
+  local_mocked_bindings(.gh_url = function(acct, repo) file.path(td, paste0(repo, ".git")))
+  proj <- file.path(td, "proj")
+  mp <- file.path(proj, "modules")
+  dir.create(mp, recursive = TRUE)
+  gert::git_init(proj)
+  withr::local_dir(proj)
+
+  msgs <- character()
+  withCallingHandlers(
+    setupModules(name = "proj", paths = list(modulePath = mp, projectPath = proj),
+                 modules = "Acct/par@dev", inProject = TRUE, useGit = TRUE,
+                 updateRprofile = FALSE, verbose = 1),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    })
+  msgs <- paste(msgs, collapse = "")
+  expect_match(msgs, "Acct/par@dev (1 of 1)", fixed = TRUE)
+  expect_match(msgs, "Acct/kidB@dev (1 of 2)", fixed = TRUE)
+  expect_match(msgs, "Acct/kidC@dev (2 of 2)", fixed = TRUE)
+})
