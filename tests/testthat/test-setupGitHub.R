@@ -24,14 +24,17 @@ testthat::test_that(".shouldOfferClone is FALSE for an existing git repo (no .Rp
   testthat::expect_true(rprojroot::is_git_root$testfun[[1]](td))
 })
 
-testthat::test_that(".shouldOfferClone is FALSE for an Rproj path with no .git", {
+testthat::test_that(".shouldOfferClone is TRUE for an Rproj path with no .git", {
   testthat::skip_if_not_installed("rprojroot")
+  # an .Rproj (RStudio makes one when the folder is opened) is not a git
+  # repository: GitHub must still be checked, or use_github() later fails
+  # with "Repo ... already exists"
 
   td <- tempfile("rproj-only"); dir.create(td)
   on.exit(unlink(td, recursive = TRUE), add = TRUE)
   writeLines("Version: 1.0\n", file.path(td, paste0(basename(td), ".Rproj")))
 
-  testthat::expect_false(SpaDES.project:::.shouldOfferClone(td))
+  testthat::expect_true(SpaDES.project:::.shouldOfferClone(td))
   testthat::expect_true(rprojroot::is_rstudio_project$testfun[[1]](td))
 })
 
@@ -300,4 +303,72 @@ testthat::test_that("setUpstreamWithTry returns the split unchanged on an unborn
     SpaDES.project:::setUpstreamWithTry(split, verbose = -1)
   )
   testthat::expect_identical(out, split)
+})
+
+## A bare repository standing in for an existing GitHub repository, with
+## `files` committed on its default branch, `main`.
+fakeGitHubRepo <- function(td, files) {
+  bare <- file.path(td, "remote.git")
+  gert::git_init(bare, bare = TRUE)
+  writeLines("ref: refs/heads/main", file.path(bare, "HEAD"))
+  seed <- file.path(td, "seed"); dir.create(seed)
+  gert::git_init(seed)
+  writeLines("ref: refs/heads/main", file.path(seed, ".git", "HEAD"))
+  gert::git_config_set("user.email", "t@e", repo = seed)
+  gert::git_config_set("user.name",  "t",   repo = seed)
+  for (f in files) writeLines(paste("remote", f), file.path(seed, f))
+  gert::git_add(files, repo = seed)
+  gert::git_commit("init", repo = seed)
+  gert::git_remote_add(url = bare, name = "origin", repo = seed)
+  gert::git_push("origin", refspec = "refs/heads/main", repo = seed)
+  bare
+}
+
+local_existingGitHubRepo <- function(bare, envir = parent.frame()) {
+  testthat::local_mocked_bindings(
+    .gh_url = function(acct, repo) bare,
+    .downloadFileMasterMainAuth = function(url, destfile, ...) writeLines("{ \"id\": 1 }", destfile),
+    isInteractive = function() FALSE,
+    .package = "SpaDES.project", .env = envir)
+}
+
+testthat::test_that("an existing GitHub repo is connected in place, keeping local files it does not have", {
+  testthat::skip_if_not_installed("gert")
+  td <- withr::local_tempdir()
+  bare <- fakeGitHubRepo(td, c("README.md", "global_other.R"))
+  pp <- file.path(td, "proj"); dir.create(pp)
+  writeLines("Version: 1.0", file.path(pp, "local.Rproj"))
+  writeLines("my global", file.path(pp, "global.R"))
+  local_existingGitHubRepo(bare)
+  withr::local_dir(pp)
+
+  suppressMessages(SpaDES.project:::checkGithubComCreateOrClone(
+    "Acct", "proj", paths = list(projectPath = pp), verbose = -1))
+
+  testthat::expect_true(rprojroot::is_git_root$testfun[[1]](pp))
+  testthat::expect_identical(gert::git_branch(repo = pp), "main")
+  testthat::expect_identical(gert::git_remote_list(repo = pp)$url, bare)
+  testthat::expect_identical(readLines(file.path(pp, "README.md")), "remote README.md")
+  testthat::expect_identical(readLines(file.path(pp, "global.R")), "my global")
+  testthat::expect_true(file.exists(file.path(pp, "local.Rproj")))
+  testthat::expect_identical(normalizePath(getwd()), normalizePath(pp))
+})
+
+testthat::test_that("a local file that is also in the GitHub repo stops the connection, naming it", {
+  testthat::skip_if_not_installed("gert")
+  td <- withr::local_tempdir()
+  bare <- fakeGitHubRepo(td, c("README.md", "proj.Rproj"))
+  pp <- file.path(td, "proj"); dir.create(pp)
+  writeLines("Version: 1.0", file.path(pp, "proj.Rproj"))
+  writeLines("my global", file.path(pp, "global.R"))
+  local_existingGitHubRepo(bare)
+  withr::local_dir(pp)
+
+  testthat::expect_error(suppressMessages(SpaDES.project:::checkGithubComCreateOrClone(
+    "Acct", "proj", paths = list(projectPath = pp), verbose = -1)),
+    "proj.Rproj")
+
+  testthat::expect_identical(readLines(file.path(pp, "proj.Rproj")), "Version: 1.0")
+  testthat::expect_true(file.exists(file.path(pp, "global.R")))
+  testthat::expect_false(dir.exists(file.path(pp, ".git")))
 })

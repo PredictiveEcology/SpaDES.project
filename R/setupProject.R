@@ -4429,7 +4429,6 @@ linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toF
 
 checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
   cloned <- FALSE
-  host <- "https://github.com"
   pp <- path.expand(paths[["projectPath"]])
   basenameName <- basename(name)
   tf <- tempfile2();
@@ -4446,20 +4445,14 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
     }
     usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
   } else {
-    repo <- file.path(host, gitUserName, basenameName)
-    messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
-    # messageVerbose(paste0("The github repository already exists: ", repo),
-    #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+    repo <- .gh_url(gitUserName, basenameName)
+    messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo, to = pp))
     out <- if (isInteractive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
     if (grepl("y|yes", tolower(out))) {
-      setwd(dirname(getwd()))
-      unlink(basenameName, recursive = TRUE)
-      gert::git_clone(repo, path = basenameName)
-      setwd(basenameName)
-      Require::Install("utf8", verbose = FALSE)
-      submods <- gert::git_submodule_list()
-      Map(nam = submods$name, function(nam) gert::git_submodule_init(nam))
-      Map(nam = submods$name, function(nam) gert::git_submodule_fetch(nam))
+      .connectExistingRepo(repo, pp)
+      submods <- gert::git_submodule_list(repo = pp)
+      Map(nam = submods$name, function(nam) gert::git_submodule_init(nam, repo = pp))
+      Map(nam = submods$name, function(nam) gert::git_submodule_fetch(nam, repo = pp))
       cloned <- TRUE
       setwd(paths[["projectPath"]])
     } else {
@@ -4471,6 +4464,31 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
 }
 
 
+
+## Make `pp` a working copy of the existing repository at `url`, on its default branch,
+## without removing anything already in `pp` (e.g., the global.R that Restart copied there).
+## A local file the repository also has would be overwritten: stop, naming it, and leave
+## `pp` as it was. The check uses a bare clone in a temporary folder, so nothing is written
+## to `pp` until it passes (deleting a just-made .git fails on Windows while git holds it open).
+.connectExistingRepo <- function(url, pp) {
+  tmp <- tempfile2()
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  gert::git_clone(url, path = tmp, bare = TRUE, verbose = FALSE)
+  br <- gert::git_branch(repo = tmp)
+  clash <- gert::git_ls(repo = tmp, ref = br)$path
+  clash <- clash[file.exists(file.path(pp, clash))]
+  if (length(clash))
+    stop("These files in ", pp, " are also in ", url, ": ", paste(clash, collapse = ", "),
+         "\nMove them out of ", pp, " and rerun; the repository's copies will be used.",
+         call. = FALSE)
+  gert::git_init(pp)
+  gert::git_remote_add(url, name = "origin", repo = pp)
+  gert::git_fetch("origin", repo = pp, verbose = FALSE)
+  ref <- paste0("origin/", br)
+  gert::git_branch_create(br, ref = ref, checkout = TRUE, repo = pp)
+  gert::git_branch_set_upstream(ref, branch = br, repo = pp)
+  invisible(br)
+}
 
 getGitUserName <- function() {
   # options(usethis.protocol = "ssh")
@@ -4490,15 +4508,12 @@ getGitUserName <- function() {
 }
 
 
-# TRUE iff `pp` is neither already an RStudio project nor already a git
-# working copy.  A `.git/` directory or an `.Rproj` file is sufficient
-# proof that the project is already laid out, so prompting "would you
-# like to clone it now to <pp>?" would be wrong (and will fail if the
-# user answers "no", since checkGithubComCreateOrClone() then stops
-# with "Can't proceed: ...").
+# TRUE iff `pp` is not already a git working copy, so GitHub must be checked
+# for an existing repository. An `.Rproj` file does not count: RStudio makes
+# one when the folder is opened, and skipping the check then sent the project
+# to use_github(), which fails with "Repo ... already exists".
 .shouldOfferClone <- function(pp) {
-  !rprojroot::is_rstudio_project$testfun[[1]](pp) &&
-    !rprojroot::is_git_root$testfun[[1]](pp)
+  !rprojroot::is_git_root$testfun[[1]](pp)
 }
 
 # Build the canonical github HTTPS URL for an account / repo pair.
