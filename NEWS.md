@@ -1,5 +1,6 @@
 # SpaDES.project (development version)
 
+- `setupProject()` module specs can name a branch with a "/" (`Acct/repo@feature/x`), with or without a subfolder after it, and a commit (`Acct/repo@<sha>`) with `useGit`; the branch is found among the repository's branches.
 - `setupProject(useGit = ...)` now fetches a parent module's children (`childModules`), and theirs, as git submodules, as `getModule()` does without git. Before, only the parent arrived and `simInit()` stopped on the missing children.
 - `setupProject(useGit = ...)` with a new `packagePath` no longer stops with "Please install pak": usethis's dependencies are looked up, and later copied, from the user's library before `.libPaths()` changes.
 

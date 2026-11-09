@@ -42,3 +42,28 @@ diFakeSim <- function(records) {
   sim
 }
 
+
+## A bare repository <td>/<repo>.git with one module, <repo>/<repo>.R, on branch `br`.
+mkBareModule <- function(td, repo, br, childModules = character(), reqdPkgs = '"fs"') {
+  bare <- file.path(td, paste0(repo, ".git"))
+  gert::git_init(bare, bare = TRUE)
+  writeLines(paste0("ref: refs/heads/", br), file.path(bare, "HEAD"))
+  seed <- file.path(td, paste0(repo, "-seed"))
+  dir.create(seed)
+  gert::git_init(seed)
+  writeLines(paste0("ref: refs/heads/", br), file.path(seed, ".git", "HEAD"))
+  writeLines(
+    c("defineModule(sim, list(",
+      sprintf('  name = "%s",', repo),
+      sprintf('  version = list(%s = "1.0.0"),', repo),
+      sprintf("  childModules = %s,", paste(deparse(childModules), collapse = "")),
+      sprintf("  reqdPkgs = list(%s)", reqdPkgs),
+      "))"),
+    file.path(seed, paste0(repo, ".R")))
+  sig <- gert::git_signature("test", "test@example.com")
+  gert::git_add(paste0(repo, ".R"), repo = seed)
+  gert::git_commit("init", author = sig, repo = seed)
+  gert::git_remote_add(url = bare, name = "origin", repo = seed)
+  gert::git_push("origin", refspec = paste0("refs/heads/", br), repo = seed, verbose = FALSE)
+  bare
+}
