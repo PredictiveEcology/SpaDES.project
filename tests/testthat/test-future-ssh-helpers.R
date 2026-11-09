@@ -24,7 +24,7 @@ test_that(".ssh_pids_alive returns logical(0) for no pids", {
 })
 
 test_that(".ssh_pids_alive maps alive/dead onto the pids in order", {
-  cap <- mockSystem2(c("alive", "dead", "alive"))
+  cap <- mockSystem2(c("ns:pid:[1]", "alive", "dead", "alive"))
 
   res <- SpaDES.project:::.ssh_pids_alive("node1", c(10, 11, 12))
 
@@ -37,7 +37,7 @@ test_that(".ssh_pids_alive maps alive/dead onto the pids in order", {
 })
 
 test_that(".ssh_pids_alive returns NULL when the reply length does not match", {
-  mockSystem2(c("alive"))
+  mockSystem2(c("ns:pid:[1]", "alive"))
 
   # two pids asked about, one line back -- treated as unusable, not recycled
   expect_null(SpaDES.project:::.ssh_pids_alive("node1", c(1, 2)))

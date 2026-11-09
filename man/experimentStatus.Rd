@@ -16,7 +16,7 @@ launch releases a \code{HOLD} or \code{ERROR} row, and when an interrupted job i
 \code{on_interrupt = "fail"}, when R quits inside a job, and when a \code{RUNNING} row's
 process is found dead.}
 \item{\code{RUNNING}}{One worker owns it: \code{claimed_by}, \code{machine_name}, \code{process_id},
-\code{started_at}. Only a claim writes \code{RUNNING}.}
+\code{pid_ns}, \code{started_at}. Only a claim writes \code{RUNNING}.}
 \item{\code{DONE}}{The job finished (\code{finished_at}).}
 \item{\code{ERROR}}{The job errored (\code{last_error}). No worker claims it; the next launch on
 this queue sets it back to \code{PENDING}, or set it yourself.}
@@ -38,7 +38,9 @@ it before each claim (the file backend for rows of its own machine, under the
 queue lock; the sheet backend for every machine, checking the row again before
 writing); \code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} does it for the whole queue. A process is
 dead when \verb{/proc} (locally, or over one \code{ssh} per machine) says so; a machine that
-cannot be reached, or a row without a pid, is left alone;
+cannot be reached, a row without a pid, and a row whose \code{pid_ns} (the PID namespace
+the claim recorded, which a Slurm job has of its own) is not the one the check runs
+in, are left alone;
 \item a launch: \code{HOLD} and \code{ERROR} rows become \code{PENDING}. A \code{RUNNING} row with a live
 process is never touched by a launch.
 }
