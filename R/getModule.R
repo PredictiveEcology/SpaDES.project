@@ -3,7 +3,7 @@ utils::globalVariables(c(
     "hasSubFolder", "repoLocation", "isGH", "canDownload", "OKtoDL",
     "downloaded", "hasVersionSpec", "inequ", "moduleFullName",
     "needDownload", "pkg", "status", "sufficient", "versionSpec",
-    "modulesNoVersion", "modPath", "modDir", "overwriteIt")
+    "modulesNoVersion", "modPath", "modDir", "overwriteIt", "repoDir", "repoExisted", "found")
 ))
 
 #' Simple function to download a SpaDES module as GitHub repository
@@ -45,7 +45,8 @@ utils::globalVariables(c(
 #' `modules` is fetched only as it is written there, never from a parent's entry.
 #'
 #' @return A list with `success` and `failed`, the module specifications (children included)
-#'   that are, or are not, available locally.
+#'   that are, or are not, available locally, and `notInRepository`, those in `failed` whose
+#'   GitHub repository downloaded without them.
 #'
 #' @export
 #' @seealso [getGithubFile]
@@ -60,7 +61,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   out <- .getModuleNoChildren(modules, modulePath, overwrite = overwrite, verbose = verbose)
   kids <- .getChildModules(out$success, explicit = modules, modulePath = modulePath,
                            overwrite = overwrite, verbose = verbose)
-  list(success = c(out$success, kids$success), failed = c(out$failed, kids$failed))
+  list(success = c(out$success, kids$success), failed = c(out$failed, kids$failed),
+       notInRepository = out$notInRepository)
 }
 
 .getModuleNoChildren <- function(modules, modulePath, overwrite = FALSE,
@@ -164,6 +166,10 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
       }
       ]
 
+      ## the repository's folder, and whether it was there before this download
+      stateDT[OKtoDL %in% TRUE, repoDir := file.path(modPath, extractPkgName(modulesNoVersion))]
+      stateDT[OKtoDL %in% TRUE, repoExisted := dir.exists(repoDir)]
+
       stateDT[OKtoDL %in% TRUE, {
         downloadGHRepoOuter(modToDL = moduleFullName[[1]],
                             overwrite = OKtoDL[[1]],
@@ -172,8 +178,22 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
       }
       , by = c("acct", "repo")] # if there is one large repository with many SpaDES modules, download only once
 
+      ## look for the module itself, at <modPath>/<repo>/<sub>/<mod>, not the repository:
+      ## the repository folder exists even when `sub/mod` does not (#182)
       stateDT[OKtoDL %in% TRUE, downloaded :=
-                dir.exists(file.path(modPath, Require::extractPkgName(moduleFullName)))]
+                dir.exists(file.path(modPath, fileRelPathFromFullGHpath(modulesNoVersion),
+                                     extractModName(modulesNoVersion)))]
+      ## the repository arrived but the module is not in it (a git clone would not help);
+      ## remove a repository folder this call created when none of its modules was in it
+      stateDT[OKtoDL %in% TRUE & !downloaded %in% TRUE & dir.exists(repoDir),
+              status := "not in repository"]
+      emptyRepos <- stateDT[OKtoDL %in% TRUE & !repoExisted %in% TRUE,
+                            list(found = any(downloaded %in% TRUE)), by = repoDir][found %in% FALSE]
+      unlink(emptyRepos$repoDir, recursive = TRUE)
+      if (any(stateDT$status %in% "not in repository"))
+        warning("These modules are not in their GitHub repository: ",
+                paste(stateDT$moduleFullName[stateDT$status %in% "not in repository"], collapse = ", "),
+                "\nDoes each one exist at that path on that branch?", call. = FALSE)
 
       if (any(stateDT$downloaded %in% TRUE)) {
         messageVerbose("Downloaded copies: ", verbose = verbose)
@@ -183,7 +203,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
       }
       stateDT[sufficient %in% TRUE & downloaded %in% TRUE, status := "downloaded"]
       stateDT[sufficient %in% FALSE & downloaded %in% TRUE, status := "downloaded but incorrect version"]
-      stateDT[sufficient %in% FALSE & !downloaded %in% TRUE, status := "failed"]
+      stateDT[OKtoDL %in% TRUE & !downloaded %in% TRUE & is.na(status), status := "failed"]
     }
 
     if (any(stateDT$OKtoDL %in% FALSE)) {
@@ -198,7 +218,8 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   df <- stateDT[, list(moduleFullName, status, modulePath = modDir)]
   messageDF(df, verbose = verbose)
 
-  return(list(success = successes, failed = failed))
+  return(list(success = successes, failed = failed,
+              notInRepository = stateDT$moduleFullName[stateDT$status %in% "not in repository"]))
 }
 
 

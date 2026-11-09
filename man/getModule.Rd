@@ -35,7 +35,8 @@ then minimal outputs; if \code{1} or TRUE, more outputs; \code{2} even more. NOT
 }
 \value{
 A list with \code{success} and \code{failed}, the module specifications (children included)
-that are, or are not, available locally.
+that are, or are not, available locally, and \code{notInRepository}, those in \code{failed} whose
+GitHub repository downloaded without them.
 }
 \description{
 Simple function to download a SpaDES module as GitHub repository

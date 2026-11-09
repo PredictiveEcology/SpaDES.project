@@ -1828,7 +1828,8 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       out <- getModule(modules, paths[["modulePath"]], overwrite = overwrite, verbose = verbose)
       if (isTRUE(offlineMode))
         base::options(opt)
-      anyfailed <- out$failed
+      ## a module missing from a repository that did download: a git clone would not help
+      anyfailed <- setdiff(out$failed, out$notInRepository)
       modules <- anyfailed
     }
 
@@ -2046,6 +2047,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
     }
 
+    ## neither getModule() nor the git fallback found these (#182); stop once the others are in place
+    notFound <- !dir.exists(Require::trimVersionNumber(actualModPaths)) &
+      !dir.exists(Require::trimVersionNumber(wantedModPath))
+    isNested <- setdiff(isNested, which(notFound))
+
     # Need full path
     m <- fileRelPathFromFullGHpath(modulesOrig)
     # m <- gsub("@[[:alnum:]_-]+$", "", modulesOrig)
@@ -2126,6 +2132,10 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
         messageVerbose("Adding the hardlinked flat modules to .gitignore")
       }
     }
+
+    if (any(notFound))
+      stop("These modules could not be found: ", paste(modulesOrig[notFound], collapse = ", "),
+           "\nDoes each one exist at that path on that branch?", call. = FALSE)
 
     messageVerbose(yellow("  done setting up modules"), verbose = verbose, verboseLevel = 0)
   }
