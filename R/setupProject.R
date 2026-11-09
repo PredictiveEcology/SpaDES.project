@@ -4551,9 +4551,15 @@ getGitUserName <- function() {
 
 ## The branch and tag names of a remote repository, or NULL if it can't be listed.
 .remoteRefs <- function(acct, repo) {
+  ## no credential prompt for a private or missing repo. Not system2(env = ): on
+  ## Windows that puts "GIT_TERMINAL_PROMPT=0" on git's command line.
+  oldPrompt <- Sys.getenv("GIT_TERMINAL_PROMPT", unset = NA)
+  Sys.setenv(GIT_TERMINAL_PROMPT = "0")
+  on.exit(if (is.na(oldPrompt)) Sys.unsetenv("GIT_TERMINAL_PROMPT")
+          else Sys.setenv(GIT_TERMINAL_PROMPT = oldPrompt))
   out <- suppressWarnings(tryCatch(
     system2("git", c("ls-remote", "--heads", "--tags", shQuote(.gh_url(acct, repo))),
-            stdout = TRUE, stderr = FALSE, env = "GIT_TERMINAL_PROMPT=0"),
+            stdout = TRUE, stderr = FALSE),
     error = function(e) NULL))
   if (!length(out) || !is.null(attr(out, "status"))) return(NULL)
   refs <- sub("\\^\\{\\}$", "", sub("^\\S+\\s+refs/", "", out))
