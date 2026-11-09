@@ -1208,6 +1208,18 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   prevLibPaths <- .libPaths()
   if (needSetLibPaths) {
+    if (!useGit %in% FALSE) {
+      # requireNamespace will find usethis in memory when devtools is used, but it fails because other
+      #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
+      #   so need to load before changing .libPaths: a new library has neither usethis nor pak,
+      #   which Require::pkgDep() needs
+      depsUseThis <- Require::pkgDep("usethis")
+      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(depsUseThis))))
+      loaded <- sapply(depsSimple, function(pkg) {
+        requireNamespace(pkg, quietly = TRUE)
+      })
+      deps <- unique(c(deps, depsSimple))
+    }
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                                             updateRprofile = updateRprofile,
                                             exact = !.useRequire(), verbose = verbose))
@@ -1216,17 +1228,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       ret
     } else {
       eval(setLPCall)
-    }
-    if (!useGit %in% FALSE) {
-      # requireNamespace will find usethis in memory when devtools is used, but it fails because other
-      #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
-      #   so need to load before changing .libPaths
-      depsUseThis <- Require::pkgDep("usethis")
-      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(depsUseThis))))
-      loaded <- sapply(depsSimple, function(pkg) {
-        requireNamespace(pkg, quietly = TRUE)
-      })
-      deps <- unique(c(deps, depsSimple))
     }
     # setLibPaths will post-pend the R version number
 
