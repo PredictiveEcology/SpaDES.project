@@ -17,6 +17,7 @@ reclaimFixture <- function(pid, claimed_by = paste0("host-", pid), status = "RUN
     claimed_by   = claimed_by,
     machine_name = Sys.info()[["nodename"]],
     process_id   = as.character(pid),
+    pid_ns       = SpaDES.project:::.pidNs(),
     stringsAsFactors = FALSE
   )
 }

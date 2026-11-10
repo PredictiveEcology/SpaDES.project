@@ -3007,6 +3007,7 @@ tmuxFindDuplicates <- function(panes = NULL, runPattern = "outputs-") {
 #' - DEoptimElapsedTime: numeric seconds (`sum(diff(allIterations[allIterations < 20 minutes]))`)
 #' - machine_name: `Sys.info()[["nodename"]]`
 #' - process_id:   Sys.getpid()
+#' - pid_ns:       the worker's PID namespace (`.pidNs()`); a pid is only valid inside it
 #' - heartbeat_at: latest timestamp (as character) detected by heartbeat
 #' - heartbeat_iter: latest iteration number (integer) detected by heartbeat
 #'
@@ -3025,6 +3026,7 @@ tmuxPrepareQueueFromDF <- function(df, queue_path) {
     DEoptimElapsedTime   = as.numeric(NA),
     machine_name   = NA_character_,
     process_id     = as.integer(NA),
+    pid_ns         = NA_character_,
     heartbeat_at   = as.character(NA),
     heartbeat_iter = as.integer(NA),
     iterationsTotal= as.integer(NA),

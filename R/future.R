@@ -1012,6 +1012,7 @@ experimentFutureList <- function(ef = NULL,
     rows[[length(rows) + 1L]] <- data.frame(
       pid        = pid,
       machine    = local_node,
+      pid_ns     = .pidNs(),
       started_at = started,
       log_file   = fd1,
       queue_path = queue_path,
@@ -1021,8 +1022,8 @@ experimentFutureList <- function(ef = NULL,
   }
 
   out <- if (length(rows)) do.call(rbind, rows) else
-    data.frame(pid = integer(), machine = character(), started_at = character(),
-               log_file = character(), queue_path = character(),
+    data.frame(pid = integer(), machine = character(), pid_ns = character(),
+               started_at = character(), log_file = character(), queue_path = character(),
                runName = character(), stringsAsFactors = FALSE)
 
   # ---- Queue-file-based discovery (catches PSOCK cluster workers) --------
@@ -1059,13 +1060,15 @@ experimentFutureList <- function(ef = NULL,
       m_pids <- m_pids[keep]
       if (length(m_pids) == 0L) next
 
+      m_ns  <- .rowNs(q, m_idx)
       alive <- if (m == local_node) {
-        file.exists(paste0("/proc/", m_pids))
+        .localPidsAlive(m_pids, m_ns)
       } else {
-        a <- .ssh_pids_alive(.ssh_name_for(m), m_pids)
+        a <- .ssh_pids_alive(.ssh_name_for(m), m_pids, m_ns)
         if (is.null(a)) next   # SSH unreachable; skip silently
         a
       }
+      alive <- alive %in% TRUE   # another PID namespace is unknown: not listed, never killed
       live_pids <- m_pids[alive]
       log_for <- setNames(rep(NA_character_, length(m_pids)), as.character(m_pids))
       if (length(live_pids)) {
@@ -1096,6 +1099,7 @@ experimentFutureList <- function(ef = NULL,
         rows[[length(rows) + 1L]] <- data.frame(
           pid        = m_pids[k],
           machine    = m,
+          pid_ns     = m_ns[k],
           started_at = as.character(q$started_at[i]),
           log_file   = unname(log_for[as.character(m_pids[k])]),
           queue_path = qp,
@@ -1137,9 +1141,7 @@ experimentFutureList <- function(ef = NULL,
            Sys.time() < deadline) {
       if (length(remaining_l)) {
         remaining_l <- remaining_l[
-          vapply(remaining_l,
-                 function(p) dir.exists(sprintf("/proc/%d", p)),
-                 logical(1L))
+          vapply(remaining_l, .pidIsAlive, logical(1L))
         ]
       }
       if (length(remaining_r)) {
@@ -1174,8 +1176,8 @@ experimentFutureList <- function(ef = NULL,
         ss_id <- tryCatch(trimws(readLines(ss_file, warn = FALSE)[1L]),
                           error = function(e) NA_character_)
         if (!is.na(ss_id) && nzchar(ss_id)) {
-          pids_for_qp <- out$pid[out$queue_path == qp & !is.na(out$queue_path)]
-          n <- tryCatch(.gs_demote_after_kill(ss_id, pids_for_qp),
+          killed_rows <- out[out$queue_path %in% qp, , drop = FALSE]
+          n <- tryCatch(.gs_demote_after_kill(ss_id, killed_rows),
                         error = function(e) {
                           message("Could not demote GS rows for ", qp,
                                   ": ", conditionMessage(e)); 0L
@@ -1264,13 +1266,15 @@ experimentFutureList <- function(ef = NULL,
     for (m in unique(q$machine_name[idx])) {
       m_idx  <- idx[q$machine_name[idx] == m]
       m_pids <- as.integer(q$process_id[m_idx])
+      m_ns  <- .rowNs(q, m_idx)
       alive <- if (m == local_node) {
-        file.exists(paste0("/proc/", m_pids))
+        .localPidsAlive(m_pids, m_ns)
       } else {
-        a <- .ssh_pids_alive(ssh_name_for(m), m_pids)
+        a <- .ssh_pids_alive(ssh_name_for(m), m_pids, m_ns)
         if (is.null(a)) next
         a
       }
+      alive <- alive %in% TRUE
       # Resolve each live PID's stdout fd -> log file path.  Workers that
       # went through callr::r_bg(stdout = log_file) (the local
       # experimentFuture branch and the cluster runWorkerLoopFuture branch

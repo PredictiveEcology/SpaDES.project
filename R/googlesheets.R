@@ -262,14 +262,18 @@
   invisible(NULL)
 }
 
-# Sheet rows RUNNING under one of `killed_pids` (workers experimentFutureList(kill = TRUE)
-# just killed) go back in the queue as INTERRUPTED, like every other dead worker's row.
-.gs_demote_after_kill <- function(ss_id, killed_pids, sheet = "Status") {
+# Sheet rows RUNNING under one of the `killed` workers (a data.frame with `machine`, `pid` and
+# `pid_ns`, from experimentFutureList(kill = TRUE)) go back in the queue as INTERRUPTED, like
+# every other dead worker's row. A worker is machine + PID namespace + PID, not the PID alone.
+.gs_demote_after_kill <- function(ss_id, killed, sheet = "Status") {
   if (!nzchar(as.character(ss_id))) return(invisible(0L))
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(0L))
   pids <- suppressWarnings(as.integer(q$process_id))
-  to_demote <- which(q$status == txtRunning & pids %in% as.integer(killed_pids))
+  ns   <- .rowNs(q)
+  killedRow <- function(i) any(killed$machine %in% q$machine_name[i] & killed$pid %in% pids[i] &
+                                 vapply(killed$pid_ns, .sameNs, logical(1), ns = ns[i]))
+  to_demote <- which(q$status == txtRunning & vapply(seq_len(nrow(q)), killedRow, logical(1)))
   if (length(to_demote) == 0L) return(invisible(0L))
   col_pos <- setNames(seq_along(names(q)), names(q))
   for (i in to_demote) {

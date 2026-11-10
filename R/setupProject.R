@@ -1221,6 +1221,18 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   prevLibPaths <- .libPaths()
   if (needSetLibPaths) {
+    if (!useGit %in% FALSE) {
+      # requireNamespace will find usethis in memory when devtools is used, but it fails because other
+      #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
+      #   so need to load before changing .libPaths: a new library has neither usethis nor pak,
+      #   which Require::pkgDep() needs
+      depsUseThis <- Require::pkgDep("usethis")
+      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(depsUseThis))))
+      loaded <- sapply(depsSimple, function(pkg) {
+        requireNamespace(pkg, quietly = TRUE)
+      })
+      deps <- unique(c(deps, depsSimple))
+    }
     setLPCall <- quote(Require::setLibPaths(paths[["packagePath"]], standAlone = standAlone,
                                             updateRprofile = updateRprofile,
                                             exact = !.useRequire(), verbose = verbose))
@@ -1229,17 +1241,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
       ret
     } else {
       eval(setLPCall)
-    }
-    if (!useGit %in% FALSE) {
-      # requireNamespace will find usethis in memory when devtools is used, but it fails because other
-      #   deps of usethis are not in the deps of devtools --> can't use `require` b/c CRAN rules
-      #   so need to load before changing .libPaths
-      depsUseThis <- Require::pkgDep("usethis")
-      depsSimple <- c("usethis", Require::extractPkgName(unname(unlist(depsUseThis))))
-      loaded <- sapply(depsSimple, function(pkg) {
-        requireNamespace(pkg, quietly = TRUE)
-      })
-      deps <- unique(c(deps, depsSimple))
     }
     # setLibPaths will post-pend the R version number
 
@@ -1899,96 +1900,112 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
       }
 
-      gitSplit <- splitGitRepo(modules)
-      # `Require::invertList()` is first-wins for duplicate keys: when two
-      # `modules` entries share a repo name (e.g. one pulled in via a
-      # module's `.depend`, the other an explicit user override), the
-      # FIRST entry's `acct` / `br` / etc. silently overwrite both output
-      # slots and the override is lost.  Dedup BEFORE invertList, taking
-      # the LAST occurrence per repo name -- standard "later writes win"
-      # semantics so a user's explicit spec at the end of `modules`
-      # overrides an earlier dependency-driven default.
-      gitSplit <- .dedupGitSplitLastWins(gitSplit, modules, verbose)
-      gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
-      if (is(gitSplit, "try-error"))
-        stop("Did you specify the modules correctly? Is this correct:\n",
-             paste(modules, collapse = "\n"))
+      ## clone, or add as a submodule, each repository in `mods`; returns, as getModule()'s
+      ## fetchers do, the specs whose module folder is now there
+      gitFetch <- function(mods, ...) {
+        gitSplit <- splitGitRepo(mods)
+        # `Require::invertList()` is first-wins for duplicate keys: when two
+        # `modules` entries share a repo name (e.g. one pulled in via a
+        # module's `.depend`, the other an explicit user override), the
+        # FIRST entry's `acct` / `br` / etc. silently overwrite both output
+        # slots and the override is lost.  Dedup BEFORE invertList, taking
+        # the LAST occurrence per repo name -- standard "later writes win"
+        # semantics so a user's explicit spec at the end of `modules`
+        # overrides an earlier dependency-driven default.
+        gitSplit <- .dedupGitSplitLastWins(gitSplit, mods, verbose)
+        gitSplit <-try(Require::invertList(gitSplit), silent = TRUE)
+        if (is(gitSplit, "try-error"))
+          stop("Did you specify the modules correctly? Is this correct:\n",
+               paste(mods, collapse = "\n"))
 
-      gitSplit <- unique(gitSplit) # there could be several modules within the same repository; only clone once
-      mapply(split = gitSplit, function(split) {
-        modPath <- file.path(split$acct, split$repo)
-        # the modulePath already holding this repo, else the first one
-        repoModulePath <- whichModulePath(split$repo, paths[["modulePath"]])
-        localPath <- file.path(repoModulePath, split$repo)
-        localPathRelative <- file.path(basename(repoModulePath), basename(modPath))
-        dotGit <- file.path(localPath, ".git")
+        gitSplit <- unique(gitSplit) # there could be several modules within the same repository; only clone once
+        mapply(split = gitSplit, i = seq_along(gitSplit), function(split, i) {
+          modPath <- file.path(split$acct, split$repo)
+          # the modulePath already holding this repo, else the first one
+          repoModulePath <- whichModulePath(split$repo, paths[["modulePath"]])
+          localPath <- file.path(repoModulePath, split$repo)
+          localPathRelative <- file.path(basename(repoModulePath), basename(modPath))
+          dotGit <- file.path(localPath, ".git")
 
-        reportBranch <- TRUE
+          reportBranch <- TRUE
 
-        for(attempt in 1:2) {
-          dirExistsButNotGit <- dir.exists(localPath) && !file.exists(dotGit)
-          if (!dir.exists(localPath) || dirExistsButNotGit) {
+          for(attempt in 1:2) {
+            dirExistsButNotGit <- dir.exists(localPath) && !file.exists(dotGit)
+            if (!dir.exists(localPath) || dirExistsButNotGit) {
 
-            prev <- setwd(repoModulePath)
-            # a submodule path is relative to the project's git root; a clone's
-            # is relative to the working directory, i.e., `repoModulePath`
-            if (isTRUE(isLocalGitRepoAlready)) {
-              cloneOrSubmodule <- gert::git_submodule_add
-              clonePath <- localPathRelative
-            } else {
-              cloneOrSubmodule <- gert::git_clone
-              clonePath <- split$repo
-            }
-            if (dirExistsButNotGit) {
-              dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
-            }
-
-            out <- try(cloneOrSubmodule(paste0("https://github.com/", modPath),
-                                    path = clonePath))
-            checkPath(localPath, create = TRUE)
-            setwd(localPath)
-            gert::git_branch_checkout(split$br)
-            curBr <- gert::git_branch()
-            setUpstreamWithTry(split, curBr)
-            break
-
-          } else {
-
-            if (file.exists(dotGit)) {
-              messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
-            } else {
-              setwd(dirname(repoModulePath))
-              submod <- localPathRelative
-              gsi <- try(gert::git_submodule_init(submod))#)
-              if (is(gsi, "try-error")) {
-                if (dirExistsButNotGit) {
-                  dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
-                }
-                next
+              prev <- setwd(repoModulePath)
+              # a submodule path is relative to the project's git root; a clone's
+              # is relative to the working directory, i.e., `repoModulePath`
+              if (isTRUE(isLocalGitRepoAlready)) {
+                cloneOrSubmodule <- gert::git_submodule_add
+                clonePath <- localPathRelative
+              } else {
+                cloneOrSubmodule <- gert::git_clone
+                clonePath <- split$repo
+              }
+              if (dirExistsButNotGit) {
+                dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
               }
 
-              out <- try(gert::git_submodule_fetch(submodule = submod))
-              if (is(out, 'try-error')) {
-                if (nzchar(Sys.which("git"))) {
-                  cmd <- paste0("git submodule update --recursive")
-                  system(cmd)
-                } else {
-                  stop("This setup requires git; ", .messages$pleaseInstall())
-                }
-              }
+              messageVerbose("Cloning ", split$acct, "/", split$repo, "@", split$br,
+                             " (", i, " of ", length(gitSplit), ") into ", localPath,
+                             verbose = verbose)
+              out <- try(cloneOrSubmodule(.gh_url(split$acct, split$repo),
+                                      path = clonePath))
+              checkPath(localPath, create = TRUE)
+              setwd(localPath)
+              gert::git_branch_checkout(split$br)
+              curBr <- gert::git_branch()
+              setUpstreamWithTry(split, curBr)
+              break
 
+            } else {
+
+              if (file.exists(dotGit)) {
+                messageVerbose("module exists at ", localPath, "; not cloning", verbose = verbose)
+              } else {
+                setwd(dirname(repoModulePath))
+                submod <- localPathRelative
+                gsi <- try(gert::git_submodule_init(submod))#)
+                if (is(gsi, "try-error")) {
+                  if (dirExistsButNotGit) {
+                    dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
+                  }
+                  next
+                }
+
+                out <- try(gert::git_submodule_fetch(submodule = submod))
+                if (is(out, 'try-error')) {
+                  if (nzchar(Sys.which("git"))) {
+                    cmd <- paste0("git submodule update --recursive")
+                    system(cmd)
+                  } else {
+                    stop("This setup requires git; ", .messages$pleaseInstall())
+                  }
+                }
+
+              }
+              break
             }
-            break
           }
-        }
 
-        prev <- setwd(localPath)
-        curBr <- gert::git_branch()
-        split <- setUpstreamWithTry(split, curBr)
+          prev <- setwd(localPath)
+          curBr <- gert::git_branch()
+          split <- setUpstreamWithTry(split, curBr)
 
-        if (reportBranch)
-          messageVerbose("\b ... on ", split$br, " branch")
-      })
+          if (reportBranch)
+            messageVerbose("\b ... on ", split$br, " branch")
+        })
+        setwd(origDir)
+        modName <- extractModName(mods)
+        here <- dir.exists(file.path(whichModulePath(modName, paths[["modulePath"]]),
+                                     fileRelPathFromFullGHpath(mods), modName))
+        list(success = mods[here], failed = mods[!here])
+      }
+      fetched <- gitFetch(modules)
+      ## a parent's children (and theirs), as getModule() finds them, fetched the same way
+      .getChildModules(fetched$success, explicit = modules, modulePath = paths[["modulePath"]],
+                       overwrite = overwrite, verbose = verbose, fetch = gitFetch)
       setwd(origDir)
 
       curBr <- gert::git_branch()
@@ -4425,7 +4442,6 @@ linkOrCopyFiles <- function(fromDirs, toBaseDir = tempfile(), fromFilesList, toF
 
 checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
   cloned <- FALSE
-  host <- "https://github.com"
   pp <- path.expand(paths[["projectPath"]])
   basenameName <- basename(name)
   tf <- tempfile2();
@@ -4442,20 +4458,14 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
     }
     usethis::create_project(pp, open = FALSE, rstudio = isRstudio())
   } else {
-    repo <- file.path(host, gitUserName, basenameName)
-    messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo))
-    # messageVerbose(paste0("The github repository already exists: ", repo),
-    #                "\nWould you like to clone it now to ", getwd(), "\nType (y)es or any other key for no: ")
+    repo <- .gh_url(gitUserName, basenameName)
+    messageVerbose(.messages$gitRepoExistsCloneNowTxt(repo, to = pp))
     out <- if (isInteractive() && getOption("SpaDES.project.ask", TRUE)) readline() else "yes"
     if (grepl("y|yes", tolower(out))) {
-      setwd(dirname(getwd()))
-      unlink(basenameName, recursive = TRUE)
-      gert::git_clone(repo, path = basenameName)
-      setwd(basenameName)
-      Require::Install("utf8", verbose = FALSE)
-      submods <- gert::git_submodule_list()
-      Map(nam = submods$name, function(nam) gert::git_submodule_init(nam))
-      Map(nam = submods$name, function(nam) gert::git_submodule_fetch(nam))
+      .connectExistingRepo(repo, pp)
+      submods <- gert::git_submodule_list(repo = pp)
+      Map(nam = submods$name, function(nam) gert::git_submodule_init(nam, repo = pp))
+      Map(nam = submods$name, function(nam) gert::git_submodule_fetch(nam, repo = pp))
       cloned <- TRUE
       setwd(paths[["projectPath"]])
     } else {
@@ -4467,6 +4477,31 @@ checkGithubComCreateOrClone <- function(gitUserName, name, paths, verbose) {
 }
 
 
+
+## Make `pp` a working copy of the existing repository at `url`, on its default branch,
+## without removing anything already in `pp` (e.g., the global.R that Restart copied there).
+## A local file the repository also has would be overwritten: stop, naming it, and leave
+## `pp` as it was. The check uses a bare clone in a temporary folder, so nothing is written
+## to `pp` until it passes (deleting a just-made .git fails on Windows while git holds it open).
+.connectExistingRepo <- function(url, pp) {
+  tmp <- tempfile2()
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  gert::git_clone(url, path = tmp, bare = TRUE, verbose = FALSE)
+  br <- gert::git_branch(repo = tmp)
+  clash <- gert::git_ls(repo = tmp, ref = br)$path
+  clash <- clash[file.exists(file.path(pp, clash))]
+  if (length(clash))
+    stop("These files in ", pp, " are also in ", url, ": ", paste(clash, collapse = ", "),
+         "\nMove them out of ", pp, " and rerun; the repository's copies will be used.",
+         call. = FALSE)
+  gert::git_init(pp)
+  gert::git_remote_add(url, name = "origin", repo = pp)
+  gert::git_fetch("origin", repo = pp, verbose = FALSE)
+  ref <- paste0("origin/", br)
+  gert::git_branch_create(br, ref = ref, checkout = TRUE, repo = pp)
+  gert::git_branch_set_upstream(ref, branch = br, repo = pp)
+  invisible(br)
+}
 
 getGitUserName <- function() {
   # options(usethis.protocol = "ssh")
@@ -4486,15 +4521,12 @@ getGitUserName <- function() {
 }
 
 
-# TRUE iff `pp` is neither already an RStudio project nor already a git
-# working copy.  A `.git/` directory or an `.Rproj` file is sufficient
-# proof that the project is already laid out, so prompting "would you
-# like to clone it now to <pp>?" would be wrong (and will fail if the
-# user answers "no", since checkGithubComCreateOrClone() then stops
-# with "Can't proceed: ...").
+# TRUE iff `pp` is not already a git working copy, so GitHub must be checked
+# for an existing repository. An `.Rproj` file does not count: RStudio makes
+# one when the folder is opened, and skipping the check then sent the project
+# to use_github(), which fails with "Repo ... already exists".
 .shouldOfferClone <- function(pp) {
-  !rprojroot::is_rstudio_project$testfun[[1]](pp) &&
-    !rprojroot::is_git_root$testfun[[1]](pp)
+  !rprojroot::is_git_root$testfun[[1]](pp)
 }
 
 # Build the canonical github HTTPS URL for an account / repo pair.
