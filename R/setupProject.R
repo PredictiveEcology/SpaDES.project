@@ -236,7 +236,15 @@ NULL
 #'   saved `simList` shell is read (not its objects or outputs) for the modules it ran. Each of
 #'   `modules` that ran there, matched by name, or that is a parent all of whose descendants
 #'   ran there, is not fetched, its packages are not installed, and it is not in the returned
-#'   `modules`. The result gains an `alreadyRun` element: `run` (the ledger row), `modules`
+#'   `modules`. A parent some of whose descendants ran there is replaced by the others.
+#'   `alreadyRun$rerun` (optional) names modules that ran there but run again here (e.g.
+#'   with other parameters): they are fetched and run as usual, and an object they create
+#'   replaces the one replayed from the run. Their inputs are still replayed from the run,
+#'   including one that a module of the run made for them: a rerun `canClimateData` gets the
+#'   run's `studyArea` and `rasterToMatch` (good: the same grid) but also its
+#'   `climateVariables`, and then ignores its own parameters for them. Supply such an object
+#'   yourself (e.g. `climateVariables = list(...)` in `setupProject()`) to change it; what the
+#'   user supplies is never replayed. The result gains an `alreadyRun` element: `run` (the ledger row), `modules`
 #'   (the run's modules and versions), `parents` (each parent module's children, as the run
 #'   recorded them; `NULL` for a run saved before SpaDES.core recorded them), `matched`
 #'   (those of `modules` taken from the run), `sim` (the run's saved `simList` shell) and
@@ -1783,11 +1791,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
     modules <- .escapeSlashBranches(modules) # `@feature/x` -> `@feature%2Fx`
 
     if (!is.null(alreadyRun)) {
-      isRan <- vapply(modules, .isAlreadyRunModule, logical(1), ran = alreadyRun$modules$module,
-                      modulePath = paths[["modulePath"]], parents = alreadyRun$parents,
-                      scratch = file.path(tempdir(), "alreadyRunParents"), USE.NAMES = FALSE)
-      alreadyRunMods <- unname(modules[isRan])
-      modules <- modules[!isRan]
+      each <- lapply(unname(modules), .alreadyRunKeep, ran = alreadyRun$modules$module,
+                     modulePath = paths[["modulePath"]], parents = alreadyRun$parents,
+                     rerun = alreadyRun$rerun, scratch = file.path(tempdir(), "alreadyRunParents"))
+      alreadyRunMods <- unlist(lapply(each, `[[`, "skipped"))
+      modules <- unique(unlist(lapply(each, `[[`, "keep")))
       messageVerbose("From the run already done, ", alreadyRun$run$runName, " (not fetched, packages not installed): ",
                      paste(extractModName(alreadyRunMods), collapse = ", "), "; fetched: ",
                      if (length(modules)) paste(extractModName(modules), collapse = ", ") else "none",

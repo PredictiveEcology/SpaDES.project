@@ -145,7 +145,15 @@ modules this project does not need to fetch: \verb{list(ledger = <ledger file na
 saved \code{simList} shell is read (not its objects or outputs) for the modules it ran. Each of
 \code{modules} that ran there, matched by name, or that is a parent all of whose descendants
 ran there, is not fetched, its packages are not installed, and it is not in the returned
-\code{modules}. The result gains an \code{alreadyRun} element: \code{run} (the ledger row), \code{modules}
+\code{modules}. A parent some of whose descendants ran there is replaced by the others.
+\code{alreadyRun$rerun} (optional) names modules that ran there but run again here (e.g.
+with other parameters): they are fetched and run as usual, and an object they create
+replaces the one replayed from the run. Their inputs are still replayed from the run,
+including one that a module of the run made for them: a rerun \code{canClimateData} gets the
+run's \code{studyArea} and \code{rasterToMatch} (good: the same grid) but also its
+\code{climateVariables}, and then ignores its own parameters for them. Supply such an object
+yourself (e.g. \code{climateVariables = list(...)} in \code{setupProject()}) to change it; what the
+user supplies is never replayed. The result gains an \code{alreadyRun} element: \code{run} (the ledger row), \code{modules}
 (the run's modules and versions), \code{parents} (each parent module's children, as the run
 recorded them; \code{NULL} for a run saved before SpaDES.core recorded them), \code{matched}
 (those of \code{modules} taken from the run), \code{sim} (the run's saved \code{simList} shell) and

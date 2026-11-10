@@ -24,8 +24,9 @@
   ## `sim` and `fetch` are what SpaDES.core::simInit(alreadyRun = ) replays the run from.
   ## `parents`: each parent module's children, as SpaDES.core's simInit() recorded them in
   ## sim$._modulesGiven; NULL for a run saved before it did.
+  ## `rerun`: modules the run ran that this project runs again
   list(run = run, modules = .alreadyRunModules(sim), parents = sim$._modulesGiven$parents,
-       sim = sim, fetch = attr(sim, "fetchOutputs"))
+       rerun = as.character(alreadyRun$rerun), sim = sim, fetch = attr(sim, "fetchOutputs"))
 }
 
 ## The one row of `rows` whose columns match every element of `scenario`; else an error
@@ -66,14 +67,19 @@
              row.names = NULL)
 }
 
-## Which of `modules` the run already ran: a module by name (versions are not
-## compared), a parent when every module below it was. A parent's children are read from its
-## local copy; else from `parents`, the run's own record of them; else from the parent's .R
-## file fetched from GitHub into `scratch`, never into `modulePath`.
-.isAlreadyRunModule <- function(module, ran, modulePath, scratch, parents = NULL, seen = character()) {
+## What of `module` this project still needs, given the run already done: `keep` (to fetch and
+## run) and `skipped` (taken from the run). A module the run ran (by name; versions are not
+## compared) is skipped unless it is in `rerun`. A parent is skipped when every module below it
+## is, kept whole when none is, and otherwise replaced by the children still needed. A parent's
+## children are read from its local copy; else from `parents`, the run's own record of them;
+## else from the parent's .R file fetched from GitHub into `scratch`, never into `modulePath`.
+.alreadyRunKeep <- function(module, ran, modulePath, scratch, parents = NULL, rerun = character(),
+                            seen = character()) {
   name <- extractModName(module)
-  if (name %in% ran) return(TRUE)
-  if (name %in% seen) return(FALSE)
+  whole <- list(keep = module, skipped = character())
+  if (name %in% ran)
+    return(if (name %in% rerun) whole else list(keep = character(), skipped = module))
+  if (name %in% seen) return(whole)
   isLocal <- dir.exists(file.path(whichModulePath(name, modulePath), name))
   if (!isLocal && name %in% names(parents)) {
     kids <- parents[[name]]
@@ -81,7 +87,7 @@
   } else {
     mp <- modulePath
     if (!isLocal) {
-      if (!isGitHub(module) || nzchar(fileRelPathFromFullGHpath(module))) return(FALSE)
+      if (!isGitHub(module) || nzchar(fileRelPathFromFullGHpath(module))) return(whole)
       mp <- scratch
       spec <- trimVersionNumber(module)
       if (!grepl("@", spec)) spec <- paste0(spec, "@HEAD")
@@ -91,11 +97,16 @@
     kids <- .childModuleEntries(name, mp)
     versions <- .moduleVersions(name, mp)
   }
-  if (!length(kids)) return(FALSE)
+  if (!length(kids)) return(whole)
   kids <- vapply(kids, .childModuleSpec, character(1), parent = module,
                  versions = versions, USE.NAMES = FALSE)
-  all(vapply(kids, .isAlreadyRunModule, logical(1), ran = ran, modulePath = modulePath,
-             scratch = scratch, parents = parents, seen = c(seen, name)))
+  each <- lapply(kids, .alreadyRunKeep, ran = ran, modulePath = modulePath, scratch = scratch,
+                 parents = parents, rerun = rerun, seen = c(seen, name))
+  skipped <- unlist(lapply(each, `[[`, "skipped"))
+  if (!length(skipped)) return(whole)
+  keep <- unlist(lapply(each, `[[`, "keep"))
+  if (!length(keep)) skipped <- module
+  list(keep = keep, skipped = skipped)
 }
 
 ## Is `alreadyRun` several runs? A character vector (saved simList files) or a list whose
