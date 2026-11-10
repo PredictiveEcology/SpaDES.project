@@ -102,8 +102,13 @@ test_that("book: `packages = c(...)` and `require = c(...)` as vectors", {
   ## and the point of this test is that `require =` does the attaching.
   setupTest(); libPathsOrig <- .libPaths(); on.exit(.libPaths(libPathsOrig), add = TRUE)
   attachedBefore <- "package:terra" %in% search()
+  ## The test library first (anything installed goes there), then the session's libraries, which already hold
+  ## terra and withr (standAlone = FALSE: they count as installed). With a stand-alone test library,
+  ## setupProject() installed terra's and SpaDES.core's 43-package tree with pak, and pak cannot run inside
+  ## R CMD check (pkgcache: "R_USER_CACHE_DIR env var not set during package check"), so the test failed there
+  ## while passing under devtools::test().
   out <- runIn(quote(setupProject(
-    paths = list(packagePath = .libPaths()[1L]),
+    paths = list(packagePath = .libPaths()), standAlone = FALSE,
     packages = c("terra", "withr"),                                  # 16 of the book's 23 calls
     require = c("terra"),
     .afterRequire = exists("vect"),                                  # late dot: attached packages are visible

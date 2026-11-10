@@ -1,10 +1,15 @@
 ## setupProject(alreadyRun = ): the one run of a CacheGeo ledger that `alreadyRun$scenario`
 ## names, and the modules it ran. Read before setupModules(), so the modules that run already
 ## ran are neither fetched nor have their packages installed.
+## Several runs (a list, or a character vector, of runs; see .alreadyRunIsMulti()): a named list
+## of the same, one per run, with attribute "multi" TRUE.
 .alreadyRunRead <- function(alreadyRun, destDir, verbose = getOption("Require.verbose", 1L)) {
+  if (.alreadyRunIsMulti(alreadyRun))
+    return(.alreadyRunReadMulti(alreadyRun, destDir, verbose = verbose))
   need <- c("ledger", "scenario") # `remote = NULL` is a local ledger in `destDir`
   if (!is.list(alreadyRun) || !all(need %in% names(alreadyRun)))
-    stop("`alreadyRun` must be a list with elements ", paste(need, collapse = ", "), call. = FALSE)
+    stop("`alreadyRun` must be a list with elements ", paste(need, collapse = ", "),
+         ", or a list of runs", call. = FALSE)
   ## SpaDES.core's simInit() replays a run since 3.2.1.9058 (no floor in DESCRIPTION: only
   ## `alreadyRun` needs it)
   if (!requireNamespace("SpaDES.core", quietly = TRUE) ||
@@ -91,4 +96,44 @@
                  versions = versions, USE.NAMES = FALSE)
   all(vapply(kids, .isAlreadyRunModule, logical(1), ran = ran, modulePath = modulePath,
              scratch = scratch, parents = parents, seen = c(seen, name)))
+}
+
+## Is `alreadyRun` several runs? A character vector (saved simList files) or a list whose
+## elements are each a ledger run `list(ledger, remote, scenario)`, a saved simList file, or
+## `list(file = <saved simList file>, pathRemap = c(old = , new = ))`.
+.alreadyRunIsMulti <- function(alreadyRun) {
+  isLedger <- function(x) is.list(x) && all(c("ledger", "scenario") %in% names(x))
+  ## one run, complete or not
+  if (any(c("ledger", "remote", "scenario", "file", "pathRemap") %in% names(alreadyRun))) return(FALSE)
+  isFile <- function(x) (is.character(x) && length(x) == 1L) || (is.list(x) && is.character(x[["file"]]))
+  if (is.character(alreadyRun) && length(alreadyRun)) return(TRUE)
+  if (is.list(alreadyRun) && length(alreadyRun) &&
+      all(vapply(alreadyRun, function(x) isLedger(x) || isFile(x), logical(1))))
+    return(TRUE)
+  FALSE
+}
+
+## Several runs: each read as one run is (a ledger run) or loaded from its saved simList file,
+## its objects left on disk until used (lazy). Named by run (unnamed: "1", "2", ...).
+.alreadyRunReadMulti <- function(alreadyRun, destDir, verbose = getOption("Require.verbose", 1L)) {
+  ## a SpaDES.core whose simInit() takes several runs (no floor in DESCRIPTION: only this needs it)
+  if (!requireNamespace("SpaDES.core", quietly = TRUE) ||
+      !exists(".alreadyRunMulti", envir = asNamespace("SpaDES.core"), inherits = FALSE))
+    stop("`alreadyRun` with several runs needs a SpaDES.core whose simInit() takes them; ",
+         "please update it (PredictiveEcology/SpaDES.core@development)", call. = FALSE)
+  runs <- as.list(alreadyRun)
+  if (is.null(names(runs))) names(runs) <- as.character(seq_along(runs))
+  runs <- lapply(runs, function(x) {
+    if (is.list(x) && is.null(x[["file"]]))
+      return(.alreadyRunRead(x, destDir = destDir, verbose = verbose))
+    if (is.character(x)) x <- list(file = x)
+    sim <- SpaDES.core::loadSimList(x$file, parse = FALSE)
+    if (!is.null(x$pathRemap))
+      sim <- .remapOutputs(list(sim), x$pathRemap)[[1]]
+    list(run = x$file, modules = .alreadyRunModules(sim), parents = sim$._modulesGiven$parents,
+         sim = sim, fetch = NULL)
+  })
+  messageVerbose("Runs already done (", length(runs), "): ",
+                 paste(names(runs), collapse = ", "), "; no module is skipped", verbose = verbose)
+  structure(runs, multi = TRUE)
 }
