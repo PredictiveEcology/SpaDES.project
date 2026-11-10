@@ -1780,6 +1780,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
                                 envir = envir, verbose = verbose)
     }
+    modules <- .escapeSlashBranches(modules) # `@feature/x` -> `@feature%2Fx`
 
     if (!is.null(alreadyRun)) {
       isRan <- vapply(modules, .isAlreadyRunModule, logical(1), ran = alreadyRun$modules$module,
@@ -1954,7 +1955,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                                       path = clonePath))
               checkPath(localPath, create = TRUE)
               setwd(localPath)
-              gert::git_branch_checkout(split$br)
+              .checkoutRef(split$br)
               curBr <- gert::git_branch()
               setUpstreamWithTry(split, curBr)
               break
@@ -4535,6 +4536,85 @@ getGitUserName <- function() {
   paste0("https://github.com/", acct, "/", repo)
 }
 
+## A "/" after "@" in a module spec can be part of the branch (`@feature/x`) or start a
+## subfolder (`@development/modules/scfmRegime`); the text cannot say which. Git does not
+## allow a branch `a` beside a branch `a/b`, so at most one leading run of the segments
+## after "@" is a branch on the remote: look it up, and write its "/" as "%2F", which
+## Require's splitGitRepo() decodes and the other spec parsers read as one segment.
+## Unchanged: specs with no "/" after "@" or already holding "%2F", and every spec when
+## offline, without git, or when the remote can't be listed.
+.escapeSlashBranches <- function(modules) {
+  hasSlashRef <- grepl("^[^@ ]+@[^ /]+/", modules) & !grepl("%2F", modules, ignore.case = TRUE)
+  if (!any(hasSlashRef) || isTRUE(getOption("Require.offlineMode")) || !nzchar(Sys.which("git")))
+    return(modules)
+  refsCache <- list()
+  modules[hasSlashRef] <- vapply(modules[hasSlashRef], function(spec) {
+    beforeAt <- sub("@.*$", "", spec)
+    afterAt <- sub("^[^@]*@", "", spec)
+    ref <- sub(" .*$", "", afterAt) # a version spec follows a space
+    versionPart <- substring(afterAt, nchar(ref) + 1L)
+    gr <- lapply(splitGitRepo(beforeAt)[c("acct", "repo")], unlist)
+    key <- paste0(gr$acct, "/", gr$repo)
+    if (!key %in% names(refsCache))
+      refsCache[key] <<- list(.remoteRefs(gr$acct, gr$repo))
+    refs <- refsCache[[key]]
+    if (is.null(refs)) return(spec)
+    segs <- strsplit(ref, "/", fixed = TRUE)[[1]]
+    prefixes <- vapply(seq_along(segs), function(k) paste(segs[seq_len(k)], collapse = "/"), "")
+    hit <- c(which(prefixes %in% refs$heads), which(prefixes %in% refs$tags))
+    if (!length(hit)) {
+      if (grepl("^[0-9a-f]{7,40}$", segs[1])) return(spec) # a commit, then a subfolder
+      near <- refs$heads[startsWith(refs$heads, segs[1])]
+      stop(call. = FALSE, "No branch or tag of ", key, " matches '", ref, "' in module spec '", spec, "'",
+           if (length(near)) paste0("; branches starting with '", segs[1], "': ",
+                                    paste(near, collapse = ", ")))
+    }
+    k <- hit[1]
+    paste0(beforeAt, "@", paste(segs[seq_len(k)], collapse = "%2F"),
+           if (k < length(segs)) paste0("/", paste(segs[-seq_len(k)], collapse = "/")),
+           versionPart)
+  }, character(1), USE.NAMES = FALSE)
+  modules
+}
+
+## The branch and tag names of a remote repository, or NULL if it can't be listed.
+.remoteRefs <- function(acct, repo) {
+  ## no credential prompt for a private or missing repo. Not system2(env = ): on
+  ## Windows that puts "GIT_TERMINAL_PROMPT=0" on git's command line.
+  oldPrompt <- Sys.getenv("GIT_TERMINAL_PROMPT", unset = NA)
+  Sys.setenv(GIT_TERMINAL_PROMPT = "0")
+  on.exit(if (is.na(oldPrompt)) Sys.unsetenv("GIT_TERMINAL_PROMPT")
+          else Sys.setenv(GIT_TERMINAL_PROMPT = oldPrompt))
+  out <- suppressWarnings(tryCatch(
+    system2("git", c("ls-remote", "--heads", "--tags", shQuote(.gh_url(acct, repo))),
+            stdout = TRUE, stderr = FALSE),
+    error = function(e) NULL))
+  if (!length(out) || !is.null(attr(out, "status"))) return(NULL)
+  refs <- sub("\\^\\{\\}$", "", sub("^\\S+\\s+refs/", "", out))
+  list(heads = sub("^heads/", "", grep("^heads/", refs, value = TRUE)),
+       tags = unique(sub("^tags/", "", grep("^tags/", refs, value = TRUE))))
+}
+
+## Is `ref` a commit (a hex SHA, full or abbreviated) of the repository in the working
+## directory, rather than a branch name?
+.isCommitRef <- function(ref) {
+  if (!grepl("^[0-9a-f]{7,40}$", ref)) return(FALSE)
+  bl <- gert::git_branch_list()
+  !ref %in% ifelse(bl$local, bl$name, sub("^[^/]+/", "", bl$name)) && # "origin/x" is branch x
+
+    !is(try(gert::git_commit_info(ref), silent = TRUE), "try-error")
+}
+
+## Check out a branch, or a commit (detached; gert has no detached checkout).
+.checkoutRef <- function(ref) {
+  if (.isCommitRef(ref)) {
+    if (!identical(system2("git", c("checkout", "--quiet", "--detach", ref)), 0L))
+      stop("Could not check out commit ", ref)
+  } else {
+    gert::git_branch_checkout(ref)
+  }
+}
+
 # Dedup a `splitGitRepo()` output ($acct / $repo / $br / $versionSpec, each a
 # list keyed by repo name with possibly-duplicate keys) by taking the LAST
 # occurrence per repo name.  This makes a user's explicit module spec
@@ -4710,6 +4790,12 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
   # length-0 branch name blow up the `split$br %in% masterMain` test below.
   if (length(curBr) == 0L || isTRUE(is.na(curBr)) || !nzchar(curBr))
     return(split)
+  # A commit pin: no branch to pull or track. Move to it if not already there.
+  if (length(split$br) && .isCommitRef(split$br)) {
+    if (!startsWith(gert::git_info()$commit, split$br))
+      .checkoutRef(split$br)
+    return(split)
+  }
   for (trySetUpstream in 1:2) {
 
     if (!identical(split$br, curBr)) {

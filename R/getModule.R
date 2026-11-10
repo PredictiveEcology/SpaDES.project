@@ -395,7 +395,7 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
     ## release) names each child's release in its own `version` list
     paste0("v", versions[[kidName]])
   } else {
-    gr$br
+    gsub("/", "%2F", gr$br, fixed = TRUE) # a "/" in a branch name is written "%2F"
   }
   paste0(gr$acct, "/", kidName, "@", br)
 }
