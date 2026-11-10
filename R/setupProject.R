@@ -250,8 +250,16 @@ NULL
 #'   (those of `modules` taken from the run), `sim` (the run's saved `simList` shell) and
 #'   `fetch` (fetches output files of the run from the remote archive).
 #'   [SpaDES.core::simInit()] takes it as its `alreadyRun` argument and loads the saved
-#'   outputs the new modules expect, so `simInitAndSpades2(out)` replays the run. Default
-#'   `NULL`.
+#'   outputs the new modules expect, so `simInitAndSpades2(out)` replays the run.
+#'   Several runs, for modules that summarise replicates (e.g. `mode = "multi"`): a list, named
+#'   by run (unnamed: `"1"`, `"2"`, ...), whose elements are each a ledger run as above, the
+#'   path of a saved `simList` (e.g. `"<run>_3020.rds"`, its objects left on disk until used), or
+#'   `list(file = <that path>, pathRemap = c(old = <the run's folder when it ran>, new = <where it
+#'   is now>))` for a run moved since; a character vector of paths is the same. Each run's
+#'   `simList` is read; no module is skipped (the summary modules often ran inside each run
+#'   too), and `alreadyRun` in the result is the list of runs, each as above.
+#'   [SpaDES.core::simInit()] then gives the modules every run's saved outputs as `outputsDF`
+#'   and the objects that are the same in all runs. Default `NULL`.
 #' @param dots Any other named objects passed as a list a user might want for other elements.
 #' @param defaultDots A named list of any arbitrary R objects, written as a
 #'   literal `list(...)` or as a variable holding one.
@@ -749,13 +757,16 @@ setupProject <- function(name, paths, modules, packages,
       publishToScope(envir, envirCur, setdiff(ls(envirCur, all.names = TRUE), localsBefore))
 
       alreadyRunSUB <- substitute(alreadyRun)
-      if (!is.null(alreadyRunSUB) && is.null(alreadyRunInfo))
-        alreadyRunInfo <- .alreadyRunRead(evalSUB(val = alreadyRunSUB, valObjName = "alreadyRun", envir = envirCur, envir2 = envir),
-                                          destDir = file.path(paths[["inputPath"]], "alreadyRun"), verbose = verbose)
+      if (!is.null(alreadyRunSUB) && is.null(alreadyRunInfo)) {
+        alreadyRunVal <- evalSUB(val = alreadyRunSUB, valObjName = "alreadyRun", envir = envirCur, envir2 = envir)
+        if (!is.null(alreadyRunVal)) # e.g. `alreadyRun = if (report) <runs>`: NULL is none
+          alreadyRunInfo <- .alreadyRunRead(alreadyRunVal, destDir = file.path(paths[["inputPath"]], "alreadyRun"),
+                                            verbose = verbose)
+      }
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,
                                      overwrite = overwrite, envir = envir, verbose = verbose,
-                                     alreadyRun = alreadyRunInfo)
+                                     alreadyRun = if (!isTRUE(attr(alreadyRunInfo, "multi"))) alreadyRunInfo)
       modules <- extractModName(names(modulePackages))
       names(modules) <- names(modulePackages)
       ## a module also listed as a child of another in `modules` reaches simInit() via its parent
@@ -924,7 +935,9 @@ setupProject <- function(name, paths, modules, packages,
     #   # we also lose projectPath --> but this is getwd()
     #   params = params,
     #   times = times), dotsSUB)
-    if (!is.null(alreadyRunInfo))
+    if (isTRUE(attr(alreadyRunInfo, "multi")))
+      out$alreadyRun <- structure(alreadyRunInfo, multi = NULL)
+    else if (!is.null(alreadyRunInfo))
       out$alreadyRun <- c(alreadyRunInfo, list(matched = attr(modulePackages, "alreadyRun")))
     if (!is.null(options)) {
       attr(out, "projectOptions") <- opts$updates
