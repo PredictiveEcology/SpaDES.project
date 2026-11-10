@@ -1,5 +1,6 @@
 # SpaDES.project (development version)
 
+- `setupProject(alreadyRun = list(..., rerun = ))` names modules the run already ran that this project runs again, e.g. `canClimateData` with other climate variables: they are fetched and run, and what they create replaces the replayed object. A parent module some of whose children ran (or are rerun) is now replaced by the children still needed; before, it was kept whole and its children that had run ran again. Inputs of a rerun module still come from the run unless the user supplies them (see `?setupProject`).
 - `setupProject(useGit = ...)` now finds an existing GitHub repository when the project folder has an `.Rproj` but no `.git`, and connects the folder to it in place instead of deleting the folder and cloning. A local file that the repository also has stops setup, naming the file.
 - `setupProject(useGit = ...)` now fetches a parent module's children (`childModules`), and theirs, as git submodules, as `getModule()` does without git. Before, only the parent arrived and `simInit()` stopped on the missing children.
 - `setupProject(useGit = ...)` with a new `packagePath` no longer stops with "Please install pak": usethis's dependencies are looked up, and later copied, from the user's library before `.libPaths()` changes.

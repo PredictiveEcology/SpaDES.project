@@ -30,7 +30,9 @@ test_that("alreadyRun$scenario chooses one ledger run; none or several stop, lis
   local_mocked_bindings(.alreadyRunShell = function(run, destDir) alreadyRunShell(),
                         .alreadyRunModules = function(sim) ranModules("k1"))
 
-  out <- .alreadyRunRead(list(ledger = "runs.rds", scenario = list(ELF = "A", rep = 2)), destDir = d, verbose = 0)
+  out <- .alreadyRunRead(list(ledger = "runs.rds", scenario = list(ELF = "A", rep = 2), rerun = "k1"),
+                         destDir = d, verbose = 0)
+  expect_identical(out$rerun, "k1")
   expect_identical(out$run$runName, "A_NRV_2")
   expect_identical(out$modules$module, "k1")
   expect_identical(out$sim, alreadyRunShell(), ignore_attr = TRUE)
@@ -64,9 +66,30 @@ test_that("setupModules skips a module the run ran, by name, and a parent whose 
   pkgs <- setupModules(paths = list(modulePath = mp, projectPath = root),
                        modules = c("par", "par2", "Acct/x@dev", "birds"), inProject = TRUE,
                        useGit = FALSE, updateRprofile = FALSE, verbose = -1, alreadyRun = arch)
-  expect_identical(names(pkgs), c("par2", "birds"))
-  expect_identical(attr(pkgs, "alreadyRun"), c("par", "Acct/x@dev"))
+  ## par2's k1 ran, so par2 is replaced by k3 only
+  expect_identical(names(pkgs), c("k3", "birds"))
+  expect_identical(attr(pkgs, "alreadyRun"), c("par", "k1", "Acct/x@dev"))
   expect_false(dir.exists(file.path(mp, "x")))
+})
+
+test_that("alreadyRun$rerun runs a module the run ran: alone, or the rest of its parent skipped", {
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "modules")
+  alreadyRunModules(mp)
+  local_mocked_bindings(downloadGHRepoOuter = function(modToDL, ...) stop("fetched ", modToDL))
+  arch <- list(run = data.frame(runName = "r1"), modules = ranModules("k1", "k2"), rerun = "k1")
+  pkgs <- setupModules(paths = list(modulePath = mp, projectPath = root),
+                       modules = c("par", "birds"), inProject = TRUE,
+                       useGit = FALSE, updateRprofile = FALSE, verbose = -1, alreadyRun = arch)
+  expect_identical(names(pkgs), c("k1", "birds"))
+  expect_identical(attr(pkgs, "alreadyRun"), "k2")
+  ## every child rerun: the parent is kept whole
+  arch$rerun <- c("k1", "k2")
+  pkgs <- setupModules(paths = list(modulePath = mp, projectPath = root),
+                       modules = c("par", "birds"), inProject = TRUE,
+                       useGit = FALSE, updateRprofile = FALSE, verbose = -1, alreadyRun = arch)
+  expect_identical(names(pkgs), c("par", "birds"))
+  expect_length(attr(pkgs, "alreadyRun"), 0)
 })
 
 test_that("a parent not held locally is judged from its .R file, fetched outside modulePath", {
