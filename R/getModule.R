@@ -193,6 +193,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
 #'                           destDir = Require::tempdir2())
 getGithubFile <- function(gitRepoFile, overwrite = FALSE, destDir = ".",
                           verbose = getOption("Require.verbose")) {
+  gitRepoFile <- .escapeSlashBranches(gitRepoFile, isFile = TRUE) # `@feature/x/file.R` -> `@feature%2Fx/file.R`
   gitRepo <- extractGitHubRepoFromFile(gitRepoFile)
   file <- extractGitHubFileRelativePath(gitRepoFile, gitRepo)
   if (nchar(dirname(file)))
@@ -221,7 +222,8 @@ extractGitHubFileRelativePath <- function(gitRepoFile, gitRepo) {
 
 extractGitHubRepoFromFile <- function(gitRepoFile) {
   gitRepo <- splitGitRepo(gitRepoFile)
-  file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gitRepo$br))
+  ## as written in the spec: a "/" in the branch is "%2F"
+  file.path(gitRepo$acct, paste0(gitRepo$repo, "@", gsub("/", "%2F", gitRepo$br, fixed = TRUE)))
 }
 
 
