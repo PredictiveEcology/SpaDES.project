@@ -22,6 +22,13 @@ skipIfNoDecode <- function()
   skip_if(!identical(Require:::splitGitRepo("A/r@a%2Fb")$br[[1]], "a/b"),
           "Require without %2F decoding in splitGitRepo()")
 
+## The remote branch lists are kept for the session; start each test without them.
+localFreshRefs <- function(env = parent.frame()) {
+  old <- .pkgEnv$remoteRefs
+  .pkgEnv$remoteRefs <- NULL
+  withr::defer(.pkgEnv$remoteRefs <- old, envir = env)
+}
+
 setupSlash <- function(td, spec) {
   proj <- file.path(td, "proj")
   mp <- file.path(proj, "modules")
@@ -39,6 +46,7 @@ test_that("useGit: a branch with a '/' is cloned and checked out", {
   skip_if_not_installed("gert")
   skip_if(!nzchar(Sys.which("git")))
   skipIfNoDecode()
+  localFreshRefs()
   td <- normPath(withr::local_tempdir())
   mkSlashRepo(td, "feature/x")
   local_mocked_bindings(.gh_url = function(acct, repo) file.path(td, paste0(repo, ".git")))
@@ -50,6 +58,7 @@ test_that("useGit: a branch with a '/' is cloned and checked out", {
 test_that("useGit: a commit SHA is checked out (detached)", {
   skip_if_not_installed("gert")
   skip_if(!nzchar(Sys.which("git")))
+  localFreshRefs()
   td <- normPath(withr::local_tempdir())
   sha <- mkSlashRepo(td, "side")
   local_mocked_bindings(.gh_url = function(acct, repo) file.path(td, paste0(repo, ".git")))
@@ -61,6 +70,7 @@ test_that("useGit: a commit SHA is checked out (detached)", {
 test_that(".escapeSlashBranches finds the branch among the segments after '@'", {
   skip_if(!nzchar(Sys.which("git")))
   withr::local_options(Require.offlineMode = FALSE)
+  localFreshRefs()
   local_mocked_bindings(.remoteRefs = function(acct, repo)
     list(heads = c("development", "feature/x", "main"), tags = "v1/beta"))
   esc <- function(x) .escapeSlashBranches(x)
@@ -77,6 +87,7 @@ test_that(".escapeSlashBranches finds the branch among the segments after '@'", 
 })
 
 test_that(".escapeSlashBranches leaves specs alone offline or when the remote can't be listed", {
+  localFreshRefs()
   local_mocked_bindings(.remoteRefs = function(acct, repo) stop("must not be called"))
   withr::local_options(Require.offlineMode = TRUE)
   expect_identical(.escapeSlashBranches("A/r@feature/x"), "A/r@feature/x")
@@ -88,4 +99,49 @@ test_that(".escapeSlashBranches leaves specs alone offline or when the remote ca
 test_that("a child inherits a parent's '/' branch escaped", {
   skipIfNoDecode()
   expect_identical(.childModuleSpec("kid", "Acct/par@feature%2Fx"), "Acct/kid@feature%2Fx")
+})
+
+test_that(".escapeSlashBranches lists a remote once per session, and again on a miss", {
+  skip_if(!nzchar(Sys.which("git")))
+  withr::local_options(Require.offlineMode = FALSE)
+  localFreshRefs()
+  calls <- 0L
+  heads <- c("main", "feature/x")
+  local_mocked_bindings(.remoteRefs = function(acct, repo) {
+    calls <<- calls + 1L
+    list(heads = heads, tags = character())
+  })
+  .escapeSlashBranches("A/r@feature/x")
+  .escapeSlashBranches(c("A/r@feature/x/m", "A/r@main/m"))
+  expect_identical(calls, 1L)
+  heads <- c(heads, "feature/new") # pushed since the list was taken
+  expect_identical(.escapeSlashBranches("A/r@feature/new"), "A/r@feature%2Fnew")
+  expect_identical(calls, 2L)
+})
+
+test_that("file specs: the file name is never part of the branch", {
+  skip_if(!nzchar(Sys.which("git")))
+  skipIfNoDecode()
+  withr::local_options(Require.offlineMode = FALSE)
+  localFreshRefs()
+  local_mocked_bindings(.remoteRefs = function(acct, repo)
+    list(heads = c("development", "feature/x"), tags = character()))
+  expect_identical(.escapeSlashBranches("A/r@feature/x/inst/o.R", isFile = TRUE),
+                   "A/r@feature%2Fx/inst/o.R")
+  expect_identical(.escapeSlashBranches("A/r@development/inst/o.R", isFile = TRUE),
+                   "A/r@development/inst/o.R")
+  ## `@branch/file.R`: nothing to look up
+  local_mocked_bindings(.remoteRefs = function(acct, repo) stop("must not be called"))
+  expect_identical(.escapeSlashBranches("A/r@feature/o.R", isFile = TRUE), "A/r@feature/o.R")
+
+  ## getGithubFile(): the file path is relative to the branch, not to its first segment
+  localFreshRefs()
+  got <- NULL
+  local_mocked_bindings(
+    .remoteRefs = function(acct, repo) list(heads = "feature/x", tags = character()),
+    downloadFile = function(gitRepo, file, ...) {
+      got <<- list(gitRepo = gitRepo, file = file); NULL
+    })
+  getGithubFile("A/r@feature/x/inst/o.R", destDir = withr::local_tempdir(), verbose = -1)
+  expect_identical(got, list(gitRepo = "A/r@feature%2Fx", file = "inst/o.R"))
 })

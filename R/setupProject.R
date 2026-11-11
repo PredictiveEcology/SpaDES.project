@@ -2553,7 +2553,7 @@ parseFileLists <- function(obj, paths, namedList = TRUE, overwrite = FALSE, envi
   if (is.character(obj)) {
     unnamed <- if (is.null(names(obj))) rep(TRUE, length(obj)) else !nzchar(names(obj))
     obj <- mapply(opt = obj, function(opt) {
-      opt <- convertHTTPsToGH(opt)
+      opt <- .escapeSlashBranches(convertHTTPsToGH(opt), isFile = TRUE)
       isGH <- isGitHub(opt) && grepl("@", opt) # the default isGitHub allows no branch
       if (isGH) {
         rem <- opt
@@ -4544,36 +4544,43 @@ getGitUserName <- function() {
   paste0("https://github.com/", acct, "/", repo)
 }
 
-## A "/" after "@" in a module spec can be part of the branch (`@feature/x`) or start a
+## A "/" after "@" in a module or file spec can be part of the branch (`@feature/x`) or start a
 ## subfolder (`@development/modules/scfmRegime`); the text cannot say which. Git does not
 ## allow a branch `a` beside a branch `a/b`, so at most one leading run of the segments
 ## after "@" is a branch on the remote: look it up, and write its "/" as "%2F", which
 ## Require's splitGitRepo() decodes and the other spec parsers read as one segment.
 ## Unchanged: specs with no "/" after "@" or already holding "%2F", and every spec when
-## offline, without git, or when the remote can't be listed.
-.escapeSlashBranches <- function(modules) {
+## offline, without git, or when the remote can't be listed. With `isFile`, the last
+## segment is a file name, never part of the branch, so `@branch/file.R` needs no lookup.
+## A remote's branches are listed once per R session (`.pkgEnv$remoteRefs`), and again
+## when nothing matches, in case the branch was pushed since.
+.escapeSlashBranches <- function(modules, isFile = FALSE) {
   hasSlashRef <- grepl("^[^@ ]+@[^ /]+/", modules) & !grepl("%2F", modules, ignore.case = TRUE)
   if (!any(hasSlashRef) || isTRUE(getOption("Require.offlineMode")) || !nzchar(Sys.which("git")))
     return(modules)
-  refsCache <- list()
   modules[hasSlashRef] <- vapply(modules[hasSlashRef], function(spec) {
     beforeAt <- sub("@.*$", "", spec)
     afterAt <- sub("^[^@]*@", "", spec)
     ref <- sub(" .*$", "", afterAt) # a version spec follows a space
     versionPart <- substring(afterAt, nchar(ref) + 1L)
+    segs <- strsplit(ref, "/", fixed = TRUE)[[1]]
+    nCand <- length(segs) - isFile # how many leading segments could be the branch
+    if (nCand < 2L) return(spec)
     gr <- lapply(splitGitRepo(beforeAt)[c("acct", "repo")], unlist)
     key <- paste0(gr$acct, "/", gr$repo)
-    if (!key %in% names(refsCache))
-      refsCache[key] <<- list(.remoteRefs(gr$acct, gr$repo))
-    refs <- refsCache[[key]]
-    if (is.null(refs)) return(spec)
-    segs <- strsplit(ref, "/", fixed = TRUE)[[1]]
-    prefixes <- vapply(seq_along(segs), function(k) paste(segs[seq_len(k)], collapse = "/"), "")
-    hit <- c(which(prefixes %in% refs$heads), which(prefixes %in% refs$tags))
+    prefixes <- vapply(seq_len(nCand), function(k) paste(segs[seq_len(k)], collapse = "/"), "")
+    for (relist in c(FALSE, TRUE)) {
+      if (relist || !key %in% names(.pkgEnv$remoteRefs))
+        .pkgEnv$remoteRefs[key] <- list(.remoteRefs(gr$acct, gr$repo))
+      refs <- .pkgEnv$remoteRefs[[key]]
+      if (is.null(refs)) return(spec)
+      hit <- c(which(prefixes %in% refs$heads), which(prefixes %in% refs$tags))
+      if (length(hit)) break
+    }
     if (!length(hit)) {
       if (grepl("^[0-9a-f]{7,40}$", segs[1])) return(spec) # a commit, then a subfolder
       near <- refs$heads[startsWith(refs$heads, segs[1])]
-      stop(call. = FALSE, "No branch or tag of ", key, " matches '", ref, "' in module spec '", spec, "'",
+      stop(call. = FALSE, "No branch or tag of ", key, " matches '", ref, "' in spec '", spec, "'",
            if (length(near)) paste0("; branches starting with '", segs[1], "': ",
                                     paste(near, collapse = ", ")))
     }
