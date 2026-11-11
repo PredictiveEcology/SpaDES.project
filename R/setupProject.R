@@ -1788,7 +1788,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
       modules <- parseFileLists(modules, paths, namedList = FALSE, overwrite = isTRUE(overwrite),
                                 envir = envir, verbose = verbose)
     }
-    modules <- .escapeSlashBranches(modules) # `@feature/x` -> `@feature%2Fx`
+    modules <- .escapeSlashBranches(modules, modulePath = paths[["modulePath"]]) # `@feature/x` -> `@feature%2Fx`
 
     if (!is.null(alreadyRun)) {
       each <- lapply(unname(modules), .alreadyRunKeep, ran = alreadyRun$modules$module,
@@ -4547,39 +4547,51 @@ getGitUserName <- function() {
 ## A "/" after "@" in a module or file spec can be part of the branch (`@feature/x`) or start a
 ## subfolder (`@development/modules/scfmRegime`); the text cannot say which. Git does not
 ## allow a branch `a` beside a branch `a/b`, so at most one leading run of the segments
-## after "@" is a branch on the remote: look it up, and write its "/" as "%2F", which
-## Require's splitGitRepo() decodes and the other spec parsers read as one segment.
-## Unchanged: specs with no "/" after "@" or already holding "%2F", and every spec when
-## offline, without git, or when the remote can't be listed. With `isFile`, the last
-## segment is a file name, never part of the branch, so `@branch/file.R` needs no lookup.
-## A remote's branches are listed once per R session (`.pkgEnv$remoteRefs`), and again
-## when nothing matches, in case the branch was pushed since.
-.escapeSlashBranches <- function(modules, isFile = FALSE) {
+## after "@" is a branch: find it, and write its "/" as "%2F", which Require's
+## splitGitRepo() decodes and the other spec parsers read as one segment.
+## Unchanged: specs with no "/" after "@" or already holding "%2F". With a subfolder
+## before "@" (`Acct/repo/sub@fix/x`), all of the ref is the branch. With `isFile`, the
+## last segment is a file name, never part of the branch, so `@branch/file.R` is left alone.
+## The branch lists are tried in order, stopping at the first that matches, so the
+## network is used only when nothing local does: a clone of the repo under `modulePath`
+## (its local and remote-tracking branches), the list kept for this R session, the list
+## kept on disk from an earlier session, then `git ls-remote` (skipped offline or
+## without git), whose list is kept for later. Specs are left alone when no list matches
+## and the remote can't be listed.
+.escapeSlashBranches <- function(modules, isFile = FALSE, modulePath = NULL) {
   hasSlashRef <- grepl("^[^@ ]+@[^ /]+/", modules) & !grepl("%2F", modules, ignore.case = TRUE)
-  if (!any(hasSlashRef) || isTRUE(getOption("Require.offlineMode")) || !nzchar(Sys.which("git")))
-    return(modules)
+  if (!any(hasSlashRef)) return(modules)
+  canList <- !isTRUE(getOption("Require.offlineMode")) && nzchar(Sys.which("git"))
   modules[hasSlashRef] <- vapply(modules[hasSlashRef], function(spec) {
     beforeAt <- sub("@.*$", "", spec)
     afterAt <- sub("^[^@]*@", "", spec)
     ref <- sub(" .*$", "", afterAt) # a version spec follows a space
     versionPart <- substring(afterAt, nchar(ref) + 1L)
     segs <- strsplit(ref, "/", fixed = TRUE)[[1]]
+    if (!isFile && length(strsplit(beforeAt, "/", fixed = TRUE)[[1]]) > 2L)
+      return(paste0(beforeAt, "@", paste(segs, collapse = "%2F"), versionPart))
     nCand <- length(segs) - isFile # how many leading segments could be the branch
     if (nCand < 2L) return(spec)
     gr <- lapply(splitGitRepo(beforeAt)[c("acct", "repo")], unlist)
     key <- paste0(gr$acct, "/", gr$repo)
     prefixes <- vapply(seq_len(nCand), function(k) paste(segs[seq_len(k)], collapse = "/"), "")
-    for (relist in c(FALSE, TRUE)) {
-      if (relist || !key %in% names(.pkgEnv$remoteRefs))
-        .pkgEnv$remoteRefs[key] <- list(.remoteRefs(gr$acct, gr$repo))
-      refs <- .pkgEnv$remoteRefs[[key]]
-      if (is.null(refs)) return(spec)
+    sources <- list(
+      function() .cloneRefs(gr$acct, gr$repo, modulePath),
+      function() .keptRefs(key),
+      function() if (canList) .keepRefs(key, .remoteRefs(gr$acct, gr$repo)))
+    hit <- integer()
+    listed <- NULL
+    for (src in sources) {
+      refs <- src()
+      if (is.null(refs)) next
       hit <- c(which(prefixes %in% refs$heads), which(prefixes %in% refs$tags))
       if (length(hit)) break
+      listed <- refs
     }
     if (!length(hit)) {
-      if (grepl("^[0-9a-f]{7,40}$", segs[1])) return(spec) # a commit, then a subfolder
-      near <- refs$heads[startsWith(refs$heads, segs[1])]
+      ## no list could be had, or a commit then a subfolder: leave it to the fetch
+      if (is.null(listed) || grepl("^[0-9a-f]{7,40}$", segs[1])) return(spec)
+      near <- listed$heads[startsWith(listed$heads, segs[1])]
       stop(call. = FALSE, "No branch or tag of ", key, " matches '", ref, "' in spec '", spec, "'",
            if (length(near)) paste0("; branches starting with '", segs[1], "': ",
                                     paste(near, collapse = ", ")))
@@ -4590,6 +4602,54 @@ getGitUserName <- function() {
            versionPart)
   }, character(1), USE.NAMES = FALSE)
   modules
+}
+
+## The branches and tags of an existing clone of `acct/repo` under `modulePath` (where
+## setupModules(useGit = TRUE) puts it): its local branches plus those it knows on the
+## remote. NULL when there is no such clone, or its remote is another repository.
+.cloneRefs <- function(acct, repo, modulePath) {
+  if (!length(modulePath) || !requireNamespace("gert", quietly = TRUE)) return(NULL)
+  path <- file.path(whichModulePath(repo, modulePath), repo)
+  if (!file.exists(file.path(path, ".git"))) return(NULL)
+  tryCatch({
+    rem <- gert::git_remote_list(repo = path)
+    sameRepo <- rem$url == .gh_url(acct, repo) |
+      grepl(paste0("[/:]", acct, "/", repo, "(\\.git)?/?$"), rem$url, ignore.case = TRUE)
+    if (!any(sameRepo)) return(NULL)
+    bl <- gert::git_branch_list(repo = path)
+    remPrefix <- paste0("^(", paste(rem$name[sameRepo], collapse = "|"), ")/")
+    list(heads = unique(c(bl$name[bl$local], sub(remPrefix, "", grep(remPrefix, bl$name[!bl$local], value = TRUE)))),
+         tags = gert::git_tag_list(repo = path)$name)
+  }, error = function(e) NULL)
+}
+
+## A remote's branch list, kept for the R session (`.pkgEnv$remoteRefs`) and on disk
+## (`.refsFile()`) for later sessions. `.keepRefs()` returns `refs`.
+.keptRefs <- function(key) {
+  refs <- .pkgEnv$remoteRefs[[key]]
+  if (is.null(refs)) {
+    f <- .refsFile(key)
+    refs <- if (length(f) && file.exists(f)) tryCatch(readRDS(f), error = function(e) NULL)
+    if (!is.null(refs)) .pkgEnv$remoteRefs[key] <- list(refs)
+  }
+  refs
+}
+.keepRefs <- function(key, refs) {
+  if (is.null(refs)) return(NULL)
+  .pkgEnv$remoteRefs[key] <- list(refs)
+  f <- .refsFile(key)
+  if (length(f))
+    try(silent = TRUE, {
+      dir.create(dirname(f), recursive = TRUE, showWarnings = FALSE)
+      saveRDS(refs, f)
+    })
+  refs
+}
+## In Require's GitHub cache folder; NULL if it can't be found.
+.refsFile <- function(key) {
+  d <- tryCatch(utils::getFromNamespace("RequireGitHubCacheDir", "Require")(),
+                error = function(e) NULL)
+  if (length(d)) file.path(d, "branchLists", paste0(sub("/", "@", key, fixed = TRUE), ".rds"))
 }
 
 ## The branch and tag names of a remote repository, or NULL if it can't be listed.

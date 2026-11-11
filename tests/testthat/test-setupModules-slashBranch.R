@@ -22,11 +22,15 @@ skipIfNoDecode <- function()
   skip_if(!identical(Require:::splitGitRepo("A/r@a%2Fb")$br[[1]], "a/b"),
           "Require without %2F decoding in splitGitRepo()")
 
-## The remote branch lists are kept for the session; start each test without them.
+## The remote branch lists are kept for the session and on disk; start each test with
+## neither, and keep the disk copies in a temporary folder.
 localFreshRefs <- function(env = parent.frame()) {
   old <- .pkgEnv$remoteRefs
   .pkgEnv$remoteRefs <- NULL
   withr::defer(.pkgEnv$remoteRefs <- old, envir = env)
+  d <- withr::local_tempdir(.local_envir = env)
+  local_mocked_bindings(.refsFile = function(key) file.path(d, paste0(sub("/", "@", key), ".rds")),
+                        .env = env)
 }
 
 setupSlash <- function(td, spec) {
@@ -144,4 +148,58 @@ test_that("file specs: the file name is never part of the branch", {
     })
   getGithubFile("A/r@feature/x/inst/o.R", destDir = withr::local_tempdir(), verbose = -1)
   expect_identical(got, list(gitRepo = "A/r@feature%2Fx", file = "inst/o.R"))
+})
+
+test_that(".escapeSlashBranches: a subfolder before '@' needs no lookup", {
+  localFreshRefs()
+  local_mocked_bindings(.remoteRefs = function(acct, repo) stop("must not be called"))
+  expect_identical(.escapeSlashBranches("A/r/sub@fix/x"), "A/r/sub@fix%2Fx")
+  expect_identical(.escapeSlashBranches("A/r/sub@fix/x (>= 1.0)"), "A/r/sub@fix%2Fx (>= 1.0)")
+})
+
+test_that(".escapeSlashBranches keeps a remote's list on disk for later sessions", {
+  skip_if(!nzchar(Sys.which("git")))
+  withr::local_options(Require.offlineMode = FALSE)
+  localFreshRefs()
+  calls <- 0L
+  local_mocked_bindings(.remoteRefs = function(acct, repo) {
+    calls <<- calls + 1L
+    list(heads = c("main", "feature/x"), tags = character())
+  })
+  expect_identical(.escapeSlashBranches("A/r@feature/x"), "A/r@feature%2Fx")
+  .pkgEnv$remoteRefs <- NULL # a new session
+  expect_identical(.escapeSlashBranches("A/r@feature/x/m"), "A/r@feature%2Fx/m")
+  expect_identical(calls, 1L)
+  ## offline, the kept list still answers
+  .pkgEnv$remoteRefs <- NULL
+  withr::local_options(Require.offlineMode = TRUE)
+  expect_identical(.escapeSlashBranches("A/r@feature/x"), "A/r@feature%2Fx")
+  expect_identical(calls, 1L)
+})
+
+test_that(".escapeSlashBranches reads an existing clone's branches before the network", {
+  skip_if_not_installed("gert")
+  skip_if(!nzchar(Sys.which("git")))
+  withr::local_options(Require.offlineMode = FALSE)
+  localFreshRefs()
+  td <- normPath(withr::local_tempdir())
+  mkSlashRepo(td, "feature/x")
+  mp <- file.path(td, "modules")
+  dir.create(mp)
+  gert::git_clone(file.path(td, "par.git"), path = file.path(mp, "par"), verbose = FALSE)
+  calls <- 0L
+  local_mocked_bindings(
+    .gh_url = function(acct, repo)
+      if (acct == "Acct") file.path(td, paste0(repo, ".git")) else paste0("https://github.com/", acct, "/", repo),
+    .remoteRefs = function(acct, repo) {
+      calls <<- calls + 1L
+      list(heads = c("main", "feature/x", "feature/new"), tags = character())
+    })
+  expect_identical(.escapeSlashBranches("Acct/par@feature/x", modulePath = mp), "Acct/par@feature%2Fx")
+  expect_identical(calls, 0L)
+  ## a branch the clone hasn't seen: the remote is listed
+  expect_identical(.escapeSlashBranches("Acct/par@feature/new", modulePath = mp), "Acct/par@feature%2Fnew")
+  expect_identical(calls, 1L)
+  ## a clone of another repository is not used
+  expect_null(.cloneRefs("Other", "par", mp))
 })
