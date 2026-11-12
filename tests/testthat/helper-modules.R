@@ -67,3 +67,15 @@ mkBareModule <- function(td, repo, br, childModules = character(), reqdPkgs = '"
   gert::git_push("origin", refspec = paste0("refs/heads/", br), repo = seed, verbose = FALSE)
   bare
 }
+
+## A module `name` at `version` (its `defineModule()` only) in `modulePath`.
+mkVersionedModule <- function(modulePath, name, version = "1.0.0") {
+  dir.create(file.path(modulePath, name), recursive = TRUE, showWarnings = FALSE)
+  writeLines(
+    c("defineModule(sim, list(",
+      sprintf('  name = "%s",', name),
+      sprintf('  version = list(%s = "%s")', name, version),
+      "))"),
+    file.path(modulePath, name, paste0(name, ".R"))
+  )
+}

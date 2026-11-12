@@ -1928,6 +1928,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                paste(mods, collapse = "\n"))
 
         gitSplit <- unique(gitSplit) # there could be several modules within the same repository; only clone once
+        notPulled <- character()
         mapply(split = gitSplit, i = seq_along(gitSplit), function(split, i) {
           modPath <- file.path(split$acct, split$repo)
           # the modulePath already holding this repo, else the first one
@@ -1937,6 +1938,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           dotGit <- file.path(localPath, ".git")
 
           reportBranch <- TRUE
+          wasClone <- file.exists(dotGit) # an existing clone, not one made below
 
           for(attempt in 1:2) {
             dirExistsButNotGit <- dir.exists(localPath) && !file.exists(dotGit)
@@ -2000,12 +2002,17 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
 
           prev <- setwd(localPath)
           curBr <- gert::git_branch()
-          split <- setUpstreamWithTry(split, curBr)
+          split <- .updateModuleClone(split, curBr, modSpec = .specOfRepo(mods, split$repo),
+                                      verbose = verbose)
+          if (wasClone && isTRUE(attr(split, "notPulled")))
+            notPulled <<- c(notPulled, paste0(split$acct, "/", split$repo, "@", split$br))
 
           if (reportBranch)
             messageVerbose("\b ... on ", split$br, " branch")
         })
         setwd(origDir)
+        if (length(notPulled))
+          message(.messages$notPulled(notPulled))
         modName <- extractModName(mods)
         here <- dir.exists(file.path(whichModulePath(modName, paths[["modulePath"]]),
                                      fileRelPathFromFullGHpath(mods), modName))
@@ -4336,6 +4343,13 @@ assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinar
   "please install git command line e.g., git for Windows"
 }
 
+## setupProject() used to `git pull` every existing module clone on every call; since this
+## version it pulls only for `(HEAD)` or a `(>= x)` that the clone fails
+.messages$notPulled <- function(specs) {
+  paste0("Existing module clone(s) not pulled: ", paste(specs, collapse = ", "), ".\n",
+         "setupProject() no longer runs `git pull` on module clones every time. ",
+         "Add (HEAD) to a module to get the previous behaviour, e.g., \"", specs[1], " (HEAD)\"")
+}
 .messages$gitRepoExistsCloneNowTxt <- function(repo, to = getwd()) {
   paste0("The github repository already exists: ", repo,
          "\nWould you like to clone it now to ", to, "\nType (y)es or any other key for no: ")
@@ -4856,7 +4870,68 @@ setupGitHub <- function(useGit, name, paths, verbose) {
 
 
 
-setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose")) {
+## The last of `mods` that is in repository `repo`: the spec the user wrote for it.
+.specOfRepo <- function(mods, repo) {
+  mods <- mods[extractPkgName(mods) %in% repo]
+  if (length(mods)) mods[length(mods)] else NA_character_
+}
+
+## Bring a module's existing clone (the working directory) to what `modSpec` asks, pulling only when
+## it asks for it, so that local work is not touched by every run:
+##  * no version spec, on the requested branch: nothing (a "(HEAD)" branch, or none, is the current one);
+##  * another branch: check it out and pull; a failed pull is a message, with git's words;
+##  * "(HEAD)": pull; a failed pull (local edits it would overwrite, ...) stops, with git's words;
+##  * "(>= x)": nothing if the local version meets it; else pull, and stop if it still does not;
+##  * a commit: as setUpstreamWithTry().
+.updateModuleClone <- function(split, curBr, modSpec = NA_character_, verbose = getOption("Require.verbose")) {
+  if (length(split$br) && .isCommitRef(split$br))
+    return(setUpstreamWithTry(split, curBr, verbose = verbose))
+  modName <- split$repo
+  isHEAD <- extractVersionNumber(modSpec) %in% "HEAD"
+  if (identical(split$br, "HEAD")) split$br <- curBr
+  pulled <- FALSE
+  pullIt <- function(mustWork) {
+    gpull <- try(gert::git_pull(), silent = TRUE)
+    if (is(gpull, "try-error")) { # a branch checked out from a remote may have no upstream yet
+      try(gert::git_branch_set_upstream(paste0("origin/", split$br), branch = split$br), silent = TRUE)
+      gpull <- try(gert::git_pull(), silent = TRUE)
+    }
+    if (is(gpull, "try-error")) {
+      err <- paste0("Module ", modName, ": git pull failed: ", conditionMessage(attr(gpull, "condition")))
+      if (mustWork) stop(err, call. = FALSE) else message(err)
+    }
+    pulled <<- TRUE
+  }
+  hasVersion <- !is.na(modSpec) && !isHEAD && !is.na(extractVersionNumber(modSpec))
+  versionOK <- function() {
+    checkModuleVersion(data.table(moduleFullName = modSpec, versionSpec = extractVersionNumber(modSpec),
+                                  modPath = dirname(getwd()), sufficient = NA, hasVersionSpec = TRUE),
+                       verbose = -1)
+  }
+
+  if (!identical(split$br, curBr)) {
+    split <- setUpstreamWithTry(split, curBr, verbose = verbose, pull = FALSE)
+    if (!identical(split$br, curBr)) # the checkout worked
+      pullIt(mustWork = isHEAD || hasVersion)
+  } else if (isHEAD) {
+    pullIt(mustWork = TRUE)
+  } else if (hasVersion && !versionOK()$sufficient) {
+    pullIt(mustWork = TRUE)
+  } else if (!hasVersion && !isHEAD) {
+    attr(split, "notPulled") <- TRUE # gitFetch() says once that these were not pulled
+  }
+  if (hasVersion && pulled) {
+    chk <- versionOK()
+    if (!chk$sufficient)
+      stop("Module ", modName, " is version ", chk$version, ", after pulling its branch '", split$br,
+           "'; ", modSpec, " needs ", chk$inequ, " ", chk$versionSpec, call. = FALSE)
+  }
+  split
+}
+
+## With `pull = FALSE` the branch is checked out (and found, if need be, on other remotes) but not pulled:
+## .updateModuleClone() pulls, and reports a failure.
+setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require.verbose"), pull = TRUE) {
   if (is.null(curBr))
     curBr <- gert::git_branch()
   # A freshly initialised repo with no commits yet sits on an "unborn" branch:
@@ -4985,6 +5060,7 @@ setUpstreamWithTry <- function(split, curBr = NULL, verbose = getOption("Require
       # would hit the same gpull/set_upstream errors a second time).
       curBr <- split$br
     }
+    if (!pull) break
     gpull <- try(gert::git_pull(), silent = TRUE)
     if (is(gpull, "try-error")) {
       setUpstreamTry <- try(
