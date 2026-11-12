@@ -1928,6 +1928,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                paste(mods, collapse = "\n"))
 
         gitSplit <- unique(gitSplit) # there could be several modules within the same repository; only clone once
+        notPulled <- character()
         mapply(split = gitSplit, i = seq_along(gitSplit), function(split, i) {
           modPath <- file.path(split$acct, split$repo)
           # the modulePath already holding this repo, else the first one
@@ -1937,6 +1938,7 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           dotGit <- file.path(localPath, ".git")
 
           reportBranch <- TRUE
+          wasClone <- file.exists(dotGit) # an existing clone, not one made below
 
           for(attempt in 1:2) {
             dirExistsButNotGit <- dir.exists(localPath) && !file.exists(dotGit)
@@ -2002,11 +2004,15 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           curBr <- gert::git_branch()
           split <- .updateModuleClone(split, curBr, modSpec = .specOfRepo(mods, split$repo),
                                       verbose = verbose)
+          if (wasClone && isTRUE(attr(split, "notPulled")))
+            notPulled <<- c(notPulled, paste0(split$acct, "/", split$repo, "@", split$br))
 
           if (reportBranch)
             messageVerbose("\b ... on ", split$br, " branch")
         })
         setwd(origDir)
+        if (length(notPulled))
+          message(.messages$notPulled(notPulled))
         modName <- extractModName(mods)
         here <- dir.exists(file.path(whichModulePath(modName, paths[["modulePath"]]),
                                      fileRelPathFromFullGHpath(mods), modName))
@@ -4337,6 +4343,13 @@ assignDefaults <- function(checkDefaults = c("Restart", "useGit", "setLinuxBinar
   "please install git command line e.g., git for Windows"
 }
 
+## setupProject() used to `git pull` every existing module clone on every call; since this
+## version it pulls only for `(HEAD)` or a `(>= x)` that the clone fails
+.messages$notPulled <- function(specs) {
+  paste0("Existing module clone(s) not pulled: ", paste(specs, collapse = ", "), ".\n",
+         "setupProject() no longer runs `git pull` on module clones every time. ",
+         "Add (HEAD) to a module to get the previous behaviour, e.g., \"", specs[1], " (HEAD)\"")
+}
 .messages$gitRepoExistsCloneNowTxt <- function(repo, to = getwd()) {
   paste0("The github repository already exists: ", repo,
          "\nWould you like to clone it now to ", to, "\nType (y)es or any other key for no: ")
@@ -4904,6 +4917,8 @@ setupGitHub <- function(useGit, name, paths, verbose) {
     pullIt(mustWork = TRUE)
   } else if (hasVersion && !versionOK()$sufficient) {
     pullIt(mustWork = TRUE)
+  } else if (!hasVersion && !isHEAD) {
+    attr(split, "notPulled") <- TRUE # gitFetch() says once that these were not pulled
   }
   if (hasVersion && pulled) {
     chk <- versionOK()

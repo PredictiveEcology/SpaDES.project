@@ -112,10 +112,12 @@ test_that("no git: `@main (HEAD)` downloads the branch from GitHub", {
   gert::git_add("README.md", repo = proj)
   gert::git_commit("init", author = gert::git_signature("test", "test@example.com"), repo = proj)
   withr::local_dir(proj, .local_envir = envir)
-  list(run = function(spec) suppressMessages(
-         setupModules(name = "proj", paths = list(modulePath = mp, projectPath = proj),
-                      modules = spec, inProject = TRUE, useGit = TRUE,
-                      updateRprofile = FALSE, verbose = -1)),
+  list(run = function(spec, quiet = TRUE) {
+         run <- function() setupModules(name = "proj", paths = list(modulePath = mp, projectPath = proj),
+                                        modules = spec, inProject = TRUE, useGit = TRUE,
+                                        updateRprofile = FALSE, verbose = -1)
+         if (quiet) suppressMessages(run()) else run()
+       },
        modFile = file.path(mp, "mod", "mod.R"), mp = mp)
 }
 
@@ -136,10 +138,12 @@ test_that("git: an existing clone on the requested branch is not pulled without 
   withr::local_options(Require.updateRprofile = NULL)
   td <- normPath(withr::local_tempdir())
   p <- .gitModuleProject(td)
-  p$run("Acct/mod@dev")
+  expect_no_message(p$run("Acct/mod@dev", quiet = FALSE), message = "not pulled")   # a fresh clone
   .advanceRemote(td, "1.1.0")
-  p$run("Acct/mod@dev")
+  expect_message(p$run("Acct/mod@dev", quiet = FALSE),
+                 "not pulled: Acct/mod@dev.*Add \\(HEAD\\) to a module to get the previous behaviour")
   expect_identical(.localVersion(p$modFile), "1.0.0")
+  expect_no_message(p$run("Acct/mod@dev (HEAD)", quiet = FALSE), message = "not pulled")
 })
 
 test_that("git: `(HEAD)` pulls an existing clone", {
