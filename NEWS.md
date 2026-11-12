@@ -1,6 +1,6 @@
 # SpaDES.project (development version)
 
-* `setupProject(alreadyRun = )` loads the run with the folder its files are put in as its `outputPath`, so a file-backed object the run kept in its `outputPath` is restored there. It became `<destDir>/<the run's relative outputPath>`, where nothing is. `reGetUntarLoad()` gains `paths`, given to `SpaDES.core::loadSimList()`.
+- `setupProject(alreadyRun = )` loads the run with the folder its files are put in as its `outputPath`, so a file-backed object the run kept in its `outputPath` is restored there. It became `<destDir>/<the run's relative outputPath>`, where nothing is. `reGetUntarLoad()` gains `paths`, given to `SpaDES.core::loadSimList()`.
 - Module and file specs with a "/" after "@" find their branch without going online when they can: from the text when the subfolder comes before "@" (`Acct/repo/sub@fix/x`), from an existing `useGit` clone, or from a branch list kept on disk from an earlier session. The remote is listed only when none of these has the branch.
 - `options`, `sideEffects` and `packages` file specs (and `getGithubFile()`) on a branch with a "/" (`Acct/repo@feature/x/inst/options.R`) are saved at the file's path in the repository, not under an extra folder named after the end of the branch. A remote's branches are listed once per R session.
 - `setupProject()` module specs can name a branch with a "/" (`Acct/repo@feature/x`), with or without a subfolder after it, and a commit (`Acct/repo@<sha>`) with `useGit`; the branch is found among the repository's branches.
