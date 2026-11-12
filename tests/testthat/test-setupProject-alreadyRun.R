@@ -291,3 +291,12 @@ test_that("several saved runs: setupProject + simInitAndSpades2 summarise them",
   expect_identical(sort(unique(sim$outputsDF$run)), c("1", "2", "3"))
   expect_false("makesX" %in% SpaDES.core::completed(sim)$moduleName)
 })
+
+test_that("the run is loaded with its own folder as outputPath, where its files are put", {
+  seen <- new.env()
+  local_mocked_bindings(reGetUntarLoad = function(...) { seen$args <- list(...); list("sim") })
+  run <- list(driveId = "ID", runName = "6.6.2_NRV_370_1", outputPath = "/far/outputs/6.6.2/NRV/370/1")
+  .alreadyRunShell(run, destDir = "/here/alreadyRun")
+  expect_identical(seen$args$pathRemap, c(old = run$outputPath, new = "/here/alreadyRun/6.6.2_NRV_370_1"))
+  expect_identical(seen$args$paths, list(outputPath = "/here/alreadyRun/6.6.2_NRV_370_1"))
+})

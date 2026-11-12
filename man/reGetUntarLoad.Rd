@@ -17,7 +17,8 @@ reGetUntarLoad(
   skipExisting = TRUE,
   useCache = FALSE,
   pattern = NULL,
-  outputsPattern = NULL
+  outputsPattern = NULL,
+  paths = NULL
 )
 }
 \arguments{
@@ -84,6 +85,10 @@ files whose basename matches it are fetched (the \code{simList} shell and its
 manifest always are; objects stay remote). \code{NULL} (default) fetches every
 output file. Use it to download, say, \code{"^(cohortData|pixelGroupMap)_year20"}
 rather than a multi-GB set of outputs.}
+
+\item{paths}{Optional named list of paths given to \code{\link[SpaDES.core:loadSimList]{SpaDES.core::loadSimList()}}, replacing
+those of the saved \code{simList}, e.g. \code{list(outputPath = )} for the folder its output files
+were put in (the \code{new} of \code{pathRemap}), so its file-backed objects are restored there.}
 }
 \value{
 A named list of \code{simList} objects, one per row of \code{gFiles},

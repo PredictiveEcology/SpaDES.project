@@ -320,6 +320,9 @@ reLoad <- function(simFilenames, projectPath = getwd(),
 #'   manifest always are; objects stay remote). `NULL` (default) fetches every
 #'   output file. Use it to download, say, `"^(cohortData|pixelGroupMap)_year20"`
 #'   rather than a multi-GB set of outputs.
+#' @param paths Optional named list of paths given to [SpaDES.core::loadSimList()], replacing
+#'   those of the saved `simList`, e.g. `list(outputPath = )` for the folder its output files
+#'   were put in (the `new` of `pathRemap`), so its file-backed objects are restored there.
 #' @inheritParams reGet
 #' @inheritParams reUntar
 #' @inheritParams reLoad
@@ -350,7 +353,7 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
                            parse = TRUE, remote = FALSE,
                            overwrite = FALSE, verbose = TRUE,
                            skipExisting = TRUE, useCache = FALSE,
-                           pattern = NULL, outputsPattern = NULL) {
+                           pattern = NULL, outputsPattern = NULL, paths = NULL) {
   method <- match.arg(method)
   if (!is.null(outputsPattern) && !isTRUE(remote))
     stop("outputsPattern is only used with remote = TRUE; a local download fetches the whole archive.",
@@ -371,7 +374,8 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
         g <- gFiles[i, ]
         if (isTRUE(verbose)) message("remote: ", nms[[i]])
         .reLoadRemoteOne(g, pathRemap = pathRemap, projectPath = projectPath,
-                         parse = parse, verbose = verbose, outputsPattern = outputsPattern)
+                         parse = parse, verbose = verbose, outputsPattern = outputsPattern,
+                         paths = paths)
       })
     )
     names(sims) <- sub("\\.tar\\.gz$", "", nms)
@@ -391,7 +395,7 @@ reGetUntarLoad <- function(gFiles, destDir, pathRemap = NULL,
   )
   t3 <- system.time(
     sims <- reLoad(simPaths, projectPath = projectPath, method = method,
-                   parse = parse)
+                   parse = parse, paths = paths)
   )
   sims <- .remapOutputs(sims, pathRemap)
   names(sims) <- sub("\\.tar\\.gz$", "", files$name)

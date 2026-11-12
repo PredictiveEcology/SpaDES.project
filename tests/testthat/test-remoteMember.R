@@ -191,3 +191,17 @@ test_that("the simList's fetchOutputs fetches only the output files asked for", 
                                "o/cohortData_year2030.rds", "o/pixelGroupMap_year2020.tif"))
   expect_error(attr(sim, "fetchOutputs")(file.path(rm[["new"]], "0001-x.rds")), "Cannot resolve")
 })
+
+test_that("paths reach loadSimList, so the run's outputPath is the folder its files went to", {
+  .mockRemote()
+  seen <- new.env()
+  local_mocked_bindings(loadSimList = function(...) { seen$args <- list(...); "sim" },
+                        outputs = function(...) data.frame(), .package = "SpaDES.core")
+  rm <- c(old = "/o", new = withr::local_tempdir())
+  suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm,
+                                  outputsPattern = "^$", paths = list(outputPath = rm[["new"]])))
+  expect_identical(seen$args$paths, list(outputPath = rm[["new"]]))
+  suppressMessages(reGetUntarLoad("ID", destDir = tempdir(), remote = TRUE, pathRemap = rm,
+                                  outputsPattern = "^$"))
+  expect_null(seen$args$paths)                       # unchanged without `paths`
+})
