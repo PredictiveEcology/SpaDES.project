@@ -126,7 +126,7 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
 ## because `outputs(sim)$file` must point at real paths for downstream code.
 ## Every sidecar object is left to `fetch`, so it moves only if touched.
 .reLoadRemoteOne <- function(gFile, pathRemap = NULL, projectPath = getwd(),
-                             parse = TRUE, verbose = TRUE, outputsPattern = NULL) {
+                             parse = TRUE, verbose = TRUE, outputsPattern = NULL, paths = NULL) {
   idx <- reIndex(gFile)
   ## outTar() writes the simList first, and reUntar() relies on that too.
   ## Derive the sidecar directory from the shell's own name, exactly as
@@ -185,6 +185,7 @@ reGetMember <- function(gFile, member, index = NULL, file = NULL, progress = NUL
     invisible(path)
   }
   args <- list(shell, projectPath = projectPath, fetch = fetchFrom(idx$name[isSide]))
+  if (!is.null(paths)) args$paths <- paths
   if ("parse" %in% names(formals(SpaDES.core::loadSimList)))
     args$parse <- parse
   sim <- do.call(SpaDES.core::loadSimList, args)

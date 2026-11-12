@@ -51,10 +51,13 @@
 
 ## The run's saved simList. Only the simList shell and its manifest are fetched (no
 ## object, no output file: `outputsPattern` matches no file name); its "fetchOutputs"
-## attribute fetches output files on request.
+## attribute fetches output files on request. The run's outputPath is the folder its files are
+## put in, so a file-backed object saved in its outputPath is restored there too.
 .alreadyRunShell <- function(run, destDir) {
+  runDir <- file.path(destDir, run$runName)
   reGetUntarLoad(run$driveId, destDir = destDir, projectPath = destDir,
-                 pathRemap = c(old = run$outputPath, new = file.path(destDir, run$runName)),
+                 pathRemap = c(old = run$outputPath, new = runDir),
+                 paths = list(outputPath = runDir),
                  remote = TRUE, parse = FALSE, outputsPattern = "^$", verbose = FALSE)[[1]]
 }
 
