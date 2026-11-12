@@ -3,17 +3,6 @@
 ## FALSE for the default `overwrite = FALSE`, so such modules were "failed"
 ## however new they were.
 
-mkVersionedModule <- function(modulePath, name, version = "1.0.0") {
-  dir.create(file.path(modulePath, name), recursive = TRUE, showWarnings = FALSE)
-  writeLines(
-    c("defineModule(sim, list(",
-      sprintf('  name = "%s",', name),
-      sprintf('  version = list(%s = "%s")', name, version),
-      "))"),
-    file.path(modulePath, name, paste0(name, ".R"))
-  )
-}
-
 test_that("getModule accepts a local module that satisfies its version spec", {
   mp <- withr::local_tempdir()
   mkVersionedModule(mp, "modA")

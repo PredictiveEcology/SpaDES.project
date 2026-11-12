@@ -41,6 +41,12 @@ that are, or are not, available locally.
 Simple function to download a SpaDES module as GitHub repository
 }
 \details{
+A spec may end in \code{(HEAD)} (the latest of the branch) or \verb{(>= x.y.z)}, as for packages in
+\code{Require}. A module already in \code{modulePath} is replaced only when \code{overwrite} says so: with
+\code{(HEAD)}, or a version below \verb{(>= x.y.z)}, it is otherwise kept, with a message. With \code{useGit}
+(see \code{\link[=setupModules]{setupModules()}}) an existing clone is pulled only for \code{(HEAD)}, a version too low, or
+another branch.
+
 A parent module lists its children in \code{childModules}. After a module is fetched (or
 found locally), its children are fetched too, recursively: an entry written as
 \code{"owner/repo@branch"} is fetched as written; a plain name (or \code{"name@branch"}) is fetched

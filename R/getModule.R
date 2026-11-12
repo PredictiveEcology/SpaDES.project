@@ -3,7 +3,7 @@ utils::globalVariables(c(
     "hasSubFolder", "repoLocation", "isGH", "canDownload", "OKtoDL",
     "downloaded", "hasVersionSpec", "inequ", "moduleFullName",
     "needDownload", "pkg", "status", "sufficient", "versionSpec",
-    "modulesNoVersion", "modPath", "modDir")
+    "modulesNoVersion", "modPath", "modDir", "overwriteIt")
 ))
 
 #' Simple function to download a SpaDES module as GitHub repository
@@ -22,6 +22,12 @@ utils::globalVariables(c(
 #'   set, it will use `getOption("spades.modulePath")`, otherwise it will use `"."`.
 #'
 #' @details
+#' A spec may end in `(HEAD)` (the latest of the branch) or `(>= x.y.z)`, as for packages in
+#' `Require`. A module already in `modulePath` is replaced only when `overwrite` says so: with
+#' `(HEAD)`, or a version below `(>= x.y.z)`, it is otherwise kept, with a message. With `useGit`
+#' (see [setupModules()]) an existing clone is pulled only for `(HEAD)`, a version too low, or
+#' another branch.
+#'
 #' A parent module lists its children in `childModules`. After a module is fetched (or
 #' found locally), its children are fetched too, recursively: an entry written as
 #' `"owner/repo@branch"` is fetched as written; a plain name (or `"name@branch"`) is fetched
@@ -70,14 +76,19 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
   localExists <- dir.exists(file.path(modPath, modulesOrigNestedName)) # |
     # dir.exists(file.path(modulePath, m))
 
+  ## "(HEAD)" is the latest of the branch, as Require reads it for packages: it is never compared
+  ## as a version, so `versionSpec` is NA for it
+  versionSpec <- extractVersionNumber(modules)
+  isHEAD <- versionSpec %in% "HEAD"
+  versionSpec[isHEAD] <- NA_character_
   stateDT <- data.table(moduleFullName = modules, modNam = extractPkgName(modules),
                         modPath = modPath, modDir = file.path(modPath, modulesOrigNestedName),
-                        versionSpec = extractVersionNumber(modules),
+                        versionSpec = versionSpec, isHEAD = isHEAD,
                         modulesNoVersion = Require::trimVersionNumber(modules),
                         sufficient = NA, version = NA_character_,
-                        localExists = localExists,
+                        localExists = localExists, overwriteIt = FALSE,
                         status = c(NA, "already local")[localExists + 1],
-                        hasVersionSpec = !is.na(extractVersionNumber(modules)))
+                        hasVersionSpec = !is.na(versionSpec))
 
   stateDT[localExists & is.na(versionSpec), sufficient := TRUE]
   if (any(!overwrite %in% FALSE)) {
@@ -91,7 +102,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
       mess <- paste0("c('", mess, "')")
     }
     stateDT[localExists & (modNam %in% modsToOverwrite | moduleFullName %in% modsToOverwrite),
-            sufficient := FALSE]
+            `:=`(sufficient = FALSE, overwriteIt = TRUE)]
     if (isTRUE(any(stateDT$localExists)))
       messageVerbose("overwrite = ", mess,"; redownloading ", paste(modsToOverwrite, collapse = ", "))
   }
@@ -104,7 +115,24 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     stateDT <- rbindlist(list(checkModuleVersion(stateDT[toCheck], verbose = getOption("Require.verbose")),
                               stateDT[!toCheck]), fill = TRUE)
   }
-  stateDT[localExists %in% FALSE | sufficient %in% FALSE, needDownload := TRUE]
+  ## A local copy is replaced only with `overwrite`: it may hold edits. One that fails its
+  ## "(>= x)", or whose spec is "(HEAD)", is otherwise kept, and the user told.
+  stateDT[localExists %in% FALSE | overwriteIt %in% TRUE, needDownload := TRUE]
+  keptOld <- stateDT$localExists %in% TRUE & !stateDT$overwriteIt & stateDT$sufficient %in% FALSE
+  keptHEAD <- stateDT$localExists %in% TRUE & !stateDT$overwriteIt & stateDT$isHEAD
+  if (any(keptOld | keptHEAD)) {
+    stateDT[keptOld, status := "local version too old; not replaced"]
+    messageVerbose(
+      paste0(stateDT$modNam[keptOld | keptHEAD],
+             ifelse(keptOld[keptOld | keptHEAD],
+                    paste0(" is version ", stateDT$version[keptOld | keptHEAD], ", below ",
+                           stateDT$moduleFullName[keptOld | keptHEAD]),
+                    " is present; (HEAD) asks for the latest"),
+             collapse = "\n"),
+      "\nThese modules are in ", paste(unique(stateDT$modPath[keptOld | keptHEAD]), collapse = ", "),
+      " and may have local edits, so they are kept; set `overwrite = TRUE` to replace them.",
+      verbose = verbose)
+  }
 
   if (any(stateDT$needDownload %in% TRUE)) {
     modsToDL <- stateDT[stateDT$needDownload %in% TRUE]
@@ -116,7 +144,7 @@ getModule <- function(modules, modulePath, overwrite = FALSE,
     noAt <- stateDT[["needDownload"]] %in% TRUE & isGitHub(stateDT[["moduleFullName"]]) &
       !grepl("@", stateDT[["moduleFullName"]])
     if (any(noAt))
-      stateDT[noAt %in% TRUE, moduleFullName := paste0(moduleFullName, "@HEAD")]
+      stateDT[noAt %in% TRUE, moduleFullName := sub("^(\\S+)", "\\1@HEAD", moduleFullName)] # before any "(spec)"
     stateDT[needDownload %in% TRUE,
             isGH := isGitHub(moduleFullName) & grepl("@", moduleFullName)] # the default isGitHub allows no branch]
     stateDT[, canDownload := needDownload %in% TRUE & isGH %in% TRUE]
