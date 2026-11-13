@@ -251,6 +251,8 @@ NULL
 #'   `fetch` (fetches output files of the run from the remote archive).
 #'   [SpaDES.core::simInit()] takes it as its `alreadyRun` argument and loads the saved
 #'   outputs the new modules expect, so `simInitAndSpades2(out)` replays the run.
+#'   Arguments written after `paths` can use the run by the name `alreadyRun`, e.g.
+#'   `studyArea = alreadyRun$sim$studyArea` (only the objects used are fetched).
 #'   Several runs, for modules that summarise replicates (e.g. `mode = "multi"`): a list, named
 #'   by run (unnamed: `"1"`, `"2"`, ...), whose elements are each a ledger run as above, the
 #'   path of a saved `simList` (e.g. `"<run>_3020.rds"`, its objects left on disk until used), or
@@ -762,6 +764,8 @@ setupProject <- function(name, paths, modules, packages,
         if (!is.null(alreadyRunVal)) # e.g. `alreadyRun = if (report) <runs>`: NULL is none
           alreadyRunInfo <- .alreadyRunRead(alreadyRunVal, destDir = file.path(paths[["inputPath"]], "alreadyRun"),
                                             verbose = verbose)
+        # so later arguments can use the run, e.g. `studyArea = alreadyRun$sim$studyArea`
+        assign("alreadyRun", alreadyRunInfo, envir = envir)
       }
       modulePackages <- setupModules(name, paths, modulesSUB, inProject = inProject, useGit = useGit,
                                      gitUserName = gitUserName, updateRprofile = updateRprofile,

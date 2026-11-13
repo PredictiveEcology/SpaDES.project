@@ -160,6 +160,8 @@ recorded them; \code{NULL} for a run saved before SpaDES.core recorded them), \c
 \code{fetch} (fetches output files of the run from the remote archive).
 \code{\link[SpaDES.core:simInit]{SpaDES.core::simInit()}} takes it as its \code{alreadyRun} argument and loads the saved
 outputs the new modules expect, so \code{simInitAndSpades2(out)} replays the run.
+Arguments written after \code{paths} can use the run by the name \code{alreadyRun}, e.g.
+\code{studyArea = alreadyRun$sim$studyArea} (only the objects used are fetched).
 Several runs, for modules that summarise replicates (e.g. \code{mode = "multi"}): a list, named
 by run (unnamed: \code{"1"}, \code{"2"}, ...), whose elements are each a ledger run as above, the
 path of a saved \code{simList} (e.g. \code{"<run>_3020.rds"}, its objects left on disk until used), or
