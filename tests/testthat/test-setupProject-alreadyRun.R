@@ -181,6 +181,30 @@ test_that("setupProject(alreadyRun = NULL) is unchanged; with a run already done
   expect_false(is.null(out$alreadyRun$sim))
 })
 
+test_that("arguments after paths can use alreadyRun, e.g. its studyArea and rasterToMatch", {
+  skip_if_not_installed("sf")
+  skip_if_not_installed("reproducible")
+  setupTest()
+  withr::local_options(spades.useRequire = FALSE, Require.updateRprofile = NULL)
+  root <- normPath(withr::local_tempdir())
+  mp <- file.path(root, "modules")
+  alreadyRunModules(mp)
+  paths <- list(modulePath = mp, projectPath = file.path(root, "proj"), inputPath = file.path(root, "inputs"),
+                packagePath = .libPaths()[1L])
+  alreadyRunLedger(file.path(root, "inputs", "alreadyRun"))
+  sa <- sf::st_as_sf(sf::st_sfc(sf::st_point(c(1, 2)), crs = 4326))
+  local_mocked_bindings(.alreadyRunShell = function(run, destDir)
+                          c(alreadyRunShell(), list(studyArea = sa, rasterToMatch = "rtm")),
+                        .alreadyRunModules = function(sim) ranModules("k1", "k2"))
+  out <- suppressMessages(setupProject(modules = c("par", "birds"), paths = paths,
+                                       alreadyRun = list(ledger = "runs.rds", scenario = list(ELF = "B")),
+                                       studyArea = alreadyRun$sim$studyArea,
+                                       rasterToMatch = alreadyRun$sim$rasterToMatch,
+                                       useGit = FALSE, updateRprofile = FALSE, verbose = -1))
+  expect_identical(out$studyArea, sa)
+  expect_identical(out$rasterToMatch, "rtm")
+})
+
 test_that("several runs: a list of ledger runs or saved simList files; one ledger run is not several", {
   expect_false(.alreadyRunIsMulti(list(ledger = "runs.rds", scenario = list(ELF = "A"))))
   expect_true(.alreadyRunIsMulti(c("a.rds", "b.rds")))
