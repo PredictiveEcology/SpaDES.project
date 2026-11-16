@@ -79,3 +79,15 @@ mkVersionedModule <- function(modulePath, name, version = "1.0.0") {
     file.path(modulePath, name, paste0(name, ".R"))
   )
 }
+
+## a new commit on the remote's dev branch of module `mod`; `version` replaces its 1.0.0
+.advanceRemote <- function(td, version, mod = "mod") {
+  seed <- file.path(td, paste0(mod, "-seed"))
+  f <- file.path(seed, paste0(mod, ".R"))
+  writeLines(sub('= "[0-9.]+"\\)', paste0('= "', version, '")'), readLines(f)), f)
+  gert::git_add(paste0(mod, ".R"), repo = seed)
+  gert::git_commit(paste("version", version),
+                   author = gert::git_signature("test", "test@example.com"), repo = seed)
+  gert::git_push("origin", refspec = "refs/heads/dev", repo = seed, verbose = FALSE)
+}
+.localVersion <- function(f) sub('.*= "([0-9.]+)".*', "\\1", grep("version", readLines(f), value = TRUE))

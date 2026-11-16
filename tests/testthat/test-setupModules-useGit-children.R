@@ -64,3 +64,49 @@ test_that("useGit: each module is named as it is cloned", {
   expect_match(msgs, "Acct/kidB@dev (1 of 2)", fixed = TRUE)
   expect_match(msgs, "Acct/kidC@dev (2 of 2)", fixed = TRUE)
 })
+
+## A parent asked for at "(HEAD)" (e.g. "PredictiveEcology/fireSense@development (HEAD)") pulled
+## only itself: its children were fetched without "(HEAD)", so an existing clone of each was left
+## as it was ("Existing module clone(s) not pulled").
+test_that("useGit: a parent's (HEAD) pulls its children's existing clones too", {
+  skip_if_not_installed("gert")
+  withr::local_options(Require.updateRprofile = NULL)
+  td <- normPath(withr::local_tempdir())
+  mkBareModule(td, "par", "dev", childModules = "kidB")
+  mkBareModule(td, "kidB", "dev", childModules = "kidC")
+  mkBareModule(td, "kidC", "dev")
+  local_mocked_bindings(.gh_url = function(acct, repo) file.path(td, paste0(repo, ".git")))
+  proj <- file.path(td, "proj")
+  mp <- file.path(proj, "modules")
+  dir.create(mp, recursive = TRUE)
+  gert::git_init(proj)
+  writeLines("x", file.path(proj, "README.md"))
+  gert::git_add("README.md", repo = proj)
+  gert::git_commit("init", author = gert::git_signature("test", "test@example.com"), repo = proj)
+  withr::local_dir(proj)
+  run <- function(spec) setupModules(name = "proj", paths = list(modulePath = mp, projectPath = proj),
+                                     modules = spec, inProject = TRUE, useGit = TRUE,
+                                     updateRprofile = FALSE, verbose = -1)
+  suppressMessages(run("Acct/par@dev"))
+  .advanceRemote(td, "1.1.0", mod = "kidB")
+  .advanceRemote(td, "1.1.0", mod = "kidC")
+
+  expect_message(run("Acct/par@dev"), "not pulled: Acct/kidB@dev")   # no (HEAD): left as it is
+  expect_identical(.localVersion(file.path(mp, "kidB", "kidB.R")), "1.0.0")
+
+  expect_no_message(run("Acct/par@dev (HEAD)"), message = "not pulled")
+  expect_identical(.localVersion(file.path(mp, "kidB", "kidB.R")), "1.1.0")
+  expect_identical(.localVersion(file.path(mp, "kidC", "kidC.R")), "1.1.0") # and grandchildren
+})
+
+test_that("a child without a spec of its own takes the parent's (HEAD)", {
+  expect_identical(.childModuleSpec("kid", "Acct/par@dev (HEAD)"), "Acct/kid@dev (HEAD)")
+  expect_identical(.childModuleSpec("kid@other", "Acct/par@dev (HEAD)"), "Acct/kid@other (HEAD)")
+  expect_identical(.childModuleSpec("Org/kid@x", "Acct/par@dev (HEAD)"), "Org/kid@x (HEAD)")
+  ## no ref: the parent's default branch, so the child's, not the release the parent's list names
+  expect_identical(.childModuleSpec("kid", "Acct/par (HEAD)", versions = c(kid = "2.2.0")), "Acct/kid (HEAD)")
+  ## a child's own spec is kept
+  expect_identical(.childModuleSpec("Org/kid@x (>= 1.0)", "Acct/par@dev (HEAD)"), "Org/kid@x (>= 1.0)")
+  ## a parent without (HEAD): as before
+  expect_identical(.childModuleSpec("kid", "Acct/par@dev"), "Acct/kid@dev")
+})
