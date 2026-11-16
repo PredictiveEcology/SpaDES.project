@@ -486,7 +486,9 @@ makeListToPlot <- function(ll, include, exclude, ...) {
       rtmsNames <- setdiff(rtmsNames, exclude)
     }
 
-  sizes <- sapply(sasNames, function(sa) areas(ll[[sa]]))
+  sizes <- sapply(sasNames, function(sa) areas(ll[[sa]]), simplify = FALSE)
+  sasNames <- sasNames[lengths(sizes) > 0] # areas() is NULL for non-spatial objects, e.g. a bbox
+  sizes <- vapply(sizes[sasNames], as.numeric, numeric(1))
   empty <- sizes == 0
   if (any(empty)) {
     sasNames <- sasNames[!empty]

@@ -58,3 +58,16 @@ test_that("makeListToPlot: studyArea selection excludes dot-prefixed names", {
   expect_setequal(out$sasNames, c("studyArea", "studyAreaLarge"))
   expect_false("sim.studyArea" %in% out$sasNames)
 })
+
+test_that("makeListToPlot: skips non-spatial objects named like studyArea", {
+  skip_if_not_installed("sf")
+
+  m <- matrix(c(0, 0, 1, 0, 1, 1, 0, 1, 0, 0), ncol = 2, byrow = TRUE)
+  sa <- sf::st_sfc(sf::st_polygon(list(m)), crs = 4326)
+  ## a bounding box, e.g. `studyAreaCrop` passed through setupProject, has no area
+  ll <- list(studyArea = sa, studyAreaCrop = sf::st_bbox(sa))
+
+  out <- SpaDES.project:::makeListToPlot(ll, include = TRUE)
+
+  expect_identical(out$sasNames, "studyArea")
+})
