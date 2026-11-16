@@ -121,17 +121,6 @@ test_that("no git: `@main (HEAD)` downloads the branch from GitHub", {
        modFile = file.path(mp, "mod", "mod.R"), mp = mp)
 }
 
-## a new commit on the remote's dev branch; `version` replaces the module's 1.0.0
-.advanceRemote <- function(td, version) {
-  seed <- file.path(td, "mod-seed")
-  f <- file.path(seed, "mod.R")
-  writeLines(sub('= "[0-9.]+"\\)', paste0('= "', version, '")'), readLines(f)), f)
-  gert::git_add("mod.R", repo = seed)
-  gert::git_commit(paste("version", version),
-                   author = gert::git_signature("test", "test@example.com"), repo = seed)
-  gert::git_push("origin", refspec = "refs/heads/dev", repo = seed, verbose = FALSE)
-}
-.localVersion <- function(f) sub('.*= "([0-9.]+)".*', "\\1", grep("version", readLines(f), value = TRUE))
 
 test_that("git: an existing clone on the requested branch is not pulled without a version spec", {
   skip_if_not_installed("gert")

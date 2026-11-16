@@ -38,7 +38,10 @@ utils::globalVariables(c(
 #' parent release names the release of every child. The same holds when the parent has no
 #' ref (`"owner/parent"`): it comes from its default branch, normally its latest release, and
 #' its children at the releases its list names. A child missing from that list, or listed at
-#' a development version (four components, e.g. `"2.2.0.9000"`), falls back to the parent's ref. A module also named in
+#' a development version (four components, e.g. `"2.2.0.9000"`), falls back to the parent's ref. A parent asked
+#' for at `(HEAD)` passes `(HEAD)` to each child that has no version spec of its own, so an existing copy
+#' or clone of each child is brought up to date too; with no ref, the children are then at their
+#' default branch, not at the releases the parent's list names. A module also named in
 #' `modules` is fetched only as it is written there, never from a parent's entry.
 #'
 #' @return A list with `success` and `failed`, the module specifications (children included)
@@ -411,6 +414,16 @@ downloadGHRepoOuter <- function(modToDL, verbose, overwrite, modulePath) {
 ## "name@branch", from the parent's account and (unless given) branch. A parent that is
 ## local only, or nested in another repository, leaves its plain children as they are.
 .childModuleSpec <- function(kid, parent, versions = NULL) {
+  ## a parent asked for at "(HEAD)" (its latest) asks the same of each child without a spec of its own;
+  ## with no ref the parent is its default branch, not its latest release, so the child is too
+  if (identical(unname(extractVersionNumber(parent)), "HEAD")) {
+    if (grepl("(", kid, fixed = TRUE)) return(kid) # its own "(>= x)" or "(HEAD)"
+    parent <- trimVersionNumber(parent)
+    kidSpec <- if (!grepl("/", sub("@.*$", "", kid)) && !grepl("@", kid) && isGitHub(parent) &&
+                   identical(unname(unlist(splitGitRepo(parent)$br)), "HEAD"))
+      paste0(unlist(splitGitRepo(parent)$acct), "/", kid) else .childModuleSpec(kid, parent, versions)
+    return(if (grepl("/", kidSpec)) paste0(kidSpec, " (HEAD)") else kidSpec)
+  }
   if (grepl("/", sub("@.*$", "", kid))) return(kid)
   parent <- trimVersionNumber(parent)
   if (!isGitHub(parent)) return(kid)

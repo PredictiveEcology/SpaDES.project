@@ -57,7 +57,10 @@ fetched at a version tag (e.g. \code{"owner/parent@v1.1.0"}), a plain-named chil
 parent release names the release of every child. The same holds when the parent has no
 ref (\code{"owner/parent"}): it comes from its default branch, normally its latest release, and
 its children at the releases its list names. A child missing from that list, or listed at
-a development version (four components, e.g. \code{"2.2.0.9000"}), falls back to the parent's ref. A module also named in
+a development version (four components, e.g. \code{"2.2.0.9000"}), falls back to the parent's ref. A parent asked
+for at \code{(HEAD)} passes \code{(HEAD)} to each child that has no version spec of its own, so an existing copy
+or clone of each child is brought up to date too; with no ref, the children are then at their
+default branch, not at the releases the parent's list names. A module also named in
 \code{modules} is fetched only as it is written there, never from a parent's entry.
 }
 \seealso{
