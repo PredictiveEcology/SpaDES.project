@@ -101,7 +101,9 @@ plotSAs <- function(ll, ..., include = TRUE, exclude, saCols = c("purple", "blue
   subTitle <- list()
   if (length(rtmsNames) > 0) {
     for (rtmNam in rtmsNames ) {
-      rtm <- ll[[rtmNam]]
+      ## cropped to the map's window, as the basemap is: a raster larger than it (e.g. a map of all
+      ## of Canada's ecozones) would otherwise widen the map past the study areas
+      rtm <- reproducible::postProcessTo(ll[[rtmNam]], cropTo = cropTo, verbose = -2)
       rtm[rtm[] == 0] <- NA
       g[[rtmNam]] <- p + tidyterra::geom_spatraster(data = rtm)
       subTitle[[rtmNam]] <- rtmNam

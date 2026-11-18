@@ -357,3 +357,21 @@ test_that(".saHoverLabels picks the first available column, else the layer name"
   # non-character columns are coerced, so leaflet always gets a character vector
   expect_equal(.saHoverLabels(mkIdSA("ID", c(1L, 2L)), "sa", "ID"), c("1", "2"))
 })
+
+test_that("plotSAs crops a raster larger than the map's window to it, so the map stays around the study areas", {
+  ## e.g. a map of all ELFs (fireSense_ELFs) drawn with a small study area: uncropped, the raster set the
+  ## map's extent and the study area was a speck
+  skip_if_no_plotting(c("ggplot2", "patchwork", "tidyterra"))
+  useLocalCache()
+  testthat::local_mocked_bindings(setupStudyArea = localSetupStudyArea, .package = "SpaDES.project")
+  sa <- mkSA()                                         # 200 km square
+  big <- mkCatRTM(mkSA(1e6, 9e6, -2e6, 6e6), nlev = 4) # 8000 km square
+  names(big) <- "ELFs"
+  gg <- suppressWarnings(plotSAs(list(studyArea = sa, ELFs = big)))
+  p <- if (inherits(gg, "patchwork")) gg[[1]] else gg
+  pp <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]    # the map's extent, in the CRS's units
+  e <- list(xmin = pp$x_range[1], xmax = pp$x_range[2], ymin = pp$y_range[1], ymax = pp$y_range[2])
+  ## within the window plotSAs() makes: the study area enlarged to an area of 7e11 (about 470 km each side)
+  expect_lt(e$xmax - e$xmin, 2e6)
+  expect_lt(e$ymax - e$ymin, 2e6)
+})
