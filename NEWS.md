@@ -1,5 +1,6 @@
 # SpaDES.project (development version)
 
+- `setupProject(useGit = ...)` recovers from an interrupted or failed module clone in one run, with no prompt; a failed clone now stops naming the module instead of checking out the branch in the project's own repository, and the cleanup no longer commits.
 - `plotSAs()` crops each raster to the map's window, as it does the basemap: a raster larger than the study areas (e.g. a map of all ecozones) set the map's extent, and the study areas were specks.
 - `getModule()` reports a module in a repository subfolder that does not exist (`"bcgov/castor@main/R/SpaDES-modules/dataCastor"`) as "not in repository", with a warning, instead of "downloaded"; `setupProject()` puts the modules it found in place, then stops naming the missing ones (#182).
 - A parent module asked for at `(HEAD)` (e.g. `"PredictiveEcology/fireSense@development (HEAD)"`) now passes `(HEAD)` to its children and theirs, unless a child has its own version spec. Before, only the parent was pulled, and every child's existing clone was left as it was ("Existing module clone(s) not pulled"). `test-setupModules-useGit-children.R`.
