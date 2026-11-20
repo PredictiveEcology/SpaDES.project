@@ -1943,10 +1943,11 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
           dotGit <- file.path(localPath, ".git")
 
           reportBranch <- TRUE
-          wasClone <- file.exists(dotGit) # an existing clone, not one made below
+          # an existing clone, not one made below; a half-made one (no commit) is not
+          wasClone <- .isUsableClone(localPath)
 
           for(attempt in 1:2) {
-            dirExistsButNotGit <- dir.exists(localPath) && !file.exists(dotGit)
+            dirExistsButNotGit <- dir.exists(localPath) && !.isUsableClone(localPath)
             if (!dir.exists(localPath) || dirExistsButNotGit) {
 
               prev <- setwd(repoModulePath)
@@ -1959,8 +1960,12 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                 cloneOrSubmodule <- gert::git_clone
                 clonePath <- split$repo
               }
-              if (dirExistsButNotGit) {
+              if (dirExistsButNotGit &&
+                  length(setdiff(dir(localPath, all.files = TRUE, no.. = TRUE), ".git"))) {
                 dirExistsButNotAGitFolder(paths[["projectPath"]], modPath, localPath, localPathRelative)
+              } else {
+                # nothing of the user's here: what an interrupted clone left, if anything
+                .removeCloneRemnants(paths[["projectPath"]], localPath, localPathRelative)
               }
 
               messageVerbose("Cloning ", split$acct, "/", split$repo, "@", split$br,
@@ -1968,6 +1973,13 @@ setupModules <- function(name, paths, modules, inProject, useGit = getOption("Sp
                              verbose = verbose)
               out <- try(cloneOrSubmodule(.gh_url(split$acct, split$repo),
                                       path = clonePath))
+              if (is(out, "try-error") || !.isUsableClone(localPath)) {
+                # without this, the checkout below ran in an empty folder, i.e., in the project
+                .removeCloneRemnants(paths[["projectPath"]], localPath, localPathRelative)
+                stop("Could not clone ", split$acct, "/", split$repo, "@", split$br, " into ",
+                     localPath, if (is(out, "try-error")) paste0(": ", conditionMessage(attr(out, "condition"))),
+                     "\nRun again to retry.", call. = FALSE)
+              }
               checkPath(localPath, create = TRUE)
               setwd(localPath)
               .checkoutRef(split$br)
@@ -5152,30 +5164,50 @@ readLineYoNDelFolder <- function() {
 
 
 cleanUpFailedGitSubrepo <- function(projectPath, modPath, localPath, localPathRelative) {
+  .removeCloneRemnants(projectPath, localPath, localPathRelative)
+}
+
+## TRUE if `path` is a git repository of its own (not a folder in another one) with a commit.
+## An interrupted clone leaves a `.git` with no commit, which is not one.
+.isUsableClone <- function(path) {
+  info <- try(gert::git_info(repo = path), silent = TRUE)
+  !is(info, "try-error") && !is.na(info$commit) &&
+    identical(normPath(info$path), normPath(path))
+}
+
+## Remove what a failed or interrupted clone of a module left: its folder and, when the module
+## is a submodule of the project, its registration (.gitmodules, .git/config, the index) and its
+## git directory. Without all of these, the next clone stops ("already exists", "attempt to
+## reinitialize"). A git directory that holds commits is renamed, not deleted.
+.removeCloneRemnants <- function(projectPath, localPath, localPathRelative) {
   unlink(localPath, recursive = TRUE, force = TRUE)
-  dotGitModulesFile <- file.path(projectPath, ".gitmodules")
-  rl <- readLines(dotGitModulesFile)
-  rl <- grep(paste0(modPath, "|", localPathRelative), value = TRUE, rl, invert = TRUE)
-  writeLines(rl, dotGitModulesFile)
-  # usethis::use_git()
-  gitEvalWithGitConfigOnError(quote(gert::git_commit_all(message = "Delete folder")))
-  # for (iii in 1:2) {
-  #   bbb <- try(gert::git_commit_all(message = "Delete folder"))
-  #   if (is(bbb, "try-error")) {
-  #     if (any(grepl("user.name", bbb))) {
-  #       message("Your git account is missing information; either quit",
-  #               "and set username and email in the git global config, or specify here:",
-  #               "What is your git username: ")
-  #       un <- readline()
-  #       em <- readline("What is your git email for github.com: ")
-  #       usethis::use_git_config(user.name = un, user.email = em, scope = "project")
-  #     }
-  #   } else {
-  #     break
-  #   }
-  # }
-  unlink(file.path(projectPath, ".git/modules", localPathRelative),
-         recursive = TRUE, force = TRUE)
+  if (!dir.exists(file.path(projectPath, ".git")))
+    return(invisible())
+  gm <- file.path(projectPath, ".gitmodules")
+  if (file.exists(gm)) {
+    rl <- readLines(gm)
+    block <- cumsum(grepl("^\\s*\\[", rl)) # 0: lines before the first section
+    mine <- tapply(trimws(rl), block, function(b)
+      any(b %in% c(sprintf('[submodule "%s"]', localPathRelative),
+                   paste0("path = ", localPathRelative))))
+    writeLines(rl[!block %in% as.numeric(names(mine)[mine])], gm)
+  }
+  for (key in c("url", "active", "branch"))
+    try(gert::git_config_set(paste0("submodule.", localPathRelative, ".", key), NULL,
+                             repo = projectPath), silent = TRUE)
+  try(gert::git_rm(localPathRelative, repo = projectPath), silent = TRUE)
+  gitDir <- file.path(projectPath, ".git", "modules", localPathRelative)
+  if (dir.exists(gitDir)) {
+    head <- try(gert::git_info(repo = gitDir)$commit, silent = TRUE)
+    if (!is(head, "try-error") && !is.na(head)) {
+      kept <- paste0(gitDir, ".bak-", format(Sys.time(), "%Y%m%d%H%M%S"))
+      file.rename(gitDir, kept)
+      message("Kept the git directory of ", localPathRelative, ", which holds commits, as ", kept)
+    } else {
+      unlink(gitDir, recursive = TRUE, force = TRUE)
+    }
+  }
+  invisible()
 }
 
 
