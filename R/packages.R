@@ -47,7 +47,12 @@ metadataInModules <- function(modules, metadataItem = "reqdPkgs",
         break
     }
     if (feMP) {
-      dm <- .defineModuleCall(modPath)
+      dm <- tryCatch(.defineModuleCall(modPath), error = function(e) {
+        message("Skipping module ", mod, ": ", basename(modPath), " does not parse (",
+                conditionMessage(e), ")")
+        NULL
+      })
+      if (is.null(dm)) return(NULL)
       wh2 <- which(unlist(lapply(dm, function(x)
         any(grepl(pattern = metadataItem, format(x))))))
       if (length(wh2)) {
