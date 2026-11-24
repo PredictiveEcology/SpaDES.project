@@ -42,10 +42,15 @@ cannot be reached, a row without a pid, and a row whose \code{pid_ns} (the PID n
 the claim recorded, which a Slurm job has of its own) is not the one the check runs
 in, are left alone. A row claimed in a Slurm job is judged by its job instead:
 \code{claimed_by} ends in \verb{/slurm:<cluster>:<job id>.<restart count>}, and the claim is
-dead when \code{squeue} no longer lists the job or lists it in a state that is not a
-running one (\code{PENDING} after a requeue, say), or when a later attempt of the same
-job (a requeue, after a node failure) is the one checking. A \code{squeue} that cannot
-answer leaves the row alone;
+dead when a later attempt of the same job (a requeue, after a node failure) is the
+one checking, or when Slurm says the job is no longer running: \code{squeue} lists it in
+another state (\code{PENDING} after a requeue, say), or leaves it out of a reply that also
+lists a job certainly in the queue, or \code{sacct} gives it a final state. \code{squeue} is
+asked with a 10 s limit and never while the queue's lock is held (a file worker asks
+first, then reclaims under the lock only a row still \code{RUNNING} under the same claim).
+A \code{squeue} that cannot answer leaves the row alone. After a node failure Slurm
+requeues the job and counts the old attempt as dead even if it still runs on a node
+cut off from the controller; its row is run again;
 \item a launch: \code{HOLD} and \code{ERROR} rows become \code{PENDING}. A \code{RUNNING} row with a live
 process is never touched by a launch.
 }

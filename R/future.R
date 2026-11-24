@@ -307,6 +307,7 @@ experimentFuture <- function(
   # A launch runs what is left: HOLD and ERROR rows back to PENDING, RUNNING rows of dead
   # workers back in the queue (see ?experimentStatus); then the sheet, if there is one, gets
   # the queue the workers will claim from.
+  .reclaimDeadSlurmRows(queue_path)   # asks squeue, so before the lock
   q <- .queue_modify(queue_path, .queueAtLaunch)
   if (!is.null(ss_id))
     tryCatch(.gs_push_queue(ss_id, q),

@@ -310,6 +310,7 @@ experimentSBATCH <- function(
   # A launch runs what is left: HOLD and ERROR rows back to PENDING, RUNNING rows of dead
   # workers back in the queue (see ?experimentStatus); then the sheet, if there is one, gets
   # the queue the workers will claim from.
+  .reclaimDeadSlurmRows(queue_path)   # asks squeue, so before the lock
   q <- .queue_modify(queue_path, .queueAtLaunch)
   if (!is.null(ss_id))
     tryCatch(.gs_push_queue(ss_id, q),
@@ -671,19 +672,16 @@ killExperimentSBATCH <- function(es, force = FALSE, scancel_cmd = "scancel") {
 
 
 # -- Internal: live job IDs from squeue --------------------------------------
-# Returns a logical vector aligned with `ids`: TRUE if still in squeue, FALSE
-# otherwise. NA entries in `ids` map to NA. If `squeue` is unavailable, all
-# entries are NA (caller decides what to do).
+# Returns a logical vector aligned with `ids`: TRUE if squeue lists the job in a state other
+# than a final one, FALSE if it has left the queue (or ended), NA where Slurm cannot say (no
+# squeue, an error, a time-out, a reply that cannot be trusted; see .slurmJobStates(), the one
+# squeue wrapper) and for NA `ids`.
 .sbatch_squeue_alive <- function(ids, clusters = NULL) {
-  if (Sys.which("squeue") == "") return(rep(NA, length(ids)))
-  live_ids <- tryCatch(
-    suppressWarnings(system2("squeue", args = c(.sbatch_cluster_args(clusters),
-                                      "-h", "-o", "%i"),
-                             stdout = TRUE, stderr = FALSE)),
-    error = function(e) character(0)
-  )
-  live_ids <- suppressWarnings(as.integer(trimws(live_ids)))
-  vapply(ids, function(jid) {
-    if (is.na(jid)) NA else jid %in% live_ids
-  }, logical(1L))
+  ids <- unlist(ids)
+  alive <- rep(NA, length(ids))
+  ok <- !is.na(ids)
+  if (!any(ok)) return(alive)
+  st <- .slurmJobStates(as.character(ids[ok]), paste(clusters, collapse = ","))
+  alive[ok] <- ifelse(is.na(st), NA, !st %in% c("GONE", .slurmEndedStates))
+  alive
 }

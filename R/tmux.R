@@ -1051,6 +1051,7 @@ experimentTmux <- function(df,
   # workers back in the queue (see ?experimentStatus). Then the record gets it: the sheet,
   # when there is one. Not a silent try: a failed push leaves workers reading a sheet that
   # does not match the queue they were given.
+  .reclaimDeadSlurmRows(queue_path)   # asks squeue, so before the lock
   q <- .queue_modify(queue_path, .queueAtLaunch)
   if (!is.null(ss_id))
     tryCatch(.gs_push_queue(ss_id, q),
@@ -1795,6 +1796,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   LOCKF <- paste0(queue_path, ".lock")
 
   activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
+  # Rows of dead Slurm jobs: squeue is asked before the lock, every worker waits on it
+  .reclaimDeadSlurmRows(queue_path)
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
@@ -3228,6 +3231,7 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
                                       activeRunningPath = getOption("spades.activeRunningPath"),
                                       ...) {
   if (!file.exists(queue_path)) return(invisible(NULL))
+  .reclaimDeadSlurmRows(queue_path)   # asks squeue, so before the lock
   lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
   if (is.null(lck)) stop("Could not lock queue for refresh.")
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
