@@ -152,10 +152,11 @@ test_that(".sbatch_squeue_alive passes -M <cluster> to squeue", {
   testthat::local_mocked_bindings(
     Sys.which = function(...) "/usr/bin/squeue",
     system2 = function(command, args, ...) {
-      cap$args <- args; c("1953798", "5")
+      cap$args <- args; c("CLUSTER: gpsc8", "1953798|RUNNING")
     },
     .package = "base"
   )
+  withr::local_envvar(SLURM_JOB_ID = NA, SLURM_CLUSTER_NAME = NA)
 
   res <- SpaDES.project:::.sbatch_squeue_alive(c(1953798L, 7L), clusters = "gpsc8")
 

@@ -164,7 +164,7 @@
 .gs_reclaim_dead_jobs <- function(ss_id, sheet = "Status") {
   q <- tryCatch(.gs_read_queue(ss_id, sheet), error = function(e) NULL)
   if (is.null(q) || nrow(q) == 0L) return(invisible(NULL))
-  dead <- .deadRunningRows(q, "all")
+  dead <- .deadRunningRows(q, "all", askSlurm = TRUE)   # no file lock is held here
   if (!length(dead)) return(invisible(NULL))
 
   col_pos <- setNames(seq_along(names(q)), names(q))

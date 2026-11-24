@@ -1051,6 +1051,7 @@ experimentTmux <- function(df,
   # workers back in the queue (see ?experimentStatus). Then the record gets it: the sheet,
   # when there is one. Not a silent try: a failed push leaves workers reading a sheet that
   # does not match the queue they were given.
+  .reclaimDeadSlurmRows(queue_path)   # asks squeue, so before the lock
   q <- .queue_modify(queue_path, .queueAtLaunch)
   if (!is.null(ss_id))
     tryCatch(.gs_push_queue(ss_id, q),
@@ -1621,7 +1622,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   if (use_gs) {
     .trace <- isTRUE(getOption("spades.mirror.trace", FALSE)) ||
               nzchar(Sys.getenv("SPADES_MIRROR_TRACE"))
-    worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
+    worker_id <- .workerId()
     if (.trace) message(sprintf("[gs-worker] claim attempt by %s queue_path=%s",
                                 worker_id, as.character(queue_path)))
     claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path, group = group,
@@ -1795,6 +1796,8 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   LOCKF <- paste0(queue_path, ".lock")
 
   activeRunningPath <- tmuxActiveRunningPath(activeRunningPath = activeRunningPath, queue_path)
+  # Rows of dead Slurm jobs: squeue is asked before the lock, every worker waits on it
+  .reclaimDeadSlurmRows(queue_path)
   lck <- filelock::lock(LOCKF, timeout = Inf)
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
   q <- readRDS(queue_path)
@@ -1839,8 +1842,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     assign(nm, q[[nm]][[i]], envir = scn_env) # [[ ]]: a list column's cell is the list, not a list of it
   .pkgEnv$lastScn <- scn_env
 
-  q <- .applyUpdates(q, i, .claimUpdates(
-    if (nzchar(PANE)) PANE else paste0(Sys.info()[["nodename"]], "-", Sys.getpid())))
+  q <- .applyUpdates(q, i, .claimUpdates(if (nzchar(PANE)) PANE else .workerId()))
 
   # The row's RUNNING status and its Running_*.rds marker file are written under the same
   # lock, so a reader sees both or neither.
@@ -3229,6 +3231,7 @@ tmuxRefreshQueueStatus <- function(queue_path, timeout_min = 20, runNameLabel = 
                                       activeRunningPath = getOption("spades.activeRunningPath"),
                                       ...) {
   if (!file.exists(queue_path)) return(invisible(NULL))
+  .reclaimDeadSlurmRows(queue_path)   # asks squeue, so before the lock
   lck <- filelock::lock(paste0(queue_path, ".lock"), timeout = 10000)
   if (is.null(lck)) stop("Could not lock queue for refresh.")
   on.exit(try(filelock::unlock(lck), silent = TRUE), add = TRUE)
