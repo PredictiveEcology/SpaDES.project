@@ -75,6 +75,33 @@ test_that("Require::setLibPaths(updateRprofile = FALSE) does not re-touch an exi
   expect_false(any(grepl("already a setLibPaths", msgs)))
 })
 
+test_that("after an R version change, .Rprofile names the new version's library", {
+  # setupPaths used to clear the stale block with Require::setupOff(); Require
+  # now rewrites the block itself when the library path (incl. its R-version
+  # suffix) differs.
+  skip_if_not_installed("Require")
+  td <- withr::local_tempdir()
+  withr::local_dir(td)
+  withr::defer(Require::setLibPaths(.libPaths(), updateRprofile = FALSE))
+  oldLib <- file.path(td, "lib", "4.0")
+  newLib <- file.path(td, "lib", "9.9")
+  dir.create(oldLib, recursive = TRUE)
+  dir.create(newLib, recursive = TRUE)
+  rprof <- file.path(td, ".Rprofile")
+  writeLines(c(
+    "",
+    paste0(Require:::setLibPathsStartText, " #### New File:FALSE # DO NOT EDIT BETWEEN THESE LINES"),
+    sprintf("._libPaths <- c('%s')", oldLib),
+    "._standAlone <- TRUE",
+    Require:::setLibPathsEndText
+  ), rprof)
+
+  suppressMessages(Require::setLibPaths(newLib, updateRprofile = TRUE))
+  rp <- paste(readLines(rprof), collapse = "\n")
+  expect_true(grepl(basename(newLib), rp, fixed = TRUE))
+  expect_false(grepl(oldLib, rp, fixed = TRUE))
+})
+
 test_that("setupProject muffles RStudio's CRAN_mirrors.csv SSL warning", {
   # Bug: RStudio's repos = "@CRAN@" hook calls .rs.downloadFile() and surfaces
   # an "SSL connect error" warning on hosts with TLS interception. The fix
