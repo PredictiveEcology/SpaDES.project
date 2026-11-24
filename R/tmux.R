@@ -1621,7 +1621,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
   if (use_gs) {
     .trace <- isTRUE(getOption("spades.mirror.trace", FALSE)) ||
               nzchar(Sys.getenv("SPADES_MIRROR_TRACE"))
-    worker_id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
+    worker_id <- .workerId()
     if (.trace) message(sprintf("[gs-worker] claim attempt by %s queue_path=%s",
                                 worker_id, as.character(queue_path)))
     claimed   <- .gs_claim_next_job(ss_id, worker_id, queue_path = queue_path, group = group,
@@ -1839,8 +1839,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
     assign(nm, q[[nm]][[i]], envir = scn_env) # [[ ]]: a list column's cell is the list, not a list of it
   .pkgEnv$lastScn <- scn_env
 
-  q <- .applyUpdates(q, i, .claimUpdates(
-    if (nzchar(PANE)) PANE else paste0(Sys.info()[["nodename"]], "-", Sys.getpid())))
+  q <- .applyUpdates(q, i, .claimUpdates(if (nzchar(PANE)) PANE else .workerId()))
 
   # The row's RUNNING status and its Running_*.rds marker file are written under the same
   # lock, so a reader sees both or neither.

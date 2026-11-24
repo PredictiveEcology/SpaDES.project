@@ -1,5 +1,6 @@
 # SpaDES.project (development version)
 
+- A queue row claimed by a Slurm worker whose job died (node failure, out of memory, `scancel`) no longer stays `RUNNING` forever. A Slurm worker's `claimed_by` now ends in `/slurm:<cluster>:<job id>.<restart count>`, and such a row is judged by its job (`squeue`), not by its PID, which means nothing outside the job's own PID namespace. A requeued job puts back the row its earlier attempt claimed, and runs it. Before, its requeued attempt found the row `RUNNING` and ended at once. `test-queue-status.R`.
 - `setupProject(useGit = ...)` recovers from an interrupted or failed module clone in one run, with no prompt; a failed clone now stops naming the module instead of checking out the branch in the project's own repository, and the cleanup no longer commits.
 - `plotSAs()` crops each raster to the map's window, as it does the basemap: a raster larger than the study areas (e.g. a map of all ecozones) set the map's extent, and the study areas were specks.
 - `getModule()` reports a module in a repository subfolder that does not exist (`"bcgov/castor@main/R/SpaDES-modules/dataCastor"`) as "not in repository", with a warning, instead of "downloaded"; `setupProject()` puts the modules it found in place, then stops naming the missing ones (#182).

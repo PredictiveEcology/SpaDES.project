@@ -62,7 +62,12 @@ meta_cols <- c("status", "claimed_by", "started_at", "finished_at",
 #'     dead when `/proc` (locally, or over one `ssh` per machine) says so; a machine that
 #'     cannot be reached, a row without a pid, and a row whose `pid_ns` (the PID namespace
 #'     the claim recorded, which a Slurm job has of its own) is not the one the check runs
-#'     in, are left alone;
+#'     in, are left alone. A row claimed in a Slurm job is judged by its job instead:
+#'     `claimed_by` ends in `/slurm:<cluster>:<job id>.<restart count>`, and the claim is
+#'     dead when `squeue` no longer lists the job or lists it in a state that is not a
+#'     running one (`PENDING` after a requeue, say), or when a later attempt of the same
+#'     job (a requeue, after a node failure) is the one checking. A `squeue` that cannot
+#'     answer leaves the row alone;
 #'   \item a launch: `HOLD` and `ERROR` rows become `PENDING`. A `RUNNING` row with a live
 #'     process is never touched by a launch.
 #' }
@@ -203,24 +208,110 @@ NULL
   alive
 }
 
-## The RUNNING rows of `q` whose process is known dead. `machines = "local"`: only rows of
-## this machine (cheap: for a worker holding the queue lock); `"all"`: one ssh per other
-## machine too. Unknown is not dead: a row without machine or pid, on a machine that
-## cannot be reached, or from another PID namespace than the check runs in (a Slurm job's
-## own; a row written before pid_ns existed counts as another), is not returned. A tmux
-## pane titled "<machine>-<pid>" is proof of life that saves the check.
+## The Slurm job attempt this process runs in, "slurm:<cluster>:<job id>.<restart count>";
+## "" outside Slurm. A requeued job keeps its id and counts up SLURM_RESTART_COUNT (unset
+## in the first attempt), so the token names one attempt of one job.
+.slurmToken <- function() {
+  job <- Sys.getenv("SLURM_JOB_ID")
+  if (!nzchar(job)) return("")
+  restart <- Sys.getenv("SLURM_RESTART_COUNT")
+  paste0("slurm:", Sys.getenv("SLURM_CLUSTER_NAME"), ":", job, ".",
+         if (nzchar(restart)) restart else "0")
+}
+
+## The `claimed_by` of a worker that is not a tmux pane: "<machine>-<pid>", and in a Slurm job
+## "/<.slurmToken()>" after it. Slurm gives every job its own PID namespace, so on one node two
+## jobs can have the same machine and PID; the job and its attempt tell them apart, and are what
+## another process can check (.slurmClaimsAlive()).
+.workerId <- function() {
+  id <- paste0(Sys.info()[["nodename"]], "-", Sys.getpid())
+  token <- .slurmToken()
+  if (nzchar(token)) paste0(id, "/", token) else id
+}
+
+## The Slurm job attempt in each `claimed_by` (see .workerId()): cluster, job id and restart
+## count, NA where the row was not claimed in a Slurm job.
+.slurmClaims <- function(claimedBy) {
+  rx <- "^.*/slurm:([^:]*):([0-9]+)\\.([0-9]+)$"
+  claimedBy <- as.character(claimedBy)
+  hit <- !is.na(claimedBy) & grepl(rx, claimedBy)
+  part <- function(n) ifelse(hit, sub(rx, n, claimedBy), NA_character_)
+  data.frame(cluster = part("\\1"), job = part("\\2"),
+             restart = suppressWarnings(as.integer(part("\\3"))), stringsAsFactors = FALSE)
+}
+
+## The state squeue gives each of `ids` on `cluster`, named by job id; a job that has left the
+## queue is not in it. NULL when squeue cannot answer (none here, or it failed): unknown, not
+## gone. Never asked without ids, which would list every job on the cluster.
+.slurmJobStates <- function(ids, cluster = "") {
+  if (!length(ids) || !nzchar(Sys.which("squeue"))) return(NULL)
+  out <- tryCatch(suppressWarnings(system2("squeue", c(.sbatch_cluster_args(cluster), "-h",
+                                                       "-j", paste(ids, collapse = ","),
+                                                       "-o", "%A|%T"),
+                                           stdout = TRUE, stderr = TRUE)),
+                  error = function(e) NULL)
+  if (is.null(out)) return(NULL)
+  status <- attr(out, "status")
+  if (!is.null(status) && status != 0L) {
+    ## squeue fails this way only when none of the ids is a job it still knows
+    if (any(grepl("Invalid job id", out, fixed = TRUE))) return(stats::setNames(character(), character()))
+    return(NULL)
+  }
+  parts <- strsplit(grep("|", out, fixed = TRUE, value = TRUE), "|", fixed = TRUE)
+  stats::setNames(vapply(parts, `[`, "", 2L), vapply(parts, `[`, "", 1L))
+}
+
+## Job states in which the attempt that started the job may still be running. Any other state a
+## job still in squeue can have (PENDING after a requeue, REQUEUED, a final state) means it is over.
+.slurmLiveStates <- c("RUNNING", "COMPLETING", "CONFIGURING", "SUSPENDED", "STOPPED",
+                      "SIGNALING", "RESIZING", "STAGE_OUT")
+
+## Is the Slurm job attempt that claimed each row alive? `claims`: .slurmClaims() of the rows.
+## An earlier attempt of the job this process runs in is over: it is the job being requeued.
+## Any other job is asked of squeue, once per cluster: gone, or not in a live state, is dead.
+## NA (unknown) when squeue cannot answer, and for this attempt's own rows.
+.slurmClaimsAlive <- function(claims) {
+  alive <- rep(NA, NROW(claims))
+  me <- .slurmClaims(paste0("/", .slurmToken()))
+  same <- !is.na(me$job) & claims$cluster == me$cluster & claims$job == me$job
+  alive[same & claims$restart < me$restart] <- FALSE
+  ask <- which(!same)
+  for (cl in unique(claims$cluster[ask])) {
+    k <- ask[claims$cluster[ask] == cl]
+    states <- .slurmJobStates(unique(claims$job[k]), cl)
+    if (is.null(states)) next
+    alive[k] <- unname(states[claims$job[k]]) %in% .slurmLiveStates
+  }
+  alive
+}
+
+## The RUNNING rows of `q` whose process is known dead. A row claimed in a Slurm job (see
+## .workerId()) is judged by its job, from anywhere, with one squeue per cluster: its PID means
+## nothing outside that job's PID namespace. Other rows by their PID: `machines = "local"`:
+## only rows of this machine (cheap: for a worker holding the queue lock); `"all"`: one ssh per
+## other machine too. Unknown is not dead: a row without machine or pid, on a machine that
+## cannot be reached, or from another PID namespace than the check runs in (a row written
+## before pid_ns existed counts as another), is not returned. A tmux pane titled
+## "<machine>-<pid>" is proof of life that saves the check.
 .deadRunningRows <- function(q, machines = c("all", "local")) {
   machines <- match.arg(machines)
   status <- as.character(q$status)
   mach   <- if (is.null(q$machine_name)) rep(NA_character_, NROW(q)) else as.character(q$machine_name)
   pid    <- if (is.null(q$process_id)) rep(NA_integer_, NROW(q)) else suppressWarnings(as.integer(q$process_id))
   ns     <- .rowNs(q)
-  idx <- which(status == txtRunning & !is.na(mach) & !is.na(pid))
+  claims <- .slurmClaims(if (is.null(q$claimed_by)) rep(NA_character_, NROW(q)) else q$claimed_by)
+  inSlurm <- status == txtRunning & !is.na(claims$job)
+  dead <- integer()
+  if (any(inSlurm)) {
+    k <- which(inSlurm)
+    alive <- .slurmClaimsAlive(claims[k, , drop = FALSE])
+    dead <- k[!is.na(alive) & !alive]
+  }
+  idx <- which(status == txtRunning & !inSlurm & !is.na(mach) & !is.na(pid))
   local <- Sys.info()[["nodename"]]
   if (machines == "local") idx <- idx[mach[idx] == local]
-  if (!length(idx)) return(integer())
+  if (!length(idx)) return(sort(dead))
   titles <- tryCatch(.tmux_all_pane_titles(), error = function(e) character(0))
-  dead <- integer()
   for (m in unique(mach[idx])) {
     k <- idx[mach[idx] == m]
     inPane <- vapply(pid[k], function(p) any(grepl(paste0(m, "-", p), titles, fixed = TRUE)),

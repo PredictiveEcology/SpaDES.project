@@ -40,7 +40,12 @@ writing); \code{\link[=tmuxRefreshQueueStatus]{tmuxRefreshQueueStatus()}} does i
 dead when \verb{/proc} (locally, or over one \code{ssh} per machine) says so; a machine that
 cannot be reached, a row without a pid, and a row whose \code{pid_ns} (the PID namespace
 the claim recorded, which a Slurm job has of its own) is not the one the check runs
-in, are left alone;
+in, are left alone. A row claimed in a Slurm job is judged by its job instead:
+\code{claimed_by} ends in \verb{/slurm:<cluster>:<job id>.<restart count>}, and the claim is
+dead when \code{squeue} no longer lists the job or lists it in a state that is not a
+running one (\code{PENDING} after a requeue, say), or when a later attempt of the same
+job (a requeue, after a node failure) is the one checking. A \code{squeue} that cannot
+answer leaves the row alone;
 \item a launch: \code{HOLD} and \code{ERROR} rows become \code{PENDING}. A \code{RUNNING} row with a live
 process is never touched by a launch.
 }

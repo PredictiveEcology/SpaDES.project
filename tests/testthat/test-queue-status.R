@@ -354,3 +354,85 @@ test_that("experimentFutureList lists a RUNNING row only if its pid is alive in 
   out <- experimentFutureList(queue_paths = qp)
   expect_identical(out$runName[out$queue_path %in% qp], c("a", "c"))      # the "pid:[1]" row is not ours to list or kill
 })
+
+# --- a Slurm worker is its job, not its PID ----------------------------------------------------
+
+## 2026-11-19, GPSC: node ib16be-006 failed (NODE_FAIL) and Slurm requeued its nine jobs. Each
+## had claimed a row, and the rows stayed RUNNING: their PIDs were in PID namespaces no other job
+## can see, so no worker could judge them. The requeued attempts started on other nodes, found
+## their group's rows RUNNING and ended in seconds (14.2 nrv reps 1 and 2, 6.3.2 nrv rep 3).
+## Rows of jobs that ran out of memory or were cancelled stayed RUNNING the same way.
+slurmEnv <- function(job, restart = NA, env = parent.frame())
+  withr::local_envvar(SLURM_JOB_ID = job, SLURM_RESTART_COUNT = restart,
+                      SLURM_CLUSTER_NAME = "gpsc8", .local_envir = env)
+
+## A row claimed by another Slurm job on another node, in a PID namespace this process cannot see.
+mkSlurmRow <- function(claimed_by, pid = 108L)
+  data.frame(.ELFind = "job1", status = "RUNNING", claimed_by = claimed_by,
+             started_at = "2026-11-19 18:09:29", finished_at = NA_character_,
+             machine_name = "ib16be-006.science.gc.ca", process_id = pid,
+             pid_ns = "pid:[4026533594]", stringsAsFactors = FALSE)
+
+test_that("a claim in a Slurm job names the job and its attempt", {
+  slurmEnv("2327430")
+  id <- SpaDES.project:::.workerId()
+  expect_identical(id, paste0(Sys.info()[["nodename"]], "-", Sys.getpid(), "/slurm:gpsc8:2327430.0"))
+  ## two jobs on one node with the same PID in their own namespaces are two workers
+  slurmEnv("2327431")
+  expect_false(identical(SpaDES.project:::.workerId(), id))
+  slurmEnv("2327430", restart = "1")
+  expect_match(SpaDES.project:::.workerId(), "/slurm:gpsc8:2327430.1$")
+  ## outside Slurm the id is what it always was
+  withr::local_envvar(SLURM_JOB_ID = NA)
+  expect_identical(SpaDES.project:::.workerId(), paste0(Sys.info()[["nodename"]], "-", Sys.getpid()))
+})
+
+test_that("a requeued Slurm job puts back and runs the row its earlier attempt claimed", {
+  skip_if_not_installed("filelock")
+  noOtherLiveness()
+  testthat::local_mocked_bindings(.slurmJobStates = function(...) stop("no squeue for our own job"))
+  td <- withr::local_tempdir()
+  qp <- file.path(td, "queue.rds")
+  saveRDS(mkSlurmRow("ib16be-006.science.gc.ca-108/slurm:gpsc8:2327430.0"), qp)
+  slurmEnv("2327430", restart = "1")
+
+  res <- suppressMessages(tmuxRunNextWorker(queue_path = qp, global_path = mkStatusGlobal(td)))
+
+  expect_identical(res, "ok")                         # base: "empty", and the row stays RUNNING
+  expect_identical(readRDS(qp)$status, "DONE")
+  expect_identical(readLines(file.path(td, "ran.txt")), "job1")
+})
+
+test_that("a Slurm worker's row is judged by its job: gone or requeued is dead, running is not", {
+  noOtherLiveness()
+  asked <- NULL
+  testthat::local_mocked_bindings(.slurmJobStates = function(ids, cluster) {
+    asked <<- list(ids = ids, cluster = cluster)
+    c("2327432" = "RUNNING", "2327433" = "PENDING")        # 2327434 has left the queue
+  })
+  withr::local_envvar(SLURM_JOB_ID = NA)
+  q <- rbind(mkSlurmRow("h-108/slurm:gpsc8:2327432.0"), mkSlurmRow("h-108/slurm:gpsc8:2327433.0"),
+             mkSlurmRow("h-108/slurm:gpsc8:2327434.0"))
+  expect_identical(SpaDES.project:::.deadRunningRows(q, "local"), c(2L, 3L))
+  expect_setequal(asked$ids, c("2327432", "2327433", "2327434"))
+  expect_identical(asked$cluster, "gpsc8")
+  expect_identical(SpaDES.project:::.deadRunningRows(q, "all"), c(2L, 3L))
+
+  ## squeue cannot be asked: unknown is not dead
+  testthat::local_mocked_bindings(.slurmJobStates = function(...) NULL)
+  expect_identical(SpaDES.project:::.deadRunningRows(q, "all"), integer())
+})
+
+test_that("squeue's answer is read per job; an error other than an unknown id is no answer", {
+  testthat::local_mocked_bindings(Sys.which = function(...) c(squeue = "/usr/bin/squeue"), .package = "base")
+  reply <- NULL
+  testthat::local_mocked_bindings(system2 = function(...) reply, .package = "base")
+  reply <- c("2327432|RUNNING", "2327433|PENDING")
+  expect_identical(SpaDES.project:::.slurmJobStates(c("2327432", "2327433", "2327434"), "gpsc8"),
+                   c("2327432" = "RUNNING", "2327433" = "PENDING"))
+  reply <- structure("slurm_load_jobs error: Invalid job id specified", status = 1L)
+  expect_identical(SpaDES.project:::.slurmJobStates("2327434", "gpsc8"), setNames(character(), character()))
+  reply <- structure("slurm_load_jobs error: Unable to contact slurm controller", status = 1L)
+  expect_null(SpaDES.project:::.slurmJobStates("2327434", "gpsc8"))
+  expect_null(SpaDES.project:::.slurmJobStates(character(), "gpsc8"))   # never squeue for every job
+})
