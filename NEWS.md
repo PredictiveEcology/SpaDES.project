@@ -1,5 +1,6 @@
 # SpaDES.project (development version)
 
+- `metadataInModules()` and `packagesInModules()` skip a module whose `.R` file does not parse, with a message naming it, instead of stopping; one broken module no longer breaks a call over many modules (it broke the `v-finding-other-modules` vignette).
 - `setupProject(useGit = ...)` recovers from an interrupted or failed module clone in one run, with no prompt; a failed clone now stops naming the module instead of checking out the branch in the project's own repository, and the cleanup no longer commits.
 - `plotSAs()` crops each raster to the map's window, as it does the basemap: a raster larger than the study areas (e.g. a map of all ecozones) set the map's extent, and the study areas were specks.
 - `getModule()` reports a module in a repository subfolder that does not exist (`"bcgov/castor@main/R/SpaDES-modules/dataCastor"`) as "not in repository", with a warning, instead of "downloaded"; `setupProject()` puts the modules it found in place, then stops naming the missing ones (#182).
