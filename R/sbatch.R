@@ -186,7 +186,7 @@
 #'   once, now, in a fresh process and only while no worker is alive, before any
 #'   worker starts. Never sync per job.
 #' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
-#'   hardlinked snapshot of the project library before loading anything from it,
+#'   private copy of the project library before loading anything from it,
 #'   so an install into the shared library cannot corrupt a running job. See
 #'   [librarySnapshot].
 #' @inheritParams .workerDevLibrary
@@ -451,7 +451,7 @@ experimentSBATCH <- function(
   # R worker invocation -- a single Rscript -e expression. All args serialized
   # via deparse() so the worker recreates them exactly (NULL stays NULL,
   # quote(...) stays a call, paths stay character).
-  # hardlinked per-job library (see ?librarySnapshot); pasted, not sprintf-ed,
+  # private per-job copy of the library (see ?librarySnapshot); pasted, not sprintf-ed,
   # because the snippet contains a deparsed function
   snap_code <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))
     .librarySnapshotCode(r_libs[1L], activeRunningPath) else ""

@@ -17,7 +17,7 @@ inode <- function(p) {
   if (is.null(fi) || is.null(fi$inode)) NA_real_ else as.numeric(fi$inode)
 }
 
-test_that("snapshotLibrary replicates the tree by hardlink and records its origin", {
+test_that("snapshotLibrary replicates the tree by copy and records its origin", {
   lib  <- mkFakeLib()
   where <- withr::local_tempdir()
   snap <- snapshotLibrary(lib, where = where, id = "host_123", setLibPaths = FALSE)
@@ -28,7 +28,37 @@ test_that("snapshotLibrary replicates the tree by hardlink and records its origi
   skip_on_os("windows")
   skip_if_not_installed("fs")
   i1 <- inode(file.path(lib, "pkgA", "R", "pkgA.rdb")); i2 <- inode(file.path(snap, "pkgA", "R", "pkgA.rdb"))
-  if (!is.na(i1) && !is.na(i2)) expect_identical(i1, i2)   # same filesystem -> hardlink
+  if (!is.na(i1) && !is.na(i2)) expect_false(identical(i1, i2))   # a copy, never a hard link
+})
+
+test_that("the snapshot startup code copies: link count 1, new inodes, and neither side follows a write to the other", {
+  skip_on_os("windows")
+  skip_if_not_installed("fs")
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  rdb <- file.path("pkgA", "R", "pkgA.rdb")
+  ## the code a worker runs at startup, in a fresh R process
+  snap <- callr::r(function(code, lib, where) {
+    eval(parse(text = code))
+    Sys.getenv("SPADES_PROJECT_LIB_SNAPSHOT")
+  }, args = list(code = SpaDES.project:::.librarySnapshotCode(lib, where), lib = lib, where = where))
+  expect_true(dir.exists(snap))
+  files <- list.files(lib, recursive = TRUE, all.files = TRUE, no.. = TRUE)
+  expect_true(all(file.exists(file.path(snap, files))))
+  expect_true(all(fs::file_info(file.path(lib, files))$hard_links == 1L))
+  expect_true(all(fs::file_info(file.path(snap, files))$hard_links == 1L))
+  expect_false(any(inode(file.path(lib, files)) %in% inode(file.path(snap, files))))
+  ## the incident: a file of the dev library truncated in place; the job's copy keeps its size
+  cat("", file = file.path(lib, rdb))
+  expect_identical(file.size(file.path(lib, rdb)), 0)
+  expect_identical(file.size(file.path(snap, rdb)), 64)
+  ## and the reverse
+  writeBin(as.raw(c(200:255, 1:8)), file.path(snap, "pkgB", "R", "pkgB.rdb"))
+  expect_identical(readBin(file.path(lib, "pkgB", "R", "pkgB.rdb"), "raw", 64), as.raw(1:64))
+  ## release still removes it
+  withr::local_envvar(SPADES_PROJECT_LIB_SNAPSHOT = NA)
+  expect_true(releaseLibrarySnapshot(snap))
+  expect_false(dir.exists(snap))
 })
 
 test_that("a replaced file in the shared library does not change the snapshot", {
@@ -218,7 +248,7 @@ test_that("old-format snapshot names and markers are swept as before", {
   expect_true(dir.exists(live))
 })
 
-test_that("the default snapshot directory is beside the library, and its files are hardlinks", {
+test_that("the default snapshot directory is beside the library, and its files are copies", {
   lib  <- mkFakeLib()
   snap <- snapshotLibrary(lib, setLibPaths = FALSE)
   expect_identical(normalizePath(dirname(snap)),
@@ -228,8 +258,8 @@ test_that("the default snapshot directory is beside the library, and its files a
   skip_if_not_installed("fs")
   i1 <- inode(file.path(lib, "pkgA", "R", "pkgA.rdb")); i2 <- inode(file.path(snap, "pkgA", "R", "pkgA.rdb"))
   skip_if(is.na(i1) || is.na(i2), "no inodes on this platform")
-  expect_identical(i1, i2)
-  expect_gt(as.numeric(fs::file_info(file.path(lib, "pkgA", "R", "pkgA.rdb"))$hard_links), 1)
+  expect_false(identical(i1, i2))
+  expect_identical(as.numeric(fs::file_info(file.path(lib, "pkgA", "R", "pkgA.rdb"))$hard_links), 1)
 })
 
 test_that("`where` overrides the default location", {
@@ -264,4 +294,25 @@ test_that("sweepLibrarySnapshots finds dead snapshots in the new and in the old 
   # other dead snapshots beside the session's library (made by earlier tests' workers) may go too
   expect_true(all(normalizePath(c(newd, oldd), mustWork = FALSE) %in% normalizePath(removed, mustWork = FALSE)))
   expect_false(dir.exists(newd)); expect_false(dir.exists(oldd))
+})
+
+test_that("a failed snapshot copy errors and leaves no lib_* directory", {
+  skip_on_os("windows")
+  skip_if(Sys.info()[["user"]] == "root", "root can read anything")
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  Sys.chmod(file.path(lib, "pkgB", "R", "pkgB.rdb"), "000")
+  withr::defer(Sys.chmod(file.path(lib, "pkgB", "R", "pkgB.rdb"), "644"))
+  expect_error(snapshotLibrary(lib, where = where, id = "host_900", setLibPaths = FALSE), "could not replicate")
+  expect_length(list.files(where, pattern = "^lib_"), 0L)
+})
+
+test_that("sweepLibrarySnapshots removes an old marker-less lib_* (interrupted copy) and keeps a fresh one", {
+  where <- withr::local_tempdir()
+  fresh <- file.path(where, "lib_host_901"); old <- file.path(where, "lib_host_902")
+  for (d in c(fresh, old)) dir.create(file.path(d, "pkgA"), recursive = TRUE)
+  Sys.setFileTime(old, Sys.time() - 2 * 3600)
+  removed <- sweepLibrarySnapshots(where)
+  expect_identical(normalizePath(removed, mustWork = FALSE), normalizePath(old, mustWork = FALSE))
+  expect_true(dir.exists(fresh)); expect_false(dir.exists(old))
 })

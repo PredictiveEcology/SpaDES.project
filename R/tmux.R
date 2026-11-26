@@ -791,7 +791,7 @@ tmuxSetMouse <- function(on = TRUE) {
 #'   once, now, in a fresh process and only while no worker is alive, before any
 #'   worker starts. Never sync per job.
 #' @param snapshot_library Logical (default `TRUE`). Each worker session takes a
-#'   hardlinked snapshot of the project library before loading anything from it,
+#'   private copy of the project library before loading anything from it,
 #'   so an install into the shared library cannot corrupt a running job. See
 #'   [librarySnapshot].
 #' @inheritParams .workerDevLibrary
@@ -1953,7 +1953,7 @@ tmuxRunNextWorker <- function(queue_path, global_path,
 #' @param dots_path Path to `.tmux_dots.rds` holding extra `...` args; forwarded to
 #'   replacement panes so they can reload complex objects before sourcing.
 #' @param snapshot_library Logical. Forwarded to replacement panes: each new worker
-#'   session takes a hardlinked snapshot of the project library before loading
+#'   session takes a private copy of the project library before loading
 #'   anything from it (see [librarySnapshot]). This session's own snapshot, if the
 #'   startup script made one, is released when R exits.
 #' @param dev_library `NULL`, or `c(<dev>, <stable>)` when the launcher was given
@@ -2336,7 +2336,7 @@ tmuxSetPaneTitle <- function(oldTitle, newTitle) {
   # did the same.
   lib_pre <- sprintf("Sys.unsetenv('R_PROFILE_USER'); .libPaths(c(%s, .libPaths())); ",
                      deparse1(lib_path))
-  # Give this job its own hardlinked copy of the library before anything is
+  # Give this job its own copy of the library before anything is
   # loaded from it, so an install into the shared library cannot corrupt the
   # running job (see ?librarySnapshot).
   snap_pre <- if (isTRUE(snapshot_library) && !is.null(activeRunningPath))

@@ -55,7 +55,7 @@ current job finishes.}
 output goes to the current connection.}
 
 \item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
-hardlinked snapshot of the project library before loading anything from it,
+private copy of the project library before loading anything from it,
 so an install into the shared library cannot corrupt a running job. See
 \link{librarySnapshot}.}
 
