@@ -250,3 +250,18 @@ test_that("a launcher with devPackages builds a new dev library and its sbatch s
   body <- paste(readLines(unlist(es$job_scripts)[[1]]), collapse = "\n")
   expect_true(grepl(SpaDES.project:::.devLibraryStartup(dev), body, fixed = TRUE))
 })
+
+test_that("setupPaths() does not start a scan of the cache", {
+  skip_if_not_installed("reproducible")
+  setupTest()
+  prj <- withr::local_tempdir()
+  withr::local_dir(prj)
+  withr::local_libpaths(.libPaths())
+  withr::local_options(SpaDES.project.updateRprofile = FALSE)
+  started <- FALSE
+  if (exists("prepopulateCacheAsync", envir = asNamespace("reproducible"), inherits = FALSE))
+    testthat::local_mocked_bindings(prepopulateCacheAsync = function(...) started <<- TRUE, .package = "reproducible")
+  suppressWarnings(setupPaths(paths = list(projectPath = prj, cachePath = file.path(prj, "cache"), modulePath = "modules"),
+                              verbose = -2))
+  expect_false(started)
+})
