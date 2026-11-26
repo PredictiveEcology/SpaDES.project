@@ -5299,26 +5299,18 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
 .requireKeyHash <- function(key)
   reproducible::CacheDigest(list(key))$outputHash
 
-# The record of `key`: an empty file named by its hash, in the first library of the key's
-# `libPaths` (the one the key describes), not in the reproducible cache. Looking a tag up in a
-# cache reads every entry's metadata: on a 520,000-entry cache that took 55 minutes from a
-# cold disk, at the start of every job.
-.requireKeyFile <- function(key)
-  file.path(key$libPaths[1], ".SpaDES.project", "requireKeys", .requireKeyHash(key))
-
-# TRUE if `key` was recorded by an earlier successful call
-.requireKeyIsKnown <- function(key) {
-  f <- .requireKeyFile(key)
-  length(f) == 1L && file.exists(f)
+# The record of `key` is a cache entry whose cacheId is the key's hash, so clearCache() removes it.
+# It is looked up by that cacheId, which reads only that entry. A lookup by userTags reads every
+# entry's metadata, which took 55 minutes on a 520,000-entry cache from a cold disk, at the start
+# of every job.
+.requireKeyIsKnown <- function(key, cachePath = getOption("reproducible.cachePath")) {
+  sc <- reproducible::showCache(cachePath, cacheId = .requireKeyHash(key), verbose = -1)
+  NROW(sc) > 0L
 }
 
-# Record `key`; a library that cannot be written to keeps no record (Require then runs each time)
+# Record `key` in the reproducible cache
 .requireKeyRecord <- function(key) {
-  f <- .requireKeyFile(key)
-  if (length(f) != 1L) return(invisible(NULL))
-  try({
-    dir.create(dirname(f), recursive = TRUE, showWarnings = FALSE)
-    file.create(f, showWarnings = FALSE)
-  }, silent = TRUE)
+  reproducible::Cache((function(x) {x})(key), cacheId = .requireKeyHash(key),
+                      .functionName = "checkIfNeedRequire", userTags = "requireKey", verbose = -1)
   invisible(NULL)
 }

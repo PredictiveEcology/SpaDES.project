@@ -103,17 +103,21 @@ test_that("the option turns the shortcut off", {
   expect_equal(calls(), 2L)
 })
 
-test_that("the record is a file in the library; the cache is neither read nor written", {
+test_that("the record is found by its cacheId, not by userTags, and clearCache() removes it", {
   lib <- skipTestSetup()
   calls <- countRequire()
-  ## a tag lookup reads every cache entry's metadata (55 min on a 520,000-entry cache, cold disk)
-  testthat::local_mocked_bindings(
-    showCache = function(...) stop("showCache() called"),
-    Cache = function(...) stop("Cache() called"),
-    .package = "reproducible")
-  callSP(lib)
-  expect_length(list.files(file.path(lib, ".SpaDES.project", "requireKeys")), 1L)
-  expect_message(callSP(lib), "skipping Require")
+  local({
+    ## a tag lookup reads every cache entry's metadata (55 min on a 520,000-entry cache, cold disk)
+    realShowCache <- reproducible::showCache
+    testthat::local_mocked_bindings(showCache = function(x, userTags = character(), ..., cacheId = NULL) {
+      if (is.null(cacheId)) stop("showCache() called without cacheId")
+      realShowCache(x, ..., cacheId = cacheId)
+    }, .package = "reproducible")
+    callSP(lib)
+    expect_message(callSP(lib), "skipping Require")
+  })
   expect_equal(calls(), 1L)
-  expect_length(list.files(getOption("reproducible.cachePath"), recursive = TRUE), 0L)
+  reproducible::clearCache(ask = FALSE, verbose = -1)
+  callSP(lib)
+  expect_equal(calls(), 2L)
 })
