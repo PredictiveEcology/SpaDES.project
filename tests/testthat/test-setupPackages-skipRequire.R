@@ -17,7 +17,6 @@ fakeInstall <- function(lib, pkg, version = "1.0", imports = NULL, remoteSha = N
 
 skipTestSetup <- function(env = parent.frame()) {
   skip_if_not_installed("reproducible")
-  skip_if_not_installed("qs2")
   lib <- withr::local_tempdir(.local_envir = env)
   withr::local_options(list(reproducible.cachePath = withr::local_tempdir(.local_envir = env),
                             reproducible.cacheSaveFormat = "qs2",
@@ -101,5 +100,24 @@ test_that("the option turns the shortcut off", {
   options(SpaDES.project.skipIdenticalRequire = FALSE)
   calls <- countRequire()
   callSP(lib); callSP(lib)
+  expect_equal(calls(), 2L)
+})
+
+test_that("the record is found by its cacheId, not by userTags, and clearCache() removes it", {
+  lib <- skipTestSetup()
+  calls <- countRequire()
+  local({
+    ## a tag lookup reads every cache entry's metadata (55 min on a 520,000-entry cache, cold disk)
+    realShowCache <- reproducible::showCache
+    testthat::local_mocked_bindings(showCache = function(x, userTags = character(), ..., cacheId = NULL) {
+      if (is.null(cacheId)) stop("showCache() called without cacheId")
+      realShowCache(x, ..., cacheId = cacheId)
+    }, .package = "reproducible")
+    callSP(lib)
+    expect_message(callSP(lib), "skipping Require")
+  })
+  expect_equal(calls(), 1L)
+  reproducible::clearCache(ask = FALSE, verbose = -1)
+  callSP(lib)
   expect_equal(calls(), 2L)
 })

@@ -1175,24 +1175,6 @@ setupPaths <- function(name, paths, inProject, standAlone = TRUE, libPaths = NUL
 
   paths <- lapply(paths, normPath)
 
-  ## Kick off the showCache async background scan against the *real*
-  ## cachePath as soon as we know it. On large caches this lets the fork
-  ## complete during the rest of setupProject + simInit, so the first
-  ## interactive showCache() call returns in ~1 s instead of 60+ s.
-  ## Idempotent and ~10us when a job already exists; silently no-ops on
-  ## Windows, when reproducible is not loaded, or when the running
-  ## reproducible doesn't yet export prepopulateCacheAsync.
-  if (!is.null(paths[["cachePath"]]) &&
-      requireNamespace("reproducible", quietly = TRUE) &&
-      exists("prepopulateCacheAsync",
-             envir = asNamespace("reproducible"),
-             inherits = FALSE)) {
-    ## Use getExportedValue so that R CMD check does not flag a static
-    ## reference to a symbol that older reproducible versions don't export.
-    fn <- getExportedValue("reproducible", "prepopulateCacheAsync")
-    try(fn(paths[["cachePath"]]), silent = TRUE)
-  }
-
   # every library given stays, in order (a worker's dev library, then the stable one; see ?devLibrary):
   # setupProject() runs setupPaths() again with the paths returned here
   nLib <- length(paths[["packagePath"]])
@@ -2243,7 +2225,7 @@ setupPackages <- function(packages, modulePackages = list(), require = list(), p
         needToAssess <- unique(c(needToAssessPoss, nonHEADs))
         requireKey <- NULL
         if (isTRUE(getOption("SpaDES.project.skipIdenticalRequire", TRUE)) &&
-            requireNamespace("reproducible", quietly = TRUE) && requireNamespace("qs2", quietly = TRUE)) {
+            requireNamespace("reproducible", quietly = TRUE)) {
           requireKey <- tryCatch(
             .requireKey(nonHEADs, requirePkgNames, standAlone, libPaths),
             error = function(e) NULL)
@@ -5317,16 +5299,18 @@ pathsOverrideIfInTemp <- function(paths, defaultsSPO, override = c("inputPath", 
 .requireKeyHash <- function(key)
   reproducible::CacheDigest(list(key))$outputHash
 
-# TRUE if `key` was recorded by an earlier successful call. showCache() returns the whole
-# cache when no entry carries the tag, so the tag value is compared explicitly.
-.requireKeyIsKnown <- function(key) {
-  sc <- reproducible::showCache(userTags = .requireKeyHash(key), verbose = -1)
-  isTRUE(any(sc$tagKey %in% "requireKey" & sc$tagValue %in% .requireKeyHash(key)))
+# The record of `key` is a cache entry whose cacheId is the key's hash, so clearCache() removes it.
+# It is looked up by that cacheId, which reads only that entry. A lookup by userTags reads every
+# entry's metadata, which took 55 minutes on a 520,000-entry cache from a cold disk, at the start
+# of every job.
+.requireKeyIsKnown <- function(key, cachePath = getOption("reproducible.cachePath")) {
+  sc <- reproducible::showCache(cachePath, cacheId = .requireKeyHash(key), verbose = -1)
+  NROW(sc) > 0L
 }
 
 # Record `key` in the reproducible cache
 .requireKeyRecord <- function(key) {
-  reproducible::Cache((function(x) {x})(key), .functionName = "checkIfNeedRequire",
-                      userTags = paste0("requireKey:", .requireKeyHash(key)), verbose = -1)
+  reproducible::Cache((function(x) {x})(key), cacheId = .requireKeyHash(key),
+                      .functionName = "checkIfNeedRequire", userTags = "requireKey", verbose = -1)
   invisible(NULL)
 }
