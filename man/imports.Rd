@@ -14,6 +14,7 @@
 \alias{isGitHub}
 \alias{fileRenameOrMove}
 \alias{linkOrCopy}
+\alias{copyPackageFilesInner}
 \alias{.basePkgs}
 \alias{getVersionOnRepos}
 \alias{substitutePackages}
@@ -60,6 +61,8 @@ isGitHub(pkg, filenames)
 fileRenameOrMove(from, to)
 
 linkOrCopy(from, to, allowSymlink = FALSE)
+
+copyPackageFilesInner(Packages, fromLib, toLib)
 
 .basePkgs
 

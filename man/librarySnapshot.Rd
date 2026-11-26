@@ -57,9 +57,7 @@ defaults to \code{Require::Install()}. Exposed for tests.}
 
 \item{where}{Directory holding snapshots. For \code{snapshotLibrary()} the default
 (\code{NULL}) is \verb{<dirname(libPath)>/<basename(libPath)>_snapshots/}, beside the
-library and so on its filesystem, where hardlinks work; with the snapshots in
-the experiment's directory on another filesystem (an HPC library on NFS, the
-run directory on GPFS) every file was copied, about 2 GB per job. When that
+library and so on its filesystem. When that
 directory is not writable the snapshot goes to
 \code{getOption("spades.activeRunningPath")} instead, with a message.
 For \code{sweepLibrarySnapshots()} the default is every place a snapshot can be:
@@ -100,11 +98,12 @@ library safe:
 a fresh R process (this session may itself have them loaded), and refuses
 to run while any worker is alive. The backends call it when given
 \verb{sync_library = <package specs>}.
-\item \code{snapshotLibrary()} gives \strong{one job} its own copy of the library, made of
-hardlinks (\code{file.link()}, so it costs seconds and no disk), falling back to
-\code{file.copy()} across filesystems. A hardlink keeps the old inode alive: an
-install into the shared library replaces files \emph{there} and cannot touch
-what the running job has open. Every job thereby also records exactly which
+\item \code{snapshotLibrary()} gives \strong{one job} its own copy of the library, made with
+\code{file.copy()} (a dev library is a few to some tens of MB). It is a copy and
+never a hard link, which would share one inode with the library: a file
+damaged in place there (the 2026-11-25 incident) would be damaged in every
+job's snapshot too. An install into the shared library replaces files \emph{there}
+and cannot touch what the running job has open. Every job thereby also records exactly which
 package versions it ran with. The backends take the snapshot in the worker
 startup script, before any package is loaded, when \code{snapshot_library = TRUE}
 (the default).

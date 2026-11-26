@@ -48,6 +48,9 @@ fileRenameOrMove <- utils::getFromNamespace("fileRenameOrMove", "Require")
 linkOrCopy <- getFromNamespace("linkOrCopy", ns = "Require")
 
 #' @rdname imports
+copyPackageFilesInner <- getFromNamespace("copyPackageFilesInner", ns = "Require")
+
+#' @rdname imports
 .basePkgs <- getFromNamespace(".basePkgs", ns = "Require")
 
 #' @rdname imports

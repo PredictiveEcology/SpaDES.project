@@ -63,7 +63,7 @@ tmux window, then kills the current pane  -- freeing all R memory between jobs.}
 replacement panes so they can reload complex objects before sourcing.}
 
 \item{snapshot_library}{Logical. Forwarded to replacement panes: each new worker
-session takes a hardlinked snapshot of the project library before loading
+session takes a private copy of the project library before loading
 anything from it (see \link{librarySnapshot}). This session's own snapshot, if the
 startup script made one, is released when R exits.}
 

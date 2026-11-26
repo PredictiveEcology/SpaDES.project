@@ -69,8 +69,40 @@ test_that("newDevLibrary builds a new library beside stable and leaves the previ
   expect_identical(inodeOf(rdbA1), inoA1)
   expect_identical(unname(tools::md5sum(rdbA1)), md5A1)
   expect_false(identical(inodeOf(file.path(dev2, "tinyA", "R", "tinyA.rdb")), inoA1))
-  ## the unchanged package is the same files, linked
-  expect_identical(inodeOf(file.path(dev2, "tinyB", "R", "tinyB.rdb")), inoB1)
+  ## the unchanged package is a copy: other inode (never a hard link, 2026-11-25), as in the other files
+  expect_false(identical(inodeOf(file.path(dev2, "tinyB", "R", "tinyB.rdb")), inoB1))
+  expect_identical(unname(tools::md5sum(file.path(dev2, "tinyB", "R", "tinyB.rdb"))),
+                   unname(tools::md5sum(rdbB1)))
+})
+
+test_that("newDevLibrary seeds the new library by copying: no shared inode, link count 1, loads, only dev packages", {
+  skip_if_not_installed("callr")
+  skip_if_not_installed("fs")
+  skip_on_os("windows")
+  stable <- mkStable()
+  devRoot <- paste0(stable, "_dev")
+  dev1 <- newDevLibrary(c(mkTinyPkg("tinyA", "1.0.0"), mkTinyPkg("tinyB", "1.0.0")),
+                        stable = stable, devRoot = devRoot, installFun = installTiny, verbose = 0)[1]
+  dev2 <- newDevLibrary(mkTinyPkg("tinyA", "2.0.0"), stable = stable, devRoot = devRoot,
+                        installFun = installTiny, verbose = 0)[1]
+  expect_false(identical(dev1, dev2))
+  files1 <- list.files(file.path(dev1, "tinyB"), recursive = TRUE, all.files = TRUE)
+  files2 <- list.files(file.path(dev2, "tinyB"), recursive = TRUE, all.files = TRUE)
+  expect_setequal(files2, files1)
+  p1 <- file.path(dev1, "tinyB", files1); p2 <- file.path(dev2, "tinyB", files1)
+  expect_false(any(inodeOf(p1) %in% inodeOf(p2)))
+  expect_true(all(fs::file_info(p1)$hard_links == 1L))
+  expect_true(all(fs::file_info(p2)$hard_links == 1L))
+  ## truncating a file in place in the previous library (the 2026-11-25 incident) leaves the new one whole
+  rdb1 <- file.path(dev1, "tinyB", "R", "tinyB.rdb"); rdb2 <- file.path(dev2, "tinyB", "R", "tinyB.rdb")
+  size2 <- file.size(rdb2)
+  cat("", file = rdb1)
+  expect_identical(file.size(rdb2), size2)
+  expect_gt(size2, 0)
+  ## only the dev packages, and the new library loads
+  expect_setequal(basename(SpaDES.project:::.packageDirs(dev2)), c("tinyA", "tinyB"))
+  expect_identical(callr::r(function() { loadNamespace("tinyA"); tinyA::f_tinyA() }, libpath = c(dev2, stable)), "2.0.0")
+  expect_identical(callr::r(function() tinyS::f_tinyS(), libpath = c(dev2, stable)), "1.0.0")
 })
 
 test_that("newDevLibrary with nothing to install keeps the current library and leaves no directory", {
@@ -132,7 +164,7 @@ test_that("newDevLibrary's default install sees what stable already has and inst
   devRoot <- paste0(stable, "_dev")
   ## A project's stable library has pak, which Require uses; without it Require links pak into the new library
   if (requireNamespace("pak", quietly = TRUE))
-    SpaDES.project:::linkOrCopyFiles(find.package("pak"), toBaseDir = stable)
+    file.copy(find.package("pak"), stable, recursive = TRUE)
   withr::local_options(repos = c(CRAN = "https://cloud.r-project.org"))
   expect_identical(newDevLibrary("tinyS (>= 0.5)", stable = stable, devRoot = devRoot, verbose = 0), stable)
   expect_length(list.dirs(devRoot, recursive = FALSE), 0L)

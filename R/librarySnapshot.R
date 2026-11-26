@@ -13,11 +13,12 @@
 #'   a fresh R process (this session may itself have them loaded), and refuses
 #'   to run while any worker is alive. The backends call it when given
 #'   `sync_library = <package specs>`.
-#' * `snapshotLibrary()` gives **one job** its own copy of the library, made of
-#'   hardlinks (`file.link()`, so it costs seconds and no disk), falling back to
-#'   `file.copy()` across filesystems. A hardlink keeps the old inode alive: an
-#'   install into the shared library replaces files *there* and cannot touch
-#'   what the running job has open. Every job thereby also records exactly which
+#' * `snapshotLibrary()` gives **one job** its own copy of the library, made with
+#'   `file.copy()` (a dev library is a few to some tens of MB). It is a copy and
+#'   never a hard link, which would share one inode with the library: a file
+#'   damaged in place there (the 2026-11-25 incident) would be damaged in every
+#'   job's snapshot too. An install into the shared library replaces files *there*
+#'   and cannot touch what the running job has open. Every job thereby also records exactly which
 #'   package versions it ran with. The backends take the snapshot in the worker
 #'   startup script, before any package is loaded, when `snapshot_library = TRUE`
 #'   (the default).
@@ -42,9 +43,7 @@
 #'   defaults to `Require::Install()`. Exposed for tests.
 #' @param where Directory holding snapshots. For `snapshotLibrary()` the default
 #'   (`NULL`) is `<dirname(libPath)>/<basename(libPath)>_snapshots/`, beside the
-#'   library and so on its filesystem, where hardlinks work; with the snapshots in
-#'   the experiment's directory on another filesystem (an HPC library on NFS, the
-#'   run directory on GPFS) every file was copied, about 2 GB per job. When that
+#'   library and so on its filesystem. When that
 #'   directory is not writable the snapshot goes to
 #'   `getOption("spades.activeRunningPath")` instead, with a message.
 #'   For `sweepLibrarySnapshots()` the default is every place a snapshot can be:
@@ -212,8 +211,8 @@ snapshotLibrary <- function(libPath = .libPaths()[1],
   paste0(Sys.info()[["nodename"]], "_", Sys.getpid(), "-", token)
 }
 
-# Beside the library, so on its filesystem and file.link() works; never inside it,
-# where R would take the folder for a package.
+# Beside the library, so on its filesystem; never inside it, where R would take the
+# folder for a package.
 .snapshotDir <- function(libPath) {
   libPath <- normalizePath(libPath, mustWork = FALSE)
   file.path(dirname(libPath), paste0(basename(libPath), "_snapshots"))
@@ -243,7 +242,7 @@ snapshotLibrary <- function(libPath = .libPaths()[1],
         file.access(where, 2) != 0) {
       if (is.null(fallback))
         stop("library snapshot: cannot write to ", where, " and no fallback directory is set")
-      message("library snapshot: cannot write to ", where, "; using ", fallback, " (files will be copied, not linked)")
+      message("library snapshot: cannot write to ", where, "; using ", fallback)
       where <- fallback
     }
   }
@@ -257,10 +256,9 @@ snapshotLibrary <- function(libPath = .libPaths()[1],
   for (d in dirs) dir.create(file.path(snap, d), recursive = TRUE, showWarnings = FALSE)
   from <- file.path(libPath, files)
   to <- file.path(snap, files)
-  # hardlink: free, and it keeps the old inode alive under a job that has it open
-  ok <- suppressWarnings(file.link(from, to))
-  # another filesystem, or a symlink: copy
-  if (any(!ok)) ok[!ok] <- file.copy(from[!ok], to[!ok], copy.date = TRUE)
+  # a copy, never a hard link: a link shares one inode with the library, so a file
+  # damaged in place there (2026-11-25) is damaged in every job's snapshot too
+  ok <- file.copy(from, to, copy.date = TRUE)
   if (any(!ok)) {
     unlink(snap, recursive = TRUE)
     stop("library snapshot: could not replicate ", sum(!ok), " file(s) from ", libPath, " into ", snap)

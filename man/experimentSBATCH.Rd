@@ -120,7 +120,7 @@ once, now, in a fresh process and only while no worker is alive, before any
 worker starts. Never sync per job.}
 
 \item{snapshot_library}{Logical (default \code{TRUE}). Each worker session takes a
-hardlinked snapshot of the project library before loading anything from it,
+private copy of the project library before loading anything from it,
 so an install into the shared library cannot corrupt a running job. See
 \link{librarySnapshot}.}
 

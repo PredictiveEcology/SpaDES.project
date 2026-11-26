@@ -59,12 +59,12 @@ own \code{setupProject()} needs no \code{packagePath}. A running job's libraries
 never written to.
 \itemize{
 \item \code{newDevLibrary()} makes \verb{<devRoot>/<id>} (\code{id} is the UTC time,
-\code{yyyymmdd-HHMMSS}, and a short random suffix), hardlinks every package of the
-current dev library into it, and installs \code{packages} there, in a fresh R
+\code{yyyymmdd-HHMMSS}, and a short random suffix), copies every package of the
+current dev library into it (a copy, never a hard link: a file damaged in place
+in one library must not be damaged in the others), and installs \code{packages} there, in a fresh R
 process whose \code{.libPaths()} is \verb{c(<new>, stable)}, so what \code{stable} or the
 current dev library already satisfies is not installed again. An install
-replaces a package's folder, so the previous dev library's files (same
-inodes) are left as they were. If nothing was installed, the new directory
+replaces a package's folder, so the previous dev library is left as it was. If nothing was installed, the new directory
 is removed and the current one stays current; otherwise \verb{<devRoot>/current}
 is updated (written to a temporary file, then renamed).
 \item \code{currentDevLibrary()} gives the library path a job should use now.

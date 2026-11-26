@@ -13,12 +13,12 @@
 #' never written to.
 #'
 #' * `newDevLibrary()` makes `<devRoot>/<id>` (`id` is the UTC time,
-#'   `yyyymmdd-HHMMSS`, and a short random suffix), hardlinks every package of the
-#'   current dev library into it, and installs `packages` there, in a fresh R
+#'   `yyyymmdd-HHMMSS`, and a short random suffix), copies every package of the
+#'   current dev library into it (a copy, never a hard link: a file damaged in place
+#'   in one library must not be damaged in the others), and installs `packages` there, in a fresh R
 #'   process whose `.libPaths()` is `c(<new>, stable)`, so what `stable` or the
 #'   current dev library already satisfies is not installed again. An install
-#'   replaces a package's folder, so the previous dev library's files (same
-#'   inodes) are left as they were. If nothing was installed, the new directory
+#'   replaces a package's folder, so the previous dev library is left as it was. If nothing was installed, the new directory
 #'   is removed and the current one stays current; otherwise `<devRoot>/current`
 #'   is updated (written to a temporary file, then renamed).
 #' * `currentDevLibrary()` gives the library path a job should use now.
@@ -117,9 +117,9 @@ newDevLibrary <- function(packages, stable = .stableLibrary(), devRoot = paste0(
   if (length(current) > 1L) {
     pkgDirs <- .packageDirs(current[1])
     if (length(pkgDirs)) {
-      staged <- unlist(linkOrCopyFiles(fromDirs = pkgDirs, toBaseDir = new)$toFilesList)
-      if (!all(file.exists(staged)))
-        stop("newDevLibrary: could not link or copy ", sum(!file.exists(staged)), " file(s) of ",
+      copied <- copyPackageFilesInner(basename(pkgDirs), fromLib = current[1], toLib = new)
+      if (!all(unlist(copied)))
+        stop("newDevLibrary: could not copy ", sum(!unlist(copied)), " package(s) of ",
              current[1], " into ", new, call. = FALSE)
     }
   }
