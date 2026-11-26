@@ -282,3 +282,18 @@ test_that("a launcher with devPackages builds a new dev library and its sbatch s
   body <- paste(readLines(unlist(es$job_scripts)[[1]]), collapse = "\n")
   expect_true(grepl(SpaDES.project:::.devLibraryStartup(dev), body, fixed = TRUE))
 })
+
+test_that("newDevLibrary stops when the seed copy fails, and leaves no new dev library", {
+  skip_if_not_installed("callr")
+  skip_on_os("windows")
+  stable <- mkStable()
+  devRoot <- paste0(stable, "_dev")
+  libs <- newDevLibrary(mkTinyPkg("tinyA", "1.0.0"), stable = stable, devRoot = devRoot,
+                        installFun = installTiny, verbose = 0)
+  before <- list.files(devRoot, all.files = TRUE, no.. = TRUE)
+  testthat::local_mocked_bindings(copyPackageFilesInner = function(Packages, fromLib, toLib) lapply(Packages, function(p) FALSE))
+  expect_error(newDevLibrary(mkTinyPkg("tinyB", "1.0.0"), stable = stable, devRoot = devRoot,
+                             installFun = installTiny, verbose = 0), "could not copy")
+  expect_identical(list.files(devRoot, all.files = TRUE, no.. = TRUE), before)
+  expect_identical(currentDevLibrary(stable, devRoot), libs)
+})

@@ -111,7 +111,8 @@ startup script, before any package is loaded, when \code{snapshot_library = TRUE
 
 \code{libraryInUse()} reports the workers that make a sync unsafe;
 \code{releaseLibrarySnapshot()} removes one snapshot (the worker loop does this at
-exit) and \code{sweepLibrarySnapshots()} removes those whose owning process is gone.
+exit) and \code{sweepLibrarySnapshots()} removes those whose owning process is gone, and the unfinished
+copies (no \code{.snapshot_of} marker) left by an interrupted snapshot once they are over an hour old.
 }
 \examples{
 \dontrun{

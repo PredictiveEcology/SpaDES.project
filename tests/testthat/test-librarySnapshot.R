@@ -295,3 +295,24 @@ test_that("sweepLibrarySnapshots finds dead snapshots in the new and in the old 
   expect_true(all(normalizePath(c(newd, oldd), mustWork = FALSE) %in% normalizePath(removed, mustWork = FALSE)))
   expect_false(dir.exists(newd)); expect_false(dir.exists(oldd))
 })
+
+test_that("a failed snapshot copy errors and leaves no lib_* directory", {
+  skip_on_os("windows")
+  skip_if(Sys.info()[["user"]] == "root", "root can read anything")
+  lib   <- mkFakeLib()
+  where <- withr::local_tempdir()
+  Sys.chmod(file.path(lib, "pkgB", "R", "pkgB.rdb"), "000")
+  withr::defer(Sys.chmod(file.path(lib, "pkgB", "R", "pkgB.rdb"), "644"))
+  expect_error(snapshotLibrary(lib, where = where, id = "host_900", setLibPaths = FALSE), "could not replicate")
+  expect_length(list.files(where, pattern = "^lib_"), 0L)
+})
+
+test_that("sweepLibrarySnapshots removes an old marker-less lib_* (interrupted copy) and keeps a fresh one", {
+  where <- withr::local_tempdir()
+  fresh <- file.path(where, "lib_host_901"); old <- file.path(where, "lib_host_902")
+  for (d in c(fresh, old)) dir.create(file.path(d, "pkgA"), recursive = TRUE)
+  Sys.setFileTime(old, Sys.time() - 2 * 3600)
+  removed <- sweepLibrarySnapshots(where)
+  expect_identical(normalizePath(removed, mustWork = FALSE), normalizePath(old, mustWork = FALSE))
+  expect_true(dir.exists(fresh)); expect_false(dir.exists(old))
+})

@@ -25,7 +25,8 @@
 #'
 #' `libraryInUse()` reports the workers that make a sync unsafe;
 #' `releaseLibrarySnapshot()` removes one snapshot (the worker loop does this at
-#' exit) and `sweepLibrarySnapshots()` removes those whose owning process is gone.
+#' exit) and `sweepLibrarySnapshots()` removes those whose owning process is gone, and the unfinished
+#' copies (no `.snapshot_of` marker) left by an interrupted snapshot once they are over an hour old.
 #'
 #' @param packages Character vector of package specifications as accepted by
 #'   `Require::Install()`, e.g.
@@ -286,14 +287,24 @@ releaseLibrarySnapshot <- function(snapshot = Sys.getenv("SPADES_PROJECT_LIB_SNA
   invisible(TRUE)
 }
 
+# Seconds after which a `lib_*` folder with no `.snapshot_of` marker is taken as an interrupted copy.
+.snapshotAbandonedAge <- 3600
+
 #' @export
 #' @rdname librarySnapshot
 sweepLibrarySnapshots <- function(where = c(getOption("spades.activeRunningPath"), .snapshotDirs())) {
   where <- where[dir.exists(where)]
   if (!length(where)) return(invisible(character()))
   snaps <- list.files(where, pattern = "^lib_", full.names = TRUE)
-  snaps <- snaps[dir.exists(snaps) & file.exists(file.path(snaps, ".snapshot_of"))]
-  if (!length(snaps)) return(invisible(character()))
+  snaps <- snaps[dir.exists(snaps)]
+  # The marker is written last, so a lib_* without one is a copy still under way or
+  # interrupted. It is removed only when abandoned: untouched for `.snapshotAbandonedAge`
+  # (a copy takes seconds), never while it may be made right now.
+  noMarker <- !file.exists(file.path(snaps, ".snapshot_of"))
+  abandoned <- snaps[noMarker][difftime(Sys.time(), file.mtime(snaps[noMarker]), units = "secs") > .snapshotAbandonedAge]
+  for (s in abandoned) unlink(s, recursive = TRUE)
+  snaps <- snaps[!noMarker]
+  if (!length(snaps)) return(invisible(normalizePath(abandoned, mustWork = FALSE)))
   # The id is `<host>_<pid>` or `<host>_<pid>-<token>`. A snapshot made on another
   # host, or in another PID namespace, cannot be judged from here (its pid means
   # nothing in this process's namespace), so it is left alone. A marker with no
@@ -311,7 +322,7 @@ sweepLibrarySnapshots <- function(where = c(getOption("spades.activeRunningPath"
   # normalised before unlinking, so the return value matches what snapshotLibrary() gave out
   gone <- normalizePath(snaps[dead], mustWork = FALSE)
   for (s in snaps[dead]) unlink(s, recursive = TRUE)
-  invisible(gone)
+  invisible(c(normalizePath(abandoned, mustWork = FALSE), gone))
 }
 
 .deparseAs <- function(name, fun) paste0(name, " <- ", paste(deparse(fun, control = "useSource"), collapse = "\n"), "\n")
