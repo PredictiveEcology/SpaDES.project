@@ -3747,11 +3747,11 @@ setupSpaDES.ProjectDeps <- function(paths,
   if (length(needCopy)) {
     pkgs <- names(depsAlreadyInstalled)[needCopy]
     messageVerbose("Copying ", paste(pkgs, collapse = ", "), " packages to ",
-                   paths[["packagePath"]], "", verbose = verbose)
+                   paths[["packagePath"]][1], "", verbose = verbose)
 
     # a packagePath of several paths: the first is the new, writable library
     Map(pkg = pkgs, from = nsPaths[needCopy], function(pkg, from) {
-      isInstalled <- file.exists(file.path(from, pkg, "INDEX"))
+      isInstalled <- file.exists(file.path(from, pkg, "Meta", "package.rds"))
       if (isInstalled)
         copyPackages(pkg, from = from, to = paths[["packagePath"]][1], verbose = 0)
     })

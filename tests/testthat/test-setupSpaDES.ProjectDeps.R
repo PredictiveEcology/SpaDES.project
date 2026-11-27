@@ -32,18 +32,12 @@ test_that("packages copied into a new project library bring their own dependenci
 ## in one library (2026-11-25: 26,525 files emptied) was damaged in every
 ## library that shared its inode. Tiny local packages; no user library involved.
 
-## The copy skips a package with no INDEX (not installed); a tiny package built without help pages has none.
-installTinyWithIndex <- function(srcs, lib) {
-  installTiny(srcs, lib)
-  for (pkg in basename(srcs)) writeLines(paste(pkg, "Tiny"), file.path(lib, pkg, "INDEX"))
-}
-
 test_that("bootstrap packages are copied into the project library, not hard-linked", {
   skip_if_not_installed("callr")
   skip_if_not_installed("fs")
   skip_on_os("windows")
   srcLib <- withr::local_tempdir("srcLib")
-  installTinyWithIndex(c(mkTinyPkg("tinyA", "1.0.0"), mkTinyPkg("tinyB", "1.0.0")), srcLib)
+  installTiny(c(mkTinyPkg("tinyA", "1.0.0"), mkTinyPkg("tinyB", "1.0.0")), srcLib)
   projLib <- withr::local_tempdir("projLib")
 
   setupSpaDES.ProjectDeps(paths = list(packagePath = projLib), deps = c("tinyA", "tinyB"),
@@ -81,7 +75,7 @@ test_that("bootstrap packages load from the project library", {
   skip_if_not_installed("callr")
   skip_on_os("windows")
   srcLib <- withr::local_tempdir("srcLib")
-  installTinyWithIndex(mkTinyPkg("tinyA", "1.0.0"), srcLib)
+  installTiny(mkTinyPkg("tinyA", "1.0.0"), srcLib)
   projLib <- withr::local_tempdir("projLib")
   setupSpaDES.ProjectDeps(paths = list(packagePath = projLib), deps = "tinyA",
                           prevLibPaths = srcLib, verbose = 0)
@@ -91,4 +85,16 @@ test_that("bootstrap packages load from the project library", {
   }, libpath = projLib)
   expect_identical(unname(out["f_tinyA"]), "1.0.0")
   expect_identical(normalizePath(unname(out["path"])), normalizePath(projLib))
+})
+
+test_that("a package installed without help pages (no INDEX) is still copied", {
+  skip_if_not_installed("callr")
+  skip_on_os("windows")
+  srcLib <- withr::local_tempdir("srcLib")
+  installTiny(mkTinyPkg("tinyA", "1.0.0"), srcLib)
+  expect_false(file.exists(file.path(srcLib, "tinyA", "INDEX")))
+  projLib <- withr::local_tempdir("projLib")
+  setupSpaDES.ProjectDeps(paths = list(packagePath = projLib), deps = "tinyA",
+                          prevLibPaths = srcLib, verbose = 0)
+  expect_true(file.exists(file.path(projLib, "tinyA", "Meta", "package.rds")))
 })
