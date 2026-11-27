@@ -3747,12 +3747,13 @@ setupSpaDES.ProjectDeps <- function(paths,
   if (length(needCopy)) {
     pkgs <- names(depsAlreadyInstalled)[needCopy]
     messageVerbose("Copying ", paste(pkgs, collapse = ", "), " packages to ",
-                   paths[["packagePath"]], "", verbose = verbose)
+                   paths[["packagePath"]][1], "", verbose = verbose)
 
+    # a packagePath of several paths: the first is the new, writable library
     Map(pkg = pkgs, from = nsPaths[needCopy], function(pkg, from) {
-      isInstalled <- file.exists(file.path(from, pkg, "INDEX"))
+      isInstalled <- file.exists(file.path(from, pkg, "Meta", "package.rds"))
       if (isInstalled)
-        copyPackages(pkg, from = from, to = paths[["packagePath"]], verbose = 0)
+        copyPackages(pkg, from = from, to = paths[["packagePath"]][1], verbose = 0)
     })
     messageVerbose("If you have difficulties, please restart R", verbose = verbose)
   }
@@ -4010,22 +4011,23 @@ stop_quietly <- function(mess) {
 }
 
 
+# Copies, never hard-links: a hard link shares one file between libraries, so a file damaged in
+# place in the user's library was damaged in every project library too (2026-11-25).
+# Require copies into a 00CLONE-* folder in `to`, then renames, so a failed copy leaves no
+# partial package folder.
 copyPackages <- function(pkgs, from = .libPaths()[1], to, verbose) {
   messageVerbose("Copying ", paste(pkgs, collapse = ", "), " packages to ",
                  to, "", verbose = verbose)
 
   if (!identical(normPath(from), to) &&
-      (!identical(dirname(normPath(from)), to)))
-    for (pkg in pkgs) {
-      pkgDir <- file.path(from, pkg)
-      de <- dir.exists(pkgDir)
-      pkgDir <- pkgDir[de][1]
-      files1 <- dir(pkgDir, all.files = TRUE, recursive = TRUE)
-      newFiles <- file.path(to, pkg, files1)
-      lapply(unique(dirname(newFiles)), dir.create, recursive = TRUE, showWarnings = FALSE)
-      oldFiles <- file.path(pkgDir, files1)
-      linkOrCopy(oldFiles, newFiles)
-    }
+      (!identical(dirname(normPath(from)), to))) {
+    copied <- copyPackageFilesInner(pkgs, fromLib = from, toLib = to)
+    failed <- pkgs[!unlist(copied)]
+    if (length(failed))
+      warning("Could not copy ", paste(failed, collapse = ", "), " from ", from, " into ", to,
+              call. = FALSE)
+  }
+  invisible()
 }
 
 
